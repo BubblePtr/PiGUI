@@ -8,11 +8,11 @@ Pig is a passive flight recorder for the Pi coding agent. It reads Pi's session 
 
 ### Issue tracker
 
-Issues live as local Markdown files under `.scratch/<feature>/` — no remote issue tracker. External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+Issues live in **Multica** (the agent-orchestration platform driving the EverWard Works squad), managed via the `multica` CLI — native statuses track execution, the five triage roles are applied as labels. PRDs stay in-repo under `.scratch/<feature>/PRD.md`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Using the default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+The default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), applied as Multica labels. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
