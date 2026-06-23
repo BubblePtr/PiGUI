@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { RefreshCw } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type SessionSummary = {
   id: string;
@@ -70,6 +70,24 @@ async function listSessions() {
   return invoke<SessionSummary[]>("list_sessions");
 }
 
+// Distinct project names for the filter control, sorted for a stable menu.
+export function distinctProjects<T extends { project: string }>(sessions: T[]): string[] {
+  return Array.from(new Set(sessions.map((session) => session.project))).sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+// A null project means "all projects" — the list is shown unfiltered.
+export function filterByProject<T extends { project: string }>(
+  sessions: T[],
+  project: string | null,
+): T[] {
+  if (!project) {
+    return sessions;
+  }
+  return sessions.filter((session) => session.project === project);
+}
+
 function SessionTitle({ title }: { title: Title }) {
   if (title.kind === "command") {
     return (
@@ -109,7 +127,13 @@ export function SessionListPage() {
     queryFn: listSessions,
   });
   const { refetch } = sessions;
-  const sessionRows = sessions.data ?? [];
+  const allSessions = sessions.data ?? [];
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const projects = useMemo(() => distinctProjects(allSessions), [allSessions]);
+  const sessionRows = useMemo(
+    () => filterByProject(allSessions, selectedProject),
+    [allSessions, selectedProject],
+  );
 
   useEffect(() => {
     let disposed = false;
@@ -145,16 +169,36 @@ export function SessionListPage() {
             <h1 className="text-xl font-semibold tracking-normal">Pig</h1>
             <p className="mt-1 text-sm text-muted">Recent Pi sessions</p>
           </div>
-          <button
-            type="button"
-            className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={() => sessions.refetch()}
-            disabled={sessions.isFetching}
-            title="Refresh sessions"
-            aria-label="Refresh sessions"
-          >
-            <RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="project-filter">
+              Filter by project
+            </label>
+            <select
+              id="project-filter"
+              className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-foreground shadow-sm transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
+              value={selectedProject ?? "all"}
+              onChange={(event) =>
+                setSelectedProject(event.target.value === "all" ? null : event.target.value)
+              }
+            >
+              <option value="all">All projects</option>
+              {projects.map((project) => (
+                <option key={project} value={project}>
+                  {project}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => sessions.refetch()}
+              disabled={sessions.isFetching}
+              title="Refresh sessions"
+              aria-label="Refresh sessions"
+            >
+              <RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </header>
 
         <section className="mt-6 overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
