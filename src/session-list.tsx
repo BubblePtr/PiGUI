@@ -74,30 +74,30 @@ function SessionTitle({ title }: { title: Title }) {
   if (title.kind === "command") {
     return (
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
-          <span aria-hidden="true">⚡</span>
-          <span className="truncate">{title.name}</span>
+        <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
+          <span aria-hidden="true" className="shrink-0">⚡</span>
+          <span className="block truncate">{title.name}</span>
         </span>
-        {title.args ? <span className="truncate text-xs text-muted">{title.args}</span> : null}
+        {title.args ? <span className="block truncate text-xs text-muted">{title.args}</span> : null}
       </div>
     );
   }
 
   if (title.kind === "skill") {
     return (
-      <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
-        <span aria-hidden="true">🧩</span>
-        <span className="truncate">{title.name}</span>
+      <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
+        <span aria-hidden="true" className="shrink-0">🧩</span>
+        <span className="block truncate">{title.name}</span>
       </span>
     );
   }
 
   if (title.kind === "text") {
-    return <span className="truncate text-sm text-foreground">{title.sentence}</span>;
+    return <span className="block truncate text-sm text-foreground">{title.sentence}</span>;
   }
 
   return (
-    <span className="truncate text-sm text-muted">
+    <span className="block truncate text-sm text-muted">
       {title.text.length > 0 ? title.text : "Untitled session"}
     </span>
   );

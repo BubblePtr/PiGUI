@@ -15,6 +15,7 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 const MAX_TEXT_TITLE_CHARS: usize = 96;
+const MAX_COMMAND_ARGS_CHARS: usize = 80;
 const SENTENCE_TERMINATORS: [char; 6] = ['.', '!', '?', '。', '！', '？'];
 
 #[derive(Debug, Error)]
@@ -181,6 +182,18 @@ pub struct SessionIndexCache {
     misses: usize,
 }
 
+/// The nested "message" object used by the real Pi session format.
+/// Role, content, model, usage, and cost are all inside this envelope.
+#[derive(Debug, Deserialize)]
+struct MessageBody {
+    #[serde(default)]
+    role: Option<MessageRole>,
+    #[serde(default)]
+    content: Option<Value>,
+    #[serde(flatten)]
+    fields: BTreeMap<String, Value>,
+}
+
 #[derive(Debug, Deserialize)]
 struct EventRecord {
     #[serde(rename = "type")]
@@ -191,12 +204,181 @@ struct EventRecord {
     timestamp: Option<DateTime<Utc>>,
     #[serde(default)]
     cwd: Option<String>,
+    // Legacy format: role and content at the top level (used by test fixtures)
     #[serde(default)]
     role: Option<MessageRole>,
     #[serde(default)]
     content: Option<Value>,
     #[serde(flatten)]
     fields: BTreeMap<String, Value>,
+    // Current Pi format: role, content, model, usage, cost nested inside "message"
+    #[serde(default)]
+    message: Option<MessageBody>,
+}
+
+impl EventRecord {
+    /// Returns the effective role, preferring the nested message format.
+    fn effective_role(&self) -> Option<&MessageRole> {
+        self.message
+            .as_ref()
+            .and_then(|m| m.role.as_ref())
+            .or_else(|| self.role.as_ref())
+    }
+
+    /// Returns the effective content, preferring the nested message format.
+    fn effective_content(&self) -> Option<&Value> {
+        self.message
+            .as_ref()
+            .and_then(|m| m.content.as_ref())
+            .or_else(|| self.content.as_ref())
+    }
+
+    /// Looks up a key in both the top-level fields and the nested message fields.
+    fn effective_field(&self, key: &str) -> Option<&Value> {
+        self.fields
+            .get(key)
+            .or_else(|| self.message.as_ref()?.fields.get(key))
+    }
+
+    /// Resolves the model for this record, updating the metrics current-model cache.
+    fn message_model(&self, metrics: &mut SessionMetrics) -> Option<String> {
+        if let Some(model) = string_field_from_record(self, &["model", "currentModel"]) {
+            metrics.current_model = Some(model.clone());
+            return Some(model);
+        }
+
+        metrics.current_model.clone()
+    }
+
+    fn token_usage(&self) -> Option<TokenUsage> {
+        let usage = self.effective_field("usage")?;
+        let usage_object = usage.as_object()?;
+
+        let input_tokens = u64_field(
+            usage_object,
+            &[
+                "inputTokens",
+                "input_tokens",
+                "promptTokens",
+                "prompt_tokens",
+            ],
+        );
+        let output_tokens = u64_field(
+            usage_object,
+            &[
+                "outputTokens",
+                "output_tokens",
+                "completionTokens",
+                "completion_tokens",
+            ],
+        );
+        let cache_read_tokens = u64_field(
+            usage_object,
+            &[
+                "cacheReadTokens",
+                "cache_read_tokens",
+                "cachedInputTokens",
+                "cached_input_tokens",
+                "cachedTokens",
+                "cached_tokens",
+            ],
+        );
+        let cache_write_tokens = u64_field(
+            usage_object,
+            &[
+                "cacheWriteTokens",
+                "cache_write_tokens",
+                "cacheCreationInputTokens",
+                "cache_creation_input_tokens",
+            ],
+        );
+        let total_tokens = u64_field(usage_object, &["totalTokens", "total_tokens", "total"])
+            .unwrap_or(input_tokens.unwrap_or(0) + output_tokens.unwrap_or(0));
+
+        Some(TokenUsage {
+            input_tokens: input_tokens.unwrap_or(0),
+            output_tokens: output_tokens.unwrap_or(0),
+            cache_read_tokens: cache_read_tokens.unwrap_or(0),
+            cache_write_tokens: cache_write_tokens.unwrap_or(0),
+            total_tokens,
+        })
+    }
+
+    fn cost_breakdown(&self) -> Option<CostBreakdown> {
+        let value = self
+            .effective_field("cost")
+            .or_else(|| self.effective_field("usage")?.get("cost"))?;
+
+        if let Some(total_usd) = value.as_f64() {
+            return Some(CostBreakdown {
+                total_usd,
+                ..CostBreakdown::default()
+            });
+        }
+
+        let object = value.as_object()?;
+        let input_usd = f64_field(
+            object,
+            &["inputUsd", "input_usd", "inputCost", "input_cost", "input"],
+        )
+        .unwrap_or(0.0);
+        let output_usd = f64_field(
+            object,
+            &[
+                "outputUsd",
+                "output_usd",
+                "outputCost",
+                "output_cost",
+                "output",
+            ],
+        )
+        .unwrap_or(0.0);
+        let cache_read_usd = f64_field(
+            object,
+            &[
+                "cacheReadUsd",
+                "cache_read_usd",
+                "cacheReadCost",
+                "cache_read_cost",
+                "cacheRead",
+                "cache_read",
+            ],
+        )
+        .unwrap_or(0.0);
+        let cache_write_usd = f64_field(
+            object,
+            &[
+                "cacheWriteUsd",
+                "cache_write_usd",
+                "cacheWriteCost",
+                "cache_write_cost",
+                "cacheWrite",
+                "cache_write",
+            ],
+        )
+        .unwrap_or(0.0);
+        let total_usd = f64_field(
+            object,
+            &[
+                "totalUsd",
+                "total_usd",
+                "totalCostUsd",
+                "total_cost_usd",
+                "totalCost",
+                "total_cost",
+                "total",
+            ],
+        )
+        .unwrap_or(input_usd + output_usd + cache_read_usd + cache_write_usd);
+
+        Some(CostBreakdown {
+            input_usd,
+            output_usd,
+            cache_read_usd,
+            cache_write_usd,
+            total_usd,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -254,36 +436,70 @@ impl SessionParser {
             }
             "message" => {
                 self.metrics.touch(record.timestamp);
-                let model = self.metrics.message_model(&record);
-                let usage = token_usage_from_record(&record);
-                let cost = cost_breakdown_from_record(&record);
+                let model = record.message_model(&mut self.metrics);
+                let usage = record.token_usage();
+                let cost = record.cost_breakdown();
+                let effective_role = record.effective_role();
 
-                if record.role.as_ref() == Some(&MessageRole::Assistant) {
+                if effective_role == Some(&MessageRole::Assistant) {
                     self.metrics.aggregate_assistant_message(
                         model.as_deref(),
                         usage.as_ref(),
                         cost.as_ref(),
                     );
                 }
+
+                // Merge tool results into the most recent assistant turn so
+                // tool calls and their outputs appear together as one turn.
+                if effective_role == Some(&MessageRole::ToolResult)
+                    && self.try_merge_tool_result(&record)
+                {
+                    return Ok(SessionStateUpdate::TurnAppended(
+                        self.detail.as_ref().unwrap().turns.last().unwrap().clone(),
+                    ));
+                }
+
                 self.metrics.turn_count += 1;
 
                 let turn = SessionTurn {
                     kind: SessionTurnKind::Message,
-                    role: record.role,
+                    role: effective_role.cloned(),
                     timestamp: record.timestamp.map(|timestamp| timestamp.to_rfc3339()),
                     title: None,
                     model,
                     usage,
                     cost,
-                    parts: content_parts(record.content),
+                    parts: content_parts(record.effective_content().cloned()),
                 };
                 self.append_turn(turn)
             }
             "model_change" | "thinking_level_change" => {
                 self.metrics.touch(record.timestamp);
                 if record.event_type == "model_change" {
-                    self.metrics.current_model = string_field(&record.fields, &["to", "model"])
+                    self.metrics.current_model = record
+                        .effective_field("to")
+                        .or_else(|| record.effective_field("model"))
+                        .and_then(Value::as_str)
+                        .filter(|v| !v.is_empty())
+                        .map(ToOwned::to_owned)
                         .or_else(|| self.metrics.current_model.clone());
+                }
+
+                // Merge top-level and nested-message fields for annotation payload
+                let mut annotation_fields = self.metrics.current_model.clone()
+                    .map(|model| {
+                        let mut map = serde_json::Map::new();
+                        map.insert("model".to_owned(), Value::String(model));
+                        map
+                    })
+                    .unwrap_or_default();
+                for (k, v) in record.fields.iter() {
+                    annotation_fields.entry(k.clone()).or_insert_with(|| v.clone());
+                }
+                if let Some(ref msg) = record.message {
+                    for (k, v) in msg.fields.iter() {
+                        annotation_fields.entry(k.clone()).or_insert_with(|| v.clone());
+                    }
                 }
 
                 let turn = SessionTurn {
@@ -298,9 +514,7 @@ impl SessionParser {
                         part_type: record.event_type,
                         text: None,
                         name: None,
-                        payload: Value::Object(
-                            record.fields.into_iter().collect::<serde_json::Map<_, _>>(),
-                        ),
+                        payload: Value::Object(annotation_fields),
                     }],
                 };
                 self.append_turn(turn)
@@ -321,6 +535,62 @@ impl SessionParser {
         detail.turns.push(turn.clone());
         self.sync_detail_metrics();
         Ok(SessionStateUpdate::TurnAppended(turn))
+    }
+
+    /// Merges a tool-result record into the most recent assistant turn as a
+    /// content part, so tool calls and their outputs stay together in one turn.
+    fn try_merge_tool_result(&mut self, record: &EventRecord) -> bool {
+        let detail = match self.detail.as_mut() {
+            Some(d) => d,
+            None => return false,
+        };
+
+        let assistant_turn = match detail
+            .turns
+            .iter_mut()
+            .rev()
+            .find(|t| t.kind == SessionTurnKind::Message && t.role == Some(MessageRole::Assistant))
+        {
+            Some(t) => t,
+            None => return false,
+        };
+
+        let tool_name = record
+            .effective_field("toolName")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned);
+
+        // Collect all text from the tool result content array
+        let mut result_text = String::new();
+        if let Some(content) = record.effective_content() {
+            if let Value::Array(items) = content {
+                for item in items {
+                    if let Some(text) = text_value(item) {
+                        if !result_text.is_empty() {
+                            result_text.push('\n');
+                        }
+                        result_text.push_str(text);
+                    }
+                }
+            } else if let Some(text) = text_value(content) {
+                result_text.push_str(text);
+            }
+        }
+
+        let result_text = if result_text.is_empty() {
+            None
+        } else {
+            Some(result_text)
+        };
+
+        assistant_turn.parts.push(SessionContentPart {
+            part_type: "toolResult".to_owned(),
+            text: result_text,
+            name: tool_name,
+            payload: Value::Null,
+        });
+
+        true
     }
 
     fn sync_detail_metrics(&mut self) {
@@ -473,7 +743,8 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
         match record.event_type.as_str() {
             "session" => {
                 metrics.touch(record.timestamp);
-                metrics.current_model = string_field(&record.fields, &["model", "currentModel"]);
+                metrics.current_model =
+                    string_field_from_record(&record, &["model", "currentModel"]);
 
                 if let (Some(id), Some(timestamp), Some(cwd)) =
                     (record.id, record.timestamp, record.cwd)
@@ -483,15 +754,16 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
             }
             "model_change" => {
                 metrics.touch(record.timestamp);
-                metrics.current_model = string_field(&record.fields, &["to", "model"])
-                    .or_else(|| metrics.current_model.clone());
+                metrics.current_model =
+                    string_field_from_record(&record, &["to", "model"])
+                        .or_else(|| metrics.current_model.clone());
             }
             "message"
-                if record.role.as_ref() == Some(&MessageRole::User)
+                if record.effective_role() == Some(&MessageRole::User)
                     && first_user_message.is_none() =>
             {
                 metrics.touch(record.timestamp);
-                first_user_message = first_text_from_content(record.content);
+                first_user_message = first_text_from_content(record.effective_content().cloned());
             }
             "message" => {
                 metrics.touch(record.timestamp);
@@ -499,7 +771,7 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
                 let usage = token_usage_from_record(&record);
                 let cost = cost_breakdown_from_record(&record);
 
-                if record.role.as_ref() == Some(&MessageRole::Assistant) {
+                if record.effective_role() == Some(&MessageRole::Assistant) {
                     metrics.aggregate_assistant_message(
                         model.as_deref(),
                         usage.as_ref(),
@@ -599,9 +871,13 @@ impl SessionMetrics {
     }
 
     fn message_model(&mut self, record: &EventRecord) -> Option<String> {
-        if let Some(model) = string_field(&record.fields, &["model", "currentModel"]) {
-            self.current_model = Some(model.clone());
-            return Some(model);
+        if let Some(model) = record.effective_field("model")
+            .or_else(|| record.effective_field("currentModel"))
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+        {
+            self.current_model = Some(model.to_owned());
+            return Some(model.to_owned());
         }
 
         self.current_model.clone()
@@ -703,137 +979,11 @@ fn text_value(value: &Value) -> Option<&str> {
 }
 
 fn token_usage_from_record(record: &EventRecord) -> Option<TokenUsage> {
-    let usage = record.fields.get("usage")?;
-    let usage_object = usage.as_object()?;
-
-    let input_tokens = u64_field(
-        usage_object,
-        &[
-            "inputTokens",
-            "input_tokens",
-            "promptTokens",
-            "prompt_tokens",
-        ],
-    );
-    let output_tokens = u64_field(
-        usage_object,
-        &[
-            "outputTokens",
-            "output_tokens",
-            "completionTokens",
-            "completion_tokens",
-        ],
-    );
-    let cache_read_tokens = u64_field(
-        usage_object,
-        &[
-            "cacheReadTokens",
-            "cache_read_tokens",
-            "cachedInputTokens",
-            "cached_input_tokens",
-            "cachedTokens",
-            "cached_tokens",
-        ],
-    );
-    let cache_write_tokens = u64_field(
-        usage_object,
-        &[
-            "cacheWriteTokens",
-            "cache_write_tokens",
-            "cacheCreationInputTokens",
-            "cache_creation_input_tokens",
-        ],
-    );
-    let total_tokens = u64_field(usage_object, &["totalTokens", "total_tokens", "total"])
-        .unwrap_or(input_tokens.unwrap_or(0) + output_tokens.unwrap_or(0));
-
-    Some(TokenUsage {
-        input_tokens: input_tokens.unwrap_or(0),
-        output_tokens: output_tokens.unwrap_or(0),
-        cache_read_tokens: cache_read_tokens.unwrap_or(0),
-        cache_write_tokens: cache_write_tokens.unwrap_or(0),
-        total_tokens,
-    })
+    record.token_usage()
 }
 
 fn cost_breakdown_from_record(record: &EventRecord) -> Option<CostBreakdown> {
-    record
-        .fields
-        .get("cost")
-        .or_else(|| record.fields.get("usage")?.get("cost"))
-        .and_then(cost_breakdown_from_value)
-}
-
-fn cost_breakdown_from_value(value: &Value) -> Option<CostBreakdown> {
-    if let Some(total_usd) = value.as_f64() {
-        return Some(CostBreakdown {
-            total_usd,
-            ..CostBreakdown::default()
-        });
-    }
-
-    let object = value.as_object()?;
-    let input_usd = f64_field(
-        object,
-        &["inputUsd", "input_usd", "inputCost", "input_cost", "input"],
-    )
-    .unwrap_or(0.0);
-    let output_usd = f64_field(
-        object,
-        &[
-            "outputUsd",
-            "output_usd",
-            "outputCost",
-            "output_cost",
-            "output",
-        ],
-    )
-    .unwrap_or(0.0);
-    let cache_read_usd = f64_field(
-        object,
-        &[
-            "cacheReadUsd",
-            "cache_read_usd",
-            "cacheReadCost",
-            "cache_read_cost",
-            "cacheRead",
-            "cache_read",
-        ],
-    )
-    .unwrap_or(0.0);
-    let cache_write_usd = f64_field(
-        object,
-        &[
-            "cacheWriteUsd",
-            "cache_write_usd",
-            "cacheWriteCost",
-            "cache_write_cost",
-            "cacheWrite",
-            "cache_write",
-        ],
-    )
-    .unwrap_or(0.0);
-    let total_usd = f64_field(
-        object,
-        &[
-            "totalUsd",
-            "total_usd",
-            "totalCostUsd",
-            "total_cost_usd",
-            "totalCost",
-            "total_cost",
-            "total",
-        ],
-    )
-    .unwrap_or(input_usd + output_usd + cache_read_usd + cache_write_usd);
-
-    Some(CostBreakdown {
-        input_usd,
-        output_usd,
-        cache_read_usd,
-        cache_write_usd,
-        total_usd,
-    })
+    record.cost_breakdown()
 }
 
 fn string_field(fields: &BTreeMap<String, Value>, keys: &[&str]) -> Option<String> {
@@ -841,6 +991,20 @@ fn string_field(fields: &BTreeMap<String, Value>, keys: &[&str]) -> Option<Strin
         .find_map(|key| fields.get(*key)?.as_str())
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// Like `string_field` but searches both top-level fields and nested message fields.
+fn string_field_from_record(record: &EventRecord, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        if let Some(value) = record.effective_field(key) {
+            if let Some(s) = value.as_str() {
+                if !s.is_empty() {
+                    return Some(s.to_owned());
+                }
+            }
+        }
+    }
+    None
 }
 
 fn u64_field(object: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<u64> {
@@ -936,7 +1100,8 @@ fn parse_command(text: &str) -> Option<(String, String)> {
         return None;
     }
 
-    Some((name.to_owned(), args.to_owned()))
+    let args = truncate_at_word_boundary(args, MAX_COMMAND_ARGS_CHARS);
+    Some((name.to_owned(), args))
 }
 
 fn parse_skill_name(text: &str) -> Option<String> {
@@ -1133,6 +1298,7 @@ mod tests {
 
         assert_eq!(detail.id, "middle-session");
         assert_eq!(detail.project, "beta");
+        // Tool result is merged into the preceding assistant turn, so only 4 turns.
         assert_eq!(
             detail
                 .turns
@@ -1144,23 +1310,28 @@ mod tests {
                 (&SessionTurnKind::Annotation, None),
                 (&SessionTurnKind::Message, Some(&MessageRole::User)),
                 (&SessionTurnKind::Message, Some(&MessageRole::Assistant)),
-                (&SessionTurnKind::Message, Some(&MessageRole::ToolResult)),
             ]
         );
+        // The assistant turn now includes the tool result parts.
         assert_eq!(
             detail.turns[3]
                 .parts
                 .iter()
                 .map(|part| part.part_type.as_str())
                 .collect::<Vec<_>>(),
-            vec!["thinking", "text", "toolCall", "image"]
+            vec!["thinking", "text", "toolCall", "image", "toolResult"]
         );
         assert_eq!(
             detail.turns[3].parts[0].text.as_deref(),
             Some("Need to inspect the tree.")
         );
         assert_eq!(detail.turns[3].parts[2].name.as_deref(), Some("list_files"));
-        assert_eq!(detail.turns[4].parts[0].part_type, "text");
+        // The merged tool result has the output text.
+        assert_eq!(detail.turns[3].parts[4].part_type, "toolResult");
+        assert_eq!(
+            detail.turns[3].parts[4].text.as_deref(),
+            Some("src/main.tsx\nsrc-tauri/src/lib.rs")
+        );
     }
 
     #[test]
@@ -1210,7 +1381,8 @@ mod tests {
         assert!(matches!(updates[0], SessionStateUpdate::SessionStarted(_)));
         assert!(matches!(updates[1], SessionStateUpdate::TurnAppended(_)));
         assert!(matches!(updates[3], SessionStateUpdate::TurnAppended(_)));
-        assert_eq!(parser.finish().expect("session started").turns.len(), 5);
+        // Tool result is merged into the assistant turn, so 4 turns total.
+        assert_eq!(parser.finish().expect("session started").turns.len(), 4);
     }
 
     #[test]
@@ -1219,7 +1391,8 @@ mod tests {
             .expect("fixture detail should load");
 
         assert_eq!(detail.id, "middle-session");
-        assert_eq!(detail.turns.len(), 5);
+        // Tool result merged into assistant turn: 4 turns instead of 5.
+        assert_eq!(detail.turns.len(), 4);
     }
 
     #[test]
@@ -1290,6 +1463,46 @@ mod tests {
     }
 
     #[test]
+    fn parse_session_with_nested_message_format() {
+        // Real Pi session format: role/content/usage/cost nested inside "message"
+        let jsonl = r#"{"type":"session","id":"test-nested","timestamp":"2026-06-23T10:00:00.000Z","cwd":"/Users/test/proj"}
+{"type":"message","id":"msg1","parentId":null,"timestamp":"2026-06-23T10:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"Hello world"}]}}
+{"type":"message","id":"msg2","parentId":"msg1","timestamp":"2026-06-23T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Let me think."},{"type":"text","text":"Hi there!"},{"type":"toolCall","name":"list_files","arguments":{"path":"."}}],"model":"gpt-5","usage":{"input":100,"output":50,"totalTokens":150},"cost":{"input":0.01,"output":0.02,"total":0.03}}}"#;
+
+        let detail = parse_session(jsonl).expect("should parse nested format");
+
+        assert_eq!(detail.turns.len(), 2, "should have 2 turns");
+        assert_eq!(detail.turns[0].role, Some(MessageRole::User), "user role");
+        assert_eq!(detail.turns[0].parts.len(), 1, "user should have 1 part");
+        assert_eq!(detail.turns[0].parts[0].text.as_deref(), Some("Hello world"));
+        assert_eq!(detail.turns[0].parts[0].part_type, "text");
+        assert_eq!(detail.turns[1].role, Some(MessageRole::Assistant), "assistant role");
+        assert_eq!(detail.turns[1].parts.len(), 3, "assistant should have thinking + text + toolCall");
+        assert_eq!(detail.turns[1].parts[0].part_type, "thinking");
+        assert_eq!(detail.turns[1].parts[0].text.as_deref(), Some("Let me think."));
+        assert_eq!(detail.turns[1].parts[1].text.as_deref(), Some("Hi there!"));
+        assert_eq!(detail.turns[1].parts[2].part_type, "toolCall");
+        assert_eq!(detail.turns[1].parts[2].name.as_deref(), Some("list_files"));
+        assert_eq!(detail.turns[1].model.as_deref(), Some("gpt-5"));
+        assert_eq!(detail.turns[1].usage.as_ref().unwrap().total_tokens, 150);
+        assert_cost_eq(detail.turns[1].cost.as_ref().unwrap().total_usd, 0.03);
+        assert_eq!(detail.total_tokens, 150);
+        assert_cost_eq(detail.total_cost_usd, 0.03);
+    }
+
+    #[test]
+    fn classify_title_truncates_long_command_args() {
+        assert_eq!(
+            classify_title("/search this is a very long argument string that should be truncated at the word boundary to fit the maximum allowed characters for command args"),
+            Title::Command {
+                name: "search".to_owned(),
+                args: "this is a very long argument string that should be truncated at the word..."
+                    .to_owned(),
+            }
+        );
+    }
+
+    #[test]
     fn classify_title_compacts_multiline_whitespace() {
         assert_eq!(
             classify_title("Explain\n\nthis\tchange please."),
@@ -1299,3 +1512,6 @@ mod tests {
         );
     }
 }
+
+
+
