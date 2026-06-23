@@ -13,6 +13,9 @@ use serde_json::Value;
 use thiserror::Error;
 use walkdir::WalkDir;
 
+const MAX_TEXT_TITLE_CHARS: usize = 96;
+const SENTENCE_TERMINATORS: [char; 6] = ['.', '!', '?', '。', '！', '？'];
+
 #[derive(Debug, Error)]
 pub enum SessionIndexError {
     #[error("HOME is not set and PI_CODING_AGENT_DIR was not provided")]
@@ -59,6 +62,16 @@ pub struct SessionSummary {
     pub id: String,
     pub timestamp: String,
     pub project: String,
+    pub title: Title,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Title {
+    Command { name: String, args: String },
+    Skill { name: String },
+    Text { sentence: String },
+    Raw { text: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -115,15 +128,6 @@ pub struct SessionContentPart {
 struct IndexedSession {
     summary: SessionSummary,
     sort_timestamp: DateTime<Utc>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SessionRecord {
-    #[serde(rename = "type")]
-    record_type: String,
-    id: String,
-    timestamp: DateTime<Utc>,
-    cwd: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -336,6 +340,8 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
         source,
     })?;
     let reader = BufReader::new(file);
+    let mut session_record = None;
+    let mut first_user_message = None;
 
     for line in reader.lines() {
         let line = line.map_err(|source| SessionIndexError::ReadSession {
@@ -343,25 +349,69 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
             source,
         })?;
 
-        let Ok(record) = serde_json::from_str::<SessionRecord>(&line) else {
+        let Ok(record) = serde_json::from_str::<EventRecord>(&line) else {
             continue;
         };
-        if record.record_type != "session" {
-            continue;
+
+        match record.event_type.as_str() {
+            "session" => {
+                if let (Some(id), Some(timestamp), Some(cwd)) =
+                    (record.id, record.timestamp, record.cwd)
+                {
+                    session_record = Some((id, timestamp, cwd));
+                }
+            }
+            "message"
+                if record.role.as_ref() == Some(&MessageRole::User)
+                    && first_user_message.is_none() =>
+            {
+                first_user_message = first_text_from_content(record.content);
+            }
+            _ => {}
         }
 
-        let timestamp = record.timestamp.to_rfc3339();
-        return Ok(Some(IndexedSession {
-            summary: SessionSummary {
-                id: record.id,
-                timestamp,
-                project: derive_project_name(&record.cwd),
-            },
-            sort_timestamp: record.timestamp,
-        }));
+        if session_record.is_some() && first_user_message.is_some() {
+            break;
+        }
     }
 
-    Ok(None)
+    let Some((id, sort_timestamp, cwd)) = session_record else {
+        return Ok(None);
+    };
+
+    let timestamp = sort_timestamp.to_rfc3339();
+    Ok(Some(IndexedSession {
+        summary: SessionSummary {
+            id,
+            timestamp,
+            project: derive_project_name(&cwd),
+            title: classify_title(first_user_message.as_deref().unwrap_or_default()),
+        },
+        sort_timestamp,
+    }))
+}
+
+pub fn classify_title(first_user_message: &str) -> Title {
+    let text = compact_whitespace(first_user_message);
+    if is_trivial_title(&text) {
+        return Title::Raw { text };
+    }
+
+    if let Some(name) = parse_skill_name(&text) {
+        return Title::Skill { name };
+    }
+
+    if let Some((name, args)) = parse_command(&text) {
+        return Title::Command { name, args };
+    }
+
+    if text.is_empty() {
+        return Title::Raw { text };
+    }
+
+    Title::Text {
+        sentence: first_sentence_title(&text),
+    }
 }
 
 fn derive_project_name(cwd: &str) -> String {
@@ -371,6 +421,23 @@ fn derive_project_name(cwd: &str) -> String {
         .filter(|name| !name.is_empty())
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| cwd.to_owned())
+}
+
+fn first_text_from_content(content: Option<Value>) -> Option<String> {
+    match content? {
+        Value::Array(parts) => parts
+            .into_iter()
+            .find_map(|part| text_value(&part).map(ToOwned::to_owned)),
+        Value::String(text) => Some(text),
+        value => text_value(&value).map(ToOwned::to_owned),
+    }
+}
+
+fn text_value(value: &Value) -> Option<&str> {
+    value
+        .get("text")
+        .or_else(|| value.get("content"))
+        .and_then(Value::as_str)
 }
 
 fn content_parts(content: Option<Value>) -> Vec<SessionContentPart> {
@@ -426,6 +493,91 @@ fn annotation_title(event_type: &str) -> &'static str {
     }
 }
 
+fn compact_whitespace(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn is_trivial_title(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "" | "hi" | "hello" | "hey" | "echo test" | "/exit"
+    )
+}
+
+fn parse_command(text: &str) -> Option<(String, String)> {
+    let command = text.strip_prefix('/')?;
+    let (name, args) = command
+        .split_once(char::is_whitespace)
+        .map_or((command, ""), |(name, args)| (name, args.trim()));
+
+    if name.is_empty() {
+        return None;
+    }
+
+    Some((name.to_owned(), args.to_owned()))
+}
+
+fn parse_skill_name(text: &str) -> Option<String> {
+    if !text.starts_with("<skill") {
+        return None;
+    }
+
+    let name_attr = text.find("name=")?;
+    let name_start = name_attr + "name=".len();
+    let quote = text[name_start..].chars().next()?;
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
+
+    let value_start = name_start + quote.len_utf8();
+    let value_end = text[value_start..].find(quote)? + value_start;
+    let name = text[value_start..value_end].trim();
+
+    if name.is_empty() {
+        return None;
+    }
+
+    Some(name.to_owned())
+}
+
+fn first_sentence_title(text: &str) -> String {
+    let first_sentence = text
+        .char_indices()
+        .find(|(_, character)| SENTENCE_TERMINATORS.contains(character))
+        .map(|(index, character)| {
+            let end = index + character.len_utf8();
+            text[..end].trim()
+        })
+        .unwrap_or(text);
+
+    truncate_at_word_boundary(first_sentence, MAX_TEXT_TITLE_CHARS)
+}
+
+fn truncate_at_word_boundary(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_owned();
+    }
+
+    let mut char_indices = text.char_indices();
+    let cutoff = char_indices
+        .nth(max_chars)
+        .map(|(index, _)| index)
+        .unwrap_or(text.len());
+    let candidate = &text[..cutoff];
+    let boundary = candidate
+        .char_indices()
+        .rev()
+        .find(|(_, character)| character.is_whitespace())
+        .map(|(index, _)| index);
+
+    let truncated = boundary
+        .filter(|index| *index > 0)
+        .map_or(candidate, |index| &candidate[..index])
+        .trim_end_matches(SENTENCE_TERMINATORS);
+
+    format!("{}...", truncated.trim_end())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -457,6 +609,24 @@ mod tests {
                 .map(|session| session.project.as_str())
                 .collect::<Vec<_>>(),
             vec!["gamma", "beta", "alpha"]
+        );
+        assert_eq!(
+            sessions
+                .iter()
+                .map(|session| &session.title)
+                .collect::<Vec<_>>(),
+            vec![
+                &Title::Command {
+                    name: "review".to_owned(),
+                    args: String::new(),
+                },
+                &Title::Text {
+                    sentence: "Show project status.".to_owned(),
+                },
+                &Title::Text {
+                    sentence: "Show project status.".to_owned(),
+                },
+            ]
         );
     }
 
@@ -536,5 +706,82 @@ mod tests {
 
         assert_eq!(detail.id, "middle-session");
         assert_eq!(detail.turns.len(), 5);
+    }
+
+    #[test]
+    fn classify_title_returns_command_for_slash_command_with_arguments() {
+        assert_eq!(
+            classify_title("/grilling sharpen this plan"),
+            Title::Command {
+                name: "grilling".to_owned(),
+                args: "sharpen this plan".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn classify_title_returns_skill_for_skill_invocation() {
+        assert_eq!(
+            classify_title("<skill name=\"kami\">make this one-pager</skill>"),
+            Title::Skill {
+                name: "kami".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn classify_title_returns_first_complete_sentence_for_natural_language() {
+        assert_eq!(
+            classify_title("Show me the latest task status. Then explain blockers."),
+            Title::Text {
+                sentence: "Show me the latest task status.".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn classify_title_returns_raw_for_trivial_messages() {
+        assert_eq!(
+            classify_title("hi"),
+            Title::Raw {
+                text: "hi".to_owned(),
+            }
+        );
+        assert_eq!(
+            classify_title("echo test"),
+            Title::Raw {
+                text: "echo test".to_owned(),
+            }
+        );
+        assert_eq!(
+            classify_title("/exit"),
+            Title::Raw {
+                text: "/exit".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn classify_title_truncates_without_cutting_mid_word() {
+        assert_eq!(
+            classify_title(
+                "Summarize the extraordinarily complicated migration plan for everyone before tomorrow morning because the review is blocked."
+            ),
+            Title::Text {
+                sentence:
+                    "Summarize the extraordinarily complicated migration plan for everyone before tomorrow morning..."
+                        .to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn classify_title_compacts_multiline_whitespace() {
+        assert_eq!(
+            classify_title("Explain\n\nthis\tchange please."),
+            Title::Text {
+                sentence: "Explain this change please.".to_owned(),
+            }
+        );
     }
 }

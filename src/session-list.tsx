@@ -7,7 +7,14 @@ type SessionSummary = {
   id: string;
   timestamp: string;
   project: string;
+  title: Title;
 };
+
+type Title =
+  | { kind: "command"; name: string; args: string }
+  | { kind: "skill"; name: string }
+  | { kind: "text"; sentence: string }
+  | { kind: "raw"; text: string };
 
 function relativeTime(value: string) {
   const then = new Date(value).getTime();
@@ -42,6 +49,39 @@ async function listSessions() {
   return invoke<SessionSummary[]>("list_sessions");
 }
 
+function SessionTitle({ title }: { title: Title }) {
+  if (title.kind === "command") {
+    return (
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
+          <span aria-hidden="true">⚡</span>
+          <span className="truncate">{title.name}</span>
+        </span>
+        {title.args ? <span className="truncate text-xs text-muted">{title.args}</span> : null}
+      </div>
+    );
+  }
+
+  if (title.kind === "skill") {
+    return (
+      <span className="inline-flex w-fit max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
+        <span aria-hidden="true">🧩</span>
+        <span className="truncate">{title.name}</span>
+      </span>
+    );
+  }
+
+  if (title.kind === "text") {
+    return <span className="truncate text-sm text-foreground">{title.sentence}</span>;
+  }
+
+  return (
+    <span className="truncate text-sm text-muted">
+      {title.text.length > 0 ? title.text : "Untitled session"}
+    </span>
+  );
+}
+
 export function SessionListPage() {
   const sessions = useQuery({
     queryKey: ["sessions"],
@@ -70,8 +110,9 @@ export function SessionListPage() {
         </header>
 
         <section className="mt-6 overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
-          <div className="grid grid-cols-[minmax(9rem,0.8fr)_minmax(0,1.2fr)] border-b border-border bg-surface-muted px-4 py-2 text-xs font-medium uppercase text-muted">
+          <div className="grid grid-cols-[minmax(5.5rem,0.7fr)_minmax(0,1.5fr)_minmax(0,0.8fr)] gap-4 border-b border-border bg-surface-muted px-4 py-2 text-xs font-medium uppercase text-muted">
             <span>Time</span>
+            <span>Title</span>
             <span>Project</span>
           </div>
 
@@ -93,7 +134,7 @@ export function SessionListPage() {
                   <Link
                     to="/sessions/$sessionId"
                     params={{ sessionId: session.id }}
-                    className="grid min-h-14 grid-cols-[minmax(9rem,0.8fr)_minmax(0,1.2fr)] items-center gap-4 px-4 py-3 transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
+                    className="grid min-h-14 grid-cols-[minmax(5.5rem,0.7fr)_minmax(0,1.5fr)_minmax(0,0.8fr)] items-center gap-4 px-4 py-3 transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
                   >
                     <time
                       dateTime={session.timestamp}
@@ -102,6 +143,9 @@ export function SessionListPage() {
                     >
                       {relativeTime(session.timestamp)}
                     </time>
+                    <div className="min-w-0">
+                      <SessionTitle title={session.title} />
+                    </div>
                     <span className="min-w-0 truncate text-sm text-muted">{session.project}</span>
                   </Link>
                 </li>
