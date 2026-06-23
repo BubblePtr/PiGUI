@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { RefreshCw } from "lucide-react";
 
@@ -87,16 +88,22 @@ export function SessionListPage() {
               {sessionRows.map((session) => (
                 <li
                   key={session.id}
-                  className="grid min-h-14 grid-cols-[minmax(9rem,0.8fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                  className="border-b border-border last:border-b-0"
                 >
-                  <time
-                    dateTime={session.timestamp}
-                    title={formatTimestamp(session.timestamp)}
-                    className="text-sm font-medium text-foreground"
+                  <Link
+                    to="/sessions/$sessionId"
+                    params={{ sessionId: session.id }}
+                    className="grid min-h-14 grid-cols-[minmax(9rem,0.8fr)_minmax(0,1.2fr)] items-center gap-4 px-4 py-3 transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
                   >
-                    {relativeTime(session.timestamp)}
-                  </time>
-                  <span className="min-w-0 truncate text-sm text-muted">{session.project}</span>
+                    <time
+                      dateTime={session.timestamp}
+                      title={formatTimestamp(session.timestamp)}
+                      className="text-sm font-medium text-foreground"
+                    >
+                      {relativeTime(session.timestamp)}
+                    </time>
+                    <span className="min-w-0 truncate text-sm text-muted">{session.project}</span>
+                  </Link>
                 </li>
               ))}
             </ol>

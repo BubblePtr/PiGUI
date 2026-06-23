@@ -1,2 +1,6 @@
 {"type":"session","id":"middle-session","timestamp":"2026-01-03T12:00:00.000Z","cwd":"/Users/example/src/beta","version":"1.0.0"}
-{"type":"message","role":"assistant","timestamp":"2026-01-03T12:00:02.000Z","content":[{"type":"text","text":"Done."}]}
+{"type":"model_change","timestamp":"2026-01-03T12:00:01.000Z","from":"gpt-5-mini","to":"gpt-5-codex"}
+{"type":"thinking_level_change","timestamp":"2026-01-03T12:00:01.500Z","from":"low","to":"high"}
+{"type":"message","role":"user","timestamp":"2026-01-03T12:00:02.000Z","content":[{"type":"text","text":"Show project status."}]}
+{"type":"message","role":"assistant","timestamp":"2026-01-03T12:00:03.000Z","content":[{"type":"thinking","thinking":"Need to inspect the tree."},{"type":"text","text":"I will list the project files first."},{"type":"toolCall","name":"list_files","input":{"path":"."}},{"type":"image","url":"file:///tmp/status.png","alt":"Status screenshot"}]}
+{"type":"message","role":"toolResult","timestamp":"2026-01-03T12:00:04.000Z","content":[{"type":"text","text":"src/main.tsx\nsrc-tauri/src/lib.rs"}]}

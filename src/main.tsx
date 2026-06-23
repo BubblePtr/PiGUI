@@ -8,6 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SessionDetailPage } from "./session-detail";
 import { SessionListPage } from "./session-list";
 import "./styles.css";
 
@@ -23,8 +24,14 @@ const indexRoute = createRoute({
   component: SessionListPage,
 });
 
+const sessionDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sessions/$sessionId",
+  component: SessionDetailPage,
+});
+
 const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, sessionDetailRoute]),
 });
 
 declare module "@tanstack/react-router" {
