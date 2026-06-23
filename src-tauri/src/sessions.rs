@@ -1,10 +1,11 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     env,
     ffi::OsStr,
     fs::{self, File},
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 use chrono::{DateTime, Utc};
@@ -161,10 +162,23 @@ pub struct SessionContentPart {
     pub payload: Value,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct IndexedSession {
     summary: SessionSummary,
     sort_timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedSession {
+    modified_at: SystemTime,
+    session: IndexedSession,
+}
+
+#[derive(Debug, Default)]
+pub struct SessionIndexCache {
+    entries: HashMap<PathBuf, CachedSession>,
+    hits: usize,
+    misses: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -332,12 +346,22 @@ pub fn resolve_agent_dir() -> Result<PathBuf, SessionIndexError> {
 }
 
 pub fn build_index(dir: impl AsRef<Path>) -> Result<Vec<SessionSummary>, SessionIndexError> {
+    let mut cache = SessionIndexCache::default();
+    build_index_with_cache(dir, &mut cache)
+}
+
+pub fn build_index_with_cache(
+    dir: impl AsRef<Path>,
+    cache: &mut SessionIndexCache,
+) -> Result<Vec<SessionSummary>, SessionIndexError> {
     let sessions_dir = dir.as_ref().join("sessions");
     if !sessions_dir.exists() {
+        cache.entries.clear();
         return Ok(Vec::new());
     }
 
     let mut sessions = Vec::new();
+    let mut seen_paths = HashSet::new();
 
     for entry in WalkDir::new(&sessions_dir).follow_links(false) {
         let entry = entry.map_err(|source| SessionIndexError::WalkSessions {
@@ -350,11 +374,15 @@ pub fn build_index(dir: impl AsRef<Path>) -> Result<Vec<SessionSummary>, Session
             continue;
         }
 
-        if let Some(session) = read_session_summary(path)? {
+        let path = path.to_path_buf();
+        seen_paths.insert(path.clone());
+
+        if let Some(session) = read_session_summary_cached(&path, cache)? {
             sessions.push(session);
         }
     }
 
+    cache.entries.retain(|path, _| seen_paths.contains(path));
     sessions.sort_by(|left, right| right.sort_timestamp.cmp(&left.sort_timestamp));
 
     Ok(sessions
@@ -500,6 +528,41 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
         },
         sort_timestamp,
     }))
+}
+
+fn read_session_summary_cached(
+    path: &Path,
+    cache: &mut SessionIndexCache,
+) -> Result<Option<IndexedSession>, SessionIndexError> {
+    let modified_at = fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .map_err(|source| SessionIndexError::ReadSession {
+            path: path.to_path_buf(),
+            source,
+        })?;
+
+    if let Some(cached) = cache.entries.get(path) {
+        if cached.modified_at == modified_at {
+            cache.hits += 1;
+            return Ok(Some(cached.session.clone()));
+        }
+    }
+
+    cache.misses += 1;
+    let session = read_session_summary(path)?;
+    if let Some(session) = session.clone() {
+        cache.entries.insert(
+            path.to_path_buf(),
+            CachedSession {
+                modified_at,
+                session,
+            },
+        );
+    } else {
+        cache.entries.remove(path);
+    }
+
+    Ok(session)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -950,6 +1013,29 @@ mod tests {
             .expect("fixture should read")
     }
 
+    fn copy_fixture_dir() -> tempfile::TempDir {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let target_sessions = temp.path().join("sessions");
+        fs::create_dir_all(&target_sessions).expect("sessions dir");
+
+        for entry in WalkDir::new(fixture_dir().join("sessions")) {
+            let entry = entry.expect("fixture walk");
+            let path = entry.path();
+            let relative_path = path
+                .strip_prefix(fixture_dir().join("sessions"))
+                .expect("relative fixture path");
+            let target_path = target_sessions.join(relative_path);
+
+            if entry.file_type().is_dir() {
+                fs::create_dir_all(&target_path).expect("fixture dir copy");
+            } else if entry.file_type().is_file() {
+                fs::copy(path, target_path).expect("fixture file copy");
+            }
+        }
+
+        temp
+    }
+
     fn assert_cost_eq(actual: f64, expected: f64) {
         assert!(
             (actual - expected).abs() < 1e-12,
@@ -1003,6 +1089,37 @@ mod tests {
         let sessions = build_index(temp.path()).expect("missing sessions dir is valid");
 
         assert!(sessions.is_empty());
+    }
+
+    #[test]
+    fn build_index_with_cache_hits_when_mtime_is_unchanged() {
+        let mut cache = SessionIndexCache::default();
+
+        let first = build_index_with_cache(fixture_dir(), &mut cache).expect("first scan");
+        let second = build_index_with_cache(fixture_dir(), &mut cache).expect("second scan");
+
+        assert_eq!(first, second);
+        assert_eq!(cache.misses, 3);
+        assert_eq!(cache.hits, 3);
+    }
+
+    #[test]
+    fn build_index_with_cache_recomputes_only_files_with_changed_mtime() {
+        let temp = copy_fixture_dir();
+        let mut cache = SessionIndexCache::default();
+
+        build_index_with_cache(temp.path(), &mut cache).expect("first scan");
+        let updated_path = temp
+            .path()
+            .join("sessions/project-alpha/2026-01-01T09-00-00-000Z_oldest-session.jsonl");
+        let mut jsonl = fs::read_to_string(&updated_path).expect("fixture copy should read");
+        jsonl.push('\n');
+        fs::write(&updated_path, jsonl).expect("fixture copy should update");
+
+        build_index_with_cache(temp.path(), &mut cache).expect("second scan");
+
+        assert_eq!(cache.misses, 4);
+        assert_eq!(cache.hits, 2);
     }
 
     #[test]

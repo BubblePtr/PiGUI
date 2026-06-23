@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { RefreshCw } from "lucide-react";
+import { useEffect } from "react";
 
 type SessionSummary = {
   id: string;
@@ -106,7 +108,34 @@ export function SessionListPage() {
     queryKey: ["sessions"],
     queryFn: listSessions,
   });
+  const { refetch } = sessions;
   const sessionRows = sessions.data ?? [];
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => {
+        if (focused) {
+          void refetch();
+        }
+      })
+      .then((nextUnlisten) => {
+        if (disposed) {
+          nextUnlisten();
+          return;
+        }
+
+        unlisten = nextUnlisten;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [refetch]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
