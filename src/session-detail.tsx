@@ -12,11 +12,30 @@ type SessionContentPart = {
   payload: unknown;
 };
 
+type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+};
+
+type CostBreakdown = {
+  inputUsd: number;
+  outputUsd: number;
+  cacheReadUsd: number;
+  cacheWriteUsd: number;
+  totalUsd: number;
+};
+
 type SessionTurn = {
   kind: "message" | "annotation";
   role?: MessageRole;
   timestamp?: string;
   title?: string;
+  model?: string;
+  usage?: TokenUsage;
+  cost?: CostBreakdown;
   parts: SessionContentPart[];
 };
 
@@ -24,6 +43,11 @@ type SessionDetail = {
   id: string;
   timestamp: string;
   project: string;
+  totalCostUsd: number;
+  totalTokens: number;
+  primaryModel?: string;
+  turnCount: number;
+  durationSeconds?: number;
   turns: SessionTurn[];
 };
 
@@ -43,6 +67,36 @@ function formatTimestamp(value?: string) {
     dateStyle: "medium",
     timeStyle: "medium",
   }).format(new Date(value));
+}
+
+function formatCost(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 6,
+  }).format(value);
+}
+
+function formatTokens(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatDuration(seconds?: number) {
+  if (seconds === undefined) {
+    return "Unknown";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes === 0) {
+    return `${remainder}s`;
+  }
+
+  return `${minutes}m ${remainder}s`;
 }
 
 function getSessionDetail(sessionId: string) {
@@ -100,6 +154,28 @@ function RoleIcon({ role }: { role?: MessageRole }) {
   return <Settings2 className="size-4" />;
 }
 
+function CostTokenBadge({ usage, cost }: { usage?: TokenUsage; cost?: CostBreakdown }) {
+  if (!usage && !cost) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex max-w-full items-center gap-2 rounded-md border border-border bg-surface-muted px-2 py-1 text-xs font-medium text-muted">
+      <span className="text-foreground">{formatCost(cost?.totalUsd ?? 0)}</span>
+      <span>{formatTokens(usage?.totalTokens ?? 0)} tokens</span>
+    </span>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xs font-medium uppercase text-muted">{label}</div>
+      <div className="mt-1 truncate text-base font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
 function SessionPart({ part }: { part: SessionContentPart }) {
   const input = payloadValue(part, "input");
   const imageUrl = payloadString(part, "url");
@@ -149,7 +225,13 @@ function TimelineTurn({ turn }: { turn: SessionTurn }) {
           <RoleIcon role={turn.role} />
         </span>
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-foreground">{label}</div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">{label}</span>
+            <CostTokenBadge usage={turn.usage} cost={turn.cost} />
+          </div>
+          {turn.model ? (
+            <div className="mt-1 truncate text-xs text-muted">{turn.model}</div>
+          ) : null}
           {turn.timestamp ? (
             <time dateTime={turn.timestamp} className="mt-1 block text-xs text-muted">
               {formatTimestamp(turn.timestamp)}
@@ -205,6 +287,22 @@ export function SessionDetailPage() {
             </time>
           ) : null}
         </header>
+
+        {session ? (
+          <section className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-sm">
+            <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-border pb-3">
+              <h2 className="text-sm font-semibold uppercase text-muted">Summary</h2>
+              <span className="text-xs font-medium text-muted">Cost shown as API list price</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <SummaryItem label="Total cost" value={formatCost(session.totalCostUsd)} />
+              <SummaryItem label="Total tokens" value={formatTokens(session.totalTokens)} />
+              <SummaryItem label="Primary model" value={session.primaryModel ?? "Unknown model"} />
+              <SummaryItem label="Turns" value={String(session.turnCount)} />
+              <SummaryItem label="Duration" value={formatDuration(session.durationSeconds)} />
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-6 overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
           {detail.isLoading ? (

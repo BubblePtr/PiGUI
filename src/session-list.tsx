@@ -8,6 +8,9 @@ type SessionSummary = {
   timestamp: string;
   project: string;
   title: Title;
+  totalCostUsd: number;
+  totalTokens: number;
+  primaryModel?: string;
 };
 
 type Title =
@@ -43,6 +46,22 @@ function formatTimestamp(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatCost(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 6,
+  }).format(value);
+}
+
+function formatTokens(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 async function listSessions() {
@@ -109,10 +128,13 @@ export function SessionListPage() {
           </button>
         </header>
 
-        <section className="mt-6 overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
-          <div className="grid grid-cols-[minmax(5.5rem,0.7fr)_minmax(0,1.5fr)_minmax(0,0.8fr)] gap-4 border-b border-border bg-surface-muted px-4 py-2 text-xs font-medium uppercase text-muted">
-            <span>Time</span>
+        <section className="mt-6 overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
+          <div className="grid min-w-[54rem] grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.5fr)_minmax(5rem,0.55fr)_minmax(0,0.85fr)_minmax(5.5rem,0.65fr)_minmax(0,0.7fr)] gap-4 border-b border-border bg-surface-muted px-4 py-2 text-xs font-medium uppercase text-muted">
+            <span>Cost</span>
             <span>Title</span>
+            <span>Tokens</span>
+            <span>Model</span>
+            <span>Time</span>
             <span>Project</span>
           </div>
 
@@ -134,8 +156,25 @@ export function SessionListPage() {
                   <Link
                     to="/sessions/$sessionId"
                     params={{ sessionId: session.id }}
-                    className="grid min-h-14 grid-cols-[minmax(5.5rem,0.7fr)_minmax(0,1.5fr)_minmax(0,0.8fr)] items-center gap-4 px-4 py-3 transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
+                    className="grid min-h-16 min-w-[54rem] grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.5fr)_minmax(5rem,0.55fr)_minmax(0,0.85fr)_minmax(5.5rem,0.65fr)_minmax(0,0.7fr)] items-center gap-4 px-4 py-3 transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
                   >
+                    <div className="min-w-0">
+                      <div className="text-lg font-semibold leading-6 text-foreground">
+                        {formatCost(session.totalCostUsd)}
+                      </div>
+                      <div className="mt-0.5 text-[11px] font-medium uppercase text-muted">
+                        API list price
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <SessionTitle title={session.title} />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">
+                      {formatTokens(session.totalTokens)}
+                    </span>
+                    <span className="min-w-0 truncate text-sm text-muted">
+                      {session.primaryModel ?? "Unknown model"}
+                    </span>
                     <time
                       dateTime={session.timestamp}
                       title={formatTimestamp(session.timestamp)}
@@ -143,9 +182,6 @@ export function SessionListPage() {
                     >
                       {relativeTime(session.timestamp)}
                     </time>
-                    <div className="min-w-0">
-                      <SessionTitle title={session.title} />
-                    </div>
                     <span className="min-w-0 truncate text-sm text-muted">{session.project}</span>
                   </Link>
                 </li>

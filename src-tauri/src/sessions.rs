@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     env,
     ffi::OsStr,
     fs::{self, File},
@@ -56,13 +56,17 @@ pub enum SessionDetailError {
     MissingSessionRecord,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSummary {
     pub id: String,
     pub timestamp: String,
     pub project: String,
     pub title: Title,
+    pub total_cost_usd: f64,
+    pub total_tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_model: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -80,6 +84,13 @@ pub struct SessionDetail {
     pub id: String,
     pub timestamp: String,
     pub project: String,
+    pub total_cost_usd: f64,
+    pub total_tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_model: Option<String>,
+    pub turn_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_seconds: Option<i64>,
     pub turns: Vec<SessionTurn>,
 }
 
@@ -93,7 +104,33 @@ pub struct SessionTurn {
     pub timestamp: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<TokenUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<CostBreakdown>,
     pub parts: Vec<SessionContentPart>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenUsage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub total_tokens: u64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CostBreakdown {
+    pub input_usd: f64,
+    pub output_usd: f64,
+    pub cache_read_usd: f64,
+    pub cache_write_usd: f64,
+    pub total_usd: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -158,6 +195,7 @@ pub enum SessionStateUpdate {
 #[derive(Debug, Default)]
 pub struct SessionParser {
     detail: Option<SessionDetail>,
+    metrics: SessionMetrics,
 }
 
 impl SessionParser {
@@ -173,6 +211,12 @@ impl SessionParser {
         let record = serde_json::from_str::<EventRecord>(line)?;
         match record.event_type.as_str() {
             "session" => {
+                self.metrics = SessionMetrics::default();
+                self.metrics.touch(record.timestamp);
+                if let Some(model) = string_field(&record.fields, &["model", "currentModel"]) {
+                    self.metrics.current_model = Some(model);
+                }
+
                 let detail = SessionDetail {
                     id: record.id.unwrap_or_default(),
                     timestamp: record
@@ -184,27 +228,58 @@ impl SessionParser {
                         .as_deref()
                         .map(derive_project_name)
                         .unwrap_or_default(),
+                    total_cost_usd: 0.0,
+                    total_tokens: 0,
+                    primary_model: None,
+                    turn_count: 0,
+                    duration_seconds: Some(0),
                     turns: Vec::new(),
                 };
                 self.detail = Some(detail.clone());
                 Ok(SessionStateUpdate::SessionStarted(detail))
             }
             "message" => {
+                self.metrics.touch(record.timestamp);
+                let model = self.metrics.message_model(&record);
+                let usage = token_usage_from_record(&record);
+                let cost = cost_breakdown_from_record(&record);
+
+                if record.role.as_ref() == Some(&MessageRole::Assistant) {
+                    self.metrics.aggregate_assistant_message(
+                        model.as_deref(),
+                        usage.as_ref(),
+                        cost.as_ref(),
+                    );
+                }
+                self.metrics.turn_count += 1;
+
                 let turn = SessionTurn {
                     kind: SessionTurnKind::Message,
                     role: record.role,
                     timestamp: record.timestamp.map(|timestamp| timestamp.to_rfc3339()),
                     title: None,
+                    model,
+                    usage,
+                    cost,
                     parts: content_parts(record.content),
                 };
                 self.append_turn(turn)
             }
             "model_change" | "thinking_level_change" => {
+                self.metrics.touch(record.timestamp);
+                if record.event_type == "model_change" {
+                    self.metrics.current_model = string_field(&record.fields, &["to", "model"])
+                        .or_else(|| self.metrics.current_model.clone());
+                }
+
                 let turn = SessionTurn {
                     kind: SessionTurnKind::Annotation,
                     role: None,
                     timestamp: record.timestamp.map(|timestamp| timestamp.to_rfc3339()),
                     title: Some(annotation_title(&record.event_type).to_owned()),
+                    model: self.metrics.current_model.clone(),
+                    usage: None,
+                    cost: None,
                     parts: vec![SessionContentPart {
                         part_type: record.event_type,
                         text: None,
@@ -230,7 +305,20 @@ impl SessionParser {
         };
 
         detail.turns.push(turn.clone());
+        self.sync_detail_metrics();
         Ok(SessionStateUpdate::TurnAppended(turn))
+    }
+
+    fn sync_detail_metrics(&mut self) {
+        let Some(detail) = self.detail.as_mut() else {
+            return;
+        };
+
+        detail.total_cost_usd = self.metrics.total_cost_usd;
+        detail.total_tokens = self.metrics.total_tokens;
+        detail.primary_model = self.metrics.primary_model();
+        detail.turn_count = self.metrics.turn_count;
+        detail.duration_seconds = self.metrics.duration_seconds();
     }
 }
 
@@ -342,6 +430,7 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
     let reader = BufReader::new(file);
     let mut session_record = None;
     let mut first_user_message = None;
+    let mut metrics = SessionMetrics::default();
 
     for line in reader.lines() {
         let line = line.map_err(|source| SessionIndexError::ReadSession {
@@ -355,23 +444,42 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
 
         match record.event_type.as_str() {
             "session" => {
+                metrics.touch(record.timestamp);
+                metrics.current_model = string_field(&record.fields, &["model", "currentModel"]);
+
                 if let (Some(id), Some(timestamp), Some(cwd)) =
                     (record.id, record.timestamp, record.cwd)
                 {
                     session_record = Some((id, timestamp, cwd));
                 }
             }
+            "model_change" => {
+                metrics.touch(record.timestamp);
+                metrics.current_model = string_field(&record.fields, &["to", "model"])
+                    .or_else(|| metrics.current_model.clone());
+            }
             "message"
                 if record.role.as_ref() == Some(&MessageRole::User)
                     && first_user_message.is_none() =>
             {
+                metrics.touch(record.timestamp);
                 first_user_message = first_text_from_content(record.content);
             }
-            _ => {}
-        }
+            "message" => {
+                metrics.touch(record.timestamp);
+                let model = metrics.message_model(&record);
+                let usage = token_usage_from_record(&record);
+                let cost = cost_breakdown_from_record(&record);
 
-        if session_record.is_some() && first_user_message.is_some() {
-            break;
+                if record.role.as_ref() == Some(&MessageRole::Assistant) {
+                    metrics.aggregate_assistant_message(
+                        model.as_deref(),
+                        usage.as_ref(),
+                        cost.as_ref(),
+                    );
+                }
+            }
+            _ => {}
         }
     }
 
@@ -386,9 +494,100 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
             timestamp,
             project: derive_project_name(&cwd),
             title: classify_title(first_user_message.as_deref().unwrap_or_default()),
+            total_cost_usd: metrics.total_cost_usd,
+            total_tokens: metrics.total_tokens,
+            primary_model: metrics.primary_model(),
         },
         sort_timestamp,
     }))
+}
+
+#[derive(Debug, Clone, Default)]
+struct SessionMetrics {
+    total_cost_usd: f64,
+    total_tokens: u64,
+    current_model: Option<String>,
+    turn_count: usize,
+    first_timestamp: Option<DateTime<Utc>>,
+    last_timestamp: Option<DateTime<Utc>>,
+    model_totals: HashMap<String, ModelTotals>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ModelTotals {
+    total_cost_usd: f64,
+    total_tokens: u64,
+}
+
+impl SessionMetrics {
+    fn touch(&mut self, timestamp: Option<DateTime<Utc>>) {
+        let Some(timestamp) = timestamp else {
+            return;
+        };
+
+        self.first_timestamp = Some(
+            self.first_timestamp
+                .map_or(timestamp, |current| current.min(timestamp)),
+        );
+        self.last_timestamp = Some(
+            self.last_timestamp
+                .map_or(timestamp, |current| current.max(timestamp)),
+        );
+    }
+
+    fn message_model(&mut self, record: &EventRecord) -> Option<String> {
+        if let Some(model) = string_field(&record.fields, &["model", "currentModel"]) {
+            self.current_model = Some(model.clone());
+            return Some(model);
+        }
+
+        self.current_model.clone()
+    }
+
+    fn aggregate_assistant_message(
+        &mut self,
+        model: Option<&str>,
+        usage: Option<&TokenUsage>,
+        cost: Option<&CostBreakdown>,
+    ) {
+        let cost_usd = cost.map_or(0.0, |cost| cost.total_usd);
+        let tokens = usage.map_or(0, |usage| usage.total_tokens);
+
+        self.total_cost_usd += cost_usd;
+        self.total_tokens += tokens;
+
+        if cost.is_none() && usage.is_none() {
+            return;
+        }
+
+        let model = model.unwrap_or("Unknown model").to_owned();
+        let totals = self.model_totals.entry(model).or_default();
+        totals.total_cost_usd += cost_usd;
+        totals.total_tokens += tokens;
+    }
+
+    fn primary_model(&self) -> Option<String> {
+        self.model_totals
+            .iter()
+            .max_by(|left, right| {
+                left.1
+                    .total_cost_usd
+                    .partial_cmp(&right.1.total_cost_usd)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| left.1.total_tokens.cmp(&right.1.total_tokens))
+                    .then_with(|| right.0.cmp(left.0))
+            })
+            .map(|(model, _)| model.clone())
+            .or_else(|| self.current_model.clone())
+    }
+
+    fn duration_seconds(&self) -> Option<i64> {
+        Some(
+            (self.last_timestamp? - self.first_timestamp?)
+                .num_seconds()
+                .max(0),
+        )
+    }
 }
 
 pub fn classify_title(first_user_message: &str) -> Title {
@@ -438,6 +637,166 @@ fn text_value(value: &Value) -> Option<&str> {
         .get("text")
         .or_else(|| value.get("content"))
         .and_then(Value::as_str)
+}
+
+fn token_usage_from_record(record: &EventRecord) -> Option<TokenUsage> {
+    let usage = record.fields.get("usage")?;
+    let usage_object = usage.as_object()?;
+
+    let input_tokens = u64_field(
+        usage_object,
+        &[
+            "inputTokens",
+            "input_tokens",
+            "promptTokens",
+            "prompt_tokens",
+        ],
+    );
+    let output_tokens = u64_field(
+        usage_object,
+        &[
+            "outputTokens",
+            "output_tokens",
+            "completionTokens",
+            "completion_tokens",
+        ],
+    );
+    let cache_read_tokens = u64_field(
+        usage_object,
+        &[
+            "cacheReadTokens",
+            "cache_read_tokens",
+            "cachedInputTokens",
+            "cached_input_tokens",
+            "cachedTokens",
+            "cached_tokens",
+        ],
+    );
+    let cache_write_tokens = u64_field(
+        usage_object,
+        &[
+            "cacheWriteTokens",
+            "cache_write_tokens",
+            "cacheCreationInputTokens",
+            "cache_creation_input_tokens",
+        ],
+    );
+    let total_tokens = u64_field(usage_object, &["totalTokens", "total_tokens", "total"])
+        .unwrap_or(input_tokens.unwrap_or(0) + output_tokens.unwrap_or(0));
+
+    Some(TokenUsage {
+        input_tokens: input_tokens.unwrap_or(0),
+        output_tokens: output_tokens.unwrap_or(0),
+        cache_read_tokens: cache_read_tokens.unwrap_or(0),
+        cache_write_tokens: cache_write_tokens.unwrap_or(0),
+        total_tokens,
+    })
+}
+
+fn cost_breakdown_from_record(record: &EventRecord) -> Option<CostBreakdown> {
+    record
+        .fields
+        .get("cost")
+        .or_else(|| record.fields.get("usage")?.get("cost"))
+        .and_then(cost_breakdown_from_value)
+}
+
+fn cost_breakdown_from_value(value: &Value) -> Option<CostBreakdown> {
+    if let Some(total_usd) = value.as_f64() {
+        return Some(CostBreakdown {
+            total_usd,
+            ..CostBreakdown::default()
+        });
+    }
+
+    let object = value.as_object()?;
+    let input_usd = f64_field(
+        object,
+        &["inputUsd", "input_usd", "inputCost", "input_cost", "input"],
+    )
+    .unwrap_or(0.0);
+    let output_usd = f64_field(
+        object,
+        &[
+            "outputUsd",
+            "output_usd",
+            "outputCost",
+            "output_cost",
+            "output",
+        ],
+    )
+    .unwrap_or(0.0);
+    let cache_read_usd = f64_field(
+        object,
+        &[
+            "cacheReadUsd",
+            "cache_read_usd",
+            "cacheReadCost",
+            "cache_read_cost",
+            "cacheRead",
+            "cache_read",
+        ],
+    )
+    .unwrap_or(0.0);
+    let cache_write_usd = f64_field(
+        object,
+        &[
+            "cacheWriteUsd",
+            "cache_write_usd",
+            "cacheWriteCost",
+            "cache_write_cost",
+            "cacheWrite",
+            "cache_write",
+        ],
+    )
+    .unwrap_or(0.0);
+    let total_usd = f64_field(
+        object,
+        &[
+            "totalUsd",
+            "total_usd",
+            "totalCostUsd",
+            "total_cost_usd",
+            "totalCost",
+            "total_cost",
+            "total",
+        ],
+    )
+    .unwrap_or(input_usd + output_usd + cache_read_usd + cache_write_usd);
+
+    Some(CostBreakdown {
+        input_usd,
+        output_usd,
+        cache_read_usd,
+        cache_write_usd,
+        total_usd,
+    })
+}
+
+fn string_field(fields: &BTreeMap<String, Value>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| fields.get(*key)?.as_str())
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn u64_field(object: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<u64> {
+    keys.iter().find_map(|key| {
+        let value = object.get(*key)?;
+        value
+            .as_u64()
+            .or_else(|| value.as_f64().map(|number| number.max(0.0) as u64))
+            .or_else(|| value.as_str()?.parse::<u64>().ok())
+    })
+}
+
+fn f64_field(object: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<f64> {
+    keys.iter().find_map(|key| {
+        let value = object.get(*key)?;
+        value
+            .as_f64()
+            .or_else(|| value.as_str()?.parse::<f64>().ok())
+    })
 }
 
 fn content_parts(content: Option<Value>) -> Vec<SessionContentPart> {
@@ -591,6 +950,13 @@ mod tests {
             .expect("fixture should read")
     }
 
+    fn assert_cost_eq(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-12,
+            "expected {expected}, got {actual}"
+        );
+    }
+
     #[test]
     fn build_index_returns_flat_newest_first_sessions_with_projects() {
         let sessions = build_index(fixture_dir()).expect("fixture sessions should index");
@@ -678,6 +1044,37 @@ mod tests {
         );
         assert_eq!(detail.turns[3].parts[2].name.as_deref(), Some("list_files"));
         assert_eq!(detail.turns[4].parts[0].part_type, "text");
+    }
+
+    #[test]
+    fn parse_session_aggregates_cost_and_tokens_across_model_changes() {
+        let jsonl = r#"{"type":"session","id":"multi-model-session","timestamp":"2026-01-07T10:00:00.000Z","cwd":"/Users/example/code/delta","model":"gpt-5-mini"}
+{"type":"message","role":"user","timestamp":"2026-01-07T10:00:01.000Z","content":[{"type":"text","text":"Compare these files."}]}
+{"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:02.000Z","usage":{"inputTokens":100,"outputTokens":50,"cost":{"inputUsd":0.01,"outputUsd":0.02,"totalUsd":0.03}},"content":[{"type":"text","text":"I will inspect both files."}]}
+{"type":"model_change","timestamp":"2026-01-07T10:00:03.000Z","from":"gpt-5-mini","to":"gpt-5-codex"}
+{"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:04.000Z","usage":{"input_tokens":150,"output_tokens":50,"cache_read_tokens":20,"total_tokens":220},"cost":{"input_usd":0.04,"output_usd":0.08,"cache_read_usd":0.01,"total_usd":0.13},"content":[{"type":"text","text":"The second file changed the API contract."}]}"#;
+
+        let detail = parse_session(jsonl).expect("multi-model fixture should parse");
+
+        assert_eq!(detail.total_tokens, 370);
+        assert_cost_eq(detail.total_cost_usd, 0.16);
+        assert_eq!(detail.primary_model.as_deref(), Some("gpt-5-codex"));
+        assert_eq!(detail.turn_count, 3);
+        assert_eq!(detail.duration_seconds, Some(4));
+
+        let assistant_turns = detail
+            .turns
+            .iter()
+            .filter(|turn| turn.role.as_ref() == Some(&MessageRole::Assistant))
+            .collect::<Vec<_>>();
+
+        assert_eq!(assistant_turns.len(), 2);
+        assert_eq!(assistant_turns[0].model.as_deref(), Some("gpt-5-mini"));
+        assert_eq!(assistant_turns[0].usage.as_ref().unwrap().total_tokens, 150);
+        assert_cost_eq(assistant_turns[0].cost.as_ref().unwrap().total_usd, 0.03);
+        assert_eq!(assistant_turns[1].model.as_deref(), Some("gpt-5-codex"));
+        assert_eq!(assistant_turns[1].usage.as_ref().unwrap().total_tokens, 220);
+        assert_cost_eq(assistant_turns[1].cost.as_ref().unwrap().total_usd, 0.13);
     }
 
     #[test]
