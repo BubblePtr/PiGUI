@@ -1,15 +1,5 @@
 # Pig
 
-## Agent skills
+Canonical agent instructions for this repo live in [AGENTS.md](AGENTS.md) — a single source of truth shared across runtimes (Pi, Claude Code, and others). Edit there, not here.
 
-### Issue tracker
-
-Issues live as local Markdown files under `.scratch/<feature>/` — no remote issue tracker. External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Using the default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+@AGENTS.md
