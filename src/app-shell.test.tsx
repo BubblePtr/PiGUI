@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -55,5 +57,14 @@ describe("AppFrame", () => {
     expect(container.querySelector('[data-slot="sidebar"]')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="navbar"]')).toBeInTheDocument();
     expect(container.querySelector('[data-current="true"]')).toHaveTextContent("用量");
+  });
+
+  it("does not import standalone React Aria Heading into the app shell", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/app-shell.tsx"),
+      "utf8",
+    );
+
+    expect(source).not.toContain('react-aria-components/Heading');
   });
 });

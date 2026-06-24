@@ -2,7 +2,6 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import { AppLayout, Navbar, Sidebar } from "@heroui-pro/react";
 import { BarChart3, ListTree, Settings } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { Heading } from "react-aria-components/Heading";
 
 type AppFrameProps = {
   sidebar?: ReactNode;
@@ -65,13 +64,7 @@ function SidebarPanelContent({ pathname }: { pathname: string }) {
     <>
       <Sidebar.Header>
         <div className="flex min-w-0 flex-col px-1 py-2" data-sidebar="label">
-          <Heading
-            className="truncate text-xl font-semibold tracking-normal text-foreground"
-            level={1}
-            slot="title"
-          >
-            Pig
-          </Heading>
+          <h1 className="truncate text-xl font-semibold tracking-normal text-foreground">Pig</h1>
           <p className="mt-1 truncate text-sm text-muted">Pi flight recorder</p>
         </div>
       </Sidebar.Header>
