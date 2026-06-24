@@ -2,6 +2,7 @@
 @import "@heroui/styles";
 @import "../vendor/herouipro-v3/src/css/components/app-layout.css";
 @import "../vendor/herouipro-v3/src/css/components/sidebar.css";
+@import "../vendor/herouipro-v3/src/css/components/navbar.css";
 @import "../vendor/herouipro-v3/src/css/components/sheet.css";
 @import "../vendor/herouipro-v3/src/css/components/resizable.css";
 @import "../vendor/herouipro-v3/src/css/components/segment.css";

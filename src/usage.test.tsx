@@ -21,7 +21,7 @@ function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
 
 describe("UsageSecondLayer", () => {
   it("renders model, tool, and skill usage sections from session summaries", () => {
-    render(
+    const { container } = render(
       <UsageSecondLayer
         sessions={[
           session({
@@ -51,6 +51,7 @@ describe("UsageSecondLayer", () => {
     expect(screen.getByText("run_command")).toBeInTheDocument();
     expect(screen.queryByText("long_tail_tool")).not.toBeInTheDocument();
     expect(screen.getByText("review")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="segment"]')).toBeInTheDocument();
   });
 
   it("renders an empty skill state for sparse skill usage", () => {

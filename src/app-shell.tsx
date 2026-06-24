@@ -1,9 +1,10 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useRouter, useRouterState } from "@tanstack/react-router";
+import { AppLayout, Navbar, Sidebar } from "@heroui-pro/react";
 import { BarChart3, ListTree, Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 type AppFrameProps = {
-  sidebar: ReactNode;
+  sidebar?: ReactNode;
   children: ReactNode;
 };
 
@@ -28,49 +29,88 @@ const tabs = [
   },
 ] as const;
 
-export function AppFrame({ sidebar, children }: AppFrameProps) {
+const sidebarStyle = {
+  "--sidebar-width": "18rem",
+} as CSSProperties;
+
+function PrimaryNavigation({ pathname }: { pathname: string }) {
+  return (
+    <Sidebar.Menu aria-label="Primary navigation" showGuideLines={false}>
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const active = tab.isActive(pathname);
+
+        return (
+          <Sidebar.MenuItem
+            key={tab.to}
+            href={tab.to}
+            id={tab.to}
+            isCurrent={active}
+            textValue={tab.label}
+          >
+            <Sidebar.MenuIcon>
+              <Icon className="size-4" />
+            </Sidebar.MenuIcon>
+            <Sidebar.MenuLabel>{tab.label}</Sidebar.MenuLabel>
+          </Sidebar.MenuItem>
+        );
+      })}
+    </Sidebar.Menu>
+  );
+}
+
+function SidebarPanelContent({ pathname }: { pathname: string }) {
+  return (
+    <>
+      <Sidebar.Header>
+        <div className="flex min-w-0 flex-col px-1 py-2" data-sidebar="label">
+          <h1 className="truncate text-xl font-semibold tracking-normal text-foreground">Pig</h1>
+          <p className="mt-1 truncate text-sm text-muted">Pi flight recorder</p>
+        </div>
+      </Sidebar.Header>
+      <Sidebar.Content>
+        <Sidebar.Group>
+          <PrimaryNavigation pathname={pathname} />
+        </Sidebar.Group>
+      </Sidebar.Content>
+    </>
+  );
+}
+
+export function AppFrame({ children }: AppFrameProps) {
+  const router = useRouter();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="grid min-h-screen lg:h-screen lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col border-b border-border bg-surface lg:border-b-0 lg:border-r">
-          <div className="border-b border-border px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-semibold tracking-normal">Pig</h1>
-                <p className="mt-1 text-sm text-muted">Pi flight recorder</p>
-              </div>
-            </div>
-
-            <nav className="mt-4 grid grid-cols-3 gap-1 rounded-md border border-border bg-surface-muted p-1">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const active = tab.isActive(pathname);
-
-                return (
-                  <Link
-                    key={tab.to}
-                    to={tab.to}
-                    className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded px-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
-                      active
-                        ? "bg-surface text-foreground shadow-sm"
-                        : "text-muted hover:bg-surface-hover hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="size-4" />
-                    <span>{tab.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-hidden">{sidebar}</div>
-        </aside>
-
-        <section className="min-h-0 min-w-0 overflow-auto bg-background">{children}</section>
-      </div>
-    </main>
+    <AppLayout
+      className="bg-background text-foreground"
+      navigate={(href) => void router.navigate({ to: href as "/" | "/usage" | "/setup" })}
+      navbar={
+        <Navbar className="border-b border-border" height="3.5rem" maxWidth="full" size="sm">
+          <Navbar.Header>
+            <AppLayout.MenuToggle />
+            <Navbar.Brand>
+              <span className="text-sm font-semibold text-foreground">Pig</span>
+              <span className="hidden text-xs text-muted sm:inline">Pi flight recorder</span>
+            </Navbar.Brand>
+          </Navbar.Header>
+        </Navbar>
+      }
+      scrollMode="content"
+      sidebar={
+        <>
+          <Sidebar style={sidebarStyle}>
+            <SidebarPanelContent pathname={pathname} />
+            <Sidebar.Rail />
+          </Sidebar>
+          <Sidebar.Mobile>
+            <SidebarPanelContent pathname={pathname} />
+          </Sidebar.Mobile>
+        </>
+      }
+      sidebarCollapsible="none"
+    >
+      <div className="min-h-full min-w-0 bg-background">{children}</div>
+    </AppLayout>
   );
 }

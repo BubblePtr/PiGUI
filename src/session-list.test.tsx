@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { distinctProjects, filterByProject } from "./session-list";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { SessionListPanel, distinctProjects, filterByProject } from "./session-list";
 
 type Row = { project: string };
 
@@ -34,5 +37,26 @@ describe("filterByProject", () => {
       { project: "project-beta" },
       { project: "project-beta" },
     ]);
+  });
+});
+
+function renderWithQueryClient(children: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
+}
+
+describe("SessionListPanel", () => {
+  it("renders the project filter with HeroUI Pro NativeSelect", async () => {
+    const { container } = renderWithQueryClient(<SessionListPanel />);
+
+    expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="native-select"]')).toBeInTheDocument();
   });
 });

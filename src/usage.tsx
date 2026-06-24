@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button, Card, EmptyState as HeroEmptyState, ProgressBar } from "@heroui/react";
+import { KPI, Segment } from "@heroui-pro/react";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SharedElementTransition } from "react-aria-components/SharedElementTransition";
 import { AppFrame } from "./app-shell";
 import { useRefreshOnWindowFocus } from "./refresh";
 import {
@@ -60,9 +63,9 @@ function summarizeSessions(sessions: SessionSummary[]) {
 
 function EmptyUsageState({ children }: { children: string }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-4 py-10 text-sm text-muted">
+    <HeroEmptyState className="bg-surface px-4 py-10 text-sm text-muted">
       {children}
-    </div>
+    </HeroEmptyState>
   );
 }
 
@@ -83,7 +86,8 @@ function ModelCostBreakdown({ models }: { models: ModelCost[] }) {
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
+    <Card>
+      <Card.Content>
       <div className="grid gap-3">
         {models.map((model, index) => {
           const width = maxCost === 0 ? 0 : Math.max(2, (model.costUsd / maxCost) * 100);
@@ -96,17 +100,17 @@ function ModelCostBreakdown({ models }: { models: ModelCost[] }) {
                   {formatCost(model.costUsd)} · {formatTokens(model.tokens)}
                 </span>
               </div>
-              <div className="h-2 overflow-hidden rounded-sm bg-surface-muted">
-                <div
-                  className="h-full rounded-sm"
-                  style={{ width: `${width}%`, backgroundColor: chartColor(index) }}
-                />
-              </div>
+              <ProgressBar aria-label={`${model.model} cost share`} value={width}>
+                <ProgressBar.Track>
+                  <ProgressBar.Fill style={{ backgroundColor: chartColor(index) }} />
+                </ProgressBar.Track>
+              </ProgressBar>
             </div>
           );
         })}
       </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -118,23 +122,25 @@ function ModelDistributionView({ models }: { models: ModelDistribution[] }) {
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
-      <div className="mb-4 inline-flex rounded-md border border-border bg-surface-muted p-1">
-        {(["cost", "tokens"] as const).map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-              mode === item
-                ? "bg-surface text-foreground shadow-sm"
-                : "text-muted hover:bg-surface-hover hover:text-foreground"
-            }`}
-            onClick={() => setMode(item)}
-          >
-            {item === "cost" ? "Cost" : "Tokens"}
-          </button>
-        ))}
-      </div>
+    <Card>
+      <Card.Content>
+      <SharedElementTransition>
+        <Segment
+          className="mb-4"
+          selectedKey={mode}
+          size="sm"
+          onSelectionChange={(key) => setMode(key === "tokens" ? "tokens" : "cost")}
+        >
+          <Segment.Item id="cost">
+            <Segment.Separator />
+            Cost
+          </Segment.Item>
+          <Segment.Item id="tokens">
+            <Segment.Separator />
+            Tokens
+          </Segment.Item>
+        </Segment>
+      </SharedElementTransition>
       <div className="grid gap-3">
         {models.map((model, index) => {
           const share = mode === "cost" ? model.costShare : model.tokenShare;
@@ -145,17 +151,17 @@ function ModelDistributionView({ models }: { models: ModelDistribution[] }) {
                 <span className="min-w-0 truncate font-medium text-foreground">{model.model}</span>
                 <span className="shrink-0 text-muted">{formatPercent(share)}</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-sm bg-surface-muted">
-                <div
-                  className="h-full rounded-sm"
-                  style={{ width: `${share * 100}%`, backgroundColor: chartColor(index) }}
-                />
-              </div>
+              <ProgressBar aria-label={`${model.model} ${mode} share`} value={share * 100}>
+                <ProgressBar.Track>
+                  <ProgressBar.Fill style={{ backgroundColor: chartColor(index) }} />
+                </ProgressBar.Track>
+              </ProgressBar>
             </div>
           );
         })}
       </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -167,7 +173,8 @@ function NamedRankList({ items, emptyLabel }: { items: NamedCount[]; emptyLabel:
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
+    <Card>
+      <Card.Content>
       <div className="grid gap-3">
         {items.map((item, index) => {
           const width = maxCount === 0 ? 0 : Math.max(2, (item.count / maxCount) * 100);
@@ -178,17 +185,17 @@ function NamedRankList({ items, emptyLabel }: { items: NamedCount[]; emptyLabel:
                 <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
                 <span className="shrink-0 text-muted">{item.count}</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-sm bg-surface-muted">
-                <div
-                  className="h-full rounded-sm"
-                  style={{ width: `${width}%`, backgroundColor: chartColor(index) }}
-                />
-              </div>
+              <ProgressBar aria-label={`${item.name} count share`} value={width}>
+                <ProgressBar.Track>
+                  <ProgressBar.Fill style={{ backgroundColor: chartColor(index) }} />
+                </ProgressBar.Track>
+              </ProgressBar>
             </div>
           );
         })}
       </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -240,7 +247,7 @@ function usageDateRange(days: Array<{ date: string }>) {
   return `${formatDateLabel(days[0].date)} - ${formatDateLabel(days[days.length - 1].date)}`;
 }
 
-function UsageSidebar({
+function UsageSummaryPanel({
   sessions,
   isFetching,
   onRefresh,
@@ -252,46 +259,54 @@ function UsageSidebar({
   const summary = summarizeSessions(sessions);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border px-4 py-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
+    <Card>
+      <Card.Content>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold uppercase text-muted">用量</h2>
+            <h2 className="text-sm font-semibold text-foreground">Usage summary</h2>
             <p className="mt-1 text-xs text-muted">All sessions, by day</p>
           </div>
-          <button
-            type="button"
-            className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={onRefresh}
-            disabled={isFetching}
-            title="Refresh usage"
+          <Button
+            isIconOnly
             aria-label="Refresh usage"
+            isDisabled={isFetching}
+            size="sm"
+            variant="outline"
+            onPress={onRefresh}
           >
             <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-          </button>
+          </Button>
         </div>
-      </div>
 
-      <div className="grid gap-3 px-4 py-4">
-        <div className="rounded-md border border-border bg-surface-muted p-3">
-          <div className="text-xs font-medium uppercase text-muted">Total cost</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">
-            {formatCost(summary.totalCostUsd)}
-          </div>
-          <div className="mt-1 text-xs text-muted">API list price</div>
-        </div>
-        <div className="rounded-md border border-border bg-surface-muted p-3">
-          <div className="text-xs font-medium uppercase text-muted">Total tokens</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">
-            {formatTokens(summary.totalTokens)}
-          </div>
-        </div>
-        <div className="rounded-md border border-border bg-surface-muted p-3">
-          <div className="text-xs font-medium uppercase text-muted">Projects</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">{summary.projects.size}</div>
-        </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <KPI>
+          <KPI.Content>
+            <KPI.Title>Total cost</KPI.Title>
+            <KPI.Value
+              currency="USD"
+              maximumFractionDigits={6}
+              minimumFractionDigits={4}
+              style="currency"
+              value={summary.totalCostUsd}
+            />
+          </KPI.Content>
+          <KPI.Footer className="text-xs text-muted">API list price</KPI.Footer>
+        </KPI>
+        <KPI>
+          <KPI.Content>
+            <KPI.Title>Total tokens</KPI.Title>
+            <KPI.Value maximumFractionDigits={1} notation="compact" value={summary.totalTokens} />
+          </KPI.Content>
+        </KPI>
+        <KPI>
+          <KPI.Content>
+            <KPI.Title>Projects</KPI.Title>
+            <KPI.Value value={summary.projects.size} />
+          </KPI.Content>
+        </KPI>
       </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -333,14 +348,15 @@ function CostTrendChart({
 
   if (days.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-surface px-4 py-12 text-sm text-muted">
+      <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
         No sessions found.
-      </div>
+      </HeroEmptyState>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-surface p-4 shadow-sm">
+    <Card className="overflow-x-auto">
+      <Card.Content>
       <div className="flex min-w-[42rem] items-end gap-2">
         {days.map((day) => {
           const height = maxCost === 0 ? 0 : Math.max(4, (day.totalCostUsd / maxCost) * 100);
@@ -377,7 +393,8 @@ function CostTrendChart({
           );
         })}
       </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -394,14 +411,15 @@ function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
 
   if (days.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-surface px-4 py-12 text-sm text-muted">
+      <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
         No token usage yet.
-      </div>
+      </HeroEmptyState>
     );
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
+    <Card>
+      <Card.Content>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(1.25rem,1fr))] gap-1">
         {days.map((day) => {
           const level = heatLevel(day.totalTokens, maxTokens);
@@ -428,7 +446,8 @@ function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
         ))}
         <span>More</span>
       </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -448,15 +467,7 @@ export function UsagePage() {
   useRefreshOnWindowFocus(sessions.refetch);
 
   return (
-    <AppFrame
-      sidebar={
-        <UsageSidebar
-          sessions={allSessions}
-          isFetching={sessions.isFetching}
-          onRefresh={() => sessions.refetch()}
-        />
-      }
-    >
+    <AppFrame>
       <article className="min-h-full px-6 py-6">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <header className="border-b border-border pb-4">
@@ -470,15 +481,21 @@ export function UsagePage() {
           </header>
 
           {sessions.isError ? (
-            <div className="rounded-md border border-border bg-surface px-4 py-12 text-sm text-danger">
+            <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-danger">
               Could not read the Pi agent directory.
-            </div>
+            </HeroEmptyState>
           ) : sessions.isLoading ? (
-            <div className="rounded-md border border-border bg-surface px-4 py-12 text-sm text-muted">
+            <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
               Loading usage...
-            </div>
+            </HeroEmptyState>
           ) : (
             <>
+              <UsageSummaryPanel
+                sessions={allSessions}
+                isFetching={sessions.isFetching}
+                onRefresh={() => sessions.refetch()}
+              />
+
               <section>
                 <div className="mb-3 flex items-baseline justify-between gap-4">
                   <div>

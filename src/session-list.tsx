@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Button, Card, Chip, ScrollShadow } from "@heroui/react";
+import { NativeSelect } from "@heroui-pro/react";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRefreshOnWindowFocus } from "./refresh";
@@ -35,12 +37,12 @@ function SessionTitle({ title }: { title: Title }) {
   if (title.kind === "command") {
     return (
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
+        <Chip className="max-w-full" size="sm" variant="soft">
           <span aria-hidden="true" className="shrink-0">
             ⚡
           </span>
           <span className="block truncate">{title.name}</span>
-        </span>
+        </Chip>
         {title.args ? <span className="block truncate text-xs text-muted">{title.args}</span> : null}
       </div>
     );
@@ -48,12 +50,12 @@ function SessionTitle({ title }: { title: Title }) {
 
   if (title.kind === "skill") {
     return (
-      <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-surface-muted px-2 py-1 text-sm font-medium text-foreground">
+      <Chip className="max-w-full" size="sm" variant="soft">
         <span aria-hidden="true" className="shrink-0">
           🧩
         </span>
         <span className="block truncate">{title.name}</span>
-      </span>
+      </Chip>
     );
   }
 
@@ -124,46 +126,47 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   useRefreshOnWindowFocus(refetch);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <Card className="flex h-full min-h-[28rem] min-w-0 flex-col overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold uppercase text-muted">Trace</h2>
             <p className="mt-1 text-xs text-muted">Recent Pi sessions</p>
           </div>
-          <button
-            type="button"
-            className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={() => sessions.refetch()}
-            disabled={sessions.isFetching}
-            title="Refresh sessions"
+          <Button
+            isIconOnly
             aria-label="Refresh sessions"
+            isDisabled={sessions.isFetching}
+            size="sm"
+            variant="outline"
+            onPress={() => sessions.refetch()}
           >
             <RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />
-          </button>
+          </Button>
         </div>
 
         <label className="sr-only" htmlFor="project-filter">
           Filter by project
         </label>
-        <select
-          id="project-filter"
-          className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-foreground shadow-sm transition hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
-          value={selectedProject ?? "all"}
-          onChange={(event) =>
-            setSelectedProject(event.target.value === "all" ? null : event.target.value)
-          }
-        >
-          <option value="all">All projects</option>
-          {projects.map((project) => (
-            <option key={project} value={project}>
-              {project}
-            </option>
-          ))}
-        </select>
+        <NativeSelect fullWidth>
+          <NativeSelect.Trigger
+            id="project-filter"
+            value={selectedProject ?? "all"}
+            onChange={(event) =>
+              setSelectedProject(event.target.value === "all" ? null : event.target.value)
+            }
+          >
+            <NativeSelect.Option value="all">All projects</NativeSelect.Option>
+            {projects.map((project) => (
+              <NativeSelect.Option key={project} value={project}>
+                {project}
+              </NativeSelect.Option>
+            ))}
+          </NativeSelect.Trigger>
+        </NativeSelect>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <ScrollShadow className="min-h-0 flex-1 overflow-y-auto">
         {sessions.isLoading ? (
           <div className="px-4 py-10 text-sm text-muted">Loading sessions...</div>
         ) : sessions.isError ? (
@@ -183,7 +186,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
             ))}
           </ol>
         )}
-      </div>
-    </div>
+      </ScrollShadow>
+    </Card>
   );
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   AppLayout,
@@ -18,5 +20,14 @@ describe("HeroUI Pro integration", () => {
     expect(KPI.Value).toBeTypeOf("function");
     expect(CodeBlock.Code).toBeTypeOf("function");
     expect(Timeline.Item).toBeTypeOf("function");
+  });
+
+  it("wraps Usage Segment controls in a shared element transition scope", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/usage.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("SharedElementTransition");
   });
 });

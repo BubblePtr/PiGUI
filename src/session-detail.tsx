@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
+import { KPI } from "@heroui-pro/react";
 import {
   ArrowLeft,
   Bot,
@@ -12,8 +14,7 @@ import {
   User,
   Wrench,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { invoke } from "./tauri-runtime";
 
 type MessageRole = "user" | "assistant" | "toolResult" | "unknown";
@@ -66,6 +67,21 @@ export type SessionDetail = {
 
 const thinkingPreviewLines = 6;
 const thinkingPreviewChars = 1200;
+const highlightedCodeBlockMaxChars = 4000;
+
+const LazyHeroCodeBlock = lazy(async () => {
+  const { CodeBlock } = await import("../vendor/herouipro-v3/src/components/code-block");
+
+  return {
+    default: function HighlightedCodeBlock({ code }: { code: string }) {
+      return (
+        <CodeBlock>
+          <CodeBlock.Code code={code} language="plaintext" />
+        </CodeBlock>
+      );
+    },
+  };
+});
 
 const roleLabels: Record<MessageRole, string> = {
   user: "User",
@@ -265,15 +281,6 @@ function CostTokenBadge({ usage, cost }: { usage?: TokenUsage; cost?: CostBreakd
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs font-medium uppercase text-muted">{label}</div>
-      <div className="mt-1 truncate text-base font-semibold text-foreground">{value}</div>
-    </div>
-  );
-}
-
 function FoldButton({
   expanded,
   onClick,
@@ -284,23 +291,38 @@ function FoldButton({
   children: string;
 }) {
   return (
-    <button
-      type="button"
+    <Button
       aria-expanded={expanded}
-      onClick={onClick}
-      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium text-muted transition hover:bg-surface-hover hover:text-foreground"
+      className="min-h-8 gap-1.5 text-xs"
+      size="sm"
+      variant="outline"
+      onPress={onClick}
     >
       {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
       {children}
-    </button>
+    </Button>
   );
 }
 
-function CodeBlock({ children }: { children: ReactNode }) {
+function PlainLogCodeBlock({ code }: { code: string }) {
   return (
     <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-surface-muted px-3 py-2 text-sm leading-6 text-foreground">
-      {children}
+      {code}
     </pre>
+  );
+}
+
+function LogCodeBlock({ children }: { children: string | string[] }) {
+  const code = Array.isArray(children) ? children.join("") : children;
+
+  if (code.length > highlightedCodeBlockMaxChars) {
+    return <PlainLogCodeBlock code={code} />;
+  }
+
+  return (
+    <Suspense fallback={<PlainLogCodeBlock code={code} />}>
+      <LazyHeroCodeBlock code={code} />
+    </Suspense>
   );
 }
 
@@ -332,12 +354,12 @@ function SessionPart({ part }: { part: SessionContentPart }) {
       </div>
 
       {part.partType === "toolCall" && shouldRenderBody ? (
-        <CodeBlock>
+        <LogCodeBlock>
           {part.name ? `name: ${part.name}\n` : ""}
           {payloadValue(part, "input") === undefined
             ? formatValue(part.payload)
             : `input: ${formatValue(payloadValue(part, "input"))}`}
-        </CodeBlock>
+        </LogCodeBlock>
       ) : part.partType === "image" ? (
         imageUrl ? (
           <img
@@ -347,20 +369,21 @@ function SessionPart({ part }: { part: SessionContentPart }) {
             loading="lazy"
           />
         ) : (
-          <CodeBlock>{formatValue(part.payload)}</CodeBlock>
+          <LogCodeBlock>{formatValue(part.payload)}</LogCodeBlock>
         )
       ) : isThinking && thinking ? (
         <>
-          <CodeBlock>{isExpanded ? body : thinking.preview}</CodeBlock>
+          <LogCodeBlock>{isExpanded ? body : thinking.preview}</LogCodeBlock>
           {thinking.isTruncated ? (
-            <button
-              type="button"
+            <Button
               aria-expanded={isExpanded}
-              onClick={() => setIsExpanded((value) => !value)}
-              className="mt-2 inline-flex min-h-8 items-center rounded-md border border-border bg-surface px-2.5 text-xs font-medium text-muted transition hover:bg-surface-hover hover:text-foreground"
+              className="mt-2 min-h-8 text-xs"
+              size="sm"
+              variant="outline"
+              onPress={() => setIsExpanded((value) => !value)}
             >
               {isExpanded ? "Collapse thinking" : "Expand all"}
-            </button>
+            </Button>
           ) : null}
         </>
       ) : part.partType === "toolResult" && !shouldRenderBody ? (
@@ -368,7 +391,7 @@ function SessionPart({ part }: { part: SessionContentPart }) {
           Tool output folded.
         </div>
       ) : (
-        <CodeBlock>{body}</CodeBlock>
+        <LogCodeBlock>{body}</LogCodeBlock>
       )}
     </div>
   );
@@ -401,21 +424,21 @@ export function TimelineTurn({ turn }: { turn: SessionTurn }) {
       </div>
 
       <div className="min-w-0">
-        <button
-          type="button"
+        <Button
           aria-expanded={isExpanded}
-          onClick={() => setIsExpanded((value) => !value)}
-          className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md border border-border bg-surface-muted px-4 py-3 text-left text-sm text-foreground transition hover:bg-surface-hover"
+          className="min-h-12 w-full justify-between gap-3 bg-surface-muted px-4 py-3 text-left text-sm text-foreground"
+          variant="outline"
+          onPress={() => setIsExpanded((value) => !value)}
         >
           <span className="min-w-0 truncate">{turnSummary(turn)}</span>
           <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted">
             {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             {isExpanded ? "Collapse" : "Expand"}
           </span>
-        </button>
+        </Button>
 
         {isExpanded ? (
-          <div className="mt-2 min-w-0 overflow-hidden rounded-md border border-border bg-surface">
+          <Card className="mt-2 min-w-0 overflow-hidden">
             {turn.parts.length === 0 ? (
               <div className="px-4 py-3 text-sm text-muted">No content.</div>
             ) : (
@@ -423,7 +446,7 @@ export function TimelineTurn({ turn }: { turn: SessionTurn }) {
                 <SessionPart key={`${part.partType}-${index}`} part={part} />
               ))
             )}
-          </div>
+          </Card>
         ) : null}
       </div>
     </li>
@@ -529,32 +552,75 @@ export function SessionDetailView({
         </header>
 
         {session ? (
-          <section className="mt-6 rounded-md border border-border bg-surface p-4 shadow-sm">
+          <section className="mt-6">
             <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-border pb-3">
               <h2 className="text-sm font-semibold uppercase text-muted">Summary</h2>
               <span className="text-xs font-medium text-muted">Cost shown as API list price</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <SummaryItem label="Total cost" value={formatCost(session.totalCostUsd)} />
-              <SummaryItem label="Total tokens" value={formatTokens(session.totalTokens)} />
-              <SummaryItem label="Primary model" value={session.primaryModel ?? "Unknown model"} />
-              <SummaryItem label="Turns" value={String(session.turnCount)} />
-              <SummaryItem label="Duration" value={formatDuration(session.durationSeconds)} />
+              <KPI>
+                <KPI.Content>
+                  <KPI.Title>Total cost</KPI.Title>
+                  <KPI.Value
+                    currency="USD"
+                    maximumFractionDigits={6}
+                    minimumFractionDigits={4}
+                    style="currency"
+                    value={session.totalCostUsd}
+                  />
+                </KPI.Content>
+              </KPI>
+              <KPI>
+                <KPI.Content>
+                  <KPI.Title>Total tokens</KPI.Title>
+                  <KPI.Value
+                    maximumFractionDigits={1}
+                    notation="compact"
+                    value={session.totalTokens}
+                  />
+                </KPI.Content>
+              </KPI>
+              <KPI>
+                <KPI.Content>
+                  <KPI.Title>Primary model</KPI.Title>
+                  <dd className="mt-1 truncate text-base font-semibold text-foreground">
+                    {session.primaryModel ?? "Unknown model"}
+                  </dd>
+                </KPI.Content>
+              </KPI>
+              <KPI>
+                <KPI.Content>
+                  <KPI.Title>Turns</KPI.Title>
+                  <KPI.Value value={session.turnCount} />
+                </KPI.Content>
+              </KPI>
+              <KPI>
+                <KPI.Content>
+                  <KPI.Title>Duration</KPI.Title>
+                  <dd className="mt-1 truncate text-base font-semibold text-foreground">
+                    {formatDuration(session.durationSeconds)}
+                  </dd>
+                </KPI.Content>
+              </KPI>
             </div>
           </section>
         ) : null}
 
-        <section className="mt-6 overflow-hidden rounded-md border border-border bg-surface shadow-sm">
+        <Card className="mt-6 overflow-hidden">
           {isLoading ? (
-            <div className="px-4 py-12 text-sm text-muted">Loading session...</div>
+            <HeroEmptyState className="px-4 py-12 text-sm text-muted">Loading session...</HeroEmptyState>
           ) : isError ? (
-            <div className="px-4 py-12 text-sm text-danger">Could not read this session.</div>
+            <HeroEmptyState className="px-4 py-12 text-sm text-danger">
+              Could not read this session.
+            </HeroEmptyState>
           ) : !session || session.turns.length === 0 ? (
-            <div className="px-4 py-12 text-sm text-muted">No timeline entries found.</div>
+            <HeroEmptyState className="px-4 py-12 text-sm text-muted">
+              No timeline entries found.
+            </HeroEmptyState>
           ) : (
             <SessionTimeline turns={session.turns} />
           )}
-        </section>
+        </Card>
       </div>
     </article>
   );

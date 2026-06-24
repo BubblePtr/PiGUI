@@ -15,12 +15,13 @@ const inventory: ConfigInventory = {
 
 describe("ConfigInventoryView", () => {
   it("renders model defaults", () => {
-    render(<ConfigInventoryView inventory={inventory} selected="models" />);
+    const { container } = render(<ConfigInventoryView inventory={inventory} selected="models" />);
 
     expect(screen.getByText("gpt-5-codex")).toBeInTheDocument();
     expect(screen.getByText("openai")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
     expect(screen.getByText("system")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="card"]')).toBeInTheDocument();
   });
 
   it("shows not installed for empty prompt templates", () => {

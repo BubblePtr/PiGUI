@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
 import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppFrame } from "./app-shell";
@@ -68,7 +69,7 @@ function categoryCount(category: SetupCategory, inventory?: ConfigInventory) {
   }
 }
 
-function SetupSidebar({
+function SetupInventoryControls({
   selected,
   onSelect,
   inventory,
@@ -84,53 +85,50 @@ function SetupSidebar({
   const categories = Object.keys(categoryMeta) as SetupCategory[];
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border px-4 py-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
+    <Card>
+      <Card.Content>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold uppercase text-muted">配置</h2>
+            <h2 className="text-sm font-semibold text-foreground">Inventory sections</h2>
             <p className="mt-1 text-xs text-muted">Read-only Pi inventory</p>
           </div>
-          <button
-            type="button"
-            className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={onRefresh}
-            disabled={isFetching}
-            title="Refresh setup"
+          <Button
+            isIconOnly
             aria-label="Refresh setup"
+            isDisabled={isFetching}
+            size="sm"
+            variant="outline"
+            onPress={onRefresh}
           >
             <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-          </button>
+          </Button>
         </div>
-      </div>
 
-      <nav className="grid gap-1 px-3 py-3">
+      <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label="Configuration sections">
         {categories.map((category) => {
           const meta = categoryMeta[category];
           const Icon = meta.icon;
           const active = category === selected;
 
           return (
-            <button
+            <Button
               key={category}
-              type="button"
-              className={`flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-left text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
-                active
-                  ? "bg-surface-muted text-foreground"
-                  : "text-muted hover:bg-surface-hover hover:text-foreground"
-              }`}
-              onClick={() => onSelect(category)}
+              className="min-h-11 justify-between px-3"
+              fullWidth
+              variant={active ? "secondary" : "ghost"}
+              onPress={() => onSelect(category)}
             >
               <span className="flex min-w-0 items-center gap-2">
                 <Icon className="size-4 shrink-0" />
                 <span className="truncate">{meta.label}</span>
               </span>
               <span className="shrink-0 text-xs text-muted">{categoryCount(category, inventory)}</span>
-            </button>
+            </Button>
           );
         })}
       </nav>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -145,9 +143,9 @@ function KeyValue({ label, value }: { label: string; value: string }) {
 
 function EmptyState({ children }: { children: string }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted px-4 py-10 text-sm text-muted">
+    <HeroEmptyState className="bg-surface-muted px-4 py-10 text-sm text-muted">
       {children}
-    </div>
+    </HeroEmptyState>
   );
 }
 
@@ -202,32 +200,38 @@ export function ConfigInventoryView({
   const title = categoryMeta[selected].label;
 
   return (
-    <section className="rounded-md border border-border bg-surface p-4 shadow-sm">
-      <div className="mb-4 border-b border-border pb-3">
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        <p className="mt-1 text-sm text-muted">Read-only view from PI_CODING_AGENT_DIR.</p>
-      </div>
-
-      {selected === "models" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <KeyValue label="Default model" value={valueOrMissing(inventory.defaultModel)} />
-          <KeyValue label="Default provider" value={valueOrMissing(inventory.defaultProvider)} />
-          <KeyValue
-            label="Thinking level"
-            value={valueOrMissing(inventory.defaultThinkingLevel)}
-          />
-          <KeyValue label="Theme" value={valueOrMissing(inventory.theme)} />
+    <Card>
+      <Card.Header className="border-b border-border">
+        <div>
+          <Card.Title className="text-base font-semibold text-foreground">{title}</Card.Title>
+          <Card.Description className="mt-1 text-sm text-muted">
+            Read-only view from PI_CODING_AGENT_DIR.
+          </Card.Description>
         </div>
-      ) : selected === "packages" ? (
-        <NameList items={inventory.packages} />
-      ) : selected === "extensions" ? (
-        <ExtensionList extensions={inventory.extensions} />
-      ) : selected === "skills" ? (
-        <NameList items={inventory.skills.map((skill) => skill.name)} />
-      ) : (
-        <NameList items={inventory.promptTemplates.map((template) => template.name)} />
-      )}
-    </section>
+      </Card.Header>
+
+      <Card.Content>
+        {selected === "models" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <KeyValue label="Default model" value={valueOrMissing(inventory.defaultModel)} />
+            <KeyValue label="Default provider" value={valueOrMissing(inventory.defaultProvider)} />
+            <KeyValue
+              label="Thinking level"
+              value={valueOrMissing(inventory.defaultThinkingLevel)}
+            />
+            <KeyValue label="Theme" value={valueOrMissing(inventory.theme)} />
+          </div>
+        ) : selected === "packages" ? (
+          <NameList items={inventory.packages} />
+        ) : selected === "extensions" ? (
+          <ExtensionList extensions={inventory.extensions} />
+        ) : selected === "skills" ? (
+          <NameList items={inventory.skills.map((skill) => skill.name)} />
+        ) : (
+          <NameList items={inventory.promptTemplates.map((template) => template.name)} />
+        )}
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -256,17 +260,7 @@ export function SetupPage() {
   useRefreshOnWindowFocus(() => inventory.refetch());
 
   return (
-    <AppFrame
-      sidebar={
-        <SetupSidebar
-          selected={selected}
-          onSelect={setSelected}
-          inventory={sortedInventory}
-          isFetching={inventory.isFetching}
-          onRefresh={() => inventory.refetch()}
-        />
-      }
-    >
+    <AppFrame>
       <article className="min-h-full px-6 py-6">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <header className="border-b border-border pb-4">
@@ -278,6 +272,14 @@ export function SetupPage() {
               Read-only inventory from PI_CODING_AGENT_DIR, falling back to ~/.pi/agent.
             </p>
           </header>
+
+          <SetupInventoryControls
+            selected={selected}
+            onSelect={setSelected}
+            inventory={sortedInventory}
+            isFetching={inventory.isFetching}
+            onRefresh={() => inventory.refetch()}
+          />
 
           {inventory.isError ? (
             <div className="rounded-md border border-border bg-surface px-4 py-12 text-sm text-danger">
