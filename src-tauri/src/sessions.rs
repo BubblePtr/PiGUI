@@ -69,6 +69,24 @@ pub struct SessionSummary {
     pub total_tokens: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary_model: Option<String>,
+    pub model_breakdown: Vec<ModelUsage>,
+    pub tool_counts: Vec<NamedCount>,
+    pub skill_counts: Vec<NamedCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelUsage {
+    pub model: String,
+    pub cost_usd: f64,
+    pub tokens: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedCount {
+    pub name: String,
+    pub count: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -767,10 +785,14 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
                     && first_user_message.is_none() =>
             {
                 metrics.touch(record.timestamp);
+                metrics.aggregate_tool_calls(record.effective_content());
+                metrics.aggregate_skill_invocations(record.effective_content());
                 first_user_message = first_text_from_content(record.effective_content().cloned());
             }
             "message" => {
                 metrics.touch(record.timestamp);
+                metrics.aggregate_tool_calls(record.effective_content());
+                metrics.aggregate_skill_invocations(record.effective_content());
                 let model = metrics.message_model(&record);
                 let usage = token_usage_from_record(&record);
                 let cost = cost_breakdown_from_record(&record);
@@ -801,6 +823,9 @@ fn read_session_summary(path: &Path) -> Result<Option<IndexedSession>, SessionIn
             total_cost_usd: metrics.total_cost_usd,
             total_tokens: metrics.total_tokens,
             primary_model: metrics.primary_model(),
+            model_breakdown: metrics.model_breakdown(),
+            tool_counts: metrics.tool_counts(),
+            skill_counts: metrics.skill_counts(),
         },
         sort_timestamp,
     }))
@@ -850,6 +875,8 @@ struct SessionMetrics {
     first_timestamp: Option<DateTime<Utc>>,
     last_timestamp: Option<DateTime<Utc>>,
     model_totals: HashMap<String, ModelTotals>,
+    tool_counts: HashMap<String, u64>,
+    skill_counts: HashMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -910,6 +937,35 @@ impl SessionMetrics {
         totals.total_tokens += tokens;
     }
 
+    fn aggregate_tool_calls(&mut self, content: Option<&Value>) {
+        let Some(content) = content else {
+            return;
+        };
+
+        match content {
+            Value::Array(parts) => {
+                for part in parts {
+                    if let Some(name) = tool_call_name(part) {
+                        *self.tool_counts.entry(name).or_default() += 1;
+                    }
+                }
+            }
+            value => {
+                if let Some(name) = tool_call_name(value) {
+                    *self.tool_counts.entry(name).or_default() += 1;
+                }
+            }
+        }
+    }
+
+    fn aggregate_skill_invocations(&mut self, content: Option<&Value>) {
+        for text in text_values_from_content(content) {
+            for name in skill_names_in_text(text) {
+                *self.skill_counts.entry(name).or_default() += 1;
+            }
+        }
+    }
+
     fn primary_model(&self) -> Option<String> {
         self.model_totals
             .iter()
@@ -923,6 +979,36 @@ impl SessionMetrics {
             })
             .map(|(model, _)| model.clone())
             .or_else(|| self.current_model.clone())
+    }
+
+    fn model_breakdown(&self) -> Vec<ModelUsage> {
+        let mut breakdown = self
+            .model_totals
+            .iter()
+            .map(|(model, totals)| ModelUsage {
+                model: model.clone(),
+                cost_usd: totals.total_cost_usd,
+                tokens: totals.total_tokens,
+            })
+            .collect::<Vec<_>>();
+
+        breakdown.sort_by(|left, right| {
+            right
+                .cost_usd
+                .partial_cmp(&left.cost_usd)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| right.tokens.cmp(&left.tokens))
+                .then_with(|| left.model.cmp(&right.model))
+        });
+        breakdown
+    }
+
+    fn tool_counts(&self) -> Vec<NamedCount> {
+        sorted_named_counts(&self.tool_counts)
+    }
+
+    fn skill_counts(&self) -> Vec<NamedCount> {
+        sorted_named_counts(&self.skill_counts)
     }
 
     fn duration_seconds(&self) -> Option<i64> {
@@ -989,6 +1075,84 @@ fn token_usage_from_record(record: &EventRecord) -> Option<TokenUsage> {
 
 fn cost_breakdown_from_record(record: &EventRecord) -> Option<CostBreakdown> {
     record.cost_breakdown()
+}
+
+fn text_values_from_content(content: Option<&Value>) -> Vec<&str> {
+    let Some(content) = content else {
+        return Vec::new();
+    };
+
+    match content {
+        Value::Array(parts) => parts.iter().filter_map(text_value).collect(),
+        Value::String(text) => vec![text.as_str()],
+        value => text_value(value).into_iter().collect(),
+    }
+}
+
+fn tool_call_name(value: &Value) -> Option<String> {
+    let part_type = value.get("type")?.as_str()?;
+    if part_type != "toolCall" {
+        return None;
+    }
+
+    value
+        .get("name")
+        .or_else(|| value.get("toolName"))
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn skill_names_in_text(text: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut cursor = text;
+
+    while let Some(start) = cursor.find("<skill") {
+        cursor = &cursor[start..];
+        let Some(end) = cursor.find('>') else {
+            break;
+        };
+
+        let tag = &cursor[..=end];
+        if let Some(name) = parse_skill_name(tag).or_else(|| parse_skill_shorthand_name(tag)) {
+            names.push(name);
+        }
+        cursor = &cursor[end + 1..];
+    }
+
+    names
+}
+
+fn parse_skill_shorthand_name(tag: &str) -> Option<String> {
+    let rest = tag.strip_prefix("<skill-")?;
+    let end = rest
+        .find(|character: char| character == '>' || character == '/' || character.is_whitespace())
+        .unwrap_or(rest.len());
+    let name = rest[..end].trim();
+
+    if name.is_empty() {
+        return None;
+    }
+
+    Some(name.to_owned())
+}
+
+fn sorted_named_counts(counts: &HashMap<String, u64>) -> Vec<NamedCount> {
+    let mut values = counts
+        .iter()
+        .map(|(name, count)| NamedCount {
+            name: name.clone(),
+            count: *count,
+        })
+        .collect::<Vec<_>>();
+
+    values.sort_by(|left, right| {
+        right
+            .count
+            .cmp(&left.count)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    values
 }
 
 fn string_field(fields: &BTreeMap<String, Value>, keys: &[&str]) -> Option<String> {
@@ -1290,6 +1454,111 @@ mod tests {
 
         assert_eq!(cache.misses, 4);
         assert_eq!(cache.hits, 2);
+    }
+
+    #[test]
+    fn build_index_exposes_model_breakdown_by_model_segment() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let session_dir = temp.path().join("sessions/delta");
+        fs::create_dir_all(&session_dir).expect("session dir");
+        fs::write(
+            session_dir.join("2026-01-07T10-00-00-000Z_multi-model-session.jsonl"),
+            r#"{"type":"session","id":"multi-model-session","timestamp":"2026-01-07T10:00:00.000Z","cwd":"/Users/example/code/delta","model":"gpt-5-mini"}
+{"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:02.000Z","usage":{"inputTokens":100,"outputTokens":50,"cost":{"inputUsd":0.01,"outputUsd":0.02,"totalUsd":0.03}},"content":[{"type":"text","text":"I will inspect both files."}]}
+{"type":"model_change","timestamp":"2026-01-07T10:00:03.000Z","from":"gpt-5-mini","to":"gpt-5-codex"}
+{"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:04.000Z","usage":{"input_tokens":150,"output_tokens":50,"cache_read_tokens":20,"total_tokens":220},"cost":{"input_usd":0.04,"output_usd":0.08,"cache_read_usd":0.01,"total_usd":0.13},"content":[{"type":"text","text":"The second file changed the API contract."}]}"#,
+        )
+        .expect("session file");
+
+        let sessions = build_index(temp.path()).expect("fixture should index");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].model_breakdown,
+            vec![
+                ModelUsage {
+                    model: "gpt-5-codex".to_owned(),
+                    cost_usd: 0.13,
+                    tokens: 220,
+                },
+                ModelUsage {
+                    model: "gpt-5-mini".to_owned(),
+                    cost_usd: 0.03,
+                    tokens: 150,
+                },
+            ]
+        );
+        assert_cost_eq(
+            sessions[0]
+                .model_breakdown
+                .iter()
+                .map(|usage| usage.cost_usd)
+                .sum(),
+            sessions[0].total_cost_usd,
+        );
+    }
+
+    #[test]
+    fn build_index_counts_tool_calls_by_name() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let session_dir = temp.path().join("sessions/tools");
+        fs::create_dir_all(&session_dir).expect("session dir");
+        fs::write(
+            session_dir.join("2026-01-08T10-00-00-000Z_tool-session.jsonl"),
+            r#"{"type":"session","id":"tool-session","timestamp":"2026-01-08T10:00:00.000Z","cwd":"/Users/example/code/tools","model":"gpt-5"}
+{"type":"message","role":"assistant","timestamp":"2026-01-08T10:00:01.000Z","content":[{"type":"toolCall","name":"list_files"},{"type":"toolCall","name":"read_file"},{"type":"text","text":"I inspected files."}]}
+{"type":"message","role":"assistant","timestamp":"2026-01-08T10:00:02.000Z","content":[{"type":"toolCall","name":"list_files"}]}"#,
+        )
+        .expect("session file");
+
+        let sessions = build_index(temp.path()).expect("fixture should index");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].tool_counts,
+            vec![
+                NamedCount {
+                    name: "list_files".to_owned(),
+                    count: 2,
+                },
+                NamedCount {
+                    name: "read_file".to_owned(),
+                    count: 1,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn build_index_counts_skill_invocations_anywhere_in_messages() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let session_dir = temp.path().join("sessions/skills");
+        fs::create_dir_all(&session_dir).expect("session dir");
+        fs::write(
+            session_dir.join("2026-01-09T10-00-00-000Z_skill-session.jsonl"),
+            r#"{"type":"session","id":"skill-session","timestamp":"2026-01-09T10:00:00.000Z","cwd":"/Users/example/code/skills","model":"gpt-5"}
+{"type":"message","role":"user","timestamp":"2026-01-09T10:00:01.000Z","content":[{"type":"text","text":"Start with a normal request."}]}
+{"type":"message","role":"assistant","timestamp":"2026-01-09T10:00:02.000Z","content":[{"type":"text","text":"Switching to <skill name=\"kami\" location=\"/tmp/kami\"> for layout."},{"type":"text","text":"Then use <skill-review> for a pass."}]}
+{"type":"message","role":"user","timestamp":"2026-01-09T10:00:03.000Z","content":[{"type":"text","text":"Run <skill name=\"kami\"> one more time."}]}"#,
+        )
+        .expect("session file");
+
+        let sessions = build_index(temp.path()).expect("fixture should index");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].skill_counts,
+            vec![
+                NamedCount {
+                    name: "kami".to_owned(),
+                    count: 2,
+                },
+                NamedCount {
+                    name: "review".to_owned(),
+                    count: 1,
+                },
+            ]
+        );
     }
 
     #[test]

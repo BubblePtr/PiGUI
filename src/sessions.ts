@@ -8,6 +8,20 @@ export type SessionSummary = {
   totalCostUsd: number;
   totalTokens: number;
   primaryModel?: string;
+  modelBreakdown: ModelUsage[];
+  toolCounts: NamedCount[];
+  skillCounts: NamedCount[];
+};
+
+export type ModelUsage = {
+  model: string;
+  costUsd: number;
+  tokens: number;
+};
+
+export type NamedCount = {
+  name: string;
+  count: number;
 };
 
 export type Title =

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AppFrame } from "./app-shell";
 import { useRefreshOnWindowFocus } from "./refresh";
 import {
@@ -8,16 +8,24 @@ import {
   formatDateLabel,
   formatTokens,
   listSessions,
+  type NamedCount,
   type SessionSummary,
 } from "./sessions";
 import {
+  aggregateCostByModel,
   aggregateDailyCostByProject,
   aggregateDailyTokens,
+  aggregateModelDistribution,
+  aggregateSkillCounts,
+  aggregateToolCounts,
   type DailyCostByProject,
   type DailyTokenUsage,
+  type ModelCost,
+  type ModelDistribution,
 } from "./usage-aggregation";
 
 const chartColorCount = 8;
+const defaultRankLimit = 8;
 
 function projectColor(project: string, projects: string[]) {
   const index = Math.max(0, projects.indexOf(project));
@@ -28,6 +36,17 @@ function heatColor(level: number) {
   return `var(--pig-color-heat-${level})`;
 }
 
+function chartColor(index: number) {
+  return `var(--pig-color-chart-${(index % chartColorCount) + 1})`;
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 function summarizeSessions(sessions: SessionSummary[]) {
   return sessions.reduce(
     (summary, session) => ({
@@ -36,6 +55,178 @@ function summarizeSessions(sessions: SessionSummary[]) {
       projects: summary.projects.add(session.project),
     }),
     { totalCostUsd: 0, totalTokens: 0, projects: new Set<string>() },
+  );
+}
+
+function EmptyUsageState({ children }: { children: string }) {
+  return (
+    <div className="rounded-md border border-border bg-surface px-4 py-10 text-sm text-muted">
+      {children}
+    </div>
+  );
+}
+
+function SectionHeading({ title, meta }: { title: string; meta?: string }) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between gap-4">
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      {meta ? <span className="text-xs font-medium text-muted">{meta}</span> : null}
+    </div>
+  );
+}
+
+function ModelCostBreakdown({ models }: { models: ModelCost[] }) {
+  const maxCost = Math.max(...models.map((model) => model.costUsd), 0);
+
+  if (models.length === 0) {
+    return <EmptyUsageState>No model usage yet.</EmptyUsageState>;
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
+      <div className="grid gap-3">
+        {models.map((model, index) => {
+          const width = maxCost === 0 ? 0 : Math.max(2, (model.costUsd / maxCost) * 100);
+
+          return (
+            <div key={model.model}>
+              <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate font-medium text-foreground">{model.model}</span>
+                <span className="shrink-0 text-muted">
+                  {formatCost(model.costUsd)} · {formatTokens(model.tokens)}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-sm bg-surface-muted">
+                <div
+                  className="h-full rounded-sm"
+                  style={{ width: `${width}%`, backgroundColor: chartColor(index) }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ModelDistributionView({ models }: { models: ModelDistribution[] }) {
+  const [mode, setMode] = useState<"cost" | "tokens">("cost");
+
+  if (models.length === 0) {
+    return <EmptyUsageState>No model distribution yet.</EmptyUsageState>;
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
+      <div className="mb-4 inline-flex rounded-md border border-border bg-surface-muted p-1">
+        {(["cost", "tokens"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={`rounded px-3 py-1.5 text-sm font-medium transition ${
+              mode === item
+                ? "bg-surface text-foreground shadow-sm"
+                : "text-muted hover:bg-surface-hover hover:text-foreground"
+            }`}
+            onClick={() => setMode(item)}
+          >
+            {item === "cost" ? "Cost" : "Tokens"}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3">
+        {models.map((model, index) => {
+          const share = mode === "cost" ? model.costShare : model.tokenShare;
+
+          return (
+            <div key={model.model}>
+              <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate font-medium text-foreground">{model.model}</span>
+                <span className="shrink-0 text-muted">{formatPercent(share)}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-sm bg-surface-muted">
+                <div
+                  className="h-full rounded-sm"
+                  style={{ width: `${share * 100}%`, backgroundColor: chartColor(index) }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NamedRankList({ items, emptyLabel }: { items: NamedCount[]; emptyLabel: string }) {
+  const maxCount = Math.max(...items.map((item) => item.count), 0);
+
+  if (items.length === 0) {
+    return <EmptyUsageState>{emptyLabel}</EmptyUsageState>;
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-surface p-4 shadow-sm">
+      <div className="grid gap-3">
+        {items.map((item, index) => {
+          const width = maxCount === 0 ? 0 : Math.max(2, (item.count / maxCount) * 100);
+
+          return (
+            <div key={item.name}>
+              <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
+                <span className="shrink-0 text-muted">{item.count}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-sm bg-surface-muted">
+                <div
+                  className="h-full rounded-sm"
+                  style={{ width: `${width}%`, backgroundColor: chartColor(index) }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function UsageSecondLayer({
+  sessions,
+  rankLimit = defaultRankLimit,
+}: {
+  sessions: SessionSummary[];
+  rankLimit?: number;
+}) {
+  const modelCosts = useMemo(() => aggregateCostByModel(sessions), [sessions]);
+  const modelDistribution = useMemo(() => aggregateModelDistribution(sessions), [sessions]);
+  const toolCounts = useMemo(() => aggregateToolCounts(sessions, rankLimit), [sessions, rankLimit]);
+  const skillCounts = useMemo(() => aggregateSkillCounts(sessions, rankLimit), [sessions, rankLimit]);
+
+  return (
+    <>
+      <section>
+        <SectionHeading title="Cost by model" meta="API list price" />
+        <ModelCostBreakdown models={modelCosts} />
+      </section>
+
+      <section>
+        <SectionHeading title="Model distribution" meta="Cost / tokens" />
+        <ModelDistributionView models={modelDistribution} />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div>
+          <SectionHeading title="Tool calls" meta={`Top ${rankLimit}`} />
+          <NamedRankList items={toolCounts} emptyLabel="No tool calls yet." />
+        </div>
+        <div>
+          <SectionHeading title="Skill usage" meta={`Top ${rankLimit}`} />
+          <NamedRankList items={skillCounts} emptyLabel="No skill usage yet." />
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -310,6 +501,8 @@ export function UsagePage() {
                 </div>
                 <TokenHeatmap days={tokenDays} />
               </section>
+
+              <UsageSecondLayer sessions={allSessions} />
             </>
           )}
         </div>
