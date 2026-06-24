@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { invoke } from "@tauri-apps/api/core";
 import {
   ArrowLeft,
   Bot,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import { invoke } from "./tauri-runtime";
 
 type MessageRole = "user" | "assistant" | "toolResult" | "unknown";
 

@@ -1,14 +1,33 @@
 @import "tailwindcss";
+@import "@heroui/styles";
+@import "../vendor/herouipro-v3/src/css/components/app-layout.css";
+@import "../vendor/herouipro-v3/src/css/components/sidebar.css";
+@import "../vendor/herouipro-v3/src/css/components/sheet.css";
+@import "../vendor/herouipro-v3/src/css/components/resizable.css";
+@import "../vendor/herouipro-v3/src/css/components/segment.css";
+@import "../vendor/herouipro-v3/src/css/components/native-select.css";
+@import "../vendor/herouipro-v3/src/css/components/kpi.css";
+@import "../vendor/herouipro-v3/src/css/components/number-value.css";
+@import "../vendor/herouipro-v3/src/css/components/trend-chip.css";
+@import "../vendor/herouipro-v3/src/css/components/bar-chart.css";
+@import "../vendor/herouipro-v3/src/css/components/line-chart.css";
+@import "../vendor/herouipro-v3/src/css/components/chart-tooltip.css";
+@import "../vendor/herouipro-v3/src/css/components/code-block.css";
+@import "../vendor/herouipro-v3/src/css/components/timeline.css";
+@import "../vendor/herouipro-v3/src/css/themes/glass/index.css";
+
+@source "../vendor/herouipro-v3/src/components/**/*.{ts,tsx}";
+@source "./**/*.{ts,tsx}";
 
 :root {
-  --pig-color-background: #f7f7f4;
-  --pig-color-foreground: #181916;
-  --pig-color-muted: #64685f;
-  --pig-color-surface: #ffffff;
-  --pig-color-surface-muted: #efefea;
-  --pig-color-surface-hover: #f1f2ed;
-  --pig-color-border: #d9dbd2;
-  --pig-color-danger: #a12d2f;
+  --pig-color-background: var(--background);
+  --pig-color-foreground: var(--foreground);
+  --pig-color-muted: var(--muted);
+  --pig-color-surface: var(--surface);
+  --pig-color-surface-muted: var(--surface-secondary);
+  --pig-color-surface-hover: var(--surface-tertiary);
+  --pig-color-border: var(--border);
+  --pig-color-danger: var(--danger);
   --pig-color-chart-1: #2f6f9f;
   --pig-color-chart-2: #4f8f5f;
   --pig-color-chart-3: #b46a3c;
@@ -37,33 +56,6 @@
   --shadow-sm: var(--pig-shadow-sm);
   --font-sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --pig-color-background: #111310;
-    --pig-color-foreground: #f1f3ed;
-    --pig-color-muted: #a4aa9d;
-    --pig-color-surface: #191c17;
-    --pig-color-surface-muted: #22261f;
-    --pig-color-surface-hover: #2a2f27;
-    --pig-color-border: #343a31;
-    --pig-color-danger: #f07c7f;
-    --pig-color-chart-1: #66a9d7;
-    --pig-color-chart-2: #75bd82;
-    --pig-color-chart-3: #d8945d;
-    --pig-color-chart-4: #a98cd2;
-    --pig-color-chart-5: #d27a91;
-    --pig-color-chart-6: #69bdb6;
-    --pig-color-chart-7: #c4b45d;
-    --pig-color-chart-8: #91a7d0;
-    --pig-color-heat-0: #20241d;
-    --pig-color-heat-1: #294631;
-    --pig-color-heat-2: #356f49;
-    --pig-color-heat-3: #45a060;
-    --pig-color-heat-4: #65d47e;
-    --pig-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
-  }
 }
 
 html {

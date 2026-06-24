@@ -1,17 +1,12 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect } from "react";
+import { onWindowFocusChanged } from "./tauri-runtime";
 
 export function useRefreshOnWindowFocus(refetch: () => unknown) {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
 
-    getCurrentWindow()
-      .onFocusChanged(({ payload: focused }) => {
-        if (focused) {
-          void refetch();
-        }
-      })
+    onWindowFocusChanged(refetch)
       .then((nextUnlisten) => {
         if (disposed) {
           nextUnlisten();

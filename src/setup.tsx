@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
 import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppFrame } from "./app-shell";
 import { useRefreshOnWindowFocus } from "./refresh";
+import { invoke } from "./tauri-runtime";
 
 export type ConfigInventory = {
   defaultModel?: string;
