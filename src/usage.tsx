@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, EmptyState as HeroEmptyState, ProgressBar } from "@heroui/react";
-import { KPI, Segment } from "@heroui-pro/react";
+import {
+  Button,
+  Card,
+  EmptyState as HeroEmptyState,
+  ProgressBar,
+  ScrollShadow,
+  Tabs,
+  Tooltip,
+} from "@heroui/react";
+import { BarChart, KPI, Segment } from "@heroui-pro/react";
 import { RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import { SharedElementTransition } from "react-aria-components/SharedElementTransition";
 import { AppFrame } from "./app-shell";
 import { useRefreshOnWindowFocus } from "./refresh";
@@ -18,9 +26,13 @@ import {
   aggregateCostByModel,
   aggregateDailyCostByProject,
   aggregateDailyTokens,
+  buildTrailingAnnualTokenHeatmap,
   aggregateModelDistribution,
   aggregateSkillCounts,
   aggregateToolCounts,
+  bucketCostByProject,
+  type CostByProjectBucket,
+  type CostTrendGranularity,
   type DailyCostByProject,
   type DailyTokenUsage,
   type ModelCost,
@@ -29,6 +41,26 @@ import {
 
 const chartColorCount = 8;
 const defaultRankLimit = 8;
+const costTrendGranularityOptions: Array<{ id: CostTrendGranularity; label: string }> = [
+  { id: "day", label: "Day" },
+  { id: "week", label: "Week" },
+  { id: "month", label: "Month" },
+  { id: "year", label: "Year" },
+  { id: "cumulative", label: "Cumulative" },
+];
+const costTrendGranularityTitles: Record<CostTrendGranularity, string> = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
+  year: "Annual",
+  cumulative: "Cumulative",
+};
+type TokenActivityMode = "daily" | "weekly" | "cumulative";
+const tokenActivityModeOptions: Array<{ id: TokenActivityMode; label: string }> = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "cumulative", label: "Cumulative" },
+];
 
 function projectColor(project: string, projects: string[]) {
   const index = Math.max(0, projects.indexOf(project));
@@ -48,6 +80,14 @@ function formatPercent(value: number) {
     style: "percent",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function isCostTrendGranularity(value: string): value is CostTrendGranularity {
+  return costTrendGranularityOptions.some((option) => option.id === value);
+}
+
+function isTokenActivityMode(value: string): value is TokenActivityMode {
+  return tokenActivityModeOptions.some((option) => option.id === value);
 }
 
 function summarizeSessions(sessions: SessionSummary[]) {
@@ -247,7 +287,7 @@ function usageDateRange(days: Array<{ date: string }>) {
   return `${formatDateLabel(days[0].date)} - ${formatDateLabel(days[days.length - 1].date)}`;
 }
 
-function UsageSummaryPanel({
+export function UsageSummaryPanel({
   sessions,
   isFetching,
   onRefresh,
@@ -266,16 +306,24 @@ function UsageSummaryPanel({
             <h2 className="text-sm font-semibold text-foreground">Usage summary</h2>
             <p className="mt-1 text-xs text-muted">All sessions, by day</p>
           </div>
-          <Button
-            isIconOnly
-            aria-label="Refresh usage"
-            isDisabled={isFetching}
-            size="sm"
-            variant="outline"
-            onPress={onRefresh}
-          >
-            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
+          <Tooltip delay={0}>
+            <Tooltip.Trigger
+              className="inline-flex"
+              data-testid="usage-refresh-tooltip-trigger"
+            >
+              <Button
+                isIconOnly
+                aria-label="Refresh usage"
+                isDisabled={isFetching}
+                size="sm"
+                variant="outline"
+                onPress={onRefresh}
+              >
+                <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Refresh usage data</Tooltip.Content>
+          </Tooltip>
         </div>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -290,7 +338,6 @@ function UsageSummaryPanel({
               value={summary.totalCostUsd}
             />
           </KPI.Content>
-          <KPI.Footer className="text-xs text-muted">API list price</KPI.Footer>
         </KPI>
         <KPI>
           <KPI.Content>
@@ -310,41 +357,109 @@ function UsageSummaryPanel({
   );
 }
 
-function CostTooltip({ day, projects }: { day: DailyCostByProject; projects: string[] }) {
+type CostTrendChartDatum = Record<string, number | string> & {
+  key: string;
+  label: string;
+  tooltipLabel: string;
+};
+
+type CostTrendSeries = {
+  color: string;
+  dataKey: string;
+  project: string;
+};
+
+type CostTrendTooltipContentProps = ComponentProps<typeof BarChart.TooltipContent>;
+
+function formatMonthLabel(key: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${key}-01T00:00:00.000Z`));
+}
+
+function formatCostBucketLabel(bucket: CostByProjectBucket, granularity: CostTrendGranularity) {
+  if (granularity === "month") {
+    return formatMonthLabel(bucket.key);
+  }
+  if (granularity === "year") {
+    return bucket.key;
+  }
+  if (granularity === "cumulative") {
+    return "Total";
+  }
+  return formatDateLabel(bucket.startDate);
+}
+
+function formatCostBucketTooltipLabel(
+  bucket: CostByProjectBucket,
+  granularity: CostTrendGranularity,
+) {
+  if (granularity === "week") {
+    return `Week of ${formatDateLabel(bucket.startDate)}`;
+  }
+  if (granularity === "cumulative") {
+    return `${formatDateLabel(bucket.startDate)} - ${formatDateLabel(bucket.endDate)}`;
+  }
+  return formatCostBucketLabel(bucket, granularity);
+}
+
+function CostTrendTooltipContent({ payload, label, ...props }: CostTrendTooltipContentProps) {
+  const nonZeroPayload = payload?.filter((entry) => Number(entry.value ?? 0) > 0);
+  const tooltipLabel = nonZeroPayload?.[0]?.payload?.tooltipLabel ?? payload?.[0]?.payload?.tooltipLabel;
+
   return (
-    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-56 -translate-x-1/2 rounded-md border border-border bg-surface px-3 py-2 text-left text-xs shadow-sm group-hover:block">
-      <div className="font-semibold text-foreground">{formatDateLabel(day.date)}</div>
-      <div className="mt-1 text-muted">Total {formatCost(day.totalCostUsd)}</div>
-      <div className="mt-2 grid gap-1">
-        {day.projects.length === 0 ? (
-          <div className="text-muted">No sessions</div>
-        ) : (
-          day.projects.map((project) => (
-            <div key={project.project} className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span
-                  className="size-2 shrink-0 rounded-sm"
-                  style={{ backgroundColor: projectColor(project.project, projects) }}
-                />
-                <span className="truncate text-muted">{project.project}</span>
-              </span>
-              <span className="font-medium text-foreground">{formatCost(project.costUsd)}</span>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+    <BarChart.TooltipContent
+      {...props}
+      label={typeof tooltipLabel === "string" ? tooltipLabel : label}
+      payload={nonZeroPayload?.length ? nonZeroPayload : payload}
+      valueFormatter={(value) => formatCost(Number(value))}
+    />
   );
 }
 
-function CostTrendChart({
+export function CostTrendChart({
   days,
+  granularity,
   projects,
 }: {
   days: DailyCostByProject[];
+  granularity: CostTrendGranularity;
   projects: string[];
 }) {
-  const maxCost = Math.max(...days.map((day) => day.totalCostUsd), 0);
+  const buckets = useMemo(() => bucketCostByProject(days, granularity), [days, granularity]);
+  const series = useMemo<CostTrendSeries[]>(
+    () =>
+      projects.map((project, index) => ({
+        color: projectColor(project, projects),
+        dataKey: `project_${index}`,
+        project,
+      })),
+    [projects],
+  );
+  const data = useMemo<CostTrendChartDatum[]>(
+    () =>
+      buckets.map((bucket) => {
+        const costsByProject = new Map(
+          bucket.projects.map((project) => [project.project, project.costUsd]),
+        );
+        const datum: CostTrendChartDatum = {
+          key: bucket.key,
+          label: formatCostBucketLabel(bucket, granularity),
+          tooltipLabel: formatCostBucketTooltipLabel(bucket, granularity),
+        };
+
+        for (const item of series) {
+          datum[item.dataKey] = costsByProject.get(item.project) ?? 0;
+        }
+
+        return datum;
+      }),
+    [buckets, granularity, series],
+  );
+  const isScrollable = data.length > 12;
+  const chartWidth = Math.max(672, data.length * 72);
+  const chartAriaLabel = `${costTrendGranularityTitles[granularity]} cost by project chart`;
 
   if (days.length === 0) {
     return (
@@ -354,47 +469,129 @@ function CostTrendChart({
     );
   }
 
-  return (
-    <Card className="overflow-x-auto">
-      <Card.Content>
-      <div className="flex min-w-[42rem] items-end gap-2">
-        {days.map((day) => {
-          const height = maxCost === 0 ? 0 : Math.max(4, (day.totalCostUsd / maxCost) * 100);
+  const chart = (
+    <BarChart
+      aria-label={chartAriaLabel}
+      className="overflow-visible"
+      data={data}
+      height={320}
+      margin={{ bottom: 0, left: 0, right: 12, top: 24 }}
+      role="img"
+      style={isScrollable ? { minWidth: chartWidth } : undefined}
+      width="100%"
+    >
+      <BarChart.Grid vertical={false} />
+      <BarChart.XAxis
+        axisLine={false}
+        dataKey="label"
+        interval={0}
+        minTickGap={8}
+        tickLine={false}
+        tickMargin={10}
+      />
+      <BarChart.YAxis domain={[0, "dataMax"]} hide />
+      <BarChart.Tooltip
+        allowEscapeViewBox={{ x: false, y: true }}
+        content={<CostTrendTooltipContent />}
+        cursor={{ fill: "var(--pig-color-surface-hover)" }}
+        isAnimationActive={false}
+        offset={12}
+        position={{ y: 16 }}
+        reverseDirection={{ x: true, y: false }}
+        shared
+        wrapperStyle={{
+          outline: "none",
+          pointerEvents: "none",
+          zIndex: 30,
+        }}
+      />
+      {series.map((item) => (
+        <BarChart.Bar
+          key={item.dataKey}
+          dataKey={item.dataKey}
+          fill={item.color}
+          isAnimationActive={false}
+          maxBarSize={48}
+          name={item.project}
+          stackId="cost"
+        />
+      ))}
+    </BarChart>
+  );
 
-          return (
-            <div key={day.date} className="group relative flex min-w-10 flex-1 flex-col items-center">
-              <CostTooltip day={day} projects={projects} />
-              <div className="flex h-56 w-full items-end rounded-md bg-surface-muted px-1 pb-1">
-                <div
-                  className="flex w-full flex-col-reverse overflow-hidden rounded-sm"
-                  style={{ height: `${height}%` }}
-                  aria-label={`${formatDateLabel(day.date)} cost ${formatCost(day.totalCostUsd)}`}
-                >
-                  {day.totalCostUsd === 0 ? (
-                    <span className="h-0.5 w-full bg-border" />
-                  ) : (
-                    day.projects.map((project) => (
-                      <span
-                        key={project.project}
-                        className="w-full"
-                        style={{
-                          height: `${(project.costUsd / day.totalCostUsd) * 100}%`,
-                          backgroundColor: projectColor(project.project, projects),
-                        }}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="mt-2 w-full truncate text-center text-[11px] text-muted">
-                {formatDateLabel(day.date)}
-              </div>
+  return (
+    <Card className="overflow-visible">
+      <Card.Content>
+        <div className="relative">
+          {isScrollable ? (
+            <ScrollShadow
+              className="overflow-x-auto overflow-y-visible pt-2"
+              data-granularity={granularity}
+              data-scrollable="true"
+              data-testid="cost-trend-chart-viewport"
+              hideScrollBar={false}
+              orientation="horizontal"
+              size={32}
+            >
+              {chart}
+            </ScrollShadow>
+          ) : (
+            <div
+              className="overflow-visible pt-2"
+              data-granularity={granularity}
+              data-scrollable="false"
+              data-testid="cost-trend-chart-viewport"
+            >
+              {chart}
             </div>
-          );
-        })}
-      </div>
+          )}
+        </div>
       </Card.Content>
     </Card>
+  );
+}
+
+export function CostTrendSection({
+  days,
+  projects,
+}: {
+  days: DailyCostByProject[];
+  projects: string[];
+}) {
+  const [granularity, setGranularity] = useState<CostTrendGranularity>("month");
+  const title = `${costTrendGranularityTitles[granularity]} cost by project`;
+
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
+          <p className="mt-1 text-sm text-muted">Stacked bars, grouped by project.</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <SharedElementTransition>
+            <Segment
+              aria-label="Cost trend granularity"
+              selectedKey={granularity}
+              size="sm"
+              onSelectionChange={(key) => {
+                const value = String(key);
+                setGranularity(isCostTrendGranularity(value) ? value : "month");
+              }}
+            >
+              {costTrendGranularityOptions.map((option) => (
+                <Segment.Item key={option.id} id={option.id}>
+                  <Segment.Separator />
+                  {option.label}
+                </Segment.Item>
+              ))}
+            </Segment>
+          </SharedElementTransition>
+          <span className="text-xs font-medium text-muted">API list price</span>
+        </div>
+      </div>
+      <CostTrendChart days={days} granularity={granularity} projects={projects} />
+    </section>
   );
 }
 
@@ -406,10 +603,42 @@ function heatLevel(tokens: number, maxTokens: number) {
   return Math.min(4, Math.max(1, Math.ceil((tokens / maxTokens) * 4)));
 }
 
-function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
-  const maxTokens = Math.max(...days.map((day) => day.totalTokens), 0);
+function tokenActivityValues(
+  days: Array<{ date: string; totalTokens: number; weekIndex: number }>,
+  mode: TokenActivityMode,
+) {
+  const values = new Map<string, number>();
 
-  if (days.length === 0) {
+  if (mode === "weekly") {
+    const weekTotals = new Map<number, number>();
+    for (const day of days) {
+      weekTotals.set(day.weekIndex, (weekTotals.get(day.weekIndex) ?? 0) + day.totalTokens);
+    }
+    for (const day of days) {
+      values.set(day.date, weekTotals.get(day.weekIndex) ?? 0);
+    }
+    return values;
+  }
+
+  let cumulative = 0;
+  for (const day of days) {
+    cumulative += day.totalTokens;
+    values.set(day.date, mode === "cumulative" ? cumulative : day.totalTokens);
+  }
+
+  return values;
+}
+
+export function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
+  const [mode, setMode] = useState<TokenActivityMode>("daily");
+  const heatmap = useMemo(() => buildTrailingAnnualTokenHeatmap(days), [days]);
+  const activityValues = useMemo(
+    () => (heatmap ? tokenActivityValues(heatmap.days, mode) : new Map<string, number>()),
+    [heatmap, mode],
+  );
+  const maxTokens = Math.max(...activityValues.values(), 0);
+
+  if (!heatmap) {
     return (
       <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
         No token usage yet.
@@ -418,34 +647,100 @@ function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
   }
 
   return (
-    <Card>
+    <Card className="overflow-visible">
       <Card.Content>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(1.25rem,1fr))] gap-1">
-        {days.map((day) => {
-          const level = heatLevel(day.totalTokens, maxTokens);
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+          <h2 className="text-base font-semibold text-foreground">Token activity</h2>
+          <Tabs
+            selectedKey={mode}
+            onSelectionChange={(key) => {
+              const value = String(key);
+              setMode(isTokenActivityMode(value) ? value : "daily");
+            }}
+          >
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="Token activity aggregation">
+                {tokenActivityModeOptions.map((option) => (
+                  <Tabs.Tab key={option.id} id={option.id}>
+                    {option.label}
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
+          </Tabs>
+        </div>
+        <ScrollShadow
+          className="overflow-x-auto pb-1"
+          hideScrollBar
+          orientation="horizontal"
+          size={32}
+        >
+          <div className="w-full min-w-[48rem] lg:min-w-0" data-testid="token-heatmap-calendar">
+            <div className="grid gap-1">
+              <div
+                className="grid gap-1"
+                data-day-count={heatmap.days.length}
+                data-mode={mode}
+                data-testid="token-heatmap-grid"
+                data-year={heatmap.year}
+                style={{
+                  gridTemplateColumns: `repeat(${heatmap.weekCount}, minmax(0, 1fr))`,
+                }}
+              >
+                {heatmap.days.map((day) => {
+                  const activityValue = activityValues.get(day.date) ?? 0;
+                  const level = heatLevel(activityValue, maxTokens);
 
-          return (
-            <div
-              key={day.date}
-              className="aspect-square rounded-sm border border-border"
-              style={{ backgroundColor: heatColor(level) }}
-              title={`${formatDateLabel(day.date)}: ${formatTokens(day.totalTokens)} tokens`}
-              aria-label={`${formatDateLabel(day.date)} tokens ${day.totalTokens}`}
-            />
-          );
-        })}
-      </div>
-      <div className="mt-3 flex items-center justify-end gap-2 text-xs text-muted">
-        <span>Less</span>
-        {[0, 1, 2, 3, 4].map((level) => (
-          <span
-            key={level}
-            className="size-3 rounded-sm border border-border"
-            style={{ backgroundColor: heatColor(level) }}
-          />
-        ))}
-        <span>More</span>
-      </div>
+                  return (
+                    <div
+                      key={day.date}
+                      aria-label={`${formatDateLabel(day.date)} tokens ${day.totalTokens}`}
+                      className="aspect-square rounded-full border border-border"
+                      data-activity-value={activityValue}
+                      data-date={day.date}
+                      data-token-day
+                      data-tokens={day.totalTokens}
+                      style={{
+                        backgroundColor: heatColor(level),
+                        gridColumnStart: day.weekIndex + 1,
+                        gridRowStart: day.weekdayIndex + 1,
+                      }}
+                      title={`${formatDateLabel(day.date)}: ${formatTokens(day.totalTokens)} tokens`}
+                    />
+                  );
+                })}
+              </div>
+              <div
+                aria-hidden
+                className="mt-3 grid gap-1 text-sm leading-none text-muted"
+                style={{
+                  gridTemplateColumns: `repeat(${heatmap.weekCount}, minmax(0, 1fr))`,
+                }}
+              >
+                {heatmap.monthLabels.map((month, index) => {
+                  const nextMonth = heatmap.monthLabels[index + 1];
+
+                  return (
+                    <span
+                      key={month.label}
+                      className="text-left"
+                      data-month-label={month.label}
+                      style={{
+                        gridColumnEnd: nextMonth
+                          ? nextMonth.weekIndex + 1
+                          : heatmap.weekCount + 1,
+                        gridColumnStart: month.weekIndex + 1,
+                      }}
+                    >
+                      {month.label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </ScrollShadow>
       </Card.Content>
     </Card>
   );
@@ -496,26 +791,9 @@ export function UsagePage() {
                 onRefresh={() => sessions.refetch()}
               />
 
-              <section>
-                <div className="mb-3 flex items-baseline justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">Daily cost by project</h2>
-                    <p className="mt-1 text-sm text-muted">
-                      Stacked daily bars, grouped by project.
-                    </p>
-                  </div>
-                  <span className="text-xs font-medium text-muted">API list price</span>
-                </div>
-                <CostTrendChart days={costDays} projects={projects} />
-              </section>
+              <CostTrendSection days={costDays} projects={projects} />
 
               <section>
-                <div className="mb-3">
-                  <h2 className="text-base font-semibold text-foreground">Daily token heatmap</h2>
-                  <p className="mt-1 text-sm text-muted">
-                    Calendar-style intensity from all indexed sessions.
-                  </p>
-                </div>
                 <TokenHeatmap days={tokenDays} />
               </section>
 

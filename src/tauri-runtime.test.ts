@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import type { SessionSummary } from "./sessions";
+import type { SessionDetail } from "./session-detail";
 import { invoke, isTauriRuntime, onWindowFocusChanged } from "./tauri-runtime";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -34,13 +36,42 @@ describe("tauri runtime bridge", () => {
   });
 
   it("returns browser development data outside Tauri", async () => {
-    await expect(invoke("list_sessions")).resolves.toEqual([]);
+    const sessions = await invoke<SessionSummary[]>("list_sessions");
+
+    expect(Array.isArray(sessions)).toBe(true);
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(sessions).toContainEqual(
+      expect.objectContaining({
+        timestamp: "2026-03-20T04:33:21.661Z",
+        project: "excalidraw",
+        totalCostUsd: expect.any(Number),
+        totalTokens: expect.any(Number),
+      }),
+    );
     await expect(invoke("get_config_inventory")).resolves.toEqual({
       packages: [],
       extensions: [],
       skills: [],
       promptTemplates: [],
     });
+    await expect(
+      invoke<SessionDetail>("get_session_detail", { id: "dev-fixture-pig-jun24" }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "dev-fixture-pig-jun24",
+        project: "Pig",
+        turns: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "message",
+            parts: expect.arrayContaining([
+              expect.objectContaining({
+                partType: "text",
+              }),
+            ]),
+          }),
+        ]),
+      }),
+    );
 
     expect(tauriInvoke).not.toHaveBeenCalled();
   });

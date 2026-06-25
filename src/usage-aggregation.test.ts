@@ -3,6 +3,9 @@ import {
   aggregateCostByModel,
   aggregateDailyCostByProject,
   aggregateDailyTokens,
+  buildAnnualTokenHeatmap,
+  buildTrailingAnnualTokenHeatmap,
+  bucketCostByProject,
   aggregateModelDistribution,
   aggregateSkillCounts,
   aggregateToolCounts,
@@ -81,6 +84,167 @@ describe("aggregateDailyTokens", () => {
       { date: "2026-01-01", totalTokens: 100 },
       { date: "2026-01-02", totalTokens: 0 },
       { date: "2026-01-03", totalTokens: 500 },
+    ]);
+  });
+});
+
+describe("buildAnnualTokenHeatmap", () => {
+  it("expands sparse token days to a full calendar year", () => {
+    const heatmap = buildAnnualTokenHeatmap([
+      { date: "2026-03-20", totalTokens: 100 },
+      { date: "2026-06-24", totalTokens: 250 },
+    ]);
+
+    expect(heatmap).toMatchObject({
+      year: 2026,
+      weekCount: 53,
+    });
+    expect(heatmap?.days).toHaveLength(365);
+    expect(heatmap?.days[0]).toMatchObject({
+      date: "2026-01-01",
+      totalTokens: 0,
+      weekdayIndex: 4,
+      weekIndex: 0,
+    });
+    expect(heatmap?.days.find((day) => day.date === "2026-03-20")).toMatchObject({
+      totalTokens: 100,
+    });
+    expect(heatmap?.days[heatmap.days.length - 1]).toMatchObject({
+      date: "2026-12-31",
+      totalTokens: 0,
+    });
+    expect(heatmap?.monthLabels.map((month) => month.label)).toEqual([
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ]);
+  });
+
+  it("uses the latest data year when more than one year is present", () => {
+    const heatmap = buildAnnualTokenHeatmap([
+      { date: "2025-12-31", totalTokens: 100 },
+      { date: "2026-01-02", totalTokens: 200 },
+    ]);
+
+    expect(heatmap?.year).toBe(2026);
+    expect(heatmap?.days.find((day) => day.date === "2026-01-02")).toMatchObject({
+      totalTokens: 200,
+    });
+    expect(heatmap?.days.some((day) => day.date === "2025-12-31")).toBe(false);
+  });
+});
+
+describe("buildTrailingAnnualTokenHeatmap", () => {
+  it("expands sparse token days to the latest twelve calendar months", () => {
+    const heatmap = buildTrailingAnnualTokenHeatmap([
+      { date: "2026-03-20", totalTokens: 100 },
+      { date: "2026-06-24", totalTokens: 250 },
+    ]);
+
+    expect(heatmap).toMatchObject({
+      year: 2026,
+      startDate: "2025-07-01",
+      endDate: "2026-06-30",
+    });
+    expect(heatmap?.days[0]).toMatchObject({
+      date: "2025-07-01",
+      totalTokens: 0,
+    });
+    expect(heatmap?.days.find((day) => day.date === "2026-03-20")).toMatchObject({
+      totalTokens: 100,
+    });
+    expect(heatmap?.days[heatmap.days.length - 1]).toMatchObject({
+      date: "2026-06-30",
+      totalTokens: 0,
+    });
+    expect(heatmap?.monthLabels.map((month) => month.label)).toEqual([
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+    ]);
+  });
+});
+
+describe("bucketCostByProject", () => {
+  const days = [
+    {
+      date: "2026-03-20",
+      totalCostUsd: 1,
+      projects: [{ project: "alpha", costUsd: 1 }],
+    },
+    {
+      date: "2026-03-21",
+      totalCostUsd: 0,
+      projects: [],
+    },
+    {
+      date: "2026-03-22",
+      totalCostUsd: 2,
+      projects: [{ project: "beta", costUsd: 2 }],
+    },
+    {
+      date: "2026-04-01",
+      totalCostUsd: 3,
+      projects: [{ project: "alpha", costUsd: 3 }],
+    },
+  ];
+
+  it("groups daily project costs by month without keeping daily ticks", () => {
+    expect(bucketCostByProject(days, "month")).toEqual([
+      {
+        key: "2026-03",
+        startDate: "2026-03-20",
+        endDate: "2026-03-22",
+        totalCostUsd: 3,
+        projects: [
+          { project: "beta", costUsd: 2 },
+          { project: "alpha", costUsd: 1 },
+        ],
+      },
+      {
+        key: "2026-04",
+        startDate: "2026-04-01",
+        endDate: "2026-04-01",
+        totalCostUsd: 3,
+        projects: [{ project: "alpha", costUsd: 3 }],
+      },
+    ]);
+  });
+
+  it("groups daily project costs by UTC week and cumulative total", () => {
+    expect(bucketCostByProject(days, "week").map((bucket) => bucket.key)).toEqual([
+      "2026-03-16",
+      "2026-03-30",
+    ]);
+    expect(bucketCostByProject(days, "cumulative")).toEqual([
+      {
+        key: "cumulative",
+        startDate: "2026-03-20",
+        endDate: "2026-04-01",
+        totalCostUsd: 6,
+        projects: [
+          { project: "alpha", costUsd: 4 },
+          { project: "beta", costUsd: 2 },
+        ],
+      },
     ]);
   });
 });

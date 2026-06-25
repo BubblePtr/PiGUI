@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Button, Card, Chip, ScrollShadow } from "@heroui/react";
+import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
 import { NativeSelect } from "@heroui-pro/react";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -126,7 +126,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   useRefreshOnWindowFocus(refetch);
 
   return (
-    <Card className="flex h-full min-h-[28rem] min-w-0 flex-col overflow-hidden">
+    <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -168,13 +168,17 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
 
       <ScrollShadow className="min-h-0 flex-1 overflow-y-auto">
         {sessions.isLoading ? (
-          <div className="px-4 py-10 text-sm text-muted">Loading sessions...</div>
+          <HeroEmptyState className="px-4 py-10 text-sm text-muted">
+            Loading sessions...
+          </HeroEmptyState>
         ) : sessions.isError ? (
-          <div className="px-4 py-10 text-sm text-danger">
+          <HeroEmptyState className="px-4 py-10 text-sm text-danger">
             Could not read the Pi agent directory.
-          </div>
+          </HeroEmptyState>
         ) : sessionRows.length === 0 ? (
-          <div className="px-4 py-10 text-sm text-muted">No sessions found.</div>
+          <HeroEmptyState className="px-4 py-10 text-sm text-muted">
+            No sessions found.
+          </HeroEmptyState>
         ) : (
           <ol>
             {sessionRows.map((session) => (

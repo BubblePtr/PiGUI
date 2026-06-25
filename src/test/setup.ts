@@ -14,10 +14,13 @@ class TestResizeObserver implements ResizeObserver {
   }
 
   observe(target: Element) {
+    const boxSize = [{ inlineSize: 1024, blockSize: 720 }];
+
     this.callback(
       [
         {
           target,
+          borderBoxSize: boxSize,
           contentRect: {
             x: 0,
             y: 0,
@@ -29,6 +32,8 @@ class TestResizeObserver implements ResizeObserver {
             height: 720,
             toJSON: () => ({}),
           },
+          contentBoxSize: boxSize,
+          devicePixelContentBoxSize: boxSize,
         } as ResizeObserverEntry,
       ],
       this,
@@ -64,4 +69,10 @@ Object.defineProperty(HTMLElement.prototype, "scrollTo", {
   writable: true,
   configurable: true,
   value: () => {},
+});
+
+Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+  writable: true,
+  configurable: true,
+  value: () => [],
 });

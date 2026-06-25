@@ -22,10 +22,54 @@ export type DailyCostByProject = {
   projects: DailyProjectCost[];
 };
 
+export type CostTrendGranularity = "day" | "week" | "month" | "year" | "cumulative";
+
+export type CostByProjectBucket = {
+  key: string;
+  startDate: string;
+  endDate: string;
+  totalCostUsd: number;
+  projects: DailyProjectCost[];
+};
+
 export type DailyTokenUsage = {
   date: string;
   totalTokens: number;
 };
+
+export type AnnualTokenUsageDay = DailyTokenUsage & {
+  weekIndex: number;
+  weekdayIndex: number;
+};
+
+export type AnnualTokenMonthLabel = {
+  label: string;
+  weekIndex: number;
+};
+
+export type AnnualTokenHeatmap = {
+  year: number;
+  startDate: string;
+  endDate: string;
+  days: AnnualTokenUsageDay[];
+  weekCount: number;
+  monthLabels: AnnualTokenMonthLabel[];
+};
+
+const shortMonthLabels = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 function toUtcDay(timestamp: string) {
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -35,6 +79,65 @@ function addUtcDays(date: Date, days: number) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
+}
+
+function addUtcMonths(date: Date, months: number) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+}
+
+function toUtcWeekStart(date: string) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  const mondayOffset = (value.getUTCDay() + 6) % 7;
+  value.setUTCDate(value.getUTCDate() - mondayOffset);
+  return value.toISOString().slice(0, 10);
+}
+
+function utcDateFromDay(date: string) {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
+function toUtcDateOnly(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function daysInUtcYear(year: number) {
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year + 1, 0, 1);
+  return Math.round((end - start) / 86_400_000);
+}
+
+function utcDayOffset(start: Date, date: Date) {
+  const startTime = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  return Math.floor((date.getTime() - startTime) / 86_400_000);
+}
+
+function latestTokenYear(days: DailyTokenUsage[]) {
+  return days.reduce<number | undefined>((latestYear, day) => {
+    const year = utcDateFromDay(day.date).getUTCFullYear();
+    return latestYear === undefined ? year : Math.max(latestYear, year);
+  }, undefined);
+}
+
+function latestTokenDate(days: DailyTokenUsage[]) {
+  return days.reduce<string | undefined>((latestDate, day) => {
+    return latestDate === undefined ? day.date : latestDate > day.date ? latestDate : day.date;
+  }, undefined);
+}
+
+function costBucketKey(date: string, granularity: CostTrendGranularity) {
+  if (granularity === "day") {
+    return date;
+  }
+  if (granularity === "week") {
+    return toUtcWeekStart(date);
+  }
+  if (granularity === "month") {
+    return date.slice(0, 7);
+  }
+  if (granularity === "year") {
+    return date.slice(0, 4);
+  }
+  return "cumulative";
 }
 
 function dayRange(sessions: SessionSummary[]) {
@@ -80,6 +183,48 @@ export function aggregateDailyCostByProject(sessions: SessionSummary[]): DailyCo
   });
 }
 
+export function bucketCostByProject(
+  days: DailyCostByProject[],
+  granularity: CostTrendGranularity,
+): CostByProjectBucket[] {
+  const buckets = new Map<string, { startDate: string; endDate: string; projects: Map<string, number> }>();
+
+  for (const day of days) {
+    const key = costBucketKey(day.date, granularity);
+    const bucket = buckets.get(key) ?? {
+      startDate: day.date,
+      endDate: day.date,
+      projects: new Map<string, number>(),
+    };
+
+    bucket.startDate = bucket.startDate < day.date ? bucket.startDate : day.date;
+    bucket.endDate = bucket.endDate > day.date ? bucket.endDate : day.date;
+
+    for (const project of day.projects) {
+      bucket.projects.set(
+        project.project,
+        (bucket.projects.get(project.project) ?? 0) + project.costUsd,
+      );
+    }
+
+    buckets.set(key, bucket);
+  }
+
+  return Array.from(buckets.entries()).map(([key, bucket]) => {
+    const projects = Array.from(bucket.projects.entries())
+      .map(([project, costUsd]) => ({ project, costUsd }))
+      .sort((left, right) => right.costUsd - left.costUsd || left.project.localeCompare(right.project));
+
+    return {
+      key,
+      startDate: bucket.startDate,
+      endDate: bucket.endDate,
+      totalCostUsd: projects.reduce((sum, project) => sum + project.costUsd, 0),
+      projects,
+    };
+  });
+}
+
 export function aggregateDailyTokens(sessions: SessionSummary[]): DailyTokenUsage[] {
   const totals = new Map<string, number>();
 
@@ -92,6 +237,90 @@ export function aggregateDailyTokens(sessions: SessionSummary[]): DailyTokenUsag
     date,
     totalTokens: totals.get(date) ?? 0,
   }));
+}
+
+function buildTokenHeatmapForRange(
+  days: DailyTokenUsage[],
+  start: Date,
+  end: Date,
+): AnnualTokenHeatmap {
+  const totals = new Map<string, number>();
+  const startDate = toUtcDateOnly(start);
+  const endDate = toUtcDateOnly(end);
+
+  for (const day of days) {
+    if (day.date < startDate || day.date > endDate) {
+      continue;
+    }
+    totals.set(day.date, (totals.get(day.date) ?? 0) + day.totalTokens);
+  }
+
+  const firstWeekday = start.getUTCDay();
+  const dayCount = utcDayOffset(start, end) + 1;
+  const weekCount = Math.ceil((dayCount + firstWeekday) / 7);
+  const heatmapDays: AnnualTokenUsageDay[] = [];
+
+  for (let dayIndex = 0; dayIndex < dayCount; dayIndex += 1) {
+    const date = addUtcDays(start, dayIndex);
+    const dateKey = toUtcDateOnly(date);
+
+    heatmapDays.push({
+      date: dateKey,
+      totalTokens: totals.get(dateKey) ?? 0,
+      weekdayIndex: date.getUTCDay(),
+      weekIndex: Math.floor((dayIndex + firstWeekday) / 7),
+    });
+  }
+
+  const monthLabels: AnnualTokenMonthLabel[] = [];
+  for (
+    let month = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+    month <= end;
+    month = addUtcMonths(month, 1)
+  ) {
+    monthLabels.push({
+      label: shortMonthLabels[month.getUTCMonth()],
+      weekIndex: Math.floor((utcDayOffset(start, month) + firstWeekday) / 7),
+    });
+  }
+
+  return {
+    year: end.getUTCFullYear(),
+    startDate,
+    endDate,
+    days: heatmapDays,
+    weekCount,
+    monthLabels,
+  };
+}
+
+export function buildAnnualTokenHeatmap(
+  days: DailyTokenUsage[],
+  year = latestTokenYear(days),
+): AnnualTokenHeatmap | null {
+  if (year === undefined) {
+    return null;
+  }
+
+  const start = new Date(Date.UTC(year, 0, 1));
+  const end = addUtcDays(start, daysInUtcYear(year) - 1);
+
+  return buildTokenHeatmapForRange(days, start, end);
+}
+
+export function buildTrailingAnnualTokenHeatmap(
+  days: DailyTokenUsage[],
+  latestDate = latestTokenDate(days),
+): AnnualTokenHeatmap | null {
+  if (latestDate === undefined) {
+    return null;
+  }
+
+  const latest = utcDateFromDay(latestDate);
+  const start = new Date(Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth() - 11, 1));
+  const end = new Date(Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth() + 1, 0));
+
+  return buildTokenHeatmapForRange(days, start, end);
 }
 
 export function aggregateCostByModel(sessions: SessionSummary[]): ModelCost[] {

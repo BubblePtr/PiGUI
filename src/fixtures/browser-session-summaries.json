@@ -1,0 +1,97 @@
+[
+  {
+    "id": "dev-fixture-pig-jun24",
+    "timestamp": "2026-06-24T07:13:11.000Z",
+    "project": "Pig",
+    "title": { "kind": "raw", "text": "dev fixture: Pig UI work" },
+    "totalCostUsd": 0.041634024,
+    "totalTokens": 64218,
+    "primaryModel": "deepseek-v4-pro",
+    "modelBreakdown": [
+      { "model": "deepseek-v4-pro", "costUsd": 0.041634024, "tokens": 64218 }
+    ],
+    "toolCounts": [
+      { "name": "read", "count": 18 },
+      { "name": "bash", "count": 12 }
+    ],
+    "skillCounts": [{ "name": "heroui-react-pro", "count": 2 }]
+  },
+  {
+    "id": "dev-fixture-zenblog-jun05",
+    "timestamp": "2026-06-05T03:48:36.930Z",
+    "project": "ZenBlog",
+    "title": { "kind": "raw", "text": "dev fixture: ZenBlog cleanup" },
+    "totalCostUsd": 0.063820532,
+    "totalTokens": 50788,
+    "primaryModel": "deepseek-v4-pro",
+    "modelBreakdown": [
+      { "model": "deepseek-v4-pro", "costUsd": 0.063820532, "tokens": 50788 }
+    ],
+    "toolCounts": [
+      { "name": "grep", "count": 8 },
+      { "name": "ctx_batch_execute", "count": 3 }
+    ],
+    "skillCounts": []
+  },
+  {
+    "id": "dev-fixture-zenblog-may30",
+    "timestamp": "2026-05-30T09:24:19.000Z",
+    "project": "ZenBlog",
+    "title": { "kind": "raw", "text": "dev fixture: ZenBlog visual pass" },
+    "totalCostUsd": 0.24233937,
+    "totalTokens": 128342,
+    "primaryModel": "deepseek-v4-pro",
+    "modelBreakdown": [
+      { "model": "deepseek-v4-pro", "costUsd": 0.24233937, "tokens": 128342 }
+    ],
+    "toolCounts": [
+      { "name": "read", "count": 24 },
+      { "name": "bash", "count": 16 }
+    ],
+    "skillCounts": [{ "name": "frontend-testing-debugging", "count": 1 }]
+  },
+  {
+    "id": "dev-fixture-bubble-mar22",
+    "timestamp": "2026-03-22T14:41:42.998Z",
+    "project": "bubble",
+    "title": { "kind": "raw", "text": "dev fixture: bubble app" },
+    "totalCostUsd": 0.330091,
+    "totalTokens": 43820,
+    "primaryModel": "k2p5",
+    "modelBreakdown": [{ "model": "k2p5", "costUsd": 0.330091, "tokens": 43820 }],
+    "toolCounts": [
+      { "name": "bash", "count": 9 },
+      { "name": "read", "count": 6 }
+    ],
+    "skillCounts": []
+  },
+  {
+    "id": "dev-fixture-excalidraw-mar20",
+    "timestamp": "2026-03-20T04:33:21.661Z",
+    "project": "excalidraw",
+    "title": { "kind": "raw", "text": "dev fixture: excalidraw" },
+    "totalCostUsd": 0.556657,
+    "totalTokens": 52840,
+    "primaryModel": "deepseek-v4-pro",
+    "modelBreakdown": [
+      { "model": "deepseek-v4-pro", "costUsd": 0.556657, "tokens": 52840 }
+    ],
+    "toolCounts": [
+      { "name": "bash", "count": 14 },
+      { "name": "read", "count": 10 }
+    ],
+    "skillCounts": []
+  },
+  {
+    "id": "dev-fixture-void-mar20",
+    "timestamp": "2026-03-20T04:21:28.749Z",
+    "project": "void",
+    "title": { "kind": "raw", "text": "dev fixture: void workspace" },
+    "totalCostUsd": 0.002763,
+    "totalTokens": 1568,
+    "primaryModel": "k2p5",
+    "modelBreakdown": [{ "model": "k2p5", "costUsd": 0.002763, "tokens": 1568 }],
+    "toolCounts": [{ "name": "bash", "count": 2 }],
+    "skillCounts": []
+  }
+]

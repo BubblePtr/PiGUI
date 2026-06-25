@@ -59,4 +59,22 @@ describe("SessionListPanel", () => {
     expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
     expect(container.querySelector('[data-slot="native-select"]')).toBeInTheDocument();
   });
+
+  it("fits inside a fixed trace workspace without forcing page scroll", async () => {
+    const { container } = renderWithQueryClient(<SessionListPanel />);
+
+    expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="card"]')).toHaveClass(
+      "h-full",
+      "min-h-0",
+      "overflow-hidden",
+    );
+  });
+
+  it("uses HeroUI EmptyState for transient list states", () => {
+    const { container } = renderWithQueryClient(<SessionListPanel />);
+
+    expect(screen.getByText("Loading sessions...")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="empty-state"]')).toBeInTheDocument();
+  });
 });

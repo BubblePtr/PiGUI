@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
+import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
 import { KPI } from "@heroui-pro/react";
 import {
   ArrowLeft,
@@ -274,10 +274,20 @@ function CostTokenBadge({ usage, cost }: { usage?: TokenUsage; cost?: CostBreakd
   }
 
   return (
-    <span className="inline-flex max-w-full items-center gap-2 rounded-md border border-border bg-surface-muted px-2 py-1 text-xs font-medium text-muted">
-      <span className="text-foreground">{formatCost(cost?.totalUsd ?? 0)}</span>
-      <span>{formatTokens(usage?.totalTokens ?? 0)} tokens</span>
-    </span>
+    <Chip
+      className="h-auto min-w-0 max-w-full whitespace-normal py-1"
+      size="sm"
+      variant="soft"
+    >
+      <Chip.Label className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-tight">
+        <span className="min-w-0 max-w-full truncate text-foreground">
+          {formatCost(cost?.totalUsd ?? 0)}
+        </span>
+        <span className="min-w-0 max-w-full truncate">
+          {formatTokens(usage?.totalTokens ?? 0)} tokens
+        </span>
+      </Chip.Label>
+    </Chip>
   );
 }
 
@@ -525,9 +535,12 @@ export function SessionDetailView({
   isError?: boolean;
 }) {
   return (
-    <article className="min-h-full px-6 py-6">
-      <div className="mx-auto flex w-full max-w-5xl flex-col">
-        <header className="flex min-h-14 flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+    <article
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+      data-testid="session-detail-view"
+    >
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden">
+        <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
           <div className="min-w-0">
             <Link
               to="/"
@@ -551,76 +564,92 @@ export function SessionDetailView({
           ) : null}
         </header>
 
-        {session ? (
-          <section className="mt-6">
-            <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-border pb-3">
-              <h2 className="text-sm font-semibold uppercase text-muted">Summary</h2>
-              <span className="text-xs font-medium text-muted">Cost shown as API list price</span>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <KPI>
-                <KPI.Content>
-                  <KPI.Title>Total cost</KPI.Title>
-                  <KPI.Value
-                    currency="USD"
-                    maximumFractionDigits={6}
-                    minimumFractionDigits={4}
-                    style="currency"
-                    value={session.totalCostUsd}
-                  />
-                </KPI.Content>
-              </KPI>
-              <KPI>
-                <KPI.Content>
-                  <KPI.Title>Total tokens</KPI.Title>
-                  <KPI.Value
-                    maximumFractionDigits={1}
-                    notation="compact"
-                    value={session.totalTokens}
-                  />
-                </KPI.Content>
-              </KPI>
-              <KPI>
-                <KPI.Content>
-                  <KPI.Title>Primary model</KPI.Title>
-                  <dd className="mt-1 truncate text-base font-semibold text-foreground">
-                    {session.primaryModel ?? "Unknown model"}
-                  </dd>
-                </KPI.Content>
-              </KPI>
-              <KPI>
-                <KPI.Content>
-                  <KPI.Title>Turns</KPI.Title>
-                  <KPI.Value value={session.turnCount} />
-                </KPI.Content>
-              </KPI>
-              <KPI>
-                <KPI.Content>
-                  <KPI.Title>Duration</KPI.Title>
-                  <dd className="mt-1 truncate text-base font-semibold text-foreground">
-                    {formatDuration(session.durationSeconds)}
-                  </dd>
-                </KPI.Content>
-              </KPI>
-            </div>
-          </section>
-        ) : null}
+        <ScrollShadow
+          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"
+          data-testid="session-detail-scroll-body"
+        >
+          {session ? (
+            <section className="mt-6">
+              <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-border pb-3">
+                <h2 className="text-sm font-semibold uppercase text-muted">Summary</h2>
+                <span className="text-xs font-medium text-muted">Cost shown as API list price</span>
+              </div>
+              <div
+                className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4"
+                data-testid="session-summary-grid"
+              >
+                <KPI>
+                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
+                    <KPI.Title>Total cost</KPI.Title>
+                    <KPI.Value
+                      className="min-w-0 max-w-full truncate text-right"
+                      currency="USD"
+                      maximumFractionDigits={6}
+                      minimumFractionDigits={4}
+                      style="currency"
+                      value={session.totalCostUsd}
+                    />
+                  </KPI.Content>
+                </KPI>
+                <KPI>
+                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
+                    <KPI.Title>Total tokens</KPI.Title>
+                    <KPI.Value
+                      className="min-w-0 max-w-full truncate text-right"
+                      maximumFractionDigits={1}
+                      notation="compact"
+                      value={session.totalTokens}
+                    />
+                  </KPI.Content>
+                </KPI>
+                <KPI>
+                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
+                    <KPI.Title>Primary model</KPI.Title>
+                    <dd
+                      className="mt-1 min-w-0 max-w-full truncate text-right text-base font-semibold text-foreground"
+                      data-testid="session-primary-model-value"
+                    >
+                      {session.primaryModel ?? "Unknown model"}
+                    </dd>
+                  </KPI.Content>
+                </KPI>
+                <KPI>
+                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
+                    <KPI.Title>Turns</KPI.Title>
+                    <KPI.Value
+                      className="min-w-0 max-w-full truncate text-right"
+                      value={session.turnCount}
+                    />
+                  </KPI.Content>
+                </KPI>
+                <KPI>
+                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
+                    <KPI.Title>Duration</KPI.Title>
+                    <dd className="mt-1 min-w-0 max-w-full truncate text-right text-base font-semibold text-foreground">
+                      {formatDuration(session.durationSeconds)}
+                    </dd>
+                  </KPI.Content>
+                </KPI>
+              </div>
+            </section>
+          ) : null}
 
-        <Card className="mt-6 overflow-hidden">
-          {isLoading ? (
-            <HeroEmptyState className="px-4 py-12 text-sm text-muted">Loading session...</HeroEmptyState>
-          ) : isError ? (
-            <HeroEmptyState className="px-4 py-12 text-sm text-danger">
-              Could not read this session.
-            </HeroEmptyState>
-          ) : !session || session.turns.length === 0 ? (
-            <HeroEmptyState className="px-4 py-12 text-sm text-muted">
-              No timeline entries found.
-            </HeroEmptyState>
-          ) : (
-            <SessionTimeline turns={session.turns} />
-          )}
-        </Card>
+          <Card className="mt-6 overflow-hidden">
+            {isLoading ? (
+              <HeroEmptyState className="px-4 py-12 text-sm text-muted">Loading session...</HeroEmptyState>
+            ) : isError ? (
+              <HeroEmptyState className="px-4 py-12 text-sm text-danger">
+                Could not read this session.
+              </HeroEmptyState>
+            ) : !session || session.turns.length === 0 ? (
+              <HeroEmptyState className="px-4 py-12 text-sm text-muted">
+                No timeline entries found.
+              </HeroEmptyState>
+            ) : (
+              <SessionTimeline turns={session.turns} />
+            )}
+          </Card>
+        </ScrollShadow>
       </div>
     </article>
   );

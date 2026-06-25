@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ConfigInventoryView, type ConfigInventory } from "./setup";
+import {
+  ConfigInventoryView,
+  SetupInventoryControls,
+  type ConfigInventory,
+} from "./setup";
 
 const inventory: ConfigInventory = {
   defaultModel: "gpt-5-codex",
@@ -29,5 +33,42 @@ describe("ConfigInventoryView", () => {
 
     expect(screen.getByText("Prompt Templates")).toBeInTheDocument();
     expect(screen.getByText("未安装")).toBeInTheDocument();
+  });
+
+  it("renders package names with HeroUI Pro ListView", () => {
+    const { container } = render(<ConfigInventoryView inventory={inventory} selected="packages" />);
+
+    expect(screen.getByText("@pi/code")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="list-view"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="list-view-item"]')).toBeInTheDocument();
+  });
+
+  it("renders extension status with HeroUI Pro ListView descriptions", () => {
+    const { container } = render(
+      <ConfigInventoryView inventory={inventory} selected="extensions" />,
+    );
+
+    expect(screen.getByText("terminal-tools")).toBeInTheDocument();
+    expect(screen.getByText("enabled · settings")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="list-view-description"]')).toBeInTheDocument();
+  });
+});
+
+describe("SetupInventoryControls", () => {
+  it("renders setup categories with HeroUI Pro Segment", () => {
+    const { container } = render(
+      <SetupInventoryControls
+        selected="models"
+        onSelect={() => {}}
+        inventory={inventory}
+        isFetching={false}
+        onRefresh={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("radiogroup", { name: "Configuration sections" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /模型/ })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="segment"]')).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-slot="segment-item"]')).toHaveLength(5);
   });
 });

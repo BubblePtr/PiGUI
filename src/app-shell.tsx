@@ -30,7 +30,7 @@ const tabs = [
 ] as const;
 
 const sidebarStyle = {
-  "--sidebar-width": "18rem",
+  "--sidebar-width": "15rem",
 } as CSSProperties;
 
 function PrimaryNavigation({ pathname }: { pathname: string }) {
@@ -89,6 +89,7 @@ export function AppFrame({ children }: AppFrameProps) {
         <Navbar className="border-b border-border" height="3.5rem" maxWidth="full" size="sm">
           <Navbar.Header>
             <AppLayout.MenuToggle />
+            <Sidebar.Trigger aria-label="Toggle sidebar" />
             <Navbar.Brand>
               <span className="text-sm font-semibold text-foreground">Pig</span>
               <span className="hidden text-xs text-muted sm:inline">Pi flight recorder</span>
@@ -101,16 +102,18 @@ export function AppFrame({ children }: AppFrameProps) {
         <>
           <Sidebar style={sidebarStyle}>
             <SidebarPanelContent pathname={pathname} />
-            <Sidebar.Rail />
           </Sidebar>
           <Sidebar.Mobile>
             <SidebarPanelContent pathname={pathname} />
           </Sidebar.Mobile>
         </>
       }
-      sidebarCollapsible="none"
+      sidebarCollapsible="offcanvas"
+      sidebarVariant="inset"
     >
-      <div className="min-h-full min-w-0 bg-background">{children}</div>
+      <div className="h-full min-h-0 min-w-0 bg-background" data-testid="app-frame-content">
+        {children}
+      </div>
     </AppLayout>
   );
 }

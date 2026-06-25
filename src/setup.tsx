@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
+import { ListView, Segment } from "@heroui-pro/react";
 import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppFrame } from "./app-shell";
@@ -69,7 +70,7 @@ function categoryCount(category: SetupCategory, inventory?: ConfigInventory) {
   }
 }
 
-function SetupInventoryControls({
+export function SetupInventoryControls({
   selected,
   onSelect,
   inventory,
@@ -104,29 +105,35 @@ function SetupInventoryControls({
           </Button>
         </div>
 
-      <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" aria-label="Configuration sections">
+      <Segment
+        aria-label="Configuration sections"
+        className="flex w-full max-w-full overflow-x-auto"
+        selectedKey={selected}
+        size="sm"
+        onSelectionChange={(key) => onSelect(key as SetupCategory)}
+      >
         {categories.map((category) => {
           const meta = categoryMeta[category];
           const Icon = meta.icon;
-          const active = category === selected;
 
           return (
-            <Button
+            <Segment.Item
               key={category}
-              className="min-h-11 justify-between px-3"
-              fullWidth
-              variant={active ? "secondary" : "ghost"}
-              onPress={() => onSelect(category)}
+              id={category}
+              className="w-auto min-w-32 flex-1 justify-between"
             >
+              <Segment.Separator />
               <span className="flex min-w-0 items-center gap-2">
                 <Icon className="size-4 shrink-0" />
                 <span className="truncate">{meta.label}</span>
               </span>
-              <span className="shrink-0 text-xs text-muted">{categoryCount(category, inventory)}</span>
-            </Button>
+              <span className="shrink-0 text-xs text-muted">
+                {categoryCount(category, inventory)}
+              </span>
+            </Segment.Item>
           );
         })}
-      </nav>
+      </Segment>
       </Card.Content>
     </Card>
   );
@@ -154,17 +161,23 @@ function NameList({ items }: { items: string[] }) {
     return <EmptyState>未安装</EmptyState>;
   }
 
+  const listItems = items.map((item) => ({ id: item, name: item }));
+
   return (
-    <ul className="grid gap-2">
-      {items.map((item) => (
-        <li
-          key={item}
-          className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-medium text-foreground"
-        >
-          {item}
-        </li>
-      ))}
-    </ul>
+    <ListView
+      aria-label="Installed items"
+      items={listItems}
+      selectionMode="none"
+      variant="secondary"
+    >
+      {(item) => (
+        <ListView.Item id={item.id} textValue={item.name}>
+          <ListView.ItemContent>
+            <ListView.Title>{item.name}</ListView.Title>
+          </ListView.ItemContent>
+        </ListView.Item>
+      )}
+    </ListView>
   );
 }
 
@@ -174,19 +187,25 @@ function ExtensionList({ extensions }: { extensions: ExtensionInfo[] }) {
   }
 
   return (
-    <ul className="grid gap-2">
-      {extensions.map((extension) => (
-        <li
-          key={extension.name}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-muted px-3 py-2"
-        >
-          <span className="text-sm font-medium text-foreground">{extension.name}</span>
-          <span className="text-xs text-muted">
-            {extension.enabled ? "enabled" : "disabled"} · {extension.source}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <ListView
+      aria-label="Installed extensions"
+      items={extensions}
+      selectionMode="none"
+      variant="secondary"
+    >
+      {(extension) => (
+        <ListView.Item id={extension.name} textValue={extension.name}>
+          <ListView.ItemContent>
+            <div className="flex min-w-0 flex-col">
+              <ListView.Title>{extension.name}</ListView.Title>
+              <ListView.Description>
+                {extension.enabled ? "enabled" : "disabled"} · {extension.source}
+              </ListView.Description>
+            </div>
+          </ListView.ItemContent>
+        </ListView.Item>
+      )}
+    </ListView>
   );
 }
 
