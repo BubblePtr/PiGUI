@@ -1,7 +1,7 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { AppLayout, Navbar, Sidebar } from "@heroui-pro/react";
 import { BarChart3, ListTree, Settings } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 type AppFrameProps = {
   sidebar?: ReactNode;
@@ -16,13 +16,13 @@ const tabs = [
     isActive: (pathname: string) => pathname === "/" || pathname.startsWith("/sessions/"),
   },
   {
-    label: "用量",
+    label: "Usage",
     to: "/usage",
     icon: BarChart3,
     isActive: (pathname: string) => pathname === "/usage",
   },
   {
-    label: "配置",
+    label: "Settings",
     to: "/setup",
     icon: Settings,
     isActive: (pathname: string) => pathname === "/setup",
@@ -32,6 +32,18 @@ const tabs = [
 const sidebarStyle = {
   "--sidebar-width": "15rem",
 } as CSSProperties;
+
+const titlebarHeight = "40px";
+const titlebarControlStyle = {
+  width: "28px",
+  height: "28px",
+} as CSSProperties;
+const trafficWidth = "88px";
+const titlebarGap = "16px";
+
+function getActiveTab(pathname: string) {
+  return tabs.find((tab) => tab.isActive(pathname)) ?? tabs[0];
+}
 
 function PrimaryNavigation({ pathname }: { pathname: string }) {
   return (
@@ -62,11 +74,18 @@ function PrimaryNavigation({ pathname }: { pathname: string }) {
 function SidebarPanelContent({ pathname }: { pathname: string }) {
   return (
     <>
-      <Sidebar.Header>
-        <div className="flex min-w-0 flex-col px-1 py-2" data-sidebar="label">
-          <h1 className="truncate text-xl font-semibold tracking-normal text-foreground">Pig</h1>
-          <p className="mt-1 truncate text-sm text-muted">Pi flight recorder</p>
-        </div>
+      <Sidebar.Header
+        className="flex shrink-0 items-center select-none"
+        style={{ height: titlebarHeight }}
+      >
+        <div
+          aria-hidden="true"
+          className="h-full shrink-0"
+          data-tauri-drag-region
+          data-testid="mac-traffic-space"
+          style={{ width: trafficWidth }}
+        />
+        <div aria-hidden="true" className="h-full min-w-0 flex-1" data-tauri-drag-region />
       </Sidebar.Header>
       <Sidebar.Content>
         <Sidebar.Group>
@@ -80,38 +99,58 @@ function SidebarPanelContent({ pathname }: { pathname: string }) {
 export function AppFrame({ children }: AppFrameProps) {
   const router = useRouter();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const activeTab = getActiveTab(pathname);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const collapsedTrafficSpaceStyle = {
+    width: sidebarOpen ? "0px" : trafficWidth,
+    marginRight: sidebarOpen ? `-${titlebarGap}` : "0px",
+    transition: "width 0.2s ease, margin-right 0.2s ease",
+  } as CSSProperties;
 
   return (
     <AppLayout
-      className="bg-background text-foreground"
+      className="pig-app-layout bg-background text-foreground"
       navigate={(href) => void router.navigate({ to: href as "/" | "/usage" | "/setup" })}
       navbar={
-        <Navbar className="border-b border-border" height="3.5rem" maxWidth="full" size="sm">
-          <Navbar.Header>
-            <AppLayout.MenuToggle />
-            <Sidebar.Trigger aria-label="Toggle sidebar" />
-            <Navbar.Brand>
-              <span className="text-sm font-semibold text-foreground">Pig</span>
-              <span className="hidden text-xs text-muted sm:inline">Pi flight recorder</span>
+        <Navbar
+          className="border-b border-border bg-surface"
+          height={titlebarHeight}
+          maxWidth="full"
+        >
+          <Navbar.Header className="h-full items-center">
+            <div
+              aria-hidden="true"
+              className="h-full shrink-0 overflow-hidden"
+              data-state={sidebarOpen ? "expanded" : "collapsed"}
+              data-testid="collapsed-traffic-space"
+              style={collapsedTrafficSpaceStyle}
+            />
+            <Sidebar.Trigger
+              aria-label="Toggle sidebar"
+              className="shrink-0"
+              style={titlebarControlStyle}
+            />
+            <Navbar.Brand className="h-7 select-none items-center">
+              <h1 className="select-none text-sm font-semibold leading-7 tracking-normal text-foreground">
+                {activeTab.label}
+              </h1>
             </Navbar.Brand>
+            <Navbar.Spacer className="h-full min-w-0 flex-1 select-none" data-tauri-drag-region />
           </Navbar.Header>
         </Navbar>
       }
       scrollMode="content"
       sidebar={
-        <>
-          <Sidebar style={sidebarStyle}>
-            <SidebarPanelContent pathname={pathname} />
-          </Sidebar>
-          <Sidebar.Mobile>
-            <SidebarPanelContent pathname={pathname} />
-          </Sidebar.Mobile>
-        </>
+        <Sidebar style={sidebarStyle}>
+          <SidebarPanelContent pathname={pathname} />
+        </Sidebar>
       }
       sidebarCollapsible="offcanvas"
+      sidebarOpen={sidebarOpen}
       sidebarVariant="inset"
+      onSidebarOpenChange={setSidebarOpen}
     >
-      <div className="h-full min-h-0 min-w-0 bg-background" data-testid="app-frame-content">
+      <div className="h-full min-h-0 min-w-0" data-testid="app-frame-content">
         {children}
       </div>
     </AppLayout>

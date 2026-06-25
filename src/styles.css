@@ -69,6 +69,22 @@ body {
   margin: 0;
 }
 
+.pig-app-layout > [data-slot="app-layout-body"] {
+  --pig-app-inset: calc(var(--spacing, 0.25rem) * 1);
+
+  min-width: 0;
+  margin: 0 var(--pig-app-inset) 0 0;
+  border: 1px solid var(--pig-color-border);
+  border-radius: calc(var(--radius) * 2);
+  background-color: var(--pig-color-surface);
+  box-shadow: var(--pig-shadow-sm);
+  overflow: hidden;
+}
+
+.pig-app-layout [data-slot="navbar"] {
+  background-color: var(--pig-color-surface);
+}
+
 * {
   box-sizing: border-box;
 }

@@ -17,6 +17,17 @@ const inventory: ConfigInventory = {
   promptTemplates: [],
 };
 
+const incompleteInventory: ConfigInventory = {
+  defaultModel: "",
+  defaultProvider: undefined,
+  defaultThinkingLevel: "",
+  theme: undefined,
+  packages: [],
+  extensions: [],
+  skills: [],
+  promptTemplates: [],
+};
+
 describe("ConfigInventoryView", () => {
   it("renders model defaults", () => {
     const { container } = render(<ConfigInventoryView inventory={inventory} selected="models" />);
@@ -32,7 +43,13 @@ describe("ConfigInventoryView", () => {
     render(<ConfigInventoryView inventory={inventory} selected="templates" />);
 
     expect(screen.getByText("Prompt Templates")).toBeInTheDocument();
-    expect(screen.getByText("未安装")).toBeInTheDocument();
+    expect(screen.getByText("Not installed")).toBeInTheDocument();
+  });
+
+  it("uses English labels for missing model defaults", () => {
+    render(<ConfigInventoryView inventory={incompleteInventory} selected="models" />);
+
+    expect(screen.getAllByText("Not set")).toHaveLength(4);
   });
 
   it("renders package names with HeroUI Pro ListView", () => {
@@ -67,7 +84,8 @@ describe("SetupInventoryControls", () => {
     );
 
     expect(screen.getByRole("radiogroup", { name: "Configuration sections" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /模型/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Models/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Packages/ })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="segment"]')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-slot="segment-item"]')).toHaveLength(5);
   });

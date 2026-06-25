@@ -36,8 +36,8 @@ export type TemplateInfo = {
 type SetupCategory = "models" | "packages" | "extensions" | "skills" | "templates";
 
 const categoryMeta = {
-  models: { label: "模型", icon: Settings2 },
-  packages: { label: "包", icon: Box },
+  models: { label: "Models", icon: Settings2 },
+  packages: { label: "Packages", icon: Box },
   extensions: { label: "Extensions", icon: Wrench },
   skills: { label: "Skills", icon: Puzzle },
   templates: { label: "Prompt Templates", icon: Sparkles },
@@ -48,7 +48,7 @@ async function getConfigInventory() {
 }
 
 function valueOrMissing(value?: string) {
-  return value && value.trim().length > 0 ? value : "未设置";
+  return value && value.trim().length > 0 ? value : "Not set";
 }
 
 function categoryCount(category: SetupCategory, inventory?: ConfigInventory) {
@@ -158,7 +158,7 @@ function EmptyState({ children }: { children: string }) {
 
 function NameList({ items }: { items: string[] }) {
   if (items.length === 0) {
-    return <EmptyState>未安装</EmptyState>;
+    return <EmptyState>Not installed</EmptyState>;
   }
 
   const listItems = items.map((item) => ({ id: item, name: item }));
@@ -183,7 +183,7 @@ function NameList({ items }: { items: string[] }) {
 
 function ExtensionList({ extensions }: { extensions: ExtensionInfo[] }) {
   if (extensions.length === 0) {
-    return <EmptyState>未安装</EmptyState>;
+    return <EmptyState>Not installed</EmptyState>;
   }
 
   return (

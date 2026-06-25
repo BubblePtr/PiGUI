@@ -12,7 +12,15 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Pig",
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 22
+        },
         "width": 960,
         "height": 720
       }
