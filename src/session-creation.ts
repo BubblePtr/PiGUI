@@ -68,10 +68,20 @@ function defaultIdFactory() {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function isSessionCreationFailureStage(
+  stage: string,
+): stage is SessionCreationFailureStage {
+  return (
+    stage === "preparing checkout" ||
+    stage === "starting runtime" ||
+    stage === "sending prompt"
+  );
+}
+
 function failureDetail(error: unknown, fallbackStage: SessionCreationFailureStage) {
   if (error instanceof PiRuntimeBridgeError) {
     return {
-      stage: error.stage,
+      stage: isSessionCreationFailureStage(error.stage) ? error.stage : fallbackStage,
       message: error.message,
     };
   }

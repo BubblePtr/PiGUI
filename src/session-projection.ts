@@ -1,5 +1,6 @@
 import type {
   ExecutionCheckout,
+  PiQueuedMessage,
   PiRuntimeEvent,
   PiRuntimeSummary,
   PiSessionState,
@@ -34,6 +35,7 @@ export type SessionProjection = {
   runtimeId: string | null;
   piSessionId: string | null;
   runtimeEvents: PiRuntimeEvent[];
+  queuedMessages: PiQueuedMessage[];
   summary: PiRuntimeSummary;
   stale: boolean;
   staleReason: string | null;
@@ -82,6 +84,20 @@ export type SessionProjectionEvent =
     }
   | {
       type: "run-failed";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "queued-message-added";
+      queuedMessage: PiQueuedMessage;
+    }
+  | {
+      type: "queued-message-withdrawn";
+      queuedMessageId: string;
+      occurredAt: string;
+    }
+  | {
+      type: "queued-message-processing-started";
+      queuedMessageId: string;
       event: PiRuntimeEvent;
     }
   | {
@@ -135,6 +151,7 @@ export function createSessionProjection(
     runtimeId: null,
     piSessionId: null,
     runtimeEvents: [],
+    queuedMessages: [],
     summary: {
       provider: null,
       model: null,
@@ -305,6 +322,50 @@ export function applySessionProjectionEvent(
         runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
+        updatedAt: event.event.timestamp,
+      };
+    case "queued-message-added":
+      return {
+        ...projection,
+        queuedMessages: [
+          ...projection.queuedMessages,
+          { ...event.queuedMessage },
+        ],
+        updatedAt: event.queuedMessage.createdAt,
+      };
+    case "queued-message-withdrawn":
+      return {
+        ...projection,
+        queuedMessages: projection.queuedMessages.map((queuedMessage) => {
+          if (queuedMessage.id !== event.queuedMessageId) {
+            return queuedMessage;
+          }
+
+          if (queuedMessage.status !== "pending") {
+            throw new Error("Queued message can no longer be withdrawn.");
+          }
+
+          return {
+            ...queuedMessage,
+            status: "withdrawn",
+            withdrawnAt: event.occurredAt,
+          };
+        }),
+        updatedAt: event.occurredAt,
+      };
+    case "queued-message-processing-started":
+      return {
+        ...projection,
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        queuedMessages: projection.queuedMessages.map((queuedMessage) =>
+          queuedMessage.id === event.queuedMessageId
+            ? {
+                ...queuedMessage,
+                status: "processing",
+                processingStartedAt: event.event.timestamp,
+              }
+            : queuedMessage,
+        ),
         updatedAt: event.event.timestamp,
       };
     case "latest-message-rendered":

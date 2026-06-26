@@ -21,6 +21,7 @@ import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
 } from "./session-creation";
+import { applySessionProjectionEvent, createSessionProjection } from "./session-projection";
 import { getSessionDraft, saveSessionDraft } from "./session-drafts";
 
 function renderProjectSessions(path = "/projects/pig/sessions") {
@@ -268,6 +269,100 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("queues default active-run input in a pending area without adding it to Live Chat", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      now: () => "2026-06-26T08:10:00.000Z",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-active",
+      runtimeId: "runtime-active",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "After this, update the queue tests.",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    expect(within(pendingQueue).getByText("Queued")).toBeInTheDocument();
+    expect(
+      within(pendingQueue).getByText("After this, update the queue tests."),
+    ).toBeInTheDocument();
+    expect(within(liveChat).getAllByText("Keep working on the live run")).toHaveLength(1);
+    expect(
+      within(liveChat).queryByText("After this, update the queue tests."),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(pendingQueue).getByRole("button", { name: "Withdraw queued message" }));
+
+    expect(await within(pendingQueue).findByText("Withdrawn")).toBeInTheDocument();
+  });
+
   it("opens a Project-scoped Session Draft from New Session without adding a session row", async () => {
     const user = userEvent.setup();
 
@@ -385,6 +480,62 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByLabelText("Live Chat messages")).toBeInTheDocument();
   });
 
+  it("queues follow-up input after creating a default active Session", async () => {
+    const user = userEvent.setup();
+
+    saveSessionDraft("pig-docs", "Start an active browser-backed Session");
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        showDraft
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "session-docs-review",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    expect(
+      await screen.findByText("Queue is the default while Pi is running."),
+    ).toBeInTheDocument();
+
+    const liveColumn = screen.getByTestId("live-session-column");
+
+    await user.type(
+      within(liveColumn).getByPlaceholderText("What do you want to know?"),
+      "Queue this follow-up after creation",
+    );
+    await user.click(within(liveColumn).getByRole("button", { name: "Send" }));
+
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    expect(within(pendingQueue).getByText("Queued")).toBeInTheDocument();
+    expect(
+      within(pendingQueue).getByText("Queue this follow-up after creation"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Live Chat messages")).queryByText(
+        "Queue this follow-up after creation",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps draft text visible and shows failure detail when Session Creation fails", async () => {
     const user = userEvent.setup();
     const projections = createInMemorySessionProjectionStore();
@@ -498,6 +649,7 @@ describe("AgentWorkspaceSessionsPage", () => {
           timestamp: "2026-06-26T08:00:05.000Z",
         },
       ],
+      queuedMessages: [],
       summary: {
         provider: "openai",
         model: "gpt-5-codex",
