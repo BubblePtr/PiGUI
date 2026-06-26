@@ -79,8 +79,59 @@ describe("AppFrame", () => {
     expect(within(projectGroup).getByText("Pig")).toBeInTheDocument();
     expect(within(projectNavigation).getByText("Agent Workspace shell")).toBeInTheDocument();
     expect(within(projectNavigation).getByText("Analyze boundary pass")).toBeInTheDocument();
-    expect(within(projectNavigation).getByText("Active now")).toBeInTheDocument();
+    expect(within(projectNavigation).getByLabelText("Active run")).toBeInTheDocument();
+    expect(within(projectNavigation).getByText("08:06")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Sessions" })).toBeInTheDocument();
+  });
+
+  it("renders the Project session list from active, unread, archive, and updated projection state", async () => {
+    renderAppFrame("/projects/pig/sessions");
+
+    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const projectNavigation = within(screen.getByTestId("sidebar-projects")).getByLabelText(
+      "Pig project sessions",
+    );
+    const sessionRows = within(projectNavigation).getAllByRole("row").slice(1);
+
+    expect(
+      sessionRows.map((row) =>
+        row.querySelector('[data-slot="sidebar-menu-label"]')?.textContent?.trim(),
+      ),
+    ).toEqual([
+      "Agent Workspace shell",
+      "Analyze boundary pass",
+      "Usage evidence review",
+    ]);
+    expect(within(sessionRows[0]).getByLabelText("Active run")).toBeInTheDocument();
+    expect(within(sessionRows[1]).getByLabelText("Unread result")).toBeInTheDocument();
+    expect(within(projectNavigation).queryByText("Archived checkout snapshot")).not.toBeInTheDocument();
+    expect(within(projectNavigation).queryByText(/Running|Completed|Failed|Waiting/)).not.toBeInTheDocument();
+  });
+
+  it("selects a Session without clearing unread before route content renders it", async () => {
+    const user = userEvent.setup();
+
+    renderAppFrame("/projects/pig/sessions");
+
+    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const projectNavigation = within(screen.getByTestId("sidebar-projects")).getByLabelText(
+      "Pig project sessions",
+    );
+    const unreadRow = within(projectNavigation).getByRole("row", {
+      name: "Analyze boundary pass",
+    });
+
+    expect(within(unreadRow).getByLabelText("Unread result")).toBeInTheDocument();
+
+    await user.click(unreadRow);
+
+    const openedRow = within(projectNavigation).getByRole("row", {
+      name: "Analyze boundary pass",
+    });
+
+    expect(openedRow).toHaveAttribute("data-current", "true");
+    expect(within(openedRow).getByLabelText("Unread result")).toBeInTheDocument();
+    expect(within(projectNavigation).queryByText(/Completed|Failed|Waiting/)).not.toBeInTheDocument();
   });
 
   it("shows New Session and Project plus entry points with a lightweight draft indicator", async () => {

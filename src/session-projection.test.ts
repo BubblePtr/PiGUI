@@ -1,10 +1,103 @@
 import { describe, expect, it } from "vitest";
 import {
   applySessionProjectionEvent,
+  canArchiveSessionProjection,
   createSessionProjection,
+  getSessionProjectionListItems,
+  type SessionProjection,
 } from "./session-projection";
 
+function projection(overrides: Partial<SessionProjection>): SessionProjection {
+  return {
+    ...createSessionProjection({
+      id: overrides.id ?? "session",
+      projectId: overrides.projectId ?? "pig",
+      initialPrompt: overrides.initialPrompt ?? "Investigate Pig session state",
+      createdAt: overrides.createdAt ?? "2026-06-26T08:00:00.000Z",
+    }),
+    ...overrides,
+  };
+}
+
 describe("Session Projection state", () => {
+  it("lists visible sessions by active runtime activity, unread results, then recent updates", () => {
+    const activeOlder = applySessionProjectionEvent(
+      projection({
+        id: "active-older",
+        initialPrompt: "Older active run",
+      }),
+      {
+        type: "runtime-event-received",
+        stage: "accepted",
+        event: {
+          id: "event-active-older",
+          piSessionId: "pi-active-older",
+          kind: "message",
+          role: "assistant",
+          body: "Still running",
+          timestamp: "2026-06-26T08:04:00.000Z",
+        },
+      },
+    );
+    const activeNewer = applySessionProjectionEvent(
+      projection({
+        id: "active-newer",
+        initialPrompt: "Newer active run",
+      }),
+      {
+        type: "runtime-event-received",
+        stage: "accepted",
+        event: {
+          id: "event-active-newer",
+          piSessionId: "pi-active-newer",
+          kind: "message",
+          role: "assistant",
+          body: "Most recent runtime activity",
+          timestamp: "2026-06-26T08:06:00.000Z",
+        },
+      },
+    );
+    const unreadOlderThanNormal = projection({
+      id: "unread-result",
+      initialPrompt: "Unread completed result",
+      status: "completed",
+      unreadResult: true,
+      updatedAt: "2026-06-26T08:01:00.000Z",
+    });
+    const normalRecent = projection({
+      id: "normal-recent",
+      initialPrompt: "Recent read result",
+      status: "completed",
+      updatedAt: "2026-06-26T08:05:00.000Z",
+    });
+    const archived = projection({
+      id: "archived-session",
+      initialPrompt: "Archived checkout snapshot",
+      status: "completed",
+      archivedAt: "2026-06-26T08:07:00.000Z",
+      updatedAt: "2026-06-26T08:07:00.000Z",
+    });
+
+    expect(
+      getSessionProjectionListItems([
+        normalRecent,
+        archived,
+        activeOlder,
+        unreadOlderThanNormal,
+        activeNewer,
+      ]).map((item) => item.id),
+    ).toEqual(["active-newer", "active-older", "unread-result", "normal-recent"]);
+    expect(
+      getSessionProjectionListItems([
+        normalRecent,
+        archived,
+        activeOlder,
+        unreadOlderThanNormal,
+        activeNewer,
+      ], { includeArchived: true }).map((item) => item.id),
+    ).toContain("archived-session");
+  });
+
   it("tracks creation stages, runtime binding, and the first runtime event", () => {
     const created = createSessionProjection({
       id: "session-1",
@@ -75,6 +168,107 @@ describe("Session Projection state", () => {
       ],
       updatedAt: "2026-06-26T08:00:03.000Z",
     });
+  });
+
+  it("records completion and failure as unread result events that clear after latest message render", () => {
+    const base = projection({
+      id: "session-result",
+      status: "running",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const completed = applySessionProjectionEvent(base, {
+      type: "run-completed",
+      event: {
+        id: "event-completed",
+        piSessionId: "pi-session-result",
+        kind: "message",
+        role: "assistant",
+        body: "Run completed. The workspace shell is ready.",
+        timestamp: "2026-06-26T08:08:00.000Z",
+      },
+    });
+    const read = applySessionProjectionEvent(completed, {
+      type: "latest-message-rendered",
+      occurredAt: "2026-06-26T08:09:00.000Z",
+    });
+    const failed = applySessionProjectionEvent(base, {
+      type: "run-failed",
+      event: {
+        id: "event-failed",
+        piSessionId: "pi-session-result",
+        kind: "message",
+        role: "assistant",
+        body: "Run failed. Pi lost the runtime stream.",
+        timestamp: "2026-06-26T08:10:00.000Z",
+      },
+    });
+
+    expect(completed).toMatchObject({
+      status: "completed",
+      unreadResult: true,
+      runtimeEvents: [
+        expect.objectContaining({
+          id: "event-completed",
+          body: "Run completed. The workspace shell is ready.",
+        }),
+      ],
+      updatedAt: "2026-06-26T08:08:00.000Z",
+    });
+    expect(read).toMatchObject({
+      unreadResult: false,
+      updatedAt: "2026-06-26T08:08:00.000Z",
+    });
+    expect(failed).toMatchObject({
+      status: "failed",
+      unreadResult: true,
+      runtimeEvents: [
+        expect.objectContaining({
+          id: "event-failed",
+          body: "Run failed. Pi lost the runtime stream.",
+        }),
+      ],
+      updatedAt: "2026-06-26T08:10:00.000Z",
+    });
+  });
+
+  it("prevents active archive and keeps archived sessions available to history queries", () => {
+    const active = projection({
+      id: "active-run",
+      status: "running",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const completed = projection({
+      id: "completed-run",
+      status: "completed",
+      updatedAt: "2026-06-26T08:01:00.000Z",
+    });
+
+    expect(canArchiveSessionProjection(active)).toBe(false);
+    expect(() =>
+      applySessionProjectionEvent(active, {
+        type: "session-archived",
+        occurredAt: "2026-06-26T08:02:00.000Z",
+      }),
+    ).toThrow("Cannot archive an active Session.");
+
+    expect(canArchiveSessionProjection(completed)).toBe(true);
+
+    const archived = applySessionProjectionEvent(completed, {
+      type: "session-archived",
+      occurredAt: "2026-06-26T08:02:00.000Z",
+    });
+
+    expect(archived).toMatchObject({
+      status: "completed",
+      archivedAt: "2026-06-26T08:02:00.000Z",
+    });
+    expect(getSessionProjectionListItems([archived])).toEqual([]);
+    expect(getSessionProjectionListItems([archived], { includeArchived: true })).toEqual([
+      expect.objectContaining({
+        id: "completed-run",
+        archived: true,
+      }),
+    ]);
   });
 
   it("marks stale projection state and resyncs from Pi Session State as runtime truth", () => {

@@ -1,10 +1,10 @@
 import { Button, Card, ScrollShadow, Tooltip } from "@heroui/react";
 import { ChainOfThought, ChatConversation, ChatMessage, PromptInput, Sheet } from "@heroui-pro/react";
-import { Activity, GitBranch } from "lucide-react";
+import { Activity, Archive, GitBranch } from "lucide-react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AppFrame } from "./app-shell";
-import { createFakePiRuntimeBridge } from "./pi-runtime-bridge";
+import { AppFrame, defaultSidebarProjectSessionProjections } from "./app-shell";
+import { createDefaultPiRuntimeBridge } from "./pi-runtime-factory";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -18,7 +18,12 @@ import {
   subscribeSessionDrafts,
   type SessionDraft,
 } from "./session-drafts";
-import type { SessionProjection } from "./session-projection";
+import {
+  applySessionProjectionEvent,
+  canArchiveSessionProjection,
+  getSessionProjectionListItems,
+  type SessionProjection,
+} from "./session-projection";
 import { formatCost, formatTokens } from "./sessions";
 
 type LiveMessage = {
@@ -51,6 +56,11 @@ type AgentWorkspaceFixture = {
     totalCostUsd: number;
     totalTokens: number;
   };
+};
+
+type SessionActionsContentProps = {
+  workspace: AgentWorkspaceFixture;
+  projection?: SessionProjection | null;
 };
 
 export type SessionDraftSubmitEvent = {
@@ -180,6 +190,56 @@ function FullChatComposer() {
   );
 }
 
+function liveMessagesFromProjection(projection: SessionProjection): LiveMessage[] {
+  const projectedMessages = projection.runtimeEvents
+    .filter(
+      (event) =>
+        event.kind === "message" && (event.role === "user" || event.role === "assistant"),
+    )
+    .map((event): LiveMessage => ({
+      id: event.id,
+      role: event.role === "assistant" ? "assistant" : "user",
+      body: event.body,
+    }));
+  const hasInitialPromptEvent = projectedMessages.some(
+    (message) => message.role === "user" && message.body === projection.initialPrompt,
+  );
+
+  if (hasInitialPromptEvent) {
+    return projectedMessages;
+  }
+
+  return [
+    {
+      id: `${projection.id}-initial-prompt`,
+      role: "user",
+      body: projection.initialPrompt,
+    },
+    ...projectedMessages,
+  ];
+}
+
+function runTimelineFromProjection(projection: SessionProjection): RunTimelineItem[] {
+  return projection.runtimeEvents
+    .filter(
+      (event) =>
+        event.kind === "tool-call" || event.kind === "error" || event.kind === "status",
+    )
+    .map((event) => ({
+      id: event.id,
+      title: event.title ?? event.kind,
+      meta: event.body,
+    }));
+}
+
+function isReadOnlyProjection(projection: SessionProjection | null) {
+  if (!projection) {
+    return false;
+  }
+
+  return projection.stale || projection.status === "completed" || projection.status === "failed";
+}
+
 function SessionDraftComposer({
   draft,
   creationProjection,
@@ -260,7 +320,31 @@ function SessionDraftComposer({
   );
 }
 
-function SessionActionsContent({ workspace }: { workspace: AgentWorkspaceFixture }) {
+function checkoutModeLabel(mode: string) {
+  return mode === "foreground-local" ? "Foreground local checkout" : mode;
+}
+
+export function SessionActionsContent({ workspace, projection }: SessionActionsContentProps) {
+  const checkout = projection?.checkout
+    ? {
+        mode: checkoutModeLabel(projection.checkout.mode),
+        root: projection.checkout.root,
+        runtimeCwd: projection.checkout.runtimeCwd,
+      }
+    : workspace.checkout;
+  const summary = projection
+    ? {
+        provider: projection.summary.provider,
+        model: projection.summary.model ?? workspace.summary.model,
+        totalCostUsd: projection.summary.totalCostUsd,
+        totalTokens: projection.summary.totalTokens,
+      }
+    : {
+        provider: null,
+        ...workspace.summary,
+      };
+  const archiveAllowed = projection ? canArchiveSessionProjection(projection) : true;
+
   return (
     <div className="grid gap-5">
       <section>
@@ -278,17 +362,15 @@ function SessionActionsContent({ workspace }: { workspace: AgentWorkspaceFixture
         <dl className="mt-3 grid gap-3 text-sm">
           <div>
             <dt className="text-xs font-medium uppercase text-muted">Mode</dt>
-            <dd className="mt-1 break-words text-foreground">{workspace.checkout.mode}</dd>
+            <dd className="mt-1 break-words text-foreground">{checkout.mode}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium uppercase text-muted">Root</dt>
-            <dd className="mt-1 break-words text-foreground">{workspace.checkout.root}</dd>
+            <dd className="mt-1 break-words text-foreground">{checkout.root}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium uppercase text-muted">Runtime cwd</dt>
-            <dd className="mt-1 break-words text-foreground">
-              {workspace.checkout.runtimeCwd}
-            </dd>
+            <dd className="mt-1 break-words text-foreground">{checkout.runtimeCwd}</dd>
           </div>
         </dl>
       </section>
@@ -299,28 +381,55 @@ function SessionActionsContent({ workspace }: { workspace: AgentWorkspaceFixture
           <div className="flex items-center justify-between gap-3">
             <dt className="text-muted">Model</dt>
             <dd className="min-w-0 truncate text-right font-medium text-foreground">
-              {workspace.summary.model}
+              {summary.model}
             </dd>
           </div>
+          {summary.provider ? (
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-muted">Provider</dt>
+              <dd className="font-medium text-foreground">{summary.provider}</dd>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-3">
             <dt className="text-muted">Cost</dt>
-            <dd className="font-medium text-foreground">
-              {formatCost(workspace.summary.totalCostUsd)}
-            </dd>
+            <dd className="font-medium text-foreground">{formatCost(summary.totalCostUsd)}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-muted">Tokens</dt>
-            <dd className="font-medium text-foreground">
-              {formatTokens(workspace.summary.totalTokens)}
-            </dd>
+            <dd className="font-medium text-foreground">{formatTokens(summary.totalTokens)}</dd>
           </div>
         </dl>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-semibold text-foreground">Archive</h3>
+        <div className="mt-3">
+          <Button
+            isDisabled={!archiveAllowed}
+            size="sm"
+            variant="outline"
+          >
+            <Archive className="size-4" />
+            Archive Session
+          </Button>
+        </div>
+        {!archiveAllowed ? (
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Active runs cannot be archived.
+          </p>
+        ) : null}
       </section>
     </div>
   );
 }
 
-function SessionActionsSheet({ workspace }: { workspace: AgentWorkspaceFixture }) {
+function SessionActionsSheet({
+  workspace,
+  projection,
+}: {
+  workspace: AgentWorkspaceFixture;
+  projection?: SessionProjection | null;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -363,7 +472,7 @@ function SessionActionsSheet({ workspace }: { workspace: AgentWorkspaceFixture }
               </Sheet.Header>
               <Sheet.Body>
                 <ScrollShadow className="max-h-[calc(100vh-10rem)] overflow-y-auto">
-                  <SessionActionsContent workspace={workspace} />
+                  <SessionActionsContent workspace={workspace} projection={projection} />
                 </ScrollShadow>
               </Sheet.Body>
             </Sheet.Dialog>
@@ -380,12 +489,18 @@ function LiveSessionColumn({
   showDraft,
   onDraftSubmit,
   sessionCreator,
+  sessionProjection,
+  onProjectionChange,
+  onLatestMessageRendered,
 }: {
   workspace: AgentWorkspaceFixture;
   projectId: string;
   showDraft: boolean;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
   sessionCreator: SessionCreator;
+  sessionProjection?: SessionProjection | null;
+  onProjectionChange?: (projection: SessionProjection) => void;
+  onLatestMessageRendered?: (sessionId: string) => void;
 }) {
   const [sessionDraft, setSessionDraft] = useState<SessionDraft | null>(() =>
     getSessionDraft(projectId),
@@ -402,6 +517,17 @@ function LiveSessionColumn({
       setSessionDraft(getSessionDraft(projectId));
     });
   }, [projectId]);
+
+  useEffect(() => {
+    if (!showDraft && sessionProjection?.unreadResult) {
+      onLatestMessageRendered?.(sessionProjection.id);
+    }
+  }, [
+    onLatestMessageRendered,
+    sessionProjection?.id,
+    sessionProjection?.unreadResult,
+    showDraft,
+  ]);
 
   const handleDraftChange = (prompt: string) => {
     setSessionDraft(saveSessionDraft(projectId, prompt));
@@ -422,22 +548,26 @@ function LiveSessionColumn({
         repoRoot: workspace.repoRoot,
         projectRoot: workspace.projectRoot,
       },
-      onProjectionChange: setCreationProjection,
+      onProjectionChange: (projection) => {
+        setCreationProjection(projection);
+        onProjectionChange?.(projection);
+      },
     });
 
     setCreationProjection(result.projection);
+    onProjectionChange?.(result.projection);
 
     if (result.clearDraft) {
       clearSessionDraft(projectId);
       setSessionDraft(null);
     }
   };
-  const runtimeMessages = creationProjection?.runtimeEvents.map((event) => ({
-    id: event.id,
-    role: event.role,
-    body: event.body,
-  }));
-  const liveMessages = runtimeMessages?.length ? runtimeMessages : workspace.liveMessages;
+  const liveProjection = creationProjection ?? sessionProjection ?? null;
+  const projectionMessages = liveProjection ? liveMessagesFromProjection(liveProjection) : [];
+  const projectionTimeline = liveProjection ? runTimelineFromProjection(liveProjection) : [];
+  const liveMessages = projectionMessages.length ? projectionMessages : workspace.liveMessages;
+  const runTimeline = projectionTimeline.length ? projectionTimeline : workspace.runTimeline;
+  const readOnlyProjection = isReadOnlyProjection(liveProjection);
 
   return (
     <main className="h-full min-h-0 min-w-0" data-testid="live-session-column">
@@ -452,6 +582,14 @@ function LiveSessionColumn({
             />
           ) : (
             <>
+              {readOnlyProjection ? (
+                <div
+                  className="border-b border-border bg-surface px-4 py-2 text-sm text-muted"
+                  data-testid="runtime-fallback-banner"
+                >
+                  Runtime unavailable. Showing read-only session data.
+                </div>
+              ) : null}
               <ChatConversation
                 aria-label="Live Chat messages"
                 className="min-h-0 flex-1"
@@ -462,14 +600,14 @@ function LiveSessionColumn({
                     <LiveChatMessage
                       key={message.id}
                       message={message}
-                      timeline={message.role === "assistant" ? workspace.runTimeline : undefined}
+                      timeline={message.role === "assistant" ? runTimeline : undefined}
                     />
                   ))}
                   <ChatConversation.ScrollAnchor />
                 </ChatConversation.Content>
               </ChatConversation>
 
-              <FullChatComposer />
+              {readOnlyProjection ? null : <FullChatComposer />}
             </>
           )}
         </div>
@@ -484,23 +622,32 @@ export function AgentWorkspaceSessionsView({
   workspace = fixtureWorkspace,
   onDraftSubmit = () => {},
   sessionCreator,
+  sessionProjection,
+  onProjectionChange,
+  onLatestMessageRendered,
 }: {
   projectId?: string;
   showDraft?: boolean;
   workspace?: AgentWorkspaceFixture;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
   sessionCreator?: SessionCreator;
+  sessionProjection?: SessionProjection | null;
+  onProjectionChange?: (projection: SessionProjection) => void;
+  onLatestMessageRendered?: (sessionId: string) => void;
 }) {
   const [defaultSessionCreator] = useState<SessionCreator>(() => {
-    const bridge = createFakePiRuntimeBridge();
     const projections = createInMemorySessionProjectionStore();
+    let bridge: ReturnType<typeof createDefaultPiRuntimeBridge> | null = null;
 
-    return (input: SessionCreatorInput) =>
-      createSessionFromDraft({
+    return (input: SessionCreatorInput) => {
+      bridge ??= createDefaultPiRuntimeBridge();
+
+      return createSessionFromDraft({
         ...input,
         bridge,
         projections,
       });
+    };
   });
 
   return (
@@ -516,6 +663,9 @@ export function AgentWorkspaceSessionsView({
             workspace={workspace}
             onDraftSubmit={onDraftSubmit}
             sessionCreator={sessionCreator ?? defaultSessionCreator}
+            sessionProjection={sessionProjection}
+            onProjectionChange={onProjectionChange}
+            onLatestMessageRendered={onLatestMessageRendered}
           />
         </div>
       </div>
@@ -533,13 +683,62 @@ export function AgentWorkspaceSessionsPage() {
     },
   });
   const workspace = fixtureWorkspace;
+  const [sessionProjections, setSessionProjections] = useState(
+    defaultSidebarProjectSessionProjections,
+  );
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    () => getSessionProjectionListItems(defaultSidebarProjectSessionProjections)[0]?.id ?? null,
+  );
+  const selectedSessionProjection =
+    sessionProjections.find((projection) => projection.id === selectedSessionId) ?? null;
+  const handleProjectionChange = (nextProjection: SessionProjection) => {
+    setSelectedSessionId(nextProjection.id);
+    setSessionProjections((projections) => {
+      const projectionExists = projections.some(
+        (projection) => projection.id === nextProjection.id,
+      );
+
+      if (!projectionExists) {
+        return [nextProjection, ...projections];
+      }
+
+      return projections.map((projection) =>
+        projection.id === nextProjection.id ? nextProjection : projection,
+      );
+    });
+  };
+  const handleLatestMessageRendered = (sessionId: string) => {
+    setSessionProjections((projections) =>
+      projections.map((projection) =>
+        projection.id === sessionId
+          ? applySessionProjectionEvent(projection, {
+              type: "latest-message-rendered",
+              occurredAt: new Date().toISOString(),
+            })
+          : projection,
+      ),
+    );
+  };
 
   return (
-    <AppFrame toolbarActions={<SessionActionsSheet workspace={workspace} />}>
+    <AppFrame
+      sessionProjections={sessionProjections}
+      selectedSessionId={selectedSessionId}
+      onSelectedSessionIdChange={setSelectedSessionId}
+      toolbarActions={
+        <SessionActionsSheet
+          workspace={workspace}
+          projection={selectedSessionProjection}
+        />
+      }
+    >
       <AgentWorkspaceSessionsView
         projectId={projectId}
         showDraft={showDraft}
         workspace={workspace}
+        sessionProjection={selectedSessionProjection}
+        onProjectionChange={handleProjectionChange}
+        onLatestMessageRendered={handleLatestMessageRendered}
       />
     </AppFrame>
   );
