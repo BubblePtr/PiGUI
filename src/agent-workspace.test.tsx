@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   Outlet,
@@ -10,6 +10,11 @@ import {
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentWorkspaceSessionsPage, AgentWorkspaceSessionsView } from "./agent-workspace";
+import { createFakePiRuntimeBridge } from "./pi-runtime-bridge";
+import {
+  createInMemorySessionProjectionStore,
+  createSessionFromDraft,
+} from "./session-creation";
 import { getSessionDraft, saveSessionDraft } from "./session-drafts";
 
 function renderProjectSessions(path = "/projects/pig/sessions") {
@@ -193,7 +198,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
-  it("submits the draft through a creation seam without clearing persisted text", async () => {
+  it("submits the draft through Session Creation, clears the draft, and shows the first runtime event", async () => {
     const user = userEvent.setup();
     const onDraftSubmit = vi.fn();
 
@@ -231,6 +236,61 @@ describe("AgentWorkspaceSessionsPage", () => {
       projectId: "pig-docs",
       prompt: "Summarize the docs ADR",
     });
+    await waitFor(() => expect(getSessionDraft("pig-docs")).toBeNull());
+    expect(screen.queryByTestId("session-draft-composer")).not.toBeInTheDocument();
+    expect(screen.getByText("Summarize the docs ADR")).toBeInTheDocument();
+    expect(screen.getByLabelText("Live Chat messages")).toBeInTheDocument();
+  });
+
+  it("keeps draft text visible and shows failure detail when Session Creation fails", async () => {
+    const user = userEvent.setup();
+    const projections = createInMemorySessionProjectionStore();
+
+    saveSessionDraft("pig-docs", "Summarize the docs ADR");
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        showDraft
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "session-docs-review",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+        sessionCreator={(input) =>
+          createSessionFromDraft({
+            ...input,
+            bridge: createFakePiRuntimeBridge({
+              failAt: "send-initial-prompt",
+              failureMessage: "Pi rejected the initial prompt",
+            }),
+            projections,
+            idFactory: () => "session-failed",
+            now: () => "2026-06-26T08:00:00.000Z",
+          })
+        }
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+
+    expect(await screen.findByText("Session creation failed")).toBeInTheDocument();
+    expect(screen.getByText("sending prompt")).toBeInTheDocument();
+    expect(screen.getByText("Pi rejected the initial prompt")).toBeInTheDocument();
+    expect(getSessionDraft("pig-docs")?.prompt).toBe("Summarize the docs ADR");
     expect(screen.getByPlaceholderText("Describe the first Pi prompt")).toHaveValue(
       "Summarize the docs ADR",
     );

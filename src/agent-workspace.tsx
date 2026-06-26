@@ -4,12 +4,21 @@ import { Activity, GitBranch } from "lucide-react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppFrame } from "./app-shell";
+import { createFakePiRuntimeBridge } from "./pi-runtime-bridge";
 import {
+  createInMemorySessionProjectionStore,
+  createSessionFromDraft,
+  type CreateSessionFromDraftInput,
+  type CreateSessionFromDraftResult,
+} from "./session-creation";
+import {
+  clearSessionDraft,
   getSessionDraft,
   saveSessionDraft,
   subscribeSessionDrafts,
   type SessionDraft,
 } from "./session-drafts";
+import type { SessionProjection } from "./session-projection";
 import { formatCost, formatTokens } from "./sessions";
 
 type LiveMessage = {
@@ -48,6 +57,12 @@ export type SessionDraftSubmitEvent = {
   projectId: string;
   prompt: string;
 };
+
+type SessionCreatorInput = Omit<CreateSessionFromDraftInput, "bridge" | "projections">;
+
+type SessionCreator = (
+  input: SessionCreatorInput,
+) => Promise<CreateSessionFromDraftResult>;
 
 const fixtureWorkspace: AgentWorkspaceFixture = {
   id: "pig",
@@ -167,10 +182,12 @@ function FullChatComposer() {
 
 function SessionDraftComposer({
   draft,
+  creationProjection,
   onDraftChange,
   onDraftSubmit,
 }: {
   draft: SessionDraft;
+  creationProjection: SessionProjection | null;
   onDraftChange: (prompt: string) => void;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
 }) {
@@ -191,6 +208,35 @@ function SessionDraftComposer({
     >
       <div className="mx-auto w-full max-w-[44rem]">
         <h2 className="mb-3 text-sm font-semibold text-foreground">Session Draft</h2>
+        {creationProjection ? (
+          <div
+            aria-live="polite"
+            className="mb-3 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+            data-testid="session-creation-status"
+          >
+            {creationProjection.failure ? (
+              <>
+                <p className="font-medium text-foreground">Session creation failed</p>
+                <dl className="mt-2 grid gap-1">
+                  <div className="flex items-center gap-2">
+                    <dt className="text-muted">Stage</dt>
+                    <dd className="font-medium text-foreground">
+                      {creationProjection.failure.stage}
+                    </dd>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <dt className="text-muted">Error</dt>
+                    <dd className="text-foreground">{creationProjection.failure.message}</dd>
+                  </div>
+                </dl>
+              </>
+            ) : (
+              <p className="font-medium text-foreground">
+                {creationProjection.creationStage}
+              </p>
+            )}
+          </div>
+        ) : null}
         <PromptInput
           className="w-full"
           value={draft.prompt}
@@ -333,16 +379,24 @@ function LiveSessionColumn({
   projectId,
   showDraft,
   onDraftSubmit,
+  sessionCreator,
 }: {
   workspace: AgentWorkspaceFixture;
   projectId: string;
   showDraft: boolean;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
+  sessionCreator: SessionCreator;
 }) {
-  const [sessionDraft, setSessionDraft] = useState(() => getSessionDraft(projectId));
+  const [sessionDraft, setSessionDraft] = useState<SessionDraft | null>(() =>
+    getSessionDraft(projectId),
+  );
+  const [creationProjection, setCreationProjection] = useState<SessionProjection | null>(
+    null,
+  );
 
   useEffect(() => {
     setSessionDraft(getSessionDraft(projectId));
+    setCreationProjection(null);
 
     return subscribeSessionDrafts(() => {
       setSessionDraft(getSessionDraft(projectId));
@@ -352,6 +406,38 @@ function LiveSessionColumn({
   const handleDraftChange = (prompt: string) => {
     setSessionDraft(saveSessionDraft(projectId, prompt));
   };
+  const handleDraftSubmit = async (event: SessionDraftSubmitEvent) => {
+    const draft = getSessionDraft(projectId);
+
+    if (!draft) {
+      return;
+    }
+
+    onDraftSubmit(event);
+
+    const result = await sessionCreator({
+      draft,
+      project: {
+        id: workspace.id,
+        repoRoot: workspace.repoRoot,
+        projectRoot: workspace.projectRoot,
+      },
+      onProjectionChange: setCreationProjection,
+    });
+
+    setCreationProjection(result.projection);
+
+    if (result.clearDraft) {
+      clearSessionDraft(projectId);
+      setSessionDraft(null);
+    }
+  };
+  const runtimeMessages = creationProjection?.runtimeEvents.map((event) => ({
+    id: event.id,
+    role: event.role,
+    body: event.body,
+  }));
+  const liveMessages = runtimeMessages?.length ? runtimeMessages : workspace.liveMessages;
 
   return (
     <main className="h-full min-h-0 min-w-0" data-testid="live-session-column">
@@ -360,8 +446,9 @@ function LiveSessionColumn({
           {showDraft && sessionDraft ? (
             <SessionDraftComposer
               draft={sessionDraft}
+              creationProjection={creationProjection}
               onDraftChange={handleDraftChange}
-              onDraftSubmit={onDraftSubmit}
+              onDraftSubmit={(event) => void handleDraftSubmit(event)}
             />
           ) : (
             <>
@@ -371,7 +458,7 @@ function LiveSessionColumn({
                 initial="instant"
               >
                 <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 py-6">
-                  {workspace.liveMessages.map((message) => (
+                  {liveMessages.map((message) => (
                     <LiveChatMessage
                       key={message.id}
                       message={message}
@@ -396,12 +483,26 @@ export function AgentWorkspaceSessionsView({
   showDraft = false,
   workspace = fixtureWorkspace,
   onDraftSubmit = () => {},
+  sessionCreator,
 }: {
   projectId?: string;
   showDraft?: boolean;
   workspace?: AgentWorkspaceFixture;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
+  sessionCreator?: SessionCreator;
 }) {
+  const [defaultSessionCreator] = useState<SessionCreator>(() => {
+    const bridge = createFakePiRuntimeBridge();
+    const projections = createInMemorySessionProjectionStore();
+
+    return (input: SessionCreatorInput) =>
+      createSessionFromDraft({
+        ...input,
+        bridge,
+        projections,
+      });
+  });
+
   return (
     <article
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6 py-6"
@@ -414,6 +515,7 @@ export function AgentWorkspaceSessionsView({
             showDraft={showDraft}
             workspace={workspace}
             onDraftSubmit={onDraftSubmit}
+            sessionCreator={sessionCreator ?? defaultSessionCreator}
           />
         </div>
       </div>

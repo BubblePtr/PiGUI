@@ -116,6 +116,19 @@ export function saveSessionDraft(projectId: string, prompt: string) {
   return draft;
 }
 
+export function clearSessionDraft(projectId: string) {
+  const drafts = readDrafts();
+
+  if (!(projectId in drafts)) {
+    return;
+  }
+
+  const { [projectId]: _removedDraft, ...remainingDrafts } = drafts;
+
+  writeDrafts(remainingDrafts);
+  emitDraftsChanged(projectId);
+}
+
 export function subscribeSessionDrafts(listener: () => void) {
   if (typeof window === "undefined") {
     return () => {};
