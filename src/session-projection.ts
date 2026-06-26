@@ -105,6 +105,14 @@ export type SessionProjectionEvent =
       event: PiRuntimeEvent;
     }
   | {
+      type: "run-stopped";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "run-stop-failed";
+      event: PiRuntimeEvent;
+    }
+  | {
       type: "latest-message-rendered";
       occurredAt: string;
     }
@@ -376,6 +384,24 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         status: "running",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
+        updatedAt: event.event.timestamp,
+      };
+    case "run-stopped":
+      return {
+        ...projection,
+        status: "completed",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: true,
+        updatedAt: event.event.timestamp,
+      };
+    case "run-stop-failed":
+      return {
+        ...projection,
+        status: projection.status,
         runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),

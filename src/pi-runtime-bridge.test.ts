@@ -294,6 +294,56 @@ describe("Pi Runtime Bridge contract", () => {
     });
   });
 
+  it("aborts the current active run through Pi RPC and returns a stopped event", async () => {
+    const transport = createFakePiRpcTransport({
+      sessionId: "pi-session-rpc",
+      now: () => "2026-06-26T08:00:00.000Z",
+    });
+    const bridge = createPiRpcRuntimeBridge({
+      transport,
+      now: () => "2026-06-26T08:00:00.000Z",
+    });
+    const runtime = await bridge.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const state = await bridge.createPiSessionState({
+      runtimeId: runtime.runtimeId,
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    const stoppedEvent = await bridge.abortRun({
+      piSessionId: state.piSessionId,
+    });
+
+    expect(stoppedEvent).toMatchObject({
+      piSessionId: state.piSessionId,
+      kind: "status",
+      title: "Stopped",
+      body: "Pi stopped the active run.",
+    });
+    expect(transport.commands).toContainEqual(
+      expect.objectContaining({
+        type: "abort",
+      }),
+    );
+    await expect(bridge.getSessionState(state.piSessionId)).resolves.toMatchObject({
+      status: "completed",
+      events: [
+        expect.objectContaining({
+          kind: "status",
+          title: "Stopped",
+        }),
+      ],
+    });
+  });
+
   it("creates Pi Session State and emits the first runtime event after accepting the initial prompt", async () => {
     const bridge = createFakePiRuntimeBridge({
       now: () => "2026-06-26T08:00:00.000Z",

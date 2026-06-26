@@ -343,6 +343,72 @@ describe("Session Projection state", () => {
     expect(steered.queuedMessages).toEqual([]);
   });
 
+  it("records stopped runs as completed and archiveable", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const stopped = applySessionProjectionEvent(base, {
+      type: "run-stopped",
+      event: {
+        id: "stop-event-1",
+        piSessionId: "pi-session-active",
+        kind: "status",
+        title: "Stopped",
+        body: "Pi stopped the active run.",
+        timestamp: "2026-06-26T08:05:00.000Z",
+      },
+    });
+
+    expect(stopped).toMatchObject({
+      status: "completed",
+      unreadResult: true,
+      updatedAt: "2026-06-26T08:05:00.000Z",
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "status",
+          title: "Stopped",
+        }),
+      ],
+    });
+    expect(canArchiveSessionProjection(stopped)).toBe(true);
+  });
+
+  it("records stop failures without ending the active run", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const failedStop = applySessionProjectionEvent(base, {
+      type: "run-stop-failed",
+      event: {
+        id: "stop-failed-event-1",
+        piSessionId: "pi-session-active",
+        kind: "error",
+        title: "Stop failed",
+        body: "Pi rejected the stop request.",
+        timestamp: "2026-06-26T08:05:00.000Z",
+      },
+    });
+
+    expect(failedStop).toMatchObject({
+      status: "running",
+      unreadResult: false,
+      updatedAt: "2026-06-26T08:05:00.000Z",
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "error",
+          title: "Stop failed",
+        }),
+      ],
+    });
+    expect(canArchiveSessionProjection(failedStop)).toBe(false);
+  });
+
   it("prevents active archive and keeps archived sessions available to history queries", () => {
     const active = projection({
       id: "active-run",

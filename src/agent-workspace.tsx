@@ -1,11 +1,11 @@
 import { Button, Card, ScrollShadow, Tooltip } from "@heroui/react";
 import { ChainOfThought, ChatConversation, ChatMessage, PromptInput, Sheet } from "@heroui-pro/react";
-import { Activity, Archive, GitBranch } from "lucide-react";
+import { Activity, Archive, CircleStop, GitBranch } from "lucide-react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "./app-shell";
 import { createDefaultPiRuntimeBridge } from "./pi-runtime-factory";
-import type { PiRuntimeBridge } from "./pi-runtime-bridge";
+import type { PiRuntimeBridge, PiSessionState } from "./pi-runtime-bridge";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -64,6 +64,10 @@ type AgentWorkspaceFixture = {
 type SessionActionsContentProps = {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
+};
+
+type RestorablePiRuntimeBridge = PiRuntimeBridge & {
+  restoreSessionState(state: PiSessionState): Promise<PiSessionState>;
 };
 
 export type SessionDraftSubmitEvent = {
@@ -148,6 +152,9 @@ function LiveChatMessage({
     <ChatMessage.Assistant>
       <ChatMessage.Avatar alt="Pi agent" fallback="Pi" />
       <ChatMessage.Body>
+        {message.controlLabel ? (
+          <p className="mb-1 text-xs font-medium text-muted">{message.controlLabel}</p>
+        ) : null}
         <ChatMessage.Content>{message.body}</ChatMessage.Content>
         {timeline.length ? (
           <ChainOfThought defaultExpanded>
@@ -316,14 +323,24 @@ function liveMessagesFromProjection(projection: SessionProjection): LiveMessage[
   const projectedMessages = projection.runtimeEvents
     .filter(
       (event) =>
-        (event.kind === "message" || event.kind === "control") &&
-        (event.role === "user" || event.role === "assistant"),
+        ((event.kind === "message" || event.kind === "control") &&
+          (event.role === "user" || event.role === "assistant")) ||
+        event.kind === "status" ||
+        event.kind === "error",
     )
     .map((event): LiveMessage => ({
       id: event.id,
-      role: event.role === "assistant" ? "assistant" : "user",
+      role:
+        event.role === "user"
+          ? "user"
+          : event.role === "assistant"
+            ? "assistant"
+            : "assistant",
       body: event.body,
-      controlLabel: event.kind === "control" ? (event.title ?? "Control") : undefined,
+      controlLabel:
+        event.kind === "control" || event.kind === "status" || event.kind === "error"
+          ? (event.title ?? "Control")
+          : undefined,
     }));
   const hasInitialPromptEvent = projectedMessages.some(
     (message) => message.role === "user" && message.body === projection.initialPrompt,
@@ -345,10 +362,7 @@ function liveMessagesFromProjection(projection: SessionProjection): LiveMessage[
 
 function runTimelineFromProjection(projection: SessionProjection): RunTimelineItem[] {
   return projection.runtimeEvents
-    .filter(
-      (event) =>
-        event.kind === "tool-call" || event.kind === "error" || event.kind === "status",
-    )
+    .filter((event) => event.kind === "tool-call")
     .map((event) => ({
       id: event.id,
       title: event.title ?? event.kind,
@@ -607,6 +621,139 @@ function SessionActionsSheet({
   );
 }
 
+function isRestorablePiRuntimeBridge(
+  bridge: PiRuntimeBridge,
+): bridge is RestorablePiRuntimeBridge {
+  return (
+    "restoreSessionState" in bridge &&
+    typeof bridge.restoreSessionState === "function"
+  );
+}
+
+function runtimeStateStatusFromProjection(
+  projection: SessionProjection,
+): PiSessionState["status"] {
+  switch (projection.status) {
+    case "failed":
+      return "failed";
+    case "completed":
+    case "archived":
+      return "completed";
+    case "waiting":
+      return "idle";
+    case "creating":
+    case "running":
+      return "running";
+  }
+}
+
+function messageFromError(error: unknown) {
+  return error instanceof Error ? error.message : "Pi could not stop the active run.";
+}
+
+async function restoreProjectionRuntimeState(input: {
+  bridge: PiRuntimeBridge;
+  projection: SessionProjection;
+  workspace: AgentWorkspaceFixture;
+}) {
+  const { bridge, projection, workspace } = input;
+
+  if (
+    !projection.piSessionId ||
+    !projection.runtimeId ||
+    !isRestorablePiRuntimeBridge(bridge)
+  ) {
+    return;
+  }
+
+  await bridge.restoreSessionState({
+    piSessionId: projection.piSessionId,
+    runtimeId: projection.runtimeId,
+    projectId: projection.projectId,
+    cwd: projection.checkout?.runtimeCwd ?? workspace.checkout.runtimeCwd,
+    status: runtimeStateStatusFromProjection(projection),
+    events: projection.runtimeEvents,
+    summary: projection.summary,
+    updatedAt: projection.updatedAt,
+  });
+}
+
+export function SessionToolbarActions({
+  workspace,
+  projection,
+  runtimeBridge,
+  onProjectionChange,
+}: {
+  workspace: AgentWorkspaceFixture;
+  projection?: SessionProjection | null;
+  runtimeBridge: PiRuntimeBridge;
+  onProjectionChange: (projection: SessionProjection) => void;
+}) {
+  const [stopping, setStopping] = useState(false);
+  const canStop = Boolean(
+    projection?.piSessionId && projection && isSessionProjectionActive(projection),
+  );
+  const handleStop = async () => {
+    if (!projection?.piSessionId || !canStop) {
+      return;
+    }
+
+    setStopping(true);
+
+    try {
+      await restoreProjectionRuntimeState({
+        bridge: runtimeBridge,
+        projection,
+        workspace,
+      });
+
+      const event = await runtimeBridge.abortRun({
+        piSessionId: projection.piSessionId,
+      });
+
+      onProjectionChange(
+        applySessionProjectionEvent(projection, {
+          type: "run-stopped",
+          event,
+        }),
+      );
+    } catch (error) {
+      onProjectionChange(
+        applySessionProjectionEvent(projection, {
+          type: "run-stop-failed",
+          event: {
+            id: `stop-failed-${Date.now()}`,
+            piSessionId: projection.piSessionId,
+            kind: "error",
+            title: "Stop failed",
+            body: messageFromError(error),
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      );
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  return (
+    <>
+      {canStop ? (
+        <Button
+          isDisabled={stopping}
+          size="sm"
+          variant="danger-soft"
+          onPress={() => void handleStop()}
+        >
+          <CircleStop className="size-4" />
+          Stop
+        </Button>
+      ) : null}
+      <SessionActionsSheet workspace={workspace} projection={projection} />
+    </>
+  );
+}
+
 function LiveSessionColumn({
   workspace,
   projectId,
@@ -794,7 +941,11 @@ function LiveSessionColumn({
                     <LiveChatMessage
                       key={message.id}
                       message={message}
-                      timeline={message.role === "assistant" ? runTimeline : undefined}
+                      timeline={
+                        message.role === "assistant" && !message.controlLabel
+                          ? runTimeline
+                          : undefined
+                      }
                     />
                   ))}
                   <ChatConversation.ScrollAnchor />
@@ -848,20 +999,16 @@ export function AgentWorkspaceSessionsView({
       return bridge;
     };
   });
-  const [defaultSessionCreator] = useState<SessionCreator>(() => {
-    const projections = createInMemorySessionProjectionStore();
-
-    return (input: SessionCreatorInput) => {
-      return createSessionFromDraft({
-        ...input,
-        bridge: getDefaultRuntimeBridge(),
-        projections,
-      });
-    };
-  });
   const getActiveRuntimeBridge = runtimeBridge
     ? () => runtimeBridge
     : getDefaultRuntimeBridge;
+  const [defaultProjectionStore] = useState(() => createInMemorySessionProjectionStore());
+  const defaultSessionCreator: SessionCreator = (input: SessionCreatorInput) =>
+    createSessionFromDraft({
+      ...input,
+      bridge: getActiveRuntimeBridge(),
+      projections: defaultProjectionStore,
+    });
 
   return (
     <article
@@ -897,6 +1044,7 @@ export function AgentWorkspaceSessionsPage() {
     },
   });
   const workspace = fixtureWorkspace;
+  const [runtimeBridge] = useState(() => createDefaultPiRuntimeBridge());
   const [sessionProjections, setSessionProjections] = useState(
     defaultSidebarProjectSessionProjections,
   );
@@ -940,9 +1088,11 @@ export function AgentWorkspaceSessionsPage() {
       selectedSessionId={selectedSessionId}
       onSelectedSessionIdChange={setSelectedSessionId}
       toolbarActions={
-        <SessionActionsSheet
+        <SessionToolbarActions
           workspace={workspace}
           projection={selectedSessionProjection}
+          runtimeBridge={runtimeBridge}
+          onProjectionChange={handleProjectionChange}
         />
       }
     >
@@ -950,6 +1100,7 @@ export function AgentWorkspaceSessionsPage() {
         projectId={projectId}
         showDraft={showDraft}
         workspace={workspace}
+        runtimeBridge={runtimeBridge}
         sessionProjection={selectedSessionProjection}
         onProjectionChange={handleProjectionChange}
         onLatestMessageRendered={handleLatestMessageRendered}

@@ -57,6 +57,16 @@ function createSidebarProjection({
     ...projection,
     status,
     creationStage: "accepted",
+    checkout:
+      status === "running"
+        ? {
+            mode: "foreground-local",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig",
+          }
+        : projection.checkout,
+    runtimeId: status === "running" ? `${id}-runtime` : projection.runtimeId,
+    piSessionId: status === "running" ? `${id}-pi-session` : projection.piSessionId,
     runtimeEvents:
       status === "running"
         ? [

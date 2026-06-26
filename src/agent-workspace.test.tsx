@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { useState } from "react";
 import {
   Outlet,
   RouterProvider,
@@ -15,6 +16,7 @@ import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
   SessionActionsContent,
+  SessionToolbarActions,
 } from "./agent-workspace";
 import { PiRuntimeBridgeError, createFakePiRuntimeBridge } from "./pi-runtime-bridge";
 import {
@@ -101,8 +103,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelector('[data-slot="prompt-input-textarea"]')).toBeInTheDocument();
     expect(liveColumn.querySelector('[data-slot="prompt-input-send"]')).toBeInTheDocument();
     expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+    expect(within(liveColumn).getByRole("button", { name: "Steer" })).toBeInTheDocument();
     expect(within(liveColumn).getByRole("button", { name: "Send" })).toBeInTheDocument();
-    expect(within(liveColumn).getByText("AI can make mistakes. Check important info.")).toBeInTheDocument();
+    expect(
+      within(liveColumn).getByText("Queue is the default while Pi is running."),
+    ).toBeInTheDocument();
+    expect(within(navbarActions).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Session actions" })).not.toBeInTheDocument();
 
     await user.click(sessionActionsButton);
@@ -120,16 +126,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(actionDialog).getByText("$0.042137")).toBeInTheDocument();
   });
 
-  it("does not expose deferred terminal, file tree, or runtime control placeholders", async () => {
+  it("does not expose deferred terminal, file tree, or abort placeholders", async () => {
     renderProjectSessions();
 
     const sessionsView = await screen.findByTestId("project-sessions-view");
 
     expect(within(sessionsView).queryByText(/terminal/i)).not.toBeInTheDocument();
     expect(within(sessionsView).queryByText(/file tree|file explorer/i)).not.toBeInTheDocument();
-    expect(
-      within(sessionsView).queryByRole("button", { name: /queue|steer|stop/i }),
-    ).not.toBeInTheDocument();
+    expect(within(sessionsView).queryByText("Abort")).not.toBeInTheDocument();
   });
 
   it("disables archive for the selected active run in the action surface", async () => {
@@ -173,6 +177,121 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       within(actionDialog).queryByText("Active runs cannot be archived."),
     ).not.toBeInTheDocument();
+  });
+
+  it("stops the selected active run from the toolbar and unlocks archive", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    expect(await screen.findByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(screen.queryByText("Abort")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(await within(liveChat).findByText("Stopped")).toBeInTheDocument();
+    expect(within(liveChat).getByText("Pi stopped the active run.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Session actions" }));
+
+    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+
+    expect(within(actionDialog).getByRole("button", { name: "Archive Session" })).toBeEnabled();
+    expect(
+      within(actionDialog).queryByText("Active runs cannot be archived."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("records stop failure in Live Chat without unlocking active archive", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      failAt: "stop-run",
+      failureMessage: "Pi rejected the stop request.",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "active-session",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "gpt-5-codex",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    function StopFailureHarness() {
+      const [currentProjection, setCurrentProjection] = useState(projection);
+
+      return (
+        <>
+          <SessionToolbarActions
+            workspace={workspace}
+            projection={currentProjection}
+            runtimeBridge={bridge}
+            onProjectionChange={setCurrentProjection}
+          />
+          <AgentWorkspaceSessionsView
+            projectId="pig-docs"
+            runtimeBridge={bridge}
+            sessionProjection={currentProjection}
+            workspace={workspace}
+            onProjectionChange={setCurrentProjection}
+          />
+        </>
+      );
+    }
+
+    render(<StopFailureHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(await within(liveChat).findByText("Stop failed")).toBeInTheDocument();
+    expect(within(liveChat).getByText("Pi rejected the stop request.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
   });
 
   it("clears unread results after the selected Session content is rendered", async () => {

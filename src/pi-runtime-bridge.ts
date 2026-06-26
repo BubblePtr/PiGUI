@@ -9,7 +9,8 @@ export type RuntimeBridgeFailureStage =
   | "sending prompt"
   | "queuing message"
   | "withdrawing queued message"
-  | "steering run";
+  | "steering run"
+  | "stopping run";
 
 export type PiRuntimeBridgeErrorDetail = {
   stage: RuntimeBridgeFailureStage;
@@ -113,6 +114,10 @@ export type SteerRunInput = {
   message: string;
 };
 
+export type AbortRunInput = {
+  piSessionId: string;
+};
+
 export type PiRuntimeBridge = {
   startRuntime(input: StartRuntimeInput): Promise<PiRuntimeHandle>;
   createPiSessionState(input: CreatePiSessionStateInput): Promise<PiSessionState>;
@@ -120,6 +125,7 @@ export type PiRuntimeBridge = {
   queueFollowUp(input: QueueFollowUpInput): Promise<PiQueuedMessage>;
   withdrawQueuedMessage(input: WithdrawQueuedMessageInput): Promise<PiQueuedMessage>;
   steerRun(input: SteerRunInput): Promise<PiRuntimeEvent>;
+  abortRun(input: AbortRunInput): Promise<PiRuntimeEvent>;
   getSessionState(piSessionId: string): Promise<PiSessionState>;
   subscribeToEvents(piSessionId: string, listener: (event: PiRuntimeEvent) => void): () => void;
 };
@@ -132,7 +138,8 @@ type FakeBridgeFailurePoint =
   | "start-runtime"
   | "create-pi-session-state"
   | "send-initial-prompt"
-  | "steer-run";
+  | "steer-run"
+  | "stop-run";
 
 export type FakePiRuntimeBridgeOptions = {
   now?: () => string;
@@ -779,6 +786,45 @@ export function createPiRpcRuntimeBridge(
       return { ...event };
     },
 
+    async abortRun(input) {
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "stopping run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      const requestId = nextRequestId();
+      const response = await options.transport.send({
+        id: requestId,
+        type: "abort",
+      });
+
+      if (!response.success) {
+        throw new PiRuntimeBridgeError({
+          stage: "stopping run",
+          message: response.error ?? "Pi RPC rejected the stop request.",
+        });
+      }
+
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${requestId}`,
+        piSessionId: input.piSessionId,
+        kind: "status",
+        title: "Stopped",
+        body: "Pi stopped the active run.",
+        timestamp: now(),
+      };
+
+      state.status = "completed";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
+    },
+
     async getSessionState(piSessionId) {
       const state = states.get(piSessionId);
 
@@ -988,6 +1034,37 @@ export function createFakePiRuntimeBridge(
       };
 
       state.status = "running";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
+    },
+
+    async abortRun(input) {
+      if (options.failAt === "stop-run") {
+        fail("stopping run");
+      }
+
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "stopping run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      eventCounter += 1;
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${eventCounter}`,
+        piSessionId: input.piSessionId,
+        kind: "status",
+        title: "Stopped",
+        body: "Pi stopped the active run.",
+        timestamp: now(),
+      };
+
+      state.status = "completed";
       state.updatedAt = event.timestamp;
       state.events = [...state.events, event];
 
