@@ -4,6 +4,7 @@ import {
   createFakePiRpcTransport,
   createPiRpcRuntimeBridge,
 } from "./pi-runtime-bridge";
+import { createExecutionCheckoutManager } from "./execution-checkout";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -181,6 +182,89 @@ describe("Session Creation state machine", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps multiple Sessions active for one Project and isolates background concurrent checkouts", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const bridge = createFakePiRuntimeBridge({
+      now: () => "2026-06-27T08:00:03.000Z",
+    });
+    const createdWorktrees: string[] = [];
+    const checkoutManager = createExecutionCheckoutManager({
+      worktreesRoot: "/tmp/pig-worktrees",
+      gitClient: {
+        async isGitRepository() {
+          return true;
+        },
+        async addDetachedWorktree({ checkoutRoot }) {
+          createdWorktrees.push(checkoutRoot);
+        },
+      },
+    });
+    const project = {
+      id: "pig",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+    };
+
+    const foreground = await createSessionFromDraft({
+      bridge,
+      projections,
+      checkoutManager,
+      executionMode: "foreground",
+      draft: {
+        projectId: "pig",
+        prompt: "Run in the local checkout",
+        updatedAt: "2026-06-27T08:00:00.000Z",
+      },
+      project,
+      now: () => "2026-06-27T08:00:00.000Z",
+      idFactory: () => "session-local",
+    });
+    const background = await createSessionFromDraft({
+      bridge,
+      projections,
+      checkoutManager,
+      executionMode: "background",
+      draft: {
+        projectId: "pig",
+        prompt: "Run in an isolated worktree",
+        updatedAt: "2026-06-27T08:01:00.000Z",
+      },
+      project,
+      now: () => "2026-06-27T08:01:00.000Z",
+      idFactory: () => "session-background",
+    });
+
+    expect(foreground).toMatchObject({
+      ok: true,
+      projection: {
+        status: "running",
+        checkout: {
+          mode: "foreground-local",
+          executionCheckoutRoot: "/Users/void/code/opensource/Pig",
+          runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
+        },
+      },
+    });
+    expect(background).toMatchObject({
+      ok: true,
+      projection: {
+        status: "running",
+        checkout: {
+          mode: "managed-worktree",
+          projectRelativePath: "packages/web",
+          executionCheckoutRoot: "/tmp/pig-worktrees/session-background",
+          runtimeCwd: "/tmp/pig-worktrees/session-background/packages/web",
+        },
+      },
+    });
+    expect(createdWorktrees).toEqual(["/tmp/pig-worktrees/session-background"]);
+    expect(
+      projections
+        .list()
+        .filter((projection) => projection.projectId === "pig" && projection.status === "running"),
+    ).toHaveLength(2);
   });
 
   it.each([

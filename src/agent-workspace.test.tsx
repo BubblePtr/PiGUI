@@ -977,4 +977,73 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("$0.012345")).toBeInTheDocument();
     expect(screen.getByText("1.3K")).toBeInTheDocument();
   });
+
+  it("shows managed checkout root and runtime cwd while keeping advanced checkout details collapsed", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-background",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
+      },
+      summary: {
+        model: "gpt-5-codex",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "session-background",
+        projectId: "pig-docs",
+        initialPrompt: "Run in the isolated checkout",
+        createdAt: "2026-06-27T08:00:00.000Z",
+      }),
+      {
+        type: "checkout-selected",
+        stage: "preparing checkout",
+        checkout: {
+          mode: "managed-worktree",
+          root: "/tmp/pig-worktrees/session-background",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+          projectRelativePath: "packages/web",
+          executionCheckoutRoot: "/tmp/pig-worktrees/session-background",
+          diffRoot: "/tmp/pig-worktrees/session-background",
+          runtimeCwd: "/tmp/pig-worktrees/session-background/packages/web",
+          sessionBound: true,
+          disposable: true,
+          cleanupCandidate: false,
+          permanent: false,
+          createdAt: "2026-06-27T08:00:00.000Z",
+        },
+        occurredAt: "2026-06-27T08:00:00.000Z",
+      },
+    );
+
+    render(<SessionActionsContent workspace={workspace} projection={projection} />);
+
+    expect(screen.getByText("Pig-managed worktree")).toBeInTheDocument();
+    expect(screen.getByText("/tmp/pig-worktrees/session-background")).toBeInTheDocument();
+    expect(
+      screen.getByText("/tmp/pig-worktrees/session-background/packages/web"),
+    ).toBeInTheDocument();
+    const advancedDetails = screen
+      .getByText("Advanced checkout details")
+      .closest("details");
+
+    expect(advancedDetails).not.toBeNull();
+    expect(advancedDetails).not.toHaveAttribute("open");
+    expect(
+      within(advancedDetails as HTMLElement).getByText(
+        "/Users/void/code/opensource/Pig/packages/web",
+      ),
+    ).not.toBeVisible();
+  });
 });

@@ -1,7 +1,19 @@
 export type ExecutionCheckout = {
-  mode: "foreground-local";
+  mode: "foreground-local" | "managed-worktree";
   root: string;
   runtimeCwd: string;
+  repoRoot?: string;
+  projectRoot?: string;
+  projectRelativePath?: string;
+  executionCheckoutRoot?: string;
+  diffRoot?: string;
+  sessionBound?: boolean;
+  disposable?: boolean;
+  cleanupCandidate?: boolean;
+  permanent?: boolean;
+  createdAt?: string;
+  cleanupMarkedAt?: string;
+  promotedAt?: string;
 };
 
 export type RuntimeBridgeFailureStage =

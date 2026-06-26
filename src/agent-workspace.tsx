@@ -459,17 +459,46 @@ function SessionDraftComposer({
 }
 
 function checkoutModeLabel(mode: string) {
-  return mode === "foreground-local" ? "Foreground local checkout" : mode;
+  if (mode === "foreground-local") {
+    return "Foreground local checkout";
+  }
+
+  if (mode === "managed-worktree") {
+    return "Pig-managed worktree";
+  }
+
+  return mode;
 }
 
 export function SessionActionsContent({ workspace, projection }: SessionActionsContentProps) {
   const checkout = projection?.checkout
     ? {
         mode: checkoutModeLabel(projection.checkout.mode),
-        root: projection.checkout.root,
+        root:
+          projection.checkout.executionCheckoutRoot ??
+          projection.checkout.diffRoot ??
+          projection.checkout.root,
         runtimeCwd: projection.checkout.runtimeCwd,
+        repoRoot: projection.checkout.repoRoot,
+        projectRoot: projection.checkout.projectRoot,
+        projectRelativePath: projection.checkout.projectRelativePath,
+        diffRoot: projection.checkout.diffRoot,
+        sessionBound: projection.checkout.sessionBound,
+        disposable: projection.checkout.disposable,
+        cleanupCandidate: projection.checkout.cleanupCandidate,
+        permanent: projection.checkout.permanent,
       }
-    : workspace.checkout;
+    : {
+        ...workspace.checkout,
+        repoRoot: workspace.repoRoot,
+        projectRoot: workspace.projectRoot,
+        projectRelativePath: ".",
+        diffRoot: workspace.checkout.root,
+        sessionBound: false,
+        disposable: false,
+        cleanupCandidate: false,
+        permanent: true,
+      };
   const summary = projection
     ? {
         provider: projection.summary.provider,
@@ -511,6 +540,50 @@ export function SessionActionsContent({ workspace, projection }: SessionActionsC
             <dd className="mt-1 break-words text-foreground">{checkout.runtimeCwd}</dd>
           </div>
         </dl>
+        <details className="mt-4 rounded-md border border-default/70 px-3 py-2 text-sm">
+          <summary className="cursor-default text-muted">Advanced checkout details</summary>
+          <dl className="mt-3 grid gap-3">
+            {checkout.repoRoot ? (
+              <div>
+                <dt className="text-xs font-medium uppercase text-muted">Repo root</dt>
+                <dd className="mt-1 break-words text-foreground">{checkout.repoRoot}</dd>
+              </div>
+            ) : null}
+            {checkout.projectRoot ? (
+              <div>
+                <dt className="text-xs font-medium uppercase text-muted">Project root</dt>
+                <dd className="mt-1 break-words text-foreground">{checkout.projectRoot}</dd>
+              </div>
+            ) : null}
+            {checkout.projectRelativePath ? (
+              <div>
+                <dt className="text-xs font-medium uppercase text-muted">Project relative path</dt>
+                <dd className="mt-1 break-words text-foreground">
+                  {checkout.projectRelativePath}
+                </dd>
+              </div>
+            ) : null}
+            {checkout.diffRoot && checkout.diffRoot !== checkout.root ? (
+              <div>
+                <dt className="text-xs font-medium uppercase text-muted">Diff root</dt>
+                <dd className="mt-1 break-words text-foreground">{checkout.diffRoot}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt className="text-xs font-medium uppercase text-muted">Lifecycle</dt>
+              <dd className="mt-1 break-words text-foreground">
+                {[
+                  checkout.sessionBound ? "Session-bound" : "Shared checkout",
+                  checkout.disposable ? "Disposable" : "Retained",
+                  checkout.cleanupCandidate ? "Cleanup candidate" : null,
+                  checkout.permanent ? "Permanent" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" / ")}
+              </dd>
+            </div>
+          </dl>
+        </details>
       </section>
 
       <section>

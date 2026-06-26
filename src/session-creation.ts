@@ -1,6 +1,10 @@
 import type { SessionDraft } from "./session-drafts";
 import { PiRuntimeBridgeError, type PiRuntimeBridge } from "./pi-runtime-bridge";
 import {
+  createExecutionCheckoutManager,
+  type ExecutionCheckoutManager,
+} from "./execution-checkout";
+import {
   applySessionProjectionEvent,
   createSessionProjection,
   type SessionCreationFailureStage,
@@ -21,9 +25,11 @@ export type SessionProjectionStore = {
 
 export type CreateSessionFromDraftInput = {
   bridge: PiRuntimeBridge;
+  checkoutManager?: ExecutionCheckoutManager;
   projections: SessionProjectionStore;
   draft: SessionDraft;
   project: ProjectSessionCreationTarget;
+  executionMode?: "foreground" | "background";
   now?: () => string;
   idFactory?: () => string;
   onProjectionChange?: (projection: SessionProjection) => void;
@@ -104,6 +110,8 @@ export async function createSessionFromDraft(
 ): Promise<CreateSessionFromDraftResult> {
   const now = input.now ?? (() => new Date().toISOString());
   const idFactory = input.idFactory ?? defaultIdFactory;
+  const checkoutManager = input.checkoutManager ?? createExecutionCheckoutManager();
+  let failureStage: SessionCreationFailureStage = "preparing checkout";
   let projection = createSessionProjection({
     id: idFactory(),
     projectId: input.draft.projectId,
@@ -120,11 +128,13 @@ export async function createSessionFromDraft(
   let unsubscribeRuntimeEvents: (() => void) | null = null;
 
   try {
-    const checkout = {
-      mode: "foreground-local" as const,
-      root: input.project.repoRoot,
-      runtimeCwd: input.project.projectRoot,
-    };
+    const checkout = await checkoutManager.prepareCheckout({
+      sessionId: projection.id,
+      strategy:
+        input.executionMode === "background" ? "background-managed" : "foreground-local",
+      project: input.project,
+      now,
+    });
 
     commit(
       applySessionProjectionEvent(projection, {
@@ -135,6 +145,7 @@ export async function createSessionFromDraft(
       }),
     );
 
+    failureStage = "starting runtime";
     const runtime = await input.bridge.startRuntime({
       sessionId: projection.id,
       projectId: input.project.id,
@@ -164,6 +175,7 @@ export async function createSessionFromDraft(
         occurredAt: now(),
       }),
     );
+    failureStage = "sending prompt";
     commit(
       applySessionProjectionEvent(projection, {
         type: "creation-stage-changed",
@@ -193,7 +205,7 @@ export async function createSessionFromDraft(
     };
   } catch (error) {
     unsubscribeRuntimeEvents?.();
-    const detail = failureDetail(error, "starting runtime");
+    const detail = failureDetail(error, failureStage);
 
     commit(
       applySessionProjectionEvent(projection, {
