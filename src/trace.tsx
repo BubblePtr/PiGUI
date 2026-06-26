@@ -55,15 +55,15 @@ function TraceEmptyState() {
     <div className="flex h-full min-h-0 items-center justify-center">
       <Card className="w-full max-w-xl">
         <Card.Header className="block">
-          <div className="text-sm font-semibold uppercase text-muted">Trace</div>
+          <div className="text-sm font-semibold uppercase text-muted">Analyze / Trace</div>
           <Card.Title className="mt-3 text-2xl font-semibold tracking-normal text-foreground">
-            Select a Pi session
+            Select a Pi session trace
           </Card.Title>
         </Card.Header>
         <Card.Content>
           <p className="text-sm leading-6 text-muted">
-            Choose a session from the left list to replay its timeline, cost, tokens, thinking, and
-            tool I/O.
+            Choose a historical session from the left list to replay its timeline, cost, tokens,
+            thinking, and tool I/O.
           </p>
         </Card.Content>
       </Card>

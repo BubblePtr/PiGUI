@@ -8,6 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AgentWorkspaceSessionsPage } from "./agent-workspace";
 import { SetupPage } from "./setup";
 import { TraceIndexPage, TraceSessionPage } from "./trace";
 import { UsagePage } from "./usage";
@@ -37,6 +38,12 @@ const usageRoute = createRoute({
   component: UsagePage,
 });
 
+const projectSessionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId/sessions",
+  component: AgentWorkspaceSessionsPage,
+});
+
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
@@ -44,7 +51,13 @@ const setupRoute = createRoute({
 });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, sessionDetailRoute, usageRoute, setupRoute]),
+  routeTree: rootRoute.addChildren([
+    indexRoute,
+    sessionDetailRoute,
+    usageRoute,
+    projectSessionsRoute,
+    setupRoute,
+  ]),
 });
 
 declare module "@tanstack/react-router" {

@@ -766,7 +766,7 @@ export function UsagePage() {
       <article className="min-h-full px-6 py-6">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <header className="border-b border-border pb-4">
-            <div className="text-sm font-semibold uppercase text-muted">Usage</div>
+            <div className="text-sm font-semibold uppercase text-muted">Analyze / Usage</div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">
               Cost and token trends
             </h1>

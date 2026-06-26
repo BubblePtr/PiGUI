@@ -3,9 +3,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   AppLayout,
+  ChainOfThought,
   CodeBlock,
+  ChatConversation,
+  ChatMessage,
   KPI,
   NativeSelect,
+  PromptInput,
   Segment,
   Sidebar,
   Timeline,
@@ -20,6 +24,22 @@ describe("HeroUI Pro integration", () => {
     expect(KPI.Value).toBeTypeOf("function");
     expect(CodeBlock.Code).toBeTypeOf("function");
     expect(Timeline.Item).toBeTypeOf("function");
+    expect(ChatConversation.Content).toBeTypeOf("function");
+    expect(ChatMessage.Assistant).toBeTypeOf("function");
+    expect(ChainOfThought.Step).toBeTypeOf("function");
+    expect(PromptInput.Send).toBeTypeOf("function");
+  });
+
+  it("loads the HeroUI Pro CSS required by the Full Chat surface", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/styles.css"),
+      "utf8",
+    );
+
+    expect(source).toContain("components/chat-conversation.css");
+    expect(source).toContain("components/chat-message.css");
+    expect(source).toContain("components/chain-of-thought.css");
+    expect(source).toContain("components/prompt-input.css");
   });
 
   it("wraps Usage Segment controls in a shared element transition scope", () => {

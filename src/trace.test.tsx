@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import {
+  Outlet,
   RouterProvider,
   createMemoryHistory,
   createRootRoute,
@@ -7,7 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
-import { TraceWorkspace, getTraceResizableSizes } from "./trace";
+import { TraceIndexPage, TraceWorkspace, getTraceResizableSizes } from "./trace";
 
 vi.mock("./session-list", () => ({
   SessionListPanel: ({ selectedSessionId }: { selectedSessionId?: string }) => (
@@ -51,6 +52,49 @@ function renderTraceWorkspace() {
   return render(<RouterProvider router={router} />);
 }
 
+function renderTraceIndexPage() {
+  const rootRoute = createRootRoute({
+    component: () => <Outlet />,
+  });
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/",
+    component: TraceIndexPage,
+  });
+  const sessionRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/sessions/$sessionId",
+    component: () => null,
+  });
+  const usageRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/usage",
+    component: () => null,
+  });
+  const projectSessionsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/projects/$projectId/sessions",
+    component: () => null,
+  });
+  const setupRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/setup",
+    component: () => null,
+  });
+  const router = createRouter({
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+    routeTree: rootRoute.addChildren([
+      indexRoute,
+      sessionRoute,
+      usageRoute,
+      projectSessionsRoute,
+      setupRoute,
+    ]),
+  });
+
+  return render(<RouterProvider router={router} />);
+}
+
 describe("TraceWorkspace", () => {
   it("uses percentage panel sizes for the desktop resizable split", () => {
     expect(getTraceResizableSizes(true)).toEqual({
@@ -70,21 +114,40 @@ describe("TraceWorkspace", () => {
       "data-selected-session-id",
       "session-a",
     );
-    expect(screen.getByTestId("trace-workspace")).toHaveClass(
+    const traceWorkspace = screen.getByTestId("trace-workspace");
+
+    expect(traceWorkspace).toHaveClass(
       "h-full",
       "min-h-0",
       "overflow-hidden",
     );
-    const splitView = container.querySelector('[data-slot="resizable"]');
+    const splitView = traceWorkspace.querySelector<HTMLElement>('[data-slot="resizable"]');
+
+    if (!splitView) {
+      throw new Error("Trace split view not found");
+    }
+
     expect(splitView).toHaveClass("h-full", "min-h-0");
     expect(splitView).not.toHaveClass("grid");
-    expect(container.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
-    expect(container.querySelector('[data-slot="resizable-handle"]')).toBeInTheDocument();
+    expect(splitView.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
+    expect(
+      splitView.querySelector('[data-slot="resizable-handle"]'),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("trace-list-pane")).toHaveClass("min-h-0");
     expect(screen.getByTestId("trace-detail-pane")).toHaveClass(
       "min-h-0",
       "overflow-hidden",
     );
     expect(container.querySelector(".app-layout__main")).toBeInTheDocument();
+  });
+
+  it("frames trace replay as Analyze history instead of live Session control", async () => {
+    renderTraceIndexPage();
+
+    expect(await screen.findByText("Analyze / Trace")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Select a Pi session trace" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("mock-session-list")).toBeInTheDocument();
   });
 });

@@ -15,6 +15,10 @@
 @import "../vendor/herouipro-v3/src/css/components/list-view.css";
 @import "../vendor/herouipro-v3/src/css/components/chart-tooltip.css";
 @import "../vendor/herouipro-v3/src/css/components/code-block.css";
+@import "../vendor/herouipro-v3/src/css/components/chat-conversation.css";
+@import "../vendor/herouipro-v3/src/css/components/chat-message.css";
+@import "../vendor/herouipro-v3/src/css/components/chain-of-thought.css";
+@import "../vendor/herouipro-v3/src/css/components/prompt-input.css";
 @import "../vendor/herouipro-v3/src/css/components/timeline.css";
 @import "../vendor/herouipro-v3/src/css/themes/glass/index.css";
 
@@ -69,7 +73,24 @@ body {
   margin: 0;
 }
 
-.pig-app-layout > [data-slot="app-layout-body"] {
+.pig-app-layout .sidebar__offcanvas-wrapper {
+  --sidebar-width: 18rem;
+}
+
+.pig-app-layout[data-resizable] .sidebar__offcanvas-wrapper,
+.pig-app-layout[data-resizable] [data-slot="sidebar"] {
+  min-width: 100%;
+}
+
+.pig-app-layout[data-resizable] [data-slot="resizable-handle"] {
+  --resizable-handle-color: transparent;
+  --resizable-handle-color-hover: transparent;
+  --resizable-handle-color-active: transparent;
+
+  background-color: transparent;
+}
+
+.pig-app-layout [data-slot="app-layout-body"] {
   --pig-app-inset: calc(var(--spacing, 0.25rem) * 1);
 
   min-width: 0;

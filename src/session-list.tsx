@@ -130,8 +130,8 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
       <div className="border-b border-border px-4 py-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold uppercase text-muted">Trace</h2>
-            <p className="mt-1 text-xs text-muted">Recent Pi sessions</p>
+            <h2 className="text-sm font-semibold uppercase text-muted">Analyze / Trace</h2>
+            <p className="mt-1 text-xs text-muted">Historical Pi session traces</p>
           </div>
           <Button
             isIconOnly

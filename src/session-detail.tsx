@@ -547,7 +547,7 @@ export function SessionDetailView({
               className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted transition hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
-              Trace sessions
+              Analyze Trace
             </Link>
             <h1 className="truncate text-xl font-semibold tracking-normal">
               {session?.project ?? "Session"}
