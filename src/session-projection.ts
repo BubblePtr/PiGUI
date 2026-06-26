@@ -1,4 +1,9 @@
-import type { ExecutionCheckout, PiRuntimeEvent, PiSessionState } from "./pi-runtime-bridge";
+import type {
+  ExecutionCheckout,
+  PiRuntimeEvent,
+  PiRuntimeSummary,
+  PiSessionState,
+} from "./pi-runtime-bridge";
 
 export type SessionStatus = "creating" | "running" | "waiting" | "failed" | "completed" | "archived";
 
@@ -29,9 +34,12 @@ export type SessionProjection = {
   runtimeId: string | null;
   piSessionId: string | null;
   runtimeEvents: PiRuntimeEvent[];
+  summary: PiRuntimeSummary;
   stale: boolean;
   staleReason: string | null;
   failure: SessionCreationFailure | null;
+  unreadResult: boolean;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -60,12 +68,29 @@ export type SessionProjectionEvent =
       stage: "starting runtime";
       runtimeId: string;
       piSessionId: string;
+      summary?: PiRuntimeSummary;
       occurredAt: string;
     }
   | {
       type: "runtime-event-received";
-      stage: "accepted";
+      stage?: "accepted";
       event: PiRuntimeEvent;
+    }
+  | {
+      type: "run-completed";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "run-failed";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "latest-message-rendered";
+      occurredAt: string;
+    }
+  | {
+      type: "session-archived";
+      occurredAt: string;
     }
   | {
       type: "projection-marked-stale";
@@ -83,6 +108,20 @@ export type SessionProjectionEvent =
       occurredAt: string;
     };
 
+export type SessionProjectionListItem = {
+  id: string;
+  title: string;
+  active: boolean;
+  unread: boolean;
+  archived: boolean;
+  updatedAt: string;
+  projection: SessionProjection;
+};
+
+export type GetSessionProjectionListItemsOptions = {
+  includeArchived?: boolean;
+};
+
 export function createSessionProjection(
   input: CreateSessionProjectionInput,
 ): SessionProjection {
@@ -96,12 +135,80 @@ export function createSessionProjection(
     runtimeId: null,
     piSessionId: null,
     runtimeEvents: [],
+    summary: {
+      provider: null,
+      model: null,
+      totalTokens: 0,
+      totalCostUsd: 0,
+    },
     stale: false,
     staleReason: null,
     failure: null,
+    unreadResult: false,
+    archivedAt: null,
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
   };
+}
+
+export function isSessionProjectionActive(projection: SessionProjection): boolean {
+  return projection.status === "creating" || projection.status === "running";
+}
+
+function isSessionProjectionArchived(projection: SessionProjection): boolean {
+  return projection.status === "archived" || projection.archivedAt !== null;
+}
+
+export function canArchiveSessionProjection(projection: SessionProjection): boolean {
+  return !isSessionProjectionActive(projection);
+}
+
+function activeRunUpdatedAt(projection: SessionProjection): string {
+  return (
+    projection.runtimeEvents[projection.runtimeEvents.length - 1]?.timestamp ??
+    projection.updatedAt
+  );
+}
+
+function projectionListSortKey(projection: SessionProjection): [number, string] {
+  if (isSessionProjectionActive(projection)) {
+    return [0, activeRunUpdatedAt(projection)];
+  }
+
+  if (projection.unreadResult) {
+    return [1, projection.updatedAt];
+  }
+
+  return [2, projection.updatedAt];
+}
+
+export function getSessionProjectionListItems(
+  projections: SessionProjection[],
+  options: GetSessionProjectionListItemsOptions = {},
+): SessionProjectionListItem[] {
+  return projections
+    .filter(
+      (projection) => options.includeArchived || !isSessionProjectionArchived(projection),
+    )
+    .map((projection) => ({
+      id: projection.id,
+      title: projection.initialPrompt,
+      active: isSessionProjectionActive(projection),
+      unread: projection.unreadResult,
+      archived: isSessionProjectionArchived(projection),
+      updatedAt: projection.updatedAt,
+      projection,
+    }))
+    .sort((left, right) => {
+      const [leftGroup, leftTime] = projectionListSortKey(left.projection);
+      const [rightGroup, rightTime] = projectionListSortKey(right.projection);
+
+      if (leftGroup !== rightGroup) {
+        return leftGroup - rightGroup;
+      }
+
+      return rightTime.localeCompare(leftTime);
+    });
 }
 
 function sessionStatusFromRuntimeState(state: PiSessionState): SessionStatus {
@@ -115,6 +222,29 @@ function sessionStatusFromRuntimeState(state: PiSessionState): SessionStatus {
     case "completed":
       return "completed";
   }
+}
+
+function mergeRuntimeSummary(
+  current: PiRuntimeSummary,
+  next: Partial<PiRuntimeSummary> | undefined,
+): PiRuntimeSummary {
+  if (!next) {
+    return current;
+  }
+
+  return {
+    provider: next.provider ?? current.provider,
+    model: next.model ?? current.model,
+    totalTokens: next.totalTokens ?? current.totalTokens,
+    totalCostUsd: next.totalCostUsd ?? current.totalCostUsd,
+  };
+}
+
+function unreadResultFromRuntimeEvent(
+  projection: SessionProjection,
+  event: PiRuntimeEvent,
+) {
+  return event.role === "assistant" ? true : projection.unreadResult;
 }
 
 export function applySessionProjectionEvent(
@@ -141,15 +271,55 @@ export function applySessionProjectionEvent(
         creationStage: event.stage,
         runtimeId: event.runtimeId,
         piSessionId: event.piSessionId,
+        summary: event.summary ? { ...event.summary } : projection.summary,
         updatedAt: event.occurredAt,
       };
     case "runtime-event-received":
       return {
         ...projection,
-        status: "running",
-        creationStage: event.stage,
+        status:
+          event.event.kind === "error"
+            ? "failed"
+            : event.event.kind === "status"
+              ? "completed"
+              : "running",
+        creationStage: event.stage ?? projection.creationStage,
         runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
+      };
+    case "run-completed":
+      return {
+        ...projection,
+        status: "completed",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: true,
+        updatedAt: event.event.timestamp,
+      };
+    case "run-failed":
+      return {
+        ...projection,
+        status: "failed",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: true,
+        updatedAt: event.event.timestamp,
+      };
+    case "latest-message-rendered":
+      return {
+        ...projection,
+        unreadResult: false,
+      };
+    case "session-archived":
+      if (!canArchiveSessionProjection(projection)) {
+        throw new Error("Cannot archive an active Session.");
+      }
+
+      return {
+        ...projection,
+        archivedAt: event.occurredAt,
       };
     case "projection-marked-stale":
       return {
@@ -165,6 +335,7 @@ export function applySessionProjectionEvent(
         runtimeId: event.state.runtimeId,
         piSessionId: event.state.piSessionId,
         runtimeEvents: event.state.events.map((runtimeEvent) => ({ ...runtimeEvent })),
+        summary: event.state.summary ? { ...event.state.summary } : projection.summary,
         stale: false,
         staleReason: null,
         updatedAt: event.state.updatedAt,

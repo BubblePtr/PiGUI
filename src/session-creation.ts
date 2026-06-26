@@ -34,6 +34,7 @@ export type CreateSessionFromDraftResult =
       ok: true;
       clearDraft: true;
       projection: SessionProjection;
+      unsubscribeRuntimeEvents: () => void;
     }
   | {
       ok: false;
@@ -106,6 +107,7 @@ export async function createSessionFromDraft(
   };
 
   commit(projection);
+  let unsubscribeRuntimeEvents: (() => void) | null = null;
 
   try {
     const checkout = {
@@ -133,6 +135,14 @@ export async function createSessionFromDraft(
       projectId: input.project.id,
       cwd: checkout.runtimeCwd,
     });
+    unsubscribeRuntimeEvents = input.bridge.subscribeToEvents(piState.piSessionId, (event) => {
+      commit(
+        applySessionProjectionEvent(projection, {
+          type: "runtime-event-received",
+          event,
+        }),
+      );
+    });
 
     commit(
       applySessionProjectionEvent(projection, {
@@ -140,6 +150,7 @@ export async function createSessionFromDraft(
         stage: "starting runtime",
         runtimeId: runtime.runtimeId,
         piSessionId: piState.piSessionId,
+        summary: piState.summary,
         occurredAt: now(),
       }),
     );
@@ -168,8 +179,10 @@ export async function createSessionFromDraft(
       ok: true,
       clearDraft: true,
       projection,
+      unsubscribeRuntimeEvents,
     };
   } catch (error) {
+    unsubscribeRuntimeEvents?.();
     const detail = failureDetail(error, "starting runtime");
 
     commit(

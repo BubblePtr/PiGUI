@@ -1,16 +1,25 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { AppLayout, Navbar, Sidebar } from "@heroui-pro/react";
-import { BarChart3, Circle, GitBranch, ListTree, Plus, Settings } from "lucide-react";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { BarChart3, Circle, ListTree, LoaderCircle, Plus, Settings } from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   ensureSessionDraft,
   hasSessionDraft,
   subscribeSessionDrafts,
 } from "./session-drafts";
+import {
+  createSessionProjection,
+  getSessionProjectionListItems,
+  type SessionProjection,
+  type SessionProjectionListItem,
+} from "./session-projection";
 
 type AppFrameProps = {
   sidebar?: ReactNode;
   toolbarActions?: ReactNode;
+  sessionProjections?: SessionProjection[];
+  selectedSessionId?: string | null;
+  onSelectedSessionIdChange?: (sessionId: string | null) => void;
   children: ReactNode;
 };
 
@@ -18,30 +27,102 @@ const sidebarProject = {
   id: "pig",
   name: "Pig",
   route: "/projects/pig/sessions",
-  sessions: [
-    {
-      id: "session-control-plane-shell",
-      title: "Agent Workspace shell",
-      updatedLabel: "Active now",
-      active: true,
-      unread: false,
-    },
-    {
-      id: "session-analyze-boundary",
-      title: "Analyze boundary pass",
-      updatedLabel: "12 min ago",
-      active: false,
-      unread: true,
-    },
-    {
-      id: "session-usage-review",
-      title: "Usage evidence review",
-      updatedLabel: "Yesterday",
-      active: false,
-      unread: false,
-    },
-  ],
 };
+
+function createSidebarProjection({
+  id,
+  title,
+  status,
+  updatedAt,
+  unreadResult = false,
+  archivedAt = null,
+  summary = {},
+}: {
+  id: string;
+  title: string;
+  status: SessionProjection["status"];
+  updatedAt: string;
+  unreadResult?: boolean;
+  archivedAt?: string | null;
+  summary?: Partial<SessionProjection["summary"]>;
+}): SessionProjection {
+  const projection = createSessionProjection({
+    id,
+    projectId: sidebarProject.id,
+    initialPrompt: title,
+    createdAt: "2026-06-26T08:00:00.000Z",
+  });
+
+  return {
+    ...projection,
+    status,
+    creationStage: "accepted",
+    runtimeEvents:
+      status === "running"
+        ? [
+            {
+              id: `${id}-runtime-event`,
+              piSessionId: `${id}-pi-session`,
+              kind: "message",
+              role: "assistant",
+              body: title,
+              timestamp: updatedAt,
+            },
+          ]
+        : [],
+    unreadResult,
+    archivedAt,
+    summary: {
+      ...projection.summary,
+      ...summary,
+    },
+    updatedAt,
+  };
+}
+
+export const defaultSidebarProjectSessionProjections: SessionProjection[] = [
+  createSidebarProjection({
+    id: "session-usage-review",
+    title: "Usage evidence review",
+    status: "completed",
+    summary: {
+      model: "gpt-5-codex",
+      totalCostUsd: 0.042137,
+      totalTokens: 18_420,
+    },
+    updatedAt: "2026-06-26T08:03:00.000Z",
+  }),
+  createSidebarProjection({
+    id: "session-control-plane-shell",
+    title: "Agent Workspace shell",
+    status: "running",
+    summary: {
+      model: "gpt-5-codex",
+      totalCostUsd: 0.042137,
+      totalTokens: 18_420,
+    },
+    updatedAt: "2026-06-26T08:06:00.000Z",
+  }),
+  createSidebarProjection({
+    id: "session-archived-checkout",
+    title: "Archived checkout snapshot",
+    status: "completed",
+    archivedAt: "2026-06-26T08:05:00.000Z",
+    updatedAt: "2026-06-26T08:05:00.000Z",
+  }),
+  createSidebarProjection({
+    id: "session-analyze-boundary",
+    title: "Analyze boundary pass",
+    status: "completed",
+    unreadResult: true,
+    summary: {
+      model: "gpt-5-codex",
+      totalCostUsd: 0.042137,
+      totalTokens: 18_420,
+    },
+    updatedAt: "2026-06-26T08:02:00.000Z",
+  }),
+];
 
 const analyzeNavigationItems = [
   {
@@ -101,11 +182,21 @@ function SidebarSessionGlyph({
   active: boolean;
   unread: boolean;
 }) {
-  if (active || unread) {
+  if (active) {
     return (
-      <GitBranch
-        aria-label={active ? "Active session" : "Unread result"}
-        className={`size-4 ${active ? "text-primary" : "text-muted"}`}
+      <LoaderCircle
+        aria-label="Active run"
+        className="size-4 animate-spin text-primary"
+      />
+    );
+  }
+
+  if (unread) {
+    return (
+      <span
+        aria-label="Unread result"
+        className="size-2 rounded-full bg-primary"
+        role="img"
       />
     );
   }
@@ -124,10 +215,16 @@ function DraftBadge() {
 function ProjectNavigation({
   draftViewActive,
   pathname,
+  selectedSessionId,
+  sessions,
+  onOpenSession,
   onNewSession,
 }: {
   draftViewActive: boolean;
   pathname: string;
+  selectedSessionId: string | null;
+  sessions: SessionProjectionListItem[];
+  onOpenSession: (sessionId: string) => void;
   onNewSession: (projectId: string) => void;
 }) {
   const projectActive = pathname.startsWith("/projects/");
@@ -172,13 +269,13 @@ function ProjectNavigation({
             </Sidebar.MenuActions>
           ) : null}
         </Sidebar.MenuItem>
-        {sidebarProject.sessions.map((session) => (
+        {sessions.map((session) => (
           <Sidebar.MenuItem
             key={session.id}
-            href={sidebarProject.route}
             id={session.id}
-            isCurrent={!draftViewActive && projectActive && session.active}
+            isCurrent={!draftViewActive && projectActive && session.id === selectedSessionId}
             textValue={session.title}
+            onAction={() => onOpenSession(session.id)}
           >
             <Sidebar.MenuIcon className="justify-center">
               <SidebarSessionGlyph active={session.active} unread={session.unread} />
@@ -187,7 +284,7 @@ function ProjectNavigation({
               <span className="block truncate">{session.title}</span>
             </Sidebar.MenuLabel>
             <Sidebar.MenuActions className="ml-auto text-xs tabular-nums text-muted">
-              {session.updatedLabel}
+              {session.updatedAt.slice(11, 16)}
             </Sidebar.MenuActions>
           </Sidebar.MenuItem>
         ))}
@@ -199,10 +296,16 @@ function ProjectNavigation({
 function WorkspaceNavigation({
   draftViewActive,
   pathname,
+  selectedSessionId,
+  sessions,
+  onOpenSession,
   onNewSession,
 }: {
   draftViewActive: boolean;
   pathname: string;
+  selectedSessionId: string | null;
+  sessions: SessionProjectionListItem[];
+  onOpenSession: (sessionId: string) => void;
   onNewSession: (projectId: string) => void;
 }) {
   return (
@@ -216,6 +319,9 @@ function WorkspaceNavigation({
       <ProjectNavigation
         draftViewActive={draftViewActive}
         pathname={pathname}
+        selectedSessionId={selectedSessionId}
+        sessions={sessions}
+        onOpenSession={onOpenSession}
         onNewSession={onNewSession}
       />
     </Sidebar.Group>
@@ -308,10 +414,16 @@ function SystemNavigation({ pathname }: { pathname: string }) {
 function SidebarPanelContent({
   draftViewActive,
   pathname,
+  selectedSessionId,
+  sessions,
+  onOpenSession,
   onNewSession,
 }: {
   draftViewActive: boolean;
   pathname: string;
+  selectedSessionId: string | null;
+  sessions: SessionProjectionListItem[];
+  onOpenSession: (sessionId: string) => void;
   onNewSession: (projectId: string) => void;
 }) {
   return (
@@ -334,6 +446,9 @@ function SidebarPanelContent({
         <WorkspaceNavigation
           draftViewActive={draftViewActive}
           pathname={pathname}
+          selectedSessionId={selectedSessionId}
+          sessions={sessions}
+          onOpenSession={onOpenSession}
           onNewSession={onNewSession}
         />
       </Sidebar.Content>
@@ -344,7 +459,13 @@ function SidebarPanelContent({
   );
 }
 
-export function AppFrame({ children, toolbarActions }: AppFrameProps) {
+export function AppFrame({
+  children,
+  toolbarActions,
+  sessionProjections,
+  selectedSessionId,
+  onSelectedSessionIdChange,
+}: AppFrameProps) {
   const router = useRouter();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const draftViewActive = useRouterState({
@@ -356,6 +477,20 @@ export function AppFrame({ children, toolbarActions }: AppFrameProps) {
   });
   const activeTab = getActiveTab(pathname);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [localSessionProjections, setLocalSessionProjections] = useState(
+    defaultSidebarProjectSessionProjections,
+  );
+  const effectiveSessionProjections = sessionProjections ?? localSessionProjections;
+  const sessions = useMemo(
+    () => getSessionProjectionListItems(effectiveSessionProjections),
+    [effectiveSessionProjections],
+  );
+  const [localSelectedSessionId, setLocalSelectedSessionId] = useState<string | null>(
+    () => getSessionProjectionListItems(defaultSidebarProjectSessionProjections)[0]?.id ?? null,
+  );
+  const effectiveSelectedSessionId =
+    selectedSessionId === undefined ? localSelectedSessionId : selectedSessionId;
+  const updateSelectedSessionId = onSelectedSessionIdChange ?? setLocalSelectedSessionId;
   const collapsedTrafficSpaceStyle = {
     width: sidebarOpen ? "0px" : trafficWidth,
     marginRight: sidebarOpen ? `-${titlebarGap}` : "0px",
@@ -366,6 +501,12 @@ export function AppFrame({ children, toolbarActions }: AppFrameProps) {
     void router.navigate({
       to: sidebarProject.route as never,
       search: { view: "draft" } as never,
+    });
+  };
+  const handleOpenSession = (sessionId: string) => {
+    updateSelectedSessionId(sessionId);
+    void router.navigate({
+      to: sidebarProject.route as never,
     });
   };
 
@@ -416,6 +557,9 @@ export function AppFrame({ children, toolbarActions }: AppFrameProps) {
           <SidebarPanelContent
             draftViewActive={draftViewActive}
             pathname={pathname}
+            selectedSessionId={effectiveSelectedSessionId}
+            sessions={sessions}
+            onOpenSession={handleOpenSession}
             onNewSession={handleNewSession}
           />
         </Sidebar>

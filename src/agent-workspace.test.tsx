@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   Outlet,
   RouterProvider,
@@ -9,7 +11,11 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentWorkspaceSessionsPage, AgentWorkspaceSessionsView } from "./agent-workspace";
+import {
+  AgentWorkspaceSessionsPage,
+  AgentWorkspaceSessionsView,
+  SessionActionsContent,
+} from "./agent-workspace";
 import { createFakePiRuntimeBridge } from "./pi-runtime-bridge";
 import {
   createInMemorySessionProjectionStore,
@@ -125,6 +131,77 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("disables archive for the selected active run in the action surface", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    await user.click(await screen.findByRole("button", { name: "Session actions" }));
+
+    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+    const archiveButton = within(actionDialog).getByRole("button", {
+      name: "Archive Session",
+    });
+
+    expect(archiveButton).toBeDisabled();
+    expect(
+      within(actionDialog).getByText("Active runs cannot be archived."),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the sidebar-selected Session for toolbar actions", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    const projectNavigation = await screen.findByLabelText("Pig project sessions");
+
+    await user.click(
+      within(projectNavigation).getByRole("row", {
+        name: "Analyze boundary pass",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Session actions" }));
+
+    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+    const archiveButton = within(actionDialog).getByRole("button", {
+      name: "Archive Session",
+    });
+
+    expect(archiveButton).toBeEnabled();
+    expect(
+      within(actionDialog).queryByText("Active runs cannot be archived."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears unread results after the selected Session content is rendered", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    const projectNavigation = await screen.findByLabelText("Pig project sessions");
+    const unreadRow = within(projectNavigation).getByRole("row", {
+      name: "Analyze boundary pass",
+    });
+
+    expect(within(unreadRow).getByLabelText("Unread result")).toBeInTheDocument();
+
+    await user.click(unreadRow);
+
+    expect(
+      within(screen.getByLabelText("Live Chat messages")).getByText("Analyze boundary pass"),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        within(
+          within(projectNavigation).getByRole("row", {
+            name: "Analyze boundary pass",
+          }),
+        ).queryByLabelText("Unread result"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("does not leak implementation placeholder copy into the product UI", async () => {
     renderProjectSessions();
 
@@ -135,6 +212,60 @@ describe("AgentWorkspaceSessionsPage", () => {
         /fixture|slice|not connected|future slices|projection|CONTEXT\.md|PRD|ADR/i,
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("creates default Sessions through the runtime bridge factory instead of a fake bridge", () => {
+    const source = readFileSync(join(process.cwd(), "src/agent-workspace.tsx"), "utf8");
+
+    expect(source).toContain("createDefaultPiRuntimeBridge");
+    expect(source).not.toContain("createFakePiRuntimeBridge");
+  });
+
+  it("renders completion and failure results inside Live Chat", async () => {
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-results"
+        workspace={{
+          id: "pig-results",
+          name: "Pig Results",
+          projectRoot: "/Users/void/code/opensource/Pig",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "session-results",
+          liveMessages: [
+            {
+              id: "message-completed",
+              role: "assistant",
+              body: "Run completed. Projection list now uses unread result state.",
+            },
+            {
+              id: "message-failed",
+              role: "assistant",
+              body: "Run failed. The runtime stream disconnected.",
+            },
+          ],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(
+      within(liveChat).getByText("Run completed. Projection list now uses unread result state."),
+    ).toBeInTheDocument();
+    expect(
+      within(liveChat).getByText("Run failed. The runtime stream disconnected."),
+    ).toBeInTheDocument();
   });
 
   it("opens a Project-scoped Session Draft from New Session without adding a session row", async () => {
@@ -168,8 +299,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(within(liveColumn).queryByTestId("session-draft-composer")).not.toBeInTheDocument();
     expect(
-      within(liveColumn).getByText("Project Sessions keep live Pi work separate from Analyze evidence."),
-    ).toBeInTheDocument();
+      within(liveColumn).getAllByText("Agent Workspace shell").length,
+    ).toBeGreaterThan(0);
     expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
   });
 
@@ -201,6 +332,7 @@ describe("AgentWorkspaceSessionsPage", () => {
   it("submits the draft through Session Creation, clears the draft, and shows the first runtime event", async () => {
     const user = userEvent.setup();
     const onDraftSubmit = vi.fn();
+    const projections = createInMemorySessionProjectionStore();
 
     saveSessionDraft("pig-docs", "Summarize the docs ADR");
     render(
@@ -227,6 +359,17 @@ describe("AgentWorkspaceSessionsPage", () => {
           },
         }}
         onDraftSubmit={onDraftSubmit}
+        sessionCreator={(input) =>
+          createSessionFromDraft({
+            ...input,
+            bridge: createFakePiRuntimeBridge({
+              now: () => "2026-06-26T08:00:03.000Z",
+            }),
+            projections,
+            idFactory: () => "session-created",
+            now: () => "2026-06-26T08:00:00.000Z",
+          })
+        }
       />,
     );
 
@@ -238,7 +381,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     });
     await waitFor(() => expect(getSessionDraft("pig-docs")).toBeNull());
     expect(screen.queryByTestId("session-draft-composer")).not.toBeInTheDocument();
-    expect(screen.getByText("Summarize the docs ADR")).toBeInTheDocument();
+    expect(screen.getAllByText("Summarize the docs ADR").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Live Chat messages")).toBeInTheDocument();
   });
 
@@ -294,5 +437,103 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByPlaceholderText("Describe the first Pi prompt")).toHaveValue(
       "Summarize the docs ADR",
     );
+  });
+
+  it("falls back to read-only Projection data and exposes runtime summary to the action surface", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      id: "session-1",
+      projectId: "pig-docs",
+      initialPrompt: "Create a real Pi RPC-backed session",
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      checkout: {
+        mode: "foreground-local" as const,
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-user",
+          piSessionId: "pi-session-rpc",
+          kind: "message" as const,
+          role: "user" as const,
+          body: "Create a real Pi RPC-backed session",
+          timestamp: "2026-06-26T08:00:00.000Z",
+        },
+        {
+          id: "runtime-event-assistant",
+          piSessionId: "pi-session-rpc",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "Live session is ready.",
+          timestamp: "2026-06-26T08:00:04.000Z",
+        },
+        {
+          id: "runtime-event-tool",
+          piSessionId: "pi-session-rpc",
+          kind: "tool-call" as const,
+          title: "read",
+          body: "{\"path\":\"AGENTS.md\"}",
+          timestamp: "2026-06-26T08:00:05.000Z",
+        },
+      ],
+      summary: {
+        provider: "openai",
+        model: "gpt-5-codex",
+        totalTokens: 1280,
+        totalCostUsd: 0.012345,
+      },
+      stale: false,
+      staleReason: null,
+      failure: null,
+      unreadResult: false,
+      archivedAt: null,
+      createdAt: "2026-06-26T08:00:00.000Z",
+      updatedAt: "2026-06-26T08:00:05.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
+      "Runtime unavailable",
+    );
+    expect(screen.getByText("Create a real Pi RPC-backed session")).toBeInTheDocument();
+    expect(screen.getByText("Live session is ready.")).toBeInTheDocument();
+    expect(screen.getByText("read")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
+
+    render(<SessionActionsContent workspace={workspace} projection={projection} />);
+
+    expect(screen.getByText("gpt-5-codex")).toBeInTheDocument();
+    expect(screen.getByText("openai")).toBeInTheDocument();
+    expect(screen.getByText("$0.012345")).toBeInTheDocument();
+    expect(screen.getByText("1.3K")).toBeInTheDocument();
   });
 });
