@@ -8,7 +8,8 @@ export type RuntimeBridgeFailureStage =
   | "starting runtime"
   | "sending prompt"
   | "queuing message"
-  | "withdrawing queued message";
+  | "withdrawing queued message"
+  | "steering run";
 
 export type PiRuntimeBridgeErrorDetail = {
   stage: RuntimeBridgeFailureStage;
@@ -43,7 +44,7 @@ export type PiRuntimeSummary = {
 export type PiRuntimeEvent = {
   id: string;
   piSessionId: string;
-  kind: "message" | "tool-call" | "error" | "usage" | "status";
+  kind: "message" | "tool-call" | "error" | "usage" | "status" | "control";
   role?: "user" | "assistant";
   title?: string;
   body: string;
@@ -107,12 +108,18 @@ export type WithdrawQueuedMessageInput = {
   queuedMessageId: string;
 };
 
+export type SteerRunInput = {
+  piSessionId: string;
+  message: string;
+};
+
 export type PiRuntimeBridge = {
   startRuntime(input: StartRuntimeInput): Promise<PiRuntimeHandle>;
   createPiSessionState(input: CreatePiSessionStateInput): Promise<PiSessionState>;
   sendInitialPrompt(input: SendInitialPromptInput): Promise<PiRuntimeAcceptedPrompt>;
   queueFollowUp(input: QueueFollowUpInput): Promise<PiQueuedMessage>;
   withdrawQueuedMessage(input: WithdrawQueuedMessageInput): Promise<PiQueuedMessage>;
+  steerRun(input: SteerRunInput): Promise<PiRuntimeEvent>;
   getSessionState(piSessionId: string): Promise<PiSessionState>;
   subscribeToEvents(piSessionId: string, listener: (event: PiRuntimeEvent) => void): () => void;
 };
@@ -121,7 +128,11 @@ export type FakePiRuntimeBridge = PiRuntimeBridge & {
   restoreSessionState(state: PiSessionState): Promise<PiSessionState>;
 };
 
-type FakeBridgeFailurePoint = "start-runtime" | "create-pi-session-state" | "send-initial-prompt";
+type FakeBridgeFailurePoint =
+  | "start-runtime"
+  | "create-pi-session-state"
+  | "send-initial-prompt"
+  | "steer-run";
 
 export type FakePiRuntimeBridgeOptions = {
   now?: () => string;
@@ -727,6 +738,47 @@ export function createPiRpcRuntimeBridge(
       return { ...withdrawnMessage };
     },
 
+    async steerRun(input) {
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "steering run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      const requestId = nextRequestId();
+      const response = await options.transport.send({
+        id: requestId,
+        type: "steer",
+        message: input.message,
+      });
+
+      if (!response.success) {
+        throw new PiRuntimeBridgeError({
+          stage: "steering run",
+          message: response.error ?? "Pi RPC rejected the steer input.",
+        });
+      }
+
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${requestId}`,
+        piSessionId: input.piSessionId,
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: input.message,
+        timestamp: now(),
+      };
+
+      state.status = "running";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
+    },
+
     async getSessionState(piSessionId) {
       const state = states.get(piSessionId);
 
@@ -908,6 +960,38 @@ export function createFakePiRuntimeBridge(
       queuedMessages.set(withdrawnMessage.id, withdrawnMessage);
 
       return { ...withdrawnMessage };
+    },
+
+    async steerRun(input) {
+      if (options.failAt === "steer-run") {
+        fail("steering run");
+      }
+
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "steering run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      eventCounter += 1;
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${eventCounter}`,
+        piSessionId: input.piSessionId,
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: input.message,
+        timestamp: now(),
+      };
+
+      state.status = "running";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
     },
 
     async getSessionState(piSessionId) {

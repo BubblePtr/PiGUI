@@ -308,6 +308,41 @@ describe("Session Projection state", () => {
     expect(processing.updatedAt).toBe("2026-06-26T08:03:00.000Z");
   });
 
+  it("records steer control events in the active Live Chat stream", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const steered = applySessionProjectionEvent(base, {
+      type: "steer-submitted",
+      event: {
+        id: "steer-event-1",
+        piSessionId: "pi-session-active",
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: "Stay focused on the queue behavior.",
+        timestamp: "2026-06-26T08:04:00.000Z",
+      },
+    });
+
+    expect(steered).toMatchObject({
+      status: "running",
+      unreadResult: false,
+      updatedAt: "2026-06-26T08:04:00.000Z",
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "control",
+          title: "Steer",
+          body: "Stay focused on the queue behavior.",
+        }),
+      ],
+    });
+    expect(steered.queuedMessages).toEqual([]);
+  });
+
   it("prevents active archive and keeps archived sessions available to history queries", () => {
     const active = projection({
       id: "active-run",

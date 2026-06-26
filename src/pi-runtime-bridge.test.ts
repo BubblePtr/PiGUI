@@ -235,6 +235,65 @@ describe("Pi Runtime Bridge contract", () => {
     });
   });
 
+  it("steers the current active run through Pi RPC without adding a follow-up queue", async () => {
+    const transport = createFakePiRpcTransport({
+      sessionId: "pi-session-rpc",
+      now: () => "2026-06-26T08:00:00.000Z",
+    });
+    const bridge = createPiRpcRuntimeBridge({
+      transport,
+      now: () => "2026-06-26T08:00:00.000Z",
+    });
+    const runtime = await bridge.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const state = await bridge.createPiSessionState({
+      runtimeId: runtime.runtimeId,
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    const steerEvent = await bridge.steerRun({
+      piSessionId: state.piSessionId,
+      message: "Steer toward the pending queue edge case.",
+    });
+
+    expect(steerEvent).toMatchObject({
+      piSessionId: state.piSessionId,
+      kind: "control",
+      role: "user",
+      title: "Steer",
+      body: "Steer toward the pending queue edge case.",
+    });
+    expect(transport.commands).toContainEqual(
+      expect.objectContaining({
+        type: "steer",
+        message: "Steer toward the pending queue edge case.",
+      }),
+    );
+    expect(transport.commands).not.toContainEqual(
+      expect.objectContaining({
+        streamingBehavior: "followUp",
+        message: "Steer toward the pending queue edge case.",
+      }),
+    );
+    await expect(bridge.getSessionState(state.piSessionId)).resolves.toMatchObject({
+      events: [
+        expect.objectContaining({
+          kind: "control",
+          title: "Steer",
+          body: "Steer toward the pending queue edge case.",
+        }),
+      ],
+    });
+  });
+
   it("creates Pi Session State and emits the first runtime event after accepting the initial prompt", async () => {
     const bridge = createFakePiRuntimeBridge({
       now: () => "2026-06-26T08:00:00.000Z",

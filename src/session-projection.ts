@@ -101,6 +101,10 @@ export type SessionProjectionEvent =
       event: PiRuntimeEvent;
     }
   | {
+      type: "steer-submitted";
+      event: PiRuntimeEvent;
+    }
+  | {
       type: "latest-message-rendered";
       occurredAt: string;
     }
@@ -366,6 +370,15 @@ export function applySessionProjectionEvent(
               }
             : queuedMessage,
         ),
+        updatedAt: event.event.timestamp,
+      };
+    case "steer-submitted":
+      return {
+        ...projection,
+        status: "running",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
       };
     case "latest-message-rendered":

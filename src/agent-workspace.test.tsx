@@ -16,7 +16,7 @@ import {
   AgentWorkspaceSessionsView,
   SessionActionsContent,
 } from "./agent-workspace";
-import { createFakePiRuntimeBridge } from "./pi-runtime-bridge";
+import { PiRuntimeBridgeError, createFakePiRuntimeBridge } from "./pi-runtime-bridge";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -361,6 +361,176 @@ describe("AgentWorkspaceSessionsPage", () => {
     await user.click(within(pendingQueue).getByRole("button", { name: "Withdraw queued message" }));
 
     expect(await within(pendingQueue).findByText("Withdrawn")).toBeInTheDocument();
+  });
+
+  it("steers an active run as a Live Chat control event instead of a queued message", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      now: () => "2026-06-26T08:10:00.000Z",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-active",
+      runtimeId: "runtime-active",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(screen.getByRole("button", { name: "Steer" })).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Avoid changing the archive model.",
+    );
+    await user.click(screen.getByRole("button", { name: "Steer" }));
+
+    expect(await within(liveChat).findByText("Steer")).toBeInTheDocument();
+    expect(
+      within(liveChat).getByText("Avoid changing the archive model."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("queued-message-list")).not.toBeInTheDocument();
+  });
+
+  it("keeps steer text editable and shows a recoverable error when steer fails", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge();
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-active",
+      runtimeId: "runtime-active",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+    bridge.steerRun = vi.fn().mockRejectedValue(
+      new PiRuntimeBridgeError({
+        stage: "steering run",
+        message: "Pi rejected steer input.",
+      }),
+    );
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("What do you want to know?");
+
+    await user.type(input, "Keep this steer text");
+    await user.click(screen.getByRole("button", { name: "Steer" }));
+
+    expect(await screen.findByText("Pi rejected steer input.")).toBeInTheDocument();
+    expect(input).toHaveValue("Keep this steer text");
   });
 
   it("opens a Project-scoped Session Draft from New Session without adding a session row", async () => {

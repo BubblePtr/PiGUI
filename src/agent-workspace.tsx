@@ -32,6 +32,7 @@ type LiveMessage = {
   id: string;
   role: "user" | "assistant";
   body: string;
+  controlLabel?: string;
 };
 
 type RunTimelineItem = {
@@ -134,6 +135,9 @@ function LiveChatMessage({
     return (
       <ChatMessage.User>
         <ChatMessage.Bubble>
+          {message.controlLabel ? (
+            <p className="mb-1 text-xs font-medium text-muted">{message.controlLabel}</p>
+          ) : null}
           <ChatMessage.Content>{message.body}</ChatMessage.Content>
         </ChatMessage.Bubble>
       </ChatMessage.User>
@@ -215,14 +219,19 @@ function FullChatComposer({
   projection,
   onQueueSubmit,
   onWithdrawQueuedMessage,
+  onSteerSubmit,
 }: {
   queueMode?: boolean;
   projection?: SessionProjection | null;
   onQueueSubmit?: (message: string) => Promise<void> | void;
   onWithdrawQueuedMessage?: (queuedMessageId: string) => Promise<void> | void;
+  onSteerSubmit?: (message: string) => Promise<void> | void;
 }) {
   const [draft, setDraft] = useState("");
-  const submitDraft = () => {
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const errorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "Pi could not process this input.";
+  const submitDraft = async () => {
     const message = draft.trim();
 
     if (!message) {
@@ -230,10 +239,33 @@ function FullChatComposer({
     }
 
     if (queueMode) {
-      void onQueueSubmit?.(message);
+      try {
+        await onQueueSubmit?.(message);
+        setComposerError(null);
+        setDraft("");
+      } catch (error) {
+        setComposerError(errorMessage(error));
+      }
+
+      return;
     }
 
     setDraft("");
+  };
+  const submitSteer = async () => {
+    const message = draft.trim();
+
+    if (!message) {
+      return;
+    }
+
+    try {
+      await onSteerSubmit?.(message);
+      setComposerError(null);
+      setDraft("");
+    } catch (error) {
+      setComposerError(errorMessage(error));
+    }
   };
 
   return (
@@ -257,14 +289,23 @@ function FullChatComposer({
           </PromptInput.Content>
           <PromptInput.Toolbar>
             <PromptInput.ToolbarEnd>
+              {queueMode ? (
+                <Button size="sm" variant="secondary" onPress={() => void submitSteer()}>
+                  Steer
+                </Button>
+              ) : null}
               <PromptInput.Send aria-label="Send" />
             </PromptInput.ToolbarEnd>
           </PromptInput.Toolbar>
         </PromptInput.Shell>
         <PromptInput.Footer>
-          {queueMode
-            ? "Queue is the default while Pi is running."
-            : "AI can make mistakes. Check important info."}
+          {composerError ? (
+            <span role="status">{composerError}</span>
+          ) : queueMode ? (
+            "Queue is the default while Pi is running."
+          ) : (
+            "AI can make mistakes. Check important info."
+          )}
         </PromptInput.Footer>
       </PromptInput>
     </div>
@@ -275,12 +316,14 @@ function liveMessagesFromProjection(projection: SessionProjection): LiveMessage[
   const projectedMessages = projection.runtimeEvents
     .filter(
       (event) =>
-        event.kind === "message" && (event.role === "user" || event.role === "assistant"),
+        (event.kind === "message" || event.kind === "control") &&
+        (event.role === "user" || event.role === "assistant"),
     )
     .map((event): LiveMessage => ({
       id: event.id,
       role: event.role === "assistant" ? "assistant" : "user",
       body: event.body,
+      controlLabel: event.kind === "control" ? (event.title ?? "Control") : undefined,
     }));
   const hasInitialPromptEvent = projectedMessages.some(
     (message) => message.role === "user" && message.body === projection.initialPrompt,
@@ -702,6 +745,23 @@ function LiveSessionColumn({
       }),
     );
   };
+  const handleSteerSubmit = async (message: string) => {
+    if (!liveProjection?.piSessionId || !queueMode) {
+      return;
+    }
+
+    const event = await getRuntimeBridge().steerRun({
+      piSessionId: liveProjection.piSessionId,
+      message,
+    });
+
+    commitInteractionProjection(
+      applySessionProjectionEvent(liveProjection, {
+        type: "steer-submitted",
+        event,
+      }),
+    );
+  };
 
   return (
     <main className="h-full min-h-0 min-w-0" data-testid="live-session-column">
@@ -747,6 +807,7 @@ function LiveSessionColumn({
                   projection={liveProjection}
                   onQueueSubmit={handleQueueSubmit}
                   onWithdrawQueuedMessage={handleWithdrawQueuedMessage}
+                  onSteerSubmit={handleSteerSubmit}
                 />
               )}
             </>
