@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
-import { ListView, Segment } from "@heroui-pro/react";
+import { ListView } from "@heroui-pro/react/list-view";
+import { Segment } from "@heroui-pro/react/segment";
 import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppFrame } from "./app-shell";

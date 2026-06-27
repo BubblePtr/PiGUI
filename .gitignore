@@ -11,6 +11,10 @@ dist-ssr/
 .vite/
 *.local
 
+# Local HeroUI Pro agent assets installed by the authenticated CLI.
+.agents/skills/heroui-pro-design-taste/
+.agents/skills/heroui-react-pro/
+
 # Logs
 *.log
 npm-debug.log*

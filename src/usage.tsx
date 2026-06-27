@@ -8,7 +8,9 @@ import {
   Tabs,
   Tooltip,
 } from "@heroui/react";
-import { BarChart, KPI, Segment } from "@heroui-pro/react";
+import { BarChart } from "@heroui-pro/react/bar-chart";
+import { KPI } from "@heroui-pro/react/kpi";
+import { Segment } from "@heroui-pro/react/segment";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState, type ComponentProps } from "react";
 import { SharedElementTransition } from "react-aria-components/SharedElementTransition";

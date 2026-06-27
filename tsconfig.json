@@ -11,16 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
-    "paths": {
-      "@heroui-pro/react": ["vendor/herouipro-v3/src/components/index.ts"],
-      "@heroui-pro/react/css": ["vendor/herouipro-v3/src/css/components/index.css"]
-    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "vendor/herouipro-v3/src"],
+  "include": ["src"],
   "references": []
 }

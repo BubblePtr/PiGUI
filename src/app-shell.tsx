@@ -1,5 +1,7 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { AppLayout, Navbar, Sidebar } from "@heroui-pro/react";
+import { AppLayout } from "@heroui-pro/react/app-layout";
+import { Navbar } from "@heroui-pro/react/navbar";
+import { Sidebar } from "@heroui-pro/react/sidebar";
 import { BarChart3, Circle, ListTree, LoaderCircle, Plus, Settings } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {

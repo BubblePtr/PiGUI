@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { NativeSelect } from "@heroui-pro/react/native-select";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRefreshOnWindowFocus } from "./refresh";

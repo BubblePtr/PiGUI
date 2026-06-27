@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
-import { KPI } from "@heroui-pro/react";
+import { KPI } from "@heroui-pro/react/kpi";
 import {
   ArrowLeft,
   Bot,
@@ -70,7 +70,7 @@ const thinkingPreviewChars = 1200;
 const highlightedCodeBlockMaxChars = 4000;
 
 const LazyHeroCodeBlock = lazy(async () => {
-  const { CodeBlock } = await import("../vendor/herouipro-v3/src/components/code-block");
+  const { CodeBlock } = await import("@heroui-pro/react/code-block");
 
   return {
     default: function HighlightedCodeBlock({ code }: { code: string }) {

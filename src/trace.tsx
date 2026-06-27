@@ -1,6 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 import { Card } from "@heroui/react";
-import { Resizable } from "@heroui-pro/react";
+import { Resizable } from "@heroui-pro/react/resizable";
 import { useEffect, useState } from "react";
 import { AppFrame } from "./app-shell";
 import { SessionDetailPage } from "./session-detail";

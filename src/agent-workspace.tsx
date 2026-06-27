@@ -1,5 +1,9 @@
 import { Button, Card, ScrollShadow, Tooltip } from "@heroui/react";
-import { ChainOfThought, ChatConversation, ChatMessage, PromptInput, Sheet } from "@heroui-pro/react";
+import { ChainOfThought } from "@heroui-pro/react/chain-of-thought";
+import { ChatConversation } from "@heroui-pro/react/chat-conversation";
+import { ChatMessage } from "@heroui-pro/react/chat-message";
+import { PromptInput } from "@heroui-pro/react/prompt-input";
+import { Sheet } from "@heroui-pro/react/sheet";
 import { Activity, Archive, CircleStop, GitBranch } from "lucide-react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";

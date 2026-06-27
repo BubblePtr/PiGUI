@@ -1,28 +1,8 @@
 @import "tailwindcss";
 @import "@heroui/styles";
-@import "../vendor/herouipro-v3/src/css/components/app-layout.css";
-@import "../vendor/herouipro-v3/src/css/components/sidebar.css";
-@import "../vendor/herouipro-v3/src/css/components/navbar.css";
-@import "../vendor/herouipro-v3/src/css/components/sheet.css";
-@import "../vendor/herouipro-v3/src/css/components/resizable.css";
-@import "../vendor/herouipro-v3/src/css/components/segment.css";
-@import "../vendor/herouipro-v3/src/css/components/native-select.css";
-@import "../vendor/herouipro-v3/src/css/components/kpi.css";
-@import "../vendor/herouipro-v3/src/css/components/number-value.css";
-@import "../vendor/herouipro-v3/src/css/components/trend-chip.css";
-@import "../vendor/herouipro-v3/src/css/components/bar-chart.css";
-@import "../vendor/herouipro-v3/src/css/components/line-chart.css";
-@import "../vendor/herouipro-v3/src/css/components/list-view.css";
-@import "../vendor/herouipro-v3/src/css/components/chart-tooltip.css";
-@import "../vendor/herouipro-v3/src/css/components/code-block.css";
-@import "../vendor/herouipro-v3/src/css/components/chat-conversation.css";
-@import "../vendor/herouipro-v3/src/css/components/chat-message.css";
-@import "../vendor/herouipro-v3/src/css/components/chain-of-thought.css";
-@import "../vendor/herouipro-v3/src/css/components/prompt-input.css";
-@import "../vendor/herouipro-v3/src/css/components/timeline.css";
-@import "../vendor/herouipro-v3/src/css/themes/glass/index.css";
+@import "@heroui-pro/react/css";
 
-@source "../vendor/herouipro-v3/src/components/**/*.{ts,tsx}";
+@source "../node_modules/@heroui-pro/react/dist/components/**/*.{js,ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
 :root {

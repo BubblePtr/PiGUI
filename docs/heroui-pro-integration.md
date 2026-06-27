@@ -1,85 +1,103 @@
-# HeroUI Pro v3 集成说明
+# HeroUI Pro 集成说明
 
-当前项目以源码方式集成私有仓库 `Agile-Avocation/herouipro-v3`，路径是
-`vendor/herouipro-v3`。vendor 当前提交是 `26121c0`，README 标注组件库版本为
-`1.0.0-beta.6`。
+Pig 通过 HeroUI Pro CLI 登录和安装 React 组件包，不再把 HeroUI Pro 源码作为
+`vendor/` 子模块提交到仓库。运行时代码只依赖 `@heroui-pro/react` 包，组件文档和最新
+API 以 HeroUI Pro Dashboard、Docs 和 MCP 为准。
 
-## 为什么不用包登录
+## 本地安装
 
-组件库的 `package.json` 使用 restricted publish，包名是 `@ag-ui/pro`，但 README 的消费示例使用
-`@heroui-pro/react`。为了避免依赖私有 npm registry 登录，Pig 现在通过 Git submodule 拉取源码，再用
-Vite/TypeScript alias 把 `@heroui-pro/react` 指向本地源码入口。
+首次配置本机时先登录 HeroUI Pro：
 
-这仍然需要 GitHub 对私有仓库有权限；首次拉取或 CI checkout 时需要能访问
-`https://github.com/Agile-Avocation/herouipro-v3.git`。
+```bash
+bunx heroui-pro@latest login
+```
 
-## 当前接入点
+Pig 使用 Bun 作为包管理器。安装 React 产品包时必须显式传入 `react`，不要运行无参
+`install`，以免交互默认选择其他产品：
 
-- `.gitmodules`：注册 `vendor/herouipro-v3` submodule。
-- `package.json`：安装 HeroUI Pro 的 peer dependencies，包括 React 19、HeroUI v3、Tailwind CSS v4、
-  Motion、Recharts、React Aria Components、Tiptap 等。
-- `vite.config.ts`：把 `@heroui-pro/react` alias 到
-  `vendor/herouipro-v3/src/components/index.ts`，把 `@heroui-pro/react/css` alias 到组件 CSS 入口。
-- `tsconfig.json`：配置同名 `paths`，并把 `vendor/herouipro-v3/src` 加入类型检查范围。
-- `src/styles.css`：导入 Tailwind、`@heroui/styles`、当前需要的 HeroUI Pro 组件 CSS，以及 glass 主题。
-- `index.html`：根节点设置 `data-theme="glass-light"`。
+```bash
+bunx heroui-pro@latest install react --yes
+```
+
+安装后确认状态：
+
+```bash
+bunx heroui-pro@latest status
+bun pm untrusted
+```
+
+`package.json` 应包含 `@heroui-pro/react` 和 Bun 的 `trustedDependencies`：
+
+```json
+{
+  "dependencies": {
+    "@heroui-pro/react": "^1.0.0-beta.6"
+  },
+  "trustedDependencies": ["heroui-pro", "@heroui-pro/react"]
+}
+```
+
+## 样式入口
+
+全局 CSS 必须保持这个顺序：
+
+```css
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "@heroui-pro/react/css";
+
+@source "../node_modules/@heroui-pro/react/dist/components/**/*.{js,ts,tsx}";
+@source "./**/*.{ts,tsx}";
+```
+
+Pig 的样式层继续把项目 token 映射到 HeroUI token，例如：
+
+```css
+--pig-color-background: var(--background);
+--pig-color-surface: var(--surface);
+--pig-color-border: var(--border);
+```
+
+`index.html` 仍在根节点设置 `data-theme="glass-light"`。如果后续切换主题，优先通过
+HeroUI Pro 官方 CSS 入口和根节点 `data-theme` 完成，不要重新引入 vendor 路径。
 
 ## 使用组件
 
-业务代码里直接从 alias 导入组件：
+业务代码直接从包的公开 subpath 导入 Pro 组件，避免 TypeScript 为单个页面解析整套 Pro
+组件类型：
 
 ```tsx
-import { AppLayout, KPI, Sidebar } from "@heroui-pro/react";
+import { AppLayout } from "@heroui-pro/react/app-layout";
+import { KPI } from "@heroui-pro/react/kpi";
+import { Sidebar } from "@heroui-pro/react/sidebar";
 ```
 
-如果新增组件，除了导入 React 组件，还要在 `src/styles.css` 里补对应 CSS：
+不要再从旧的源码 vendor 路径、历史包名或包内未公开源码路径导入组件。
 
-```css
-@import "../vendor/herouipro-v3/src/css/components/data-grid/index.css";
+## CI
+
+当前仓库没有 `.github` workflow。后续新增 CI 或托管平台构建时，需要在对应环境配置
+HeroUI Pro Dashboard 生成的 CI/CD token：
+
+```bash
+HEROUI_AUTH_TOKEN=...
 ```
 
-当前没有一次性导入全部组件 CSS，是为了给后续界面重构保留按需控制。
+该 token 只用于可信 CI/CD 环境，不应提交到仓库。
 
-## 使用 glass 主题
-
-HeroUI Pro v3 内置三组主题：`brutalism`、`glass`、`mouve`。Pig 当前只导入 glass：
-
-```css
-@import "../vendor/herouipro-v3/src/css/themes/glass/index.css";
-```
-
-浅色 glass：
-
-```html
-<html data-theme="glass-light">
-```
-
-深色 glass：
-
-```html
-<html data-theme="glass-dark">
-```
-
-Pig 自己的颜色 token 已映射到 HeroUI token，例如 `--pig-color-surface: var(--surface)`。后续重构时优先使用
-HeroUI token 或现有 Pig token，不要再手写一套独立颜色体系。
-
-## 本地验证
+## 验证
 
 常规验证：
 
 ```bash
 bun run test
 bun run build
+git diff --check
 ```
 
 UI/CSS 验证：
 
 ```bash
 bun run dev
-npx --yes playwright screenshot --viewport-size=1440,1000 http://127.0.0.1:1420/ /tmp/pig-glass-theme.png
-npx --yes playwright screenshot --viewport-size=390,844 http://127.0.0.1:1420/ /tmp/pig-glass-theme-mobile.png
+npx --yes playwright screenshot --viewport-size=1440,1000 http://127.0.0.1:1420/ /tmp/pig-heroui-pro.png
 ```
-
-普通浏览器访问 Vite dev server 时没有 Tauri WebView 的 `window.__TAURI_INTERNALS__`。项目现在通过
-`src/tauri-runtime.ts` 做最小降级：真实 Tauri 运行时继续走官方 API，浏览器开发态只提供空的 sessions/config
-数据，方便做主题和布局验收。
