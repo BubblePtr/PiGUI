@@ -1,10 +1,10 @@
-import { Button, Card, ScrollShadow, Tooltip } from "@heroui/react";
+import { Button, ScrollShadow, Tooltip } from "@heroui/react";
 import { ChainOfThought } from "@heroui-pro/react/chain-of-thought";
 import { ChatConversation } from "@heroui-pro/react/chat-conversation";
 import { ChatMessage } from "@heroui-pro/react/chat-message";
 import { PromptInput } from "@heroui-pro/react/prompt-input";
 import { Sheet } from "@heroui-pro/react/sheet";
-import { Activity, Archive, CircleStop, GitBranch } from "lucide-react";
+import { Activity, Archive, GitBranch } from "lucide-react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "./app-shell";
@@ -232,21 +232,33 @@ function QueuedMessageList({
 
 function FullChatComposer({
   queueMode = false,
+  isStoppingRun = false,
   projection,
   onPromptSubmit,
   onQueueSubmit,
   onWithdrawQueuedMessage,
+  onStopRun,
   onSteerSubmit,
 }: {
   queueMode?: boolean;
+  isStoppingRun?: boolean;
   projection?: SessionProjection | null;
   onPromptSubmit?: (message: string) => Promise<void> | void;
   onQueueSubmit?: (message: string) => Promise<void> | void;
   onWithdrawQueuedMessage?: (queuedMessageId: string) => Promise<void> | void;
+  onStopRun?: () => Promise<void> | void;
   onSteerSubmit?: (message: string) => Promise<void> | void;
 }) {
   const [draft, setDraft] = useState("");
   const [composerError, setComposerError] = useState<string | null>(null);
+  const isStopAction = queueMode && !draft.trim();
+  const promptStatus = isStoppingRun
+    ? "submitted"
+    : queueMode
+      ? "streaming"
+      : composerError
+        ? "error"
+        : "ready";
   const errorMessage = (error: unknown) =>
     error instanceof Error ? error.message : "Pi could not process this input.";
   const submitDraft = async () => {
@@ -301,9 +313,13 @@ function FullChatComposer({
         />
       ) : null}
       <PromptInput
+        allowSubmitWhileRunning={queueMode}
         className="mx-auto w-full max-w-[44rem]"
+        lockInputOnRun={!queueMode}
+        status={promptStatus}
         value={draft}
         variant="primary"
+        onStop={onStopRun ? () => void onStopRun() : undefined}
         onSubmit={submitDraft}
         onValueChange={setDraft}
       >
@@ -318,7 +334,7 @@ function FullChatComposer({
                   Steer
                 </Button>
               ) : null}
-              <PromptInput.Send aria-label="Send" />
+              <PromptInput.Send aria-label={isStopAction ? "Stop" : "Send"} />
             </PromptInput.ToolbarEnd>
           </PromptInput.Toolbar>
         </PromptInput.Shell>
@@ -771,77 +787,11 @@ async function restoreProjectionRuntimeState(input: {
 export function SessionToolbarActions({
   workspace,
   projection,
-  runtimeBridge,
-  onProjectionChange,
 }: {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
-  runtimeBridge: PiRuntimeBridge;
-  onProjectionChange: (projection: SessionProjection) => void;
 }) {
-  const [stopping, setStopping] = useState(false);
-  const canStop = Boolean(
-    projection?.piSessionId && projection && isSessionProjectionActive(projection),
-  );
-  const handleStop = async () => {
-    if (!projection?.piSessionId || !canStop) {
-      return;
-    }
-
-    setStopping(true);
-
-    try {
-      await restoreProjectionRuntimeState({
-        bridge: runtimeBridge,
-        projection,
-        workspace,
-      });
-
-      const event = await runtimeBridge.abortRun({
-        piSessionId: projection.piSessionId,
-      });
-
-      onProjectionChange(
-        applySessionProjectionEvent(projection, {
-          type: "run-stopped",
-          event,
-        }),
-      );
-    } catch (error) {
-      onProjectionChange(
-        applySessionProjectionEvent(projection, {
-          type: "run-stop-failed",
-          event: {
-            id: `stop-failed-${Date.now()}`,
-            piSessionId: projection.piSessionId,
-            kind: "error",
-            title: "Stop failed",
-            body: messageFromError(error),
-            timestamp: new Date().toISOString(),
-          },
-        }),
-      );
-    } finally {
-      setStopping(false);
-    }
-  };
-
-  return (
-    <>
-      {canStop ? (
-        <Button
-          isDisabled={stopping}
-          size="sm"
-          variant="danger-soft"
-          onPress={() => void handleStop()}
-        >
-          <CircleStop className="size-4" />
-          Stop
-        </Button>
-      ) : null}
-      <SessionActionsSheet workspace={workspace} projection={projection} />
-    </>
-  );
+  return <SessionActionsSheet workspace={workspace} projection={projection} />;
 }
 
 function LiveSessionColumn({
@@ -873,6 +823,7 @@ function LiveSessionColumn({
   );
   const [interactionProjection, setInteractionProjection] =
     useState<SessionProjection | null>(null);
+  const [stoppingRun, setStoppingRun] = useState(false);
 
   useEffect(() => {
     setSessionDraft(getSessionDraft(projectId));
@@ -886,6 +837,7 @@ function LiveSessionColumn({
 
   useEffect(() => {
     setInteractionProjection(null);
+    setStoppingRun(false);
   }, [sessionProjection?.id]);
 
   useEffect(() => {
@@ -1035,63 +987,106 @@ function LiveSessionColumn({
       }),
     );
   };
+  const handleStopRun = async () => {
+    if (!liveProjection?.piSessionId || !queueMode || stoppingRun) {
+      return;
+    }
+
+    setStoppingRun(true);
+
+    try {
+      await restoreProjectionRuntimeState({
+        bridge: getRuntimeBridge(),
+        projection: liveProjection,
+        workspace,
+      });
+
+      const event = await getRuntimeBridge().abortRun({
+        piSessionId: liveProjection.piSessionId,
+      });
+
+      commitInteractionProjection(
+        applySessionProjectionEvent(liveProjection, {
+          type: "run-stopped",
+          event,
+        }),
+      );
+    } catch (error) {
+      commitInteractionProjection(
+        applySessionProjectionEvent(liveProjection, {
+          type: "run-stop-failed",
+          event: {
+            id: `stop-failed-${Date.now()}`,
+            piSessionId: liveProjection.piSessionId,
+            kind: "error",
+            title: "Stop failed",
+            body: messageFromError(error),
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      );
+    } finally {
+      setStoppingRun(false);
+    }
+  };
 
   return (
-    <main className="h-full min-h-0 min-w-0" data-testid="live-session-column">
-      <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col">
-          {showDraft && sessionDraft ? (
-            <SessionDraftComposer
-              draft={sessionDraft}
-              creationProjection={creationProjection}
-              onDraftChange={handleDraftChange}
-              onDraftSubmit={(event) => void handleDraftSubmit(event)}
-            />
-          ) : (
-            <>
-              {readOnlyProjection ? (
-                <div
-                  className="border-b border-border bg-surface px-4 py-2 text-sm text-muted"
-                  data-testid="runtime-fallback-banner"
-                >
-                  Runtime unavailable. Showing read-only session data.
-                </div>
-              ) : null}
-              <ChatConversation
-                aria-label="Live Chat messages"
-                className="min-h-0 flex-1"
-                initial="instant"
-              >
-                <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 py-6">
-                  {liveMessages.map((message) => (
-                    <LiveChatMessage
-                      key={message.id}
-                      message={message}
-                      timeline={
-                        message.role === "assistant" && !message.controlLabel
-                          ? runTimeline
-                          : undefined
-                      }
-                    />
-                  ))}
-                  <ChatConversation.ScrollAnchor />
-                </ChatConversation.Content>
-              </ChatConversation>
-
-              {readOnlyProjection ? null : (
-                <FullChatComposer
-                  queueMode={queueMode}
-                  projection={liveProjection}
-                  onPromptSubmit={handlePromptSubmit}
-                  onQueueSubmit={handleQueueSubmit}
-                  onWithdrawQueuedMessage={handleWithdrawQueuedMessage}
-                  onSteerSubmit={handleSteerSubmit}
+    <main
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+      data-testid="live-session-column"
+    >
+      {showDraft && sessionDraft ? (
+        <SessionDraftComposer
+          draft={sessionDraft}
+          creationProjection={creationProjection}
+          onDraftChange={handleDraftChange}
+          onDraftSubmit={(event) => void handleDraftSubmit(event)}
+        />
+      ) : (
+        <>
+          {readOnlyProjection ? (
+            <div
+              className="border-b border-border bg-surface px-4 py-2 text-sm text-muted"
+              data-testid="runtime-fallback-banner"
+            >
+              Runtime unavailable. Showing read-only session data.
+            </div>
+          ) : null}
+          <ChatConversation
+            aria-label="Live Chat messages"
+            className="min-h-0 flex-1"
+            initial="instant"
+          >
+            <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 py-6">
+              {liveMessages.map((message) => (
+                <LiveChatMessage
+                  key={message.id}
+                  message={message}
+                  timeline={
+                    message.role === "assistant" && !message.controlLabel
+                      ? runTimeline
+                      : undefined
+                  }
                 />
-              )}
-            </>
+              ))}
+              <ChatConversation.ScrollAnchor />
+            </ChatConversation.Content>
+          </ChatConversation>
+
+          {readOnlyProjection ? null : (
+            <FullChatComposer
+              isStoppingRun={stoppingRun}
+              queueMode={queueMode}
+              projection={liveProjection}
+              onPromptSubmit={handlePromptSubmit}
+              onQueueSubmit={handleQueueSubmit}
+              onWithdrawQueuedMessage={handleWithdrawQueuedMessage}
+              onStopRun={handleStopRun}
+              onSteerSubmit={handleSteerSubmit}
+            />
           )}
-        </div>
-      </Card>
+        </>
+      )}
     </main>
   );
 }
@@ -1232,8 +1227,6 @@ export function AgentWorkspaceSessionsPage() {
         <SessionToolbarActions
           workspace={workspace}
           projection={selectedSessionProjection}
-          runtimeBridge={runtimeBridge}
-          onProjectionChange={handleProjectionChange}
         />
       }
     >

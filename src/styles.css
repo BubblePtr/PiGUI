@@ -5,48 +5,12 @@
 @source "../node_modules/@heroui-pro/react/dist/components/**/*.{js,ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
-:root {
-  --pig-color-background: var(--background);
-  --pig-color-foreground: var(--foreground);
-  --pig-color-muted: var(--muted);
-  --pig-color-surface: var(--surface);
-  --pig-color-surface-muted: var(--surface-secondary);
-  --pig-color-surface-hover: var(--surface-tertiary);
-  --pig-color-border: var(--border);
-  --pig-color-danger: var(--danger);
-  --pig-color-chart-1: #2f6f9f;
-  --pig-color-chart-2: #4f8f5f;
-  --pig-color-chart-3: #b46a3c;
-  --pig-color-chart-4: #7a5aa6;
-  --pig-color-chart-5: #9b4f64;
-  --pig-color-chart-6: #2f7f7b;
-  --pig-color-chart-7: #8a7a35;
-  --pig-color-chart-8: #566b8f;
-  --pig-color-heat-0: #eceee7;
-  --pig-color-heat-1: #cfe3d2;
-  --pig-color-heat-2: #95c6a4;
-  --pig-color-heat-3: #55946f;
-  --pig-color-heat-4: #276749;
-  --pig-shadow-sm: 0 1px 2px rgb(24 25 22 / 0.06);
-}
-
-@theme inline {
-  --color-background: var(--pig-color-background);
-  --color-foreground: var(--pig-color-foreground);
-  --color-muted: var(--pig-color-muted);
-  --color-surface: var(--pig-color-surface);
-  --color-surface-muted: var(--pig-color-surface-muted);
-  --color-surface-hover: var(--pig-color-surface-hover);
-  --color-border: var(--pig-color-border);
-  --color-danger: var(--pig-color-danger);
-  --shadow-sm: var(--pig-shadow-sm);
-  --font-sans:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-html {
-  font-family: var(--font-sans);
-  background: var(--pig-color-background);
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -54,7 +18,84 @@ body {
 }
 
 .pig-app-layout .sidebar__offcanvas-wrapper {
-  --sidebar-width: 18rem;
+  --sidebar-width: 16rem;
+}
+
+.pig-header-chrome {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  height: var(--pig-header-height);
+  pointer-events: none;
+  background: transparent;
+}
+
+.pig-header-chrome__left {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 1;
+  display: flex;
+  width: max(var(--pig-main-left), var(--pig-chrome-safe-left));
+  height: var(--pig-header-height);
+  align-items: center;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.pig-header-chrome__left [data-tauri-drag-region],
+.pig-header-chrome__drag {
+  pointer-events: auto;
+}
+
+.pig-header-chrome [data-slot="sidebar-trigger"] {
+  margin-left: 0;
+  pointer-events: auto;
+}
+
+.pig-header-chrome__title-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  display: flex;
+  height: var(--pig-header-height);
+  align-items: center;
+  gap: 1rem;
+  padding-right: 1rem;
+  padding-left: 1rem;
+  pointer-events: none;
+}
+
+.pig-header-chrome__title,
+.pig-header-chrome__actions {
+  pointer-events: auto;
+}
+
+.pig-header-chrome__title {
+  position: relative;
+  z-index: 1;
+  transition: transform 200ms cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+
+.pig-header-chrome__drag {
+  position: relative;
+  z-index: 0;
+}
+
+.pig-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel] {
+  transition: flex-grow 200ms ease;
+}
+
+.pig-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"] {
+  transition:
+    translate 200ms ease,
+    visibility 200ms;
+}
+
+.pig-app-layout[data-scroll-mode="content"] .app-layout__main {
+  overscroll-behavior: none;
 }
 
 .pig-app-layout[data-resizable] .sidebar__offcanvas-wrapper,
@@ -62,28 +103,13 @@ body {
   min-width: 100%;
 }
 
-.pig-app-layout[data-resizable] [data-slot="resizable-handle"] {
-  --resizable-handle-color: transparent;
-  --resizable-handle-color-hover: transparent;
-  --resizable-handle-color-active: transparent;
-
-  background-color: transparent;
-}
-
-.pig-app-layout [data-slot="app-layout-body"] {
-  --pig-app-inset: calc(var(--spacing, 0.25rem) * 1);
-
-  min-width: 0;
-  margin: 0 var(--pig-app-inset) 0 0;
-  border: 1px solid var(--pig-color-border);
-  border-radius: calc(var(--radius) * 2);
-  background-color: var(--pig-color-surface);
-  box-shadow: var(--pig-shadow-sm);
-  overflow: hidden;
-}
-
-.pig-app-layout [data-slot="navbar"] {
-  background-color: var(--pig-color-surface);
+@media (prefers-reduced-motion: reduce) {
+  .pig-header-chrome__title,
+  .pig-header-chrome__title-track,
+  .pig-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel],
+  .pig-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"] {
+    transition: none;
+  }
 }
 
 * {

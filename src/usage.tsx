@@ -41,7 +41,7 @@ import {
   type ModelDistribution,
 } from "./usage-aggregation";
 
-const chartColorCount = 8;
+const chartColorCount = 5;
 const defaultRankLimit = 8;
 const costTrendGranularityOptions: Array<{ id: CostTrendGranularity; label: string }> = [
   { id: "day", label: "Day" },
@@ -66,15 +66,19 @@ const tokenActivityModeOptions: Array<{ id: TokenActivityMode; label: string }> 
 
 function projectColor(project: string, projects: string[]) {
   const index = Math.max(0, projects.indexOf(project));
-  return `var(--pig-color-chart-${(index % chartColorCount) + 1})`;
+  return chartColor(index);
 }
 
 function heatColor(level: number) {
-  return `var(--pig-color-heat-${level})`;
+  if (level === 0) {
+    return "var(--surface-secondary)";
+  }
+
+  return chartColor(level - 1);
 }
 
 function chartColor(index: number) {
-  return `var(--pig-color-chart-${(index % chartColorCount) + 1})`;
+  return `var(--chart-${(index % chartColorCount) + 1})`;
 }
 
 function formatPercent(value: number) {
@@ -495,7 +499,7 @@ export function CostTrendChart({
       <BarChart.Tooltip
         allowEscapeViewBox={{ x: false, y: true }}
         content={<CostTrendTooltipContent />}
-        cursor={{ fill: "var(--pig-color-surface-hover)" }}
+        cursor={{ fill: "var(--surface-tertiary)" }}
         isAnimationActive={false}
         offset={12}
         position={{ y: 16 }}

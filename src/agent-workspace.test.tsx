@@ -16,7 +16,6 @@ import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
   SessionActionsContent,
-  SessionToolbarActions,
 } from "./agent-workspace";
 import { PiRuntimeBridgeError, createFakePiRuntimeBridge } from "./pi-runtime-bridge";
 import { createExecutionCheckoutManager } from "./execution-checkout";
@@ -86,6 +85,8 @@ describe("AgentWorkspaceSessionsPage", () => {
       "data-tauri-drag-region",
     );
     expect(chatConversation).toBeInTheDocument();
+    expect(chatConversation?.closest(".card")).toBeNull();
+    expect(promptInput?.closest(".card")).toBeNull();
     expect(chatConversation).toHaveAttribute("role", "log");
     expect(
       liveColumn.querySelector('[data-slot="chat-conversation-content"]'),
@@ -103,13 +104,15 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelector('[data-slot="prompt-input-shell"]')).toBeInTheDocument();
     expect(liveColumn.querySelector('[data-slot="prompt-input-textarea"]')).toBeInTheDocument();
     expect(liveColumn.querySelector('[data-slot="prompt-input-send"]')).toBeInTheDocument();
-    expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+    expect(promptInput).toHaveAttribute("data-status", "streaming");
+    expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).not.toBeDisabled();
     expect(within(liveColumn).getByRole("button", { name: "Steer" })).toBeInTheDocument();
-    expect(within(liveColumn).getByRole("button", { name: "Send" })).toBeInTheDocument();
+    expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(within(liveColumn).queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
     expect(
       within(liveColumn).getByText("Queue is the default while Pi is running."),
     ).toBeInTheDocument();
-    expect(within(navbarActions).getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(within(navbarActions).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Session actions" })).not.toBeInTheDocument();
 
     await user.click(sessionActionsButton);
@@ -180,22 +183,27 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("stops the selected active run from the toolbar and unlocks archive", async () => {
+  it("stops the selected active run from the composer and unlocks archive", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
 
-    expect(await screen.findByRole("button", { name: "Stop" })).toBeInTheDocument();
+    const liveColumn = await screen.findByTestId("live-session-column");
+
+    expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("navbar-actions")).queryByRole("button", { name: "Stop" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Abort")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Stop" }));
+    await user.click(within(liveColumn).getByRole("button", { name: "Stop" }));
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
     expect(await within(liveChat).findByText("Stopped")).toBeInTheDocument();
     expect(within(liveChat).getByText("Pi stopped the active run.")).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+      expect(within(liveColumn).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Session actions" }));
@@ -208,7 +216,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows toolbar Stop results in Live Chat for a draft-created Session", async () => {
+  it("shows composer Stop results in Live Chat for a draft-created Session", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
@@ -222,7 +230,9 @@ describe("AgentWorkspaceSessionsPage", () => {
       await screen.findByText("Queue is the default while Pi is running."),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Stop" }));
+    await user.click(
+      within(screen.getByTestId("live-session-column")).getByRole("button", { name: "Stop" }),
+    );
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
@@ -289,12 +299,6 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       return (
         <>
-          <SessionToolbarActions
-            workspace={workspace}
-            projection={currentProjection}
-            runtimeBridge={bridge}
-            onProjectionChange={setCurrentProjection}
-          />
           <AgentWorkspaceSessionsView
             projectId="pig-docs"
             runtimeBridge={bridge}
@@ -308,13 +312,17 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     render(<StopFailureHarness />);
 
-    await user.click(screen.getByRole("button", { name: "Stop" }));
+    await user.click(
+      within(screen.getByTestId("live-session-column")).getByRole("button", { name: "Stop" }),
+    );
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
     expect(await within(liveChat).findByText("Stop failed")).toBeInTheDocument();
     expect(within(liveChat).getByText("Pi rejected the stop request.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("live-session-column")).getByRole("button", { name: "Stop" }),
+    ).toBeInTheDocument();
   });
 
   it("clears unread results after the selected Session content is rendered", async () => {
@@ -482,7 +490,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
+    const liveColumn = screen.getByTestId("live-session-column");
 
+    expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     await user.type(
       screen.getByPlaceholderText("What do you want to know?"),
       "After this, update the queue tests.",
@@ -791,6 +801,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const draftComposer = await screen.findByTestId("session-draft-composer");
 
     expect(within(draftComposer).getByText("Session Draft")).toBeInTheDocument();
+    expect(draftComposer.closest(".card")).toBeNull();
     expect(
       within(draftComposer).getByPlaceholderText("Describe the first Pi prompt"),
     ).toBeInTheDocument();

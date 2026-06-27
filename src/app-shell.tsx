@@ -1,9 +1,16 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { AppLayout } from "@heroui-pro/react/app-layout";
-import { Navbar } from "@heroui-pro/react/navbar";
 import { Sidebar } from "@heroui-pro/react/sidebar";
 import { BarChart3, Circle, ListTree, LoaderCircle, Plus, Settings } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   ensureSessionDraft,
   hasSessionDraft,
@@ -160,20 +167,26 @@ const systemNavigationItems = [
   },
 ] as const;
 
-const sidebarDefaultSize = "18rem";
-const sidebarMinSize = "16rem";
-const sidebarMaxSize = "24rem";
+const sidebarDefaultSize = "16rem";
+const sidebarMinSize = "14rem";
+const sidebarMaxSize = "22rem";
 const sidebarStyle = {
   "--sidebar-width": sidebarDefaultSize,
 } as CSSProperties;
 
 const titlebarHeight = "40px";
+const titlebarHeaderStyle = {
+  height: titlebarHeight,
+  paddingBottom: "0px",
+  paddingTop: "0px",
+} as CSSProperties;
 const titlebarControlStyle = {
   width: "28px",
   height: "28px",
 } as CSSProperties;
 const trafficWidth = "88px";
-const titlebarGap = "16px";
+const chromeSafeLeft = "132px";
+const sidebarAnimationMs = 220;
 
 function getActiveTab(pathname: string) {
   if (pathname.startsWith("/projects/")) {
@@ -440,19 +453,12 @@ function SidebarPanelContent({
 }) {
   return (
     <>
-      <Sidebar.Header
-        className="flex shrink-0 items-center select-none"
-        style={{ height: titlebarHeight }}
-      >
-        <div
-          aria-hidden="true"
-          className="h-full shrink-0"
-          data-tauri-drag-region
-          data-testid="mac-traffic-space"
-          style={{ width: trafficWidth }}
-        />
-        <div aria-hidden="true" className="h-full min-w-0 flex-1" data-tauri-drag-region />
-      </Sidebar.Header>
+      <div
+        aria-hidden="true"
+        className="shrink-0"
+        data-testid="sidebar-titlebar-spacer"
+        style={titlebarHeaderStyle}
+      />
       <Sidebar.Content className="min-h-0 flex-1 flex-col overflow-hidden">
         <AnalyzeNavigation pathname={pathname} />
         <WorkspaceNavigation
@@ -468,6 +474,97 @@ function SidebarPanelContent({
         <SystemNavigation pathname={pathname} />
       </Sidebar.Footer>
     </>
+  );
+}
+
+function HeaderChrome({
+  title,
+  toolbarActions,
+  sidebarOpen,
+  mainLeft,
+}: {
+  title: string;
+  toolbarActions?: ReactNode;
+  sidebarOpen: boolean;
+  mainLeft: string;
+}) {
+  const titleX = sidebarOpen
+    ? mainLeft
+    : chromeSafeLeft;
+  const chromeStyle = {
+    "--pig-chrome-safe-left": chromeSafeLeft,
+    "--pig-header-height": titlebarHeight,
+    "--pig-main-left": mainLeft,
+    "--pig-title-x": titleX,
+    "--pig-traffic-width": trafficWidth,
+    height: titlebarHeight,
+  } as CSSProperties;
+  const titleTrackStyle = {
+    "--pig-main-left": mainLeft,
+    "--pig-title-x": titleX,
+    left: "0px",
+  } as CSSProperties;
+  const titleStyle = {
+    "--pig-title-x": titleX,
+    transform: `translateX(${titleX})`,
+  } as CSSProperties;
+
+  return (
+    <div
+      className="pig-header-chrome"
+      data-sidebar={sidebarOpen ? "open" : "closed"}
+      data-testid="header-chrome"
+      style={chromeStyle}
+    >
+      <div className="pig-header-chrome__left" data-testid="header-chrome-left">
+        <div
+          aria-hidden="true"
+          className="h-full shrink-0"
+          data-tauri-drag-region
+          data-testid="mac-traffic-space"
+          style={{ width: trafficWidth }}
+        />
+        <Sidebar.Trigger
+          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          className="shrink-0"
+          style={titlebarControlStyle}
+        />
+        <div
+          aria-hidden="true"
+          className="h-full min-w-0 flex-1"
+          data-tauri-drag-region
+        />
+      </div>
+      <div
+        className="pig-header-chrome__title-track"
+        data-testid="header-chrome-title-track"
+        style={titleTrackStyle}
+      >
+        <div
+          className="pig-header-chrome__title flex h-7 min-w-0 shrink-0 select-none items-center"
+          data-testid="header-chrome-title"
+          style={titleStyle}
+        >
+          <h1 className="select-none truncate text-sm font-semibold leading-7 tracking-normal text-foreground">
+            {title}
+          </h1>
+        </div>
+        <div
+          aria-hidden="true"
+          className="pig-header-chrome__drag h-full min-w-0 flex-1 select-none"
+          data-slot="navbar-spacer"
+          data-tauri-drag-region
+        />
+        {toolbarActions ? (
+          <div
+            className="pig-header-chrome__actions flex h-full shrink-0 items-center gap-1"
+            data-testid="navbar-actions"
+          >
+            {toolbarActions}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -489,6 +586,12 @@ export function AppFrame({
   });
   const activeTab = getActiveTab(pathname);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarAnimating, setSidebarAnimating] = useState(false);
+  const [measuredSidebarWidth, setMeasuredSidebarWidth] = useState(sidebarDefaultSize);
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+  const sidebarAnimatingRef = useRef(false);
+  const sidebarOpenRef = useRef(sidebarOpen);
+  const sidebarAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [localSessionProjections, setLocalSessionProjections] = useState(
     defaultSidebarProjectSessionProjections,
   );
@@ -503,11 +606,73 @@ export function AppFrame({
   const effectiveSelectedSessionId =
     selectedSessionId === undefined ? localSelectedSessionId : selectedSessionId;
   const updateSelectedSessionId = onSelectedSessionIdChange ?? setLocalSelectedSessionId;
-  const collapsedTrafficSpaceStyle = {
-    width: sidebarOpen ? "0px" : trafficWidth,
-    marginRight: sidebarOpen ? `-${titlebarGap}` : "0px",
-    transition: "width 0.2s ease, margin-right 0.2s ease",
-  } as CSSProperties;
+  const headerMainLeft = sidebarOpen ? measuredSidebarWidth : "0px";
+  const handleSidebarOpenChange = (open: boolean) => {
+    if (sidebarAnimationTimeoutRef.current) {
+      clearTimeout(sidebarAnimationTimeoutRef.current);
+    }
+
+    sidebarAnimatingRef.current = true;
+    sidebarOpenRef.current = open;
+    setSidebarAnimating(true);
+    setSidebarOpen(open);
+    sidebarAnimationTimeoutRef.current = setTimeout(() => {
+      sidebarAnimatingRef.current = false;
+      setSidebarAnimating(false);
+      sidebarAnimationTimeoutRef.current = null;
+    }, sidebarAnimationMs);
+  };
+
+  useEffect(() => {
+    sidebarOpenRef.current = sidebarOpen;
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    sidebarAnimatingRef.current = sidebarAnimating;
+  }, [sidebarAnimating]);
+
+  useEffect(
+    () => () => {
+      if (sidebarAnimationTimeoutRef.current) {
+        clearTimeout(sidebarAnimationTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    const root = layoutRef.current;
+    if (!root) {
+      return;
+    }
+
+    const sidebarPanel =
+      root.querySelector<HTMLElement>('[data-testid="app-layout-sidebar"][data-panel]') ??
+      root.querySelector<HTMLElement>(".sidebar__offcanvas-wrapper");
+    if (!sidebarPanel || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const updateSidebarWidth = () => {
+      const width = sidebarPanel.getBoundingClientRect().width;
+
+      if (width <= 0 || sidebarAnimatingRef.current || !sidebarOpenRef.current) {
+        return;
+      }
+
+      setMeasuredSidebarWidth(`${Math.round(width)}px`);
+    };
+
+    updateSidebarWidth();
+
+    const observer = new ResizeObserver(updateSidebarWidth);
+    observer.observe(sidebarPanel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   const handleNewSession = (projectId: string) => {
     ensureSessionDraft(projectId);
     void router.navigate({
@@ -524,44 +689,10 @@ export function AppFrame({
 
   return (
     <AppLayout
+      ref={layoutRef}
       className="pig-app-layout bg-background text-foreground"
+      data-sidebar-animating={sidebarAnimating ? "true" : undefined}
       navigate={(href) => void router.navigate({ to: href as never })}
-      navbar={
-        <Navbar
-          className="border-b border-border bg-surface"
-          height={titlebarHeight}
-          maxWidth="full"
-        >
-          <Navbar.Header className="h-full items-center">
-            <div
-              aria-hidden="true"
-              className="h-full shrink-0 overflow-hidden"
-              data-state={sidebarOpen ? "expanded" : "collapsed"}
-              data-testid="collapsed-traffic-space"
-              style={collapsedTrafficSpaceStyle}
-            />
-            <Sidebar.Trigger
-              aria-label="Toggle sidebar"
-              className="shrink-0"
-              style={titlebarControlStyle}
-            />
-            <Navbar.Brand className="h-7 select-none items-center">
-              <h1 className="select-none text-sm font-semibold leading-7 tracking-normal text-foreground">
-                {activeTab}
-              </h1>
-            </Navbar.Brand>
-            <Navbar.Spacer className="h-full min-w-0 flex-1 select-none" data-tauri-drag-region />
-            {toolbarActions ? (
-              <div
-                className="flex h-full shrink-0 items-center gap-1"
-                data-testid="navbar-actions"
-              >
-                {toolbarActions}
-              </div>
-            ) : null}
-          </Navbar.Header>
-        </Navbar>
-      }
       resizableAutoSaveId="pig-app-shell"
       scrollMode="content"
       sidebar={
@@ -583,10 +714,20 @@ export function AppFrame({
       sidebarOpen={sidebarOpen}
       sidebarResizable
       sidebarVariant="inset"
-      onSidebarOpenChange={setSidebarOpen}
+      onSidebarOpenChange={handleSidebarOpenChange}
     >
-      <div className="h-full min-h-0 min-w-0" data-testid="app-frame-content">
-        {children}
+      <HeaderChrome
+        mainLeft={headerMainLeft}
+        sidebarOpen={sidebarOpen}
+        title={activeTab}
+        toolbarActions={toolbarActions}
+      />
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-col"
+        data-testid="app-frame-content"
+      >
+        <div aria-hidden="true" className="h-10 shrink-0" />
+        <div className="min-h-0 min-w-0 flex-1">{children}</div>
       </div>
     </AppLayout>
   );

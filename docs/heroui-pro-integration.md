@@ -50,16 +50,20 @@ bun pm untrusted
 @source "./**/*.{ts,tsx}";
 ```
 
-Pig 的样式层继续把项目 token 映射到 HeroUI token，例如：
+Pig 不再声明项目级颜色 token，也不再用 `@theme inline` 把 Tailwind utility 映射到
+项目前缀变量。颜色、阴影、圆角、图表色都优先使用 HeroUI / HeroUI Pro 官方变量，例如：
 
 ```css
---pig-color-background: var(--background);
---pig-color-surface: var(--surface);
---pig-color-border: var(--border);
+background-color: var(--surface);
+border-color: var(--border);
+box-shadow: var(--surface-shadow);
+color: var(--foreground);
+fill: var(--chart-1);
 ```
 
-`index.html` 仍在根节点设置 `data-theme="glass-light"`。如果后续切换主题，优先通过
-HeroUI Pro 官方 CSS 入口和根节点 `data-theme` 完成，不要重新引入 vendor 路径。
+`index.html` 不设置 Pro theme variant，默认使用 HeroUI / HeroUI Pro 官方默认主题。
+如果后续切换主题，优先通过 HeroUI Pro 官方 theme CSS 入口和根节点 `data-theme`
+完成，不要重新引入 vendor 路径。
 
 ## 使用组件
 

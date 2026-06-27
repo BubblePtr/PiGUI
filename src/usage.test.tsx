@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SessionSummary } from "./sessions";
 import {
@@ -103,6 +105,16 @@ describe("CostTrendChart", () => {
     expect(viewport).toHaveAttribute("data-scrollable", "false");
     expect(chart).toHaveAttribute("aria-label", "Monthly cost by project chart");
     expect(viewport).toContainElement(chart);
+    expect(container.innerHTML).not.toContain("--pig-color-");
+  });
+
+  it("uses HeroUI Pro chart tokens instead of Pig color variables", () => {
+    const source = readFileSync(join(process.cwd(), "src/usage.tsx"), "utf8");
+
+    expect(source).toContain("const chartColorCount = 5;");
+    expect(source).toContain("var(--chart-${(index % chartColorCount) + 1})");
+    expect(source).toContain("var(--surface-tertiary)");
+    expect(source).not.toContain("--pig-color-");
   });
 });
 
@@ -166,6 +178,7 @@ describe("TokenHeatmap", () => {
     expect(container.querySelectorAll("[data-token-day]")).toHaveLength(365);
     expect(firstCell).toHaveClass("aspect-square", "rounded-full");
     expect(firstCell).not.toHaveClass("rounded-[4px]");
+    expect(firstCell).toHaveStyle({ backgroundColor: "var(--surface-secondary)" });
     expect(firstCell).toHaveAttribute("data-tokens", "0");
     expect(firstCell).toHaveAttribute("data-activity-value", "0");
     expect(firstCell).toHaveAttribute("data-date", "2025-07-01");
@@ -173,6 +186,10 @@ describe("TokenHeatmap", () => {
       "data-tokens",
       "100",
     );
+    expect(container.querySelector('[data-date="2026-03-20"]')).toHaveStyle({
+      backgroundColor: "var(--chart-2)",
+    });
+    expect(container.innerHTML).not.toContain("--pig-color-");
     expect(container.querySelector('[data-date="2026-06-30"]')).toHaveAttribute(
       "data-tokens",
       "0",
