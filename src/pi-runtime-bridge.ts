@@ -1,10 +1,28 @@
 export type ExecutionCheckout = {
-  mode: "foreground-local";
+  mode: "foreground-local" | "managed-worktree";
   root: string;
   runtimeCwd: string;
+  repoRoot?: string;
+  projectRoot?: string;
+  projectRelativePath?: string;
+  executionCheckoutRoot?: string;
+  diffRoot?: string;
+  sessionBound?: boolean;
+  disposable?: boolean;
+  cleanupCandidate?: boolean;
+  permanent?: boolean;
+  createdAt?: string;
+  cleanupMarkedAt?: string;
+  promotedAt?: string;
 };
 
-export type RuntimeBridgeFailureStage = "starting runtime" | "sending prompt";
+export type RuntimeBridgeFailureStage =
+  | "starting runtime"
+  | "sending prompt"
+  | "queuing message"
+  | "withdrawing queued message"
+  | "steering run"
+  | "stopping run";
 
 export type PiRuntimeBridgeErrorDetail = {
   stage: RuntimeBridgeFailureStage;
@@ -39,12 +57,24 @@ export type PiRuntimeSummary = {
 export type PiRuntimeEvent = {
   id: string;
   piSessionId: string;
-  kind: "message" | "tool-call" | "error" | "usage" | "status";
+  kind: "message" | "tool-call" | "error" | "usage" | "status" | "control";
   role?: "user" | "assistant";
   title?: string;
   body: string;
   timestamp: string;
   summary?: Partial<PiRuntimeSummary>;
+};
+
+export type PiQueuedMessageStatus = "pending" | "processing" | "withdrawn";
+
+export type PiQueuedMessage = {
+  id: string;
+  piSessionId: string;
+  body: string;
+  status: PiQueuedMessageStatus;
+  createdAt: string;
+  processingStartedAt?: string;
+  withdrawnAt?: string;
 };
 
 export type PiSessionState = {
@@ -81,10 +111,33 @@ export type SendInitialPromptInput = {
   prompt: string;
 };
 
+export type QueueFollowUpInput = {
+  piSessionId: string;
+  message: string;
+};
+
+export type WithdrawQueuedMessageInput = {
+  piSessionId: string;
+  queuedMessageId: string;
+};
+
+export type SteerRunInput = {
+  piSessionId: string;
+  message: string;
+};
+
+export type AbortRunInput = {
+  piSessionId: string;
+};
+
 export type PiRuntimeBridge = {
   startRuntime(input: StartRuntimeInput): Promise<PiRuntimeHandle>;
   createPiSessionState(input: CreatePiSessionStateInput): Promise<PiSessionState>;
   sendInitialPrompt(input: SendInitialPromptInput): Promise<PiRuntimeAcceptedPrompt>;
+  queueFollowUp(input: QueueFollowUpInput): Promise<PiQueuedMessage>;
+  withdrawQueuedMessage(input: WithdrawQueuedMessageInput): Promise<PiQueuedMessage>;
+  steerRun(input: SteerRunInput): Promise<PiRuntimeEvent>;
+  abortRun(input: AbortRunInput): Promise<PiRuntimeEvent>;
   getSessionState(piSessionId: string): Promise<PiSessionState>;
   subscribeToEvents(piSessionId: string, listener: (event: PiRuntimeEvent) => void): () => void;
 };
@@ -93,7 +146,12 @@ export type FakePiRuntimeBridge = PiRuntimeBridge & {
   restoreSessionState(state: PiSessionState): Promise<PiSessionState>;
 };
 
-type FakeBridgeFailurePoint = "start-runtime" | "create-pi-session-state" | "send-initial-prompt";
+type FakeBridgeFailurePoint =
+  | "start-runtime"
+  | "create-pi-session-state"
+  | "send-initial-prompt"
+  | "steer-run"
+  | "stop-run";
 
 export type FakePiRuntimeBridgeOptions = {
   now?: () => string;
@@ -270,6 +328,20 @@ function statusFromRpcState(state: unknown): PiSessionState["status"] {
   return state.isStreaming ? "running" : "idle";
 }
 
+function queuedMessageIdFromResponse(
+  response: PiRpcResponse,
+  fallback: string,
+): string {
+  const data = isRecord(response.data) ? response.data : null;
+
+  return (
+    maybeString(data?.queuedMessageId) ??
+    maybeString(data?.queueId) ??
+    maybeString(data?.id) ??
+    fallback
+  );
+}
+
 function serializeEventBody(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -441,6 +513,7 @@ export function createPiRpcRuntimeBridge(
   const now = options.now ?? (() => new Date().toISOString());
   const runtimes = new Map<string, PiRuntimeHandle>();
   const states = new Map<string, PiSessionState>();
+  const queuedMessages = new Map<string, PiQueuedMessage>();
   const listeners = new Map<string, Set<(event: PiRuntimeEvent) => void>>();
   let requestCounter = 0;
   let eventCounter = 0;
@@ -605,6 +678,165 @@ export function createPiRpcRuntimeBridge(
       };
     },
 
+    async queueFollowUp(input) {
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "queuing message",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      const requestId = nextRequestId();
+      const response = await options.transport.send({
+        id: requestId,
+        type: "prompt",
+        message: input.message,
+        streamingBehavior: "followUp",
+      });
+
+      if (!response.success) {
+        throw new PiRuntimeBridgeError({
+          stage: "queuing message",
+          message: response.error ?? "Pi RPC rejected the queued follow-up.",
+        });
+      }
+
+      const queuedMessage: PiQueuedMessage = {
+        id: queuedMessageIdFromResponse(response, `queued-${requestId}`),
+        piSessionId: input.piSessionId,
+        body: input.message,
+        status: "pending",
+        createdAt: now(),
+      };
+
+      queuedMessages.set(queuedMessage.id, queuedMessage);
+
+      return { ...queuedMessage };
+    },
+
+    async withdrawQueuedMessage(input) {
+      const queuedMessage = queuedMessages.get(input.queuedMessageId);
+
+      if (!queuedMessage || queuedMessage.piSessionId !== input.piSessionId) {
+        throw new PiRuntimeBridgeError({
+          stage: "withdrawing queued message",
+          message: `Queued message "${input.queuedMessageId}" was not found.`,
+        });
+      }
+
+      if (queuedMessage.status !== "pending") {
+        throw new PiRuntimeBridgeError({
+          stage: "withdrawing queued message",
+          message: "Queued message can no longer be withdrawn.",
+        });
+      }
+
+      const response = await options.transport.send({
+        id: nextRequestId(),
+        type: "withdraw_follow_up",
+        queuedMessageId: input.queuedMessageId,
+      });
+
+      if (!response.success) {
+        throw new PiRuntimeBridgeError({
+          stage: "withdrawing queued message",
+          message: response.error ?? "Pi RPC rejected queued message withdrawal.",
+        });
+      }
+
+      const withdrawnMessage: PiQueuedMessage = {
+        ...queuedMessage,
+        status: "withdrawn",
+        withdrawnAt: now(),
+      };
+
+      queuedMessages.set(withdrawnMessage.id, withdrawnMessage);
+
+      return { ...withdrawnMessage };
+    },
+
+    async steerRun(input) {
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "steering run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      const requestId = nextRequestId();
+      const response = await options.transport.send({
+        id: requestId,
+        type: "steer",
+        message: input.message,
+      });
+
+      if (!response.success) {
+        throw new PiRuntimeBridgeError({
+          stage: "steering run",
+          message: response.error ?? "Pi RPC rejected the steer input.",
+        });
+      }
+
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${requestId}`,
+        piSessionId: input.piSessionId,
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: input.message,
+        timestamp: now(),
+      };
+
+      state.status = "running";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
+    },
+
+    async abortRun(input) {
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "stopping run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      const requestId = nextRequestId();
+      const response = await options.transport.send({
+        id: requestId,
+        type: "abort",
+      });
+
+      if (!response.success) {
+        throw new PiRuntimeBridgeError({
+          stage: "stopping run",
+          message: response.error ?? "Pi RPC rejected the stop request.",
+        });
+      }
+
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${requestId}`,
+        piSessionId: input.piSessionId,
+        kind: "status",
+        title: "Stopped",
+        body: "Pi stopped the active run.",
+        timestamp: now(),
+      };
+
+      state.status = "completed";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
+    },
+
     async getSessionState(piSessionId) {
       const state = states.get(piSessionId);
 
@@ -638,10 +870,12 @@ export function createFakePiRuntimeBridge(
   const summary = defaultRuntimeSummary(options.summary);
   const runtimes = new Map<string, PiRuntimeHandle>();
   const states = new Map<string, PiSessionState>();
+  const queuedMessages = new Map<string, PiQueuedMessage>();
   const listeners = new Map<string, Set<(event: PiRuntimeEvent) => void>>();
   let runtimeCounter = 0;
   let sessionCounter = 0;
   let eventCounter = 0;
+  let queuedMessageCounter = 0;
 
   const fail = (stage: RuntimeBridgeFailureStage): never => {
     throw new PiRuntimeBridgeError({
@@ -732,6 +966,121 @@ export function createFakePiRuntimeBridge(
         piSessionId: input.piSessionId,
         event: { ...event },
       };
+    },
+
+    async queueFollowUp(input) {
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "queuing message",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      queuedMessageCounter += 1;
+      const queuedMessage: PiQueuedMessage = {
+        id: `queued-message-${queuedMessageCounter}`,
+        piSessionId: input.piSessionId,
+        body: input.message,
+        status: "pending",
+        createdAt: now(),
+      };
+
+      queuedMessages.set(queuedMessage.id, queuedMessage);
+
+      return { ...queuedMessage };
+    },
+
+    async withdrawQueuedMessage(input) {
+      const queuedMessage = queuedMessages.get(input.queuedMessageId);
+
+      if (!queuedMessage || queuedMessage.piSessionId !== input.piSessionId) {
+        throw new PiRuntimeBridgeError({
+          stage: "withdrawing queued message",
+          message: `Queued message "${input.queuedMessageId}" was not found.`,
+        });
+      }
+
+      if (queuedMessage.status !== "pending") {
+        throw new PiRuntimeBridgeError({
+          stage: "withdrawing queued message",
+          message: "Queued message can no longer be withdrawn.",
+        });
+      }
+
+      const withdrawnMessage: PiQueuedMessage = {
+        ...queuedMessage,
+        status: "withdrawn",
+        withdrawnAt: now(),
+      };
+
+      queuedMessages.set(withdrawnMessage.id, withdrawnMessage);
+
+      return { ...withdrawnMessage };
+    },
+
+    async steerRun(input) {
+      if (options.failAt === "steer-run") {
+        fail("steering run");
+      }
+
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "steering run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      eventCounter += 1;
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${eventCounter}`,
+        piSessionId: input.piSessionId,
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: input.message,
+        timestamp: now(),
+      };
+
+      state.status = "running";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
+    },
+
+    async abortRun(input) {
+      if (options.failAt === "stop-run") {
+        fail("stopping run");
+      }
+
+      const state = states.get(input.piSessionId);
+
+      if (!state) {
+        throw new PiRuntimeBridgeError({
+          stage: "stopping run",
+          message: `Pi session "${input.piSessionId}" was not found.`,
+        });
+      }
+
+      eventCounter += 1;
+      const event: PiRuntimeEvent = {
+        id: `runtime-event-${eventCounter}`,
+        piSessionId: input.piSessionId,
+        kind: "status",
+        title: "Stopped",
+        body: "Pi stopped the active run.",
+        timestamp: now(),
+      };
+
+      state.status = "completed";
+      state.updatedAt = event.timestamp;
+      state.events = [...state.events, event];
+
+      return { ...event };
     },
 
     async getSessionState(piSessionId) {

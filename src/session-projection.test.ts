@@ -231,6 +231,229 @@ describe("Session Projection state", () => {
     });
   });
 
+  it("keeps queued follow-up messages pending until the runtime starts processing them", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const queued = applySessionProjectionEvent(base, {
+      type: "queued-message-added",
+      queuedMessage: {
+        id: "queued-1",
+        piSessionId: "pi-session-active",
+        body: "After this, update the usage tests.",
+        status: "pending",
+        createdAt: "2026-06-26T08:01:00.000Z",
+      },
+    });
+    const withdrawn = applySessionProjectionEvent(queued, {
+      type: "queued-message-withdrawn",
+      queuedMessageId: "queued-1",
+      occurredAt: "2026-06-26T08:01:30.000Z",
+    });
+    const queuedAgain = applySessionProjectionEvent(withdrawn, {
+      type: "queued-message-added",
+      queuedMessage: {
+        id: "queued-2",
+        piSessionId: "pi-session-active",
+        body: "Then refresh the browser screenshot.",
+        status: "pending",
+        createdAt: "2026-06-26T08:02:00.000Z",
+      },
+    });
+    const processing = applySessionProjectionEvent(queuedAgain, {
+      type: "queued-message-processing-started",
+      queuedMessageId: "queued-2",
+      event: {
+        id: "queued-2-runtime-event",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Then refresh the browser screenshot.",
+        timestamp: "2026-06-26T08:03:00.000Z",
+      },
+    });
+
+    expect(queued.queuedMessages).toEqual([
+      expect.objectContaining({
+        id: "queued-1",
+        body: "After this, update the usage tests.",
+        status: "pending",
+      }),
+    ]);
+    expect(queued.runtimeEvents).toEqual([]);
+    expect(withdrawn.queuedMessages).toEqual([
+      expect.objectContaining({
+        id: "queued-1",
+        status: "withdrawn",
+      }),
+    ]);
+    expect(processing.queuedMessages).toEqual([
+      expect.objectContaining({ id: "queued-1", status: "withdrawn" }),
+      expect.objectContaining({
+        id: "queued-2",
+        status: "processing",
+        processingStartedAt: "2026-06-26T08:03:00.000Z",
+      }),
+    ]);
+    expect(processing.runtimeEvents).toEqual([
+      expect.objectContaining({
+        id: "queued-2-runtime-event",
+        role: "user",
+        body: "Then refresh the browser screenshot.",
+      }),
+    ]);
+    expect(processing.updatedAt).toBe("2026-06-26T08:03:00.000Z");
+  });
+
+  it("promotes a matching queued follow-up when the runtime emits the user message", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const queued = applySessionProjectionEvent(base, {
+      type: "queued-message-added",
+      queuedMessage: {
+        id: "queued-1",
+        piSessionId: "pi-session-active",
+        body: "Then refresh the browser screenshot.",
+        status: "pending",
+        createdAt: "2026-06-26T08:02:00.000Z",
+      },
+    });
+    const processing = applySessionProjectionEvent(queued, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-event-follow-up",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Then refresh the browser screenshot.",
+        timestamp: "2026-06-26T08:03:00.000Z",
+      },
+    });
+
+    expect(processing.queuedMessages).toEqual([
+      expect.objectContaining({
+        id: "queued-1",
+        status: "processing",
+        processingStartedAt: "2026-06-26T08:03:00.000Z",
+      }),
+    ]);
+    expect(processing.runtimeEvents).toEqual([
+      expect.objectContaining({
+        id: "runtime-event-follow-up",
+        role: "user",
+        body: "Then refresh the browser screenshot.",
+      }),
+    ]);
+  });
+
+  it("records steer control events in the active Live Chat stream", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const steered = applySessionProjectionEvent(base, {
+      type: "steer-submitted",
+      event: {
+        id: "steer-event-1",
+        piSessionId: "pi-session-active",
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: "Stay focused on the queue behavior.",
+        timestamp: "2026-06-26T08:04:00.000Z",
+      },
+    });
+
+    expect(steered).toMatchObject({
+      status: "running",
+      unreadResult: false,
+      updatedAt: "2026-06-26T08:04:00.000Z",
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "control",
+          title: "Steer",
+          body: "Stay focused on the queue behavior.",
+        }),
+      ],
+    });
+    expect(steered.queuedMessages).toEqual([]);
+  });
+
+  it("records stopped runs as completed and archiveable", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const stopped = applySessionProjectionEvent(base, {
+      type: "run-stopped",
+      event: {
+        id: "stop-event-1",
+        piSessionId: "pi-session-active",
+        kind: "status",
+        title: "Stopped",
+        body: "Pi stopped the active run.",
+        timestamp: "2026-06-26T08:05:00.000Z",
+      },
+    });
+
+    expect(stopped).toMatchObject({
+      status: "completed",
+      unreadResult: true,
+      updatedAt: "2026-06-26T08:05:00.000Z",
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "status",
+          title: "Stopped",
+        }),
+      ],
+    });
+    expect(canArchiveSessionProjection(stopped)).toBe(true);
+  });
+
+  it("records stop failures without ending the active run", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const failedStop = applySessionProjectionEvent(base, {
+      type: "run-stop-failed",
+      event: {
+        id: "stop-failed-event-1",
+        piSessionId: "pi-session-active",
+        kind: "error",
+        title: "Stop failed",
+        body: "Pi rejected the stop request.",
+        timestamp: "2026-06-26T08:05:00.000Z",
+      },
+    });
+
+    expect(failedStop).toMatchObject({
+      status: "running",
+      unreadResult: false,
+      updatedAt: "2026-06-26T08:05:00.000Z",
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "error",
+          title: "Stop failed",
+        }),
+      ],
+    });
+    expect(canArchiveSessionProjection(failedStop)).toBe(false);
+  });
+
   it("prevents active archive and keeps archived sessions available to history queries", () => {
     const active = projection({
       id: "active-run",

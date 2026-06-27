@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { useState } from "react";
 import {
   Outlet,
   RouterProvider,
@@ -15,12 +16,15 @@ import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
   SessionActionsContent,
+  SessionToolbarActions,
 } from "./agent-workspace";
-import { createFakePiRuntimeBridge } from "./pi-runtime-bridge";
+import { PiRuntimeBridgeError, createFakePiRuntimeBridge } from "./pi-runtime-bridge";
+import { createExecutionCheckoutManager } from "./execution-checkout";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
 } from "./session-creation";
+import { applySessionProjectionEvent, createSessionProjection } from "./session-projection";
 import { getSessionDraft, saveSessionDraft } from "./session-drafts";
 
 function renderProjectSessions(path = "/projects/pig/sessions") {
@@ -100,8 +104,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelector('[data-slot="prompt-input-textarea"]')).toBeInTheDocument();
     expect(liveColumn.querySelector('[data-slot="prompt-input-send"]')).toBeInTheDocument();
     expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+    expect(within(liveColumn).getByRole("button", { name: "Steer" })).toBeInTheDocument();
     expect(within(liveColumn).getByRole("button", { name: "Send" })).toBeInTheDocument();
-    expect(within(liveColumn).getByText("AI can make mistakes. Check important info.")).toBeInTheDocument();
+    expect(
+      within(liveColumn).getByText("Queue is the default while Pi is running."),
+    ).toBeInTheDocument();
+    expect(within(navbarActions).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Session actions" })).not.toBeInTheDocument();
 
     await user.click(sessionActionsButton);
@@ -119,16 +127,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(actionDialog).getByText("$0.042137")).toBeInTheDocument();
   });
 
-  it("does not expose deferred terminal, file tree, or runtime control placeholders", async () => {
+  it("does not expose deferred terminal, file tree, or abort placeholders", async () => {
     renderProjectSessions();
 
     const sessionsView = await screen.findByTestId("project-sessions-view");
 
     expect(within(sessionsView).queryByText(/terminal/i)).not.toBeInTheDocument();
     expect(within(sessionsView).queryByText(/file tree|file explorer/i)).not.toBeInTheDocument();
-    expect(
-      within(sessionsView).queryByRole("button", { name: /queue|steer|stop/i }),
-    ).not.toBeInTheDocument();
+    expect(within(sessionsView).queryByText("Abort")).not.toBeInTheDocument();
   });
 
   it("disables archive for the selected active run in the action surface", async () => {
@@ -172,6 +178,143 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       within(actionDialog).queryByText("Active runs cannot be archived."),
     ).not.toBeInTheDocument();
+  });
+
+  it("stops the selected active run from the toolbar and unlocks archive", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    expect(await screen.findByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(screen.queryByText("Abort")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(await within(liveChat).findByText("Stopped")).toBeInTheDocument();
+    expect(within(liveChat).getByText("Pi stopped the active run.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Session actions" }));
+
+    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+
+    expect(within(actionDialog).getByRole("button", { name: "Archive Session" })).toBeEnabled();
+    expect(
+      within(actionDialog).queryByText("Active runs cannot be archived."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows toolbar Stop results in Live Chat for a draft-created Session", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    await user.click(await screen.findByRole("button", { name: "New Session for Pig" }));
+    fireEvent.change(await screen.findByPlaceholderText("Describe the first Pi prompt"), {
+      target: { value: "Create a draft-backed active Session" },
+    });
+    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    expect(
+      await screen.findByText("Queue is the default while Pi is running."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(await within(liveChat).findByText("Stopped")).toBeInTheDocument();
+    expect(within(liveChat).getByText("Pi stopped the active run.")).toBeInTheDocument();
+  });
+
+  it("records stop failure in Live Chat without unlocking active archive", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      failAt: "stop-run",
+      failureMessage: "Pi rejected the stop request.",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "active-session",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "gpt-5-codex",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    function StopFailureHarness() {
+      const [currentProjection, setCurrentProjection] = useState(projection);
+
+      return (
+        <>
+          <SessionToolbarActions
+            workspace={workspace}
+            projection={currentProjection}
+            runtimeBridge={bridge}
+            onProjectionChange={setCurrentProjection}
+          />
+          <AgentWorkspaceSessionsView
+            projectId="pig-docs"
+            runtimeBridge={bridge}
+            sessionProjection={currentProjection}
+            workspace={workspace}
+            onProjectionChange={setCurrentProjection}
+          />
+        </>
+      );
+    }
+
+    render(<StopFailureHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(await within(liveChat).findByText("Stop failed")).toBeInTheDocument();
+    expect(within(liveChat).getByText("Pi rejected the stop request.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
   });
 
   it("clears unread results after the selected Session content is rendered", async () => {
@@ -266,6 +409,373 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       within(liveChat).getByText("Run failed. The runtime stream disconnected."),
     ).toBeInTheDocument();
+  });
+
+  it("queues default active-run input in a pending area without adding it to Live Chat", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      now: () => "2026-06-26T08:10:00.000Z",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-active",
+      runtimeId: "runtime-active",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "After this, update the queue tests.",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    expect(within(pendingQueue).getByText("Queued")).toBeInTheDocument();
+    expect(
+      within(pendingQueue).getByText("After this, update the queue tests."),
+    ).toBeInTheDocument();
+    expect(within(liveChat).getAllByText("Keep working on the live run")).toHaveLength(1);
+    expect(
+      within(liveChat).queryByText("After this, update the queue tests."),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(pendingQueue).getByRole("button", { name: "Withdraw queued message" }));
+
+    expect(await within(pendingQueue).findByText("Withdrawn")).toBeInTheDocument();
+  });
+
+  it("submits ordinary prompts to an idle Session instead of queuing them", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      now: () => "2026-06-26T08:12:00.000Z",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "waiting-session",
+        projectId: "pig-docs",
+        initialPrompt: "Review the first result",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-waiting",
+        piSessionId: "pi-session-waiting",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-state-resynced",
+      state: {
+        piSessionId: "pi-session-waiting",
+        runtimeId: "runtime-waiting",
+        projectId: "pig-docs",
+        cwd: "/Users/void/code/opensource/Pig/docs",
+        status: "idle",
+        events: [
+          {
+            id: "runtime-event-initial",
+            piSessionId: "pi-session-waiting",
+            kind: "message",
+            role: "user",
+            body: "Review the first result",
+            timestamp: "2026-06-26T08:00:02.000Z",
+          },
+          {
+            id: "runtime-event-assistant",
+            piSessionId: "pi-session-waiting",
+            kind: "message",
+            role: "assistant",
+            body: "The first result is ready.",
+            timestamp: "2026-06-26T08:00:03.000Z",
+          },
+        ],
+        updatedAt: "2026-06-26T08:00:03.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-waiting",
+      runtimeId: "runtime-waiting",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "idle",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "waiting-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Steer" })).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Continue from the idle Session",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(
+      await within(liveChat).findByText("Continue from the idle Session"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("queued-message-list")).not.toBeInTheDocument();
+  });
+
+  it("steers an active run as a Live Chat control event instead of a queued message", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge({
+      now: () => "2026-06-26T08:10:00.000Z",
+    });
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-active",
+      runtimeId: "runtime-active",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(screen.getByRole("button", { name: "Steer" })).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Avoid changing the archive model.",
+    );
+    await user.click(screen.getByRole("button", { name: "Steer" }));
+
+    expect(await within(liveChat).findByText("Steer")).toBeInTheDocument();
+    expect(
+      within(liveChat).getByText("Avoid changing the archive model."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("queued-message-list")).not.toBeInTheDocument();
+  });
+
+  it("keeps steer text editable and shows a recoverable error when steer fails", async () => {
+    const user = userEvent.setup();
+    const bridge = createFakePiRuntimeBridge();
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep working on the live run",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep working on the live run",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-active",
+      runtimeId: "runtime-active",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+    bridge.steerRun = vi.fn().mockRejectedValue(
+      new PiRuntimeBridgeError({
+        stage: "steering run",
+        message: "Pi rejected steer input.",
+      }),
+    );
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("What do you want to know?");
+
+    await user.type(input, "Keep this steer text");
+    await user.click(screen.getByRole("button", { name: "Steer" }));
+
+    expect(await screen.findByText("Pi rejected steer input.")).toBeInTheDocument();
+    expect(input).toHaveValue("Keep this steer text");
   });
 
   it("opens a Project-scoped Session Draft from New Session without adding a session row", async () => {
@@ -385,6 +895,157 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByLabelText("Live Chat messages")).toBeInTheDocument();
   });
 
+  it("queues follow-up input after creating a default active Session", async () => {
+    const user = userEvent.setup();
+
+    saveSessionDraft("pig-docs", "Start an active browser-backed Session");
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        showDraft
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "session-docs-review",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    expect(
+      await screen.findByText("Queue is the default while Pi is running."),
+    ).toBeInTheDocument();
+
+    const liveColumn = screen.getByTestId("live-session-column");
+
+    await user.type(
+      within(liveColumn).getByPlaceholderText("What do you want to know?"),
+      "Queue this follow-up after creation",
+    );
+    await user.click(within(liveColumn).getByRole("button", { name: "Send" }));
+
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    expect(within(pendingQueue).getByText("Queued")).toBeInTheDocument();
+    expect(
+      within(pendingQueue).getByText("Queue this follow-up after creation"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Live Chat messages")).queryByText(
+        "Queue this follow-up after creation",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("uses a managed checkout for default background Session creation when another Session is active", async () => {
+    const user = userEvent.setup();
+    const projections: Array<ReturnType<typeof createSessionProjection>> = [];
+    const createdWorktrees: string[] = [];
+    const checkoutManager = createExecutionCheckoutManager({
+      worktreesRoot: "/tmp/pig-worktrees",
+      gitClient: {
+        async isGitRepository() {
+          return true;
+        },
+        async addDetachedWorktree({ checkoutRoot }) {
+          createdWorktrees.push(checkoutRoot);
+        },
+      },
+    });
+    let activeProjection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep the existing Session active",
+        createdAt: "2026-06-27T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-27T08:00:01.000Z",
+      },
+    );
+
+    activeProjection = applySessionProjectionEvent(activeProjection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep the existing Session active",
+        timestamp: "2026-06-27T08:00:02.000Z",
+      },
+    });
+    saveSessionDraft("pig-docs", "Run in an isolated background checkout");
+    render(
+      <AgentWorkspaceSessionsView
+        checkoutManager={checkoutManager}
+        projectId="pig-docs"
+        showDraft
+        sessionProjection={activeProjection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+        onProjectionChange={(projection) => {
+          projections.push(projection);
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+
+    const createdProjection = await waitFor(() => {
+      const latest = projections[projections.length - 1];
+
+      expect(latest?.initialPrompt).toBe("Run in an isolated background checkout");
+      expect(latest?.checkout?.mode).toBe("managed-worktree");
+
+      return latest;
+    });
+
+    expect(createdProjection?.checkout?.executionCheckoutRoot).toMatch(
+      /^\/tmp\/pig-worktrees\/session-/,
+    );
+    expect(createdProjection?.checkout?.runtimeCwd).toBe(
+      `${createdProjection?.checkout?.executionCheckoutRoot}/packages/web`,
+    );
+    expect(createdWorktrees).toHaveLength(1);
+  });
+
   it("keeps draft text visible and shows failure detail when Session Creation fails", async () => {
     const user = userEvent.setup();
     const projections = createInMemorySessionProjectionStore();
@@ -498,6 +1159,7 @@ describe("AgentWorkspaceSessionsPage", () => {
           timestamp: "2026-06-26T08:00:05.000Z",
         },
       ],
+      queuedMessages: [],
       summary: {
         provider: "openai",
         model: "gpt-5-codex",
@@ -535,5 +1197,74 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("openai")).toBeInTheDocument();
     expect(screen.getByText("$0.012345")).toBeInTheDocument();
     expect(screen.getByText("1.3K")).toBeInTheDocument();
+  });
+
+  it("shows managed checkout root and runtime cwd while keeping advanced checkout details collapsed", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-background",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
+      },
+      summary: {
+        model: "gpt-5-codex",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "session-background",
+        projectId: "pig-docs",
+        initialPrompt: "Run in the isolated checkout",
+        createdAt: "2026-06-27T08:00:00.000Z",
+      }),
+      {
+        type: "checkout-selected",
+        stage: "preparing checkout",
+        checkout: {
+          mode: "managed-worktree",
+          root: "/tmp/pig-worktrees/session-background",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+          projectRelativePath: "packages/web",
+          executionCheckoutRoot: "/tmp/pig-worktrees/session-background",
+          diffRoot: "/tmp/pig-worktrees/session-background",
+          runtimeCwd: "/tmp/pig-worktrees/session-background/packages/web",
+          sessionBound: true,
+          disposable: true,
+          cleanupCandidate: false,
+          permanent: false,
+          createdAt: "2026-06-27T08:00:00.000Z",
+        },
+        occurredAt: "2026-06-27T08:00:00.000Z",
+      },
+    );
+
+    render(<SessionActionsContent workspace={workspace} projection={projection} />);
+
+    expect(screen.getByText("Pig-managed worktree")).toBeInTheDocument();
+    expect(screen.getByText("/tmp/pig-worktrees/session-background")).toBeInTheDocument();
+    expect(
+      screen.getByText("/tmp/pig-worktrees/session-background/packages/web"),
+    ).toBeInTheDocument();
+    const advancedDetails = screen
+      .getByText("Advanced checkout details")
+      .closest("details");
+
+    expect(advancedDetails).not.toBeNull();
+    expect(advancedDetails).not.toHaveAttribute("open");
+    expect(
+      within(advancedDetails as HTMLElement).getByText(
+        "/Users/void/code/opensource/Pig/packages/web",
+      ),
+    ).not.toBeVisible();
   });
 });

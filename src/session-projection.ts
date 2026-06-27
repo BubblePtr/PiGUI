@@ -1,5 +1,6 @@
 import type {
   ExecutionCheckout,
+  PiQueuedMessage,
   PiRuntimeEvent,
   PiRuntimeSummary,
   PiSessionState,
@@ -34,6 +35,7 @@ export type SessionProjection = {
   runtimeId: string | null;
   piSessionId: string | null;
   runtimeEvents: PiRuntimeEvent[];
+  queuedMessages: PiQueuedMessage[];
   summary: PiRuntimeSummary;
   stale: boolean;
   staleReason: string | null;
@@ -82,6 +84,32 @@ export type SessionProjectionEvent =
     }
   | {
       type: "run-failed";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "queued-message-added";
+      queuedMessage: PiQueuedMessage;
+    }
+  | {
+      type: "queued-message-withdrawn";
+      queuedMessageId: string;
+      occurredAt: string;
+    }
+  | {
+      type: "queued-message-processing-started";
+      queuedMessageId: string;
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "steer-submitted";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "run-stopped";
+      event: PiRuntimeEvent;
+    }
+  | {
+      type: "run-stop-failed";
       event: PiRuntimeEvent;
     }
   | {
@@ -135,6 +163,7 @@ export function createSessionProjection(
     runtimeId: null,
     piSessionId: null,
     runtimeEvents: [],
+    queuedMessages: [],
     summary: {
       provider: null,
       model: null,
@@ -247,6 +276,43 @@ function unreadResultFromRuntimeEvent(
   return event.role === "assistant" ? true : projection.unreadResult;
 }
 
+function queuedMessageProcessingIndex(
+  projection: SessionProjection,
+  event: PiRuntimeEvent,
+) {
+  if (event.kind !== "message" || event.role !== "user") {
+    return -1;
+  }
+
+  return projection.queuedMessages.findIndex(
+    (queuedMessage) =>
+      queuedMessage.status === "pending" &&
+      queuedMessage.piSessionId === event.piSessionId &&
+      queuedMessage.body === event.body,
+  );
+}
+
+function queuedMessagesAfterRuntimeEvent(
+  projection: SessionProjection,
+  event: PiRuntimeEvent,
+) {
+  const processingIndex = queuedMessageProcessingIndex(projection, event);
+
+  if (processingIndex === -1) {
+    return projection.queuedMessages;
+  }
+
+  return projection.queuedMessages.map((queuedMessage, index) =>
+    index === processingIndex
+      ? {
+          ...queuedMessage,
+          status: "processing" as const,
+          processingStartedAt: event.timestamp,
+        }
+      : queuedMessage,
+  );
+}
+
 export function applySessionProjectionEvent(
   projection: SessionProjection,
   event: SessionProjectionEvent,
@@ -285,6 +351,7 @@ export function applySessionProjectionEvent(
               : "running",
         creationStage: event.stage ?? projection.creationStage,
         runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        queuedMessages: queuedMessagesAfterRuntimeEvent(projection, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
@@ -305,6 +372,77 @@ export function applySessionProjectionEvent(
         runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
+        updatedAt: event.event.timestamp,
+      };
+    case "queued-message-added":
+      return {
+        ...projection,
+        queuedMessages: [
+          ...projection.queuedMessages,
+          { ...event.queuedMessage },
+        ],
+        updatedAt: event.queuedMessage.createdAt,
+      };
+    case "queued-message-withdrawn":
+      return {
+        ...projection,
+        queuedMessages: projection.queuedMessages.map((queuedMessage) => {
+          if (queuedMessage.id !== event.queuedMessageId) {
+            return queuedMessage;
+          }
+
+          if (queuedMessage.status !== "pending") {
+            throw new Error("Queued message can no longer be withdrawn.");
+          }
+
+          return {
+            ...queuedMessage,
+            status: "withdrawn",
+            withdrawnAt: event.occurredAt,
+          };
+        }),
+        updatedAt: event.occurredAt,
+      };
+    case "queued-message-processing-started":
+      return {
+        ...projection,
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        queuedMessages: projection.queuedMessages.map((queuedMessage) =>
+          queuedMessage.id === event.queuedMessageId
+            ? {
+                ...queuedMessage,
+                status: "processing",
+                processingStartedAt: event.event.timestamp,
+              }
+            : queuedMessage,
+        ),
+        updatedAt: event.event.timestamp,
+      };
+    case "steer-submitted":
+      return {
+        ...projection,
+        status: "running",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
+        updatedAt: event.event.timestamp,
+      };
+    case "run-stopped":
+      return {
+        ...projection,
+        status: "completed",
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: true,
+        updatedAt: event.event.timestamp,
+      };
+    case "run-stop-failed":
+      return {
+        ...projection,
+        status: projection.status,
+        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        summary: mergeRuntimeSummary(projection.summary, event.event.summary),
+        unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
       };
     case "latest-message-rendered":

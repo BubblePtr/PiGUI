@@ -1,4 +1,5 @@
 pub mod config;
+pub mod execution_checkout;
 pub mod pi_rpc;
 pub mod sessions;
 
@@ -47,6 +48,8 @@ pub fn run() {
             list_sessions,
             get_session_detail,
             get_config_inventory,
+            execution_checkout::is_git_repository,
+            execution_checkout::add_detached_worktree,
             pi_rpc::start_pi_rpc_runtime,
             pi_rpc::send_pi_rpc_command,
             pi_rpc::stop_pi_rpc_runtime
