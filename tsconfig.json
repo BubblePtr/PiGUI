@@ -17,9 +17,9 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@pig/core": ["packages/core/src/index.ts"],
-      "@pig/core/testing": ["packages/core/src/testing.ts"],
-      "@pig/backend": ["packages/backend/src/index.ts"],
+      "@pigui/core": ["packages/core/src/index.ts"],
+      "@pigui/core/testing": ["packages/core/src/testing.ts"],
+      "@pigui/backend": ["packages/backend/src/index.ts"],
       "@/*": ["apps/desktop/src/*"]
     }
   },

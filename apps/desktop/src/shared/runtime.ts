@@ -1,5 +1,5 @@
 import browserSessionSummaries from "@/fixtures/browser-session-summaries.json";
-import type { BackendRpcEvent } from "@pig/backend";
+import type { BackendRpcEvent } from "@pigui/backend";
 import type { SessionDetail } from "@/pages/session-detail";
 import type { SessionSummary } from "@/entities/session/sessions";
 

@@ -2,7 +2,7 @@
 // through a PiRpcTransport. The composition root (pi-runtime-factory.ts) selects
 // this adapter when running in Electron.
 
-import type { PiRpcRawEvent, PiRpcResponse, PiRpcTransport } from "@pig/core";
+import type { PiRpcRawEvent, PiRpcResponse, PiRpcTransport } from "@pigui/core";
 import {
   PiRuntimeBridgeError,
   cloneSessionState,

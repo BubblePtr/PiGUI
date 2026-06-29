@@ -1,5 +1,5 @@
 import type { MessagePortMain } from "electron";
-import { createBackendService } from "@pig/backend";
+import { createBackendService } from "@pigui/backend";
 
 const { parentPort } = process;
 const service = createBackendService();

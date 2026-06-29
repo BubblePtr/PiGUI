@@ -1,4 +1,4 @@
-import type { BackendRpcEvent } from "@pig/backend";
+import type { BackendRpcEvent } from "@pigui/backend";
 import type {
   PiRpcCommand,
   PiRpcRawEvent,

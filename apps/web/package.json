@@ -1,12 +1,12 @@
 {
-  "name": "@pig/web",
+  "name": "@pigui/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"@pig/web is a planned thin client (browser → remote @pig/server). Not yet implemented.\""
+    "build": "echo \"@pigui/web is a planned thin client (browser → remote @pigui/server). Not yet implemented.\""
   },
   "dependencies": {
-    "@pig/core": "workspace:*"
+    "@pigui/core": "workspace:*"
   }
 }

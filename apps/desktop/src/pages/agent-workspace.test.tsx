@@ -1286,7 +1286,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     render(<SessionActionsContent workspace={workspace} projection={projection} />);
 
-    expect(screen.getByText("Pig-managed worktree")).toBeInTheDocument();
+    expect(screen.getByText("PiGUI-managed worktree")).toBeInTheDocument();
     expect(screen.getByText("/tmp/pig-worktrees/session-background")).toBeInTheDocument();
     expect(
       screen.getByText("/tmp/pig-worktrees/session-background/packages/web"),

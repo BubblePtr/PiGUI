@@ -55,6 +55,6 @@ describe("Electron shell", () => {
 
     expect(main).toContain("backendPort = null");
     expect(main).toContain("backendPort?.close()");
-    expect(main).toContain("Pig backend utility process is not connected.");
+    expect(main).toContain("PiGUI backend utility process is not connected.");
   });
 });

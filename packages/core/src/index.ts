@@ -1,4 +1,4 @@
-// @pig/core — shared kernel: the contracts crossing the renderer ↔ utilityProcess
+// @pigui/core — shared kernel: the contracts crossing the renderer ↔ utilityProcess
 // seam. The barrel is the only public surface; do not deep-import core internals.
 // See docs/adr/0014-shared-kernel-core.md.
 

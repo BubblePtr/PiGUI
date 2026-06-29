@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createNodePiRpcProcess } from "./pi-rpc";
-import type { PiRpcRawEvent } from "@pig/core";
+import type { PiRpcRawEvent } from "@pigui/core";
 
 async function writePiFixtureScript() {
   const dir = await mkdtemp(join(tmpdir(), "pig-pi-rpc-"));

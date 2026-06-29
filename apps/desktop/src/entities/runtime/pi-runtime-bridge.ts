@@ -2,7 +2,7 @@
 // Pi through. Two adapters implement it: the RPC-backed bridge
 // (pi-rpc-runtime-bridge.ts, Electron) and the in-memory bridge
 // (in-memory-pi-runtime-bridge.ts, non-Electron fallback + tests). See ADR-0014
-// for the @pig/core protocol seam these adapters share.
+// for the @pigui/core protocol seam these adapters share.
 
 export type {
   PiRpcCommand,
@@ -10,7 +10,7 @@ export type {
   PiRpcRawEvent,
   PiRpcTransportStartInput,
   PiRpcTransport,
-} from "@pig/core";
+} from "@pigui/core";
 
 export type ExecutionCheckout = {
   mode: "foreground-local" | "managed-worktree";

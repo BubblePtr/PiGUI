@@ -8,9 +8,9 @@ export default defineConfig({
   clearScreen: false,
   resolve: {
     alias: {
-      "@pig/core/testing": resolve(__dirname, "packages/core/src/testing.ts"),
-      "@pig/core": resolve(__dirname, "packages/core/src/index.ts"),
-      "@pig/backend": resolve(__dirname, "packages/backend/src/index.ts"),
+      "@pigui/core/testing": resolve(__dirname, "packages/core/src/testing.ts"),
+      "@pigui/core": resolve(__dirname, "packages/core/src/index.ts"),
+      "@pigui/backend": resolve(__dirname, "packages/backend/src/index.ts"),
       "@": resolve(__dirname, "apps/desktop/src"),
     },
   },

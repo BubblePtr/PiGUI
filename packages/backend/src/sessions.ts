@@ -9,7 +9,7 @@ import type {
   NamedCount,
   SessionSummary,
   Title,
-} from "@pig/core";
+} from "@pigui/core";
 
 const maxTextTitleChars = 96;
 const maxCommandArgsChars = 80;

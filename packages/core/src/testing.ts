@@ -1,6 +1,6 @@
 // Test-only PiRpcTransport double — feeds scripted responses and emits raw
 // events so the RPC adapter and backend service can be tested without a real
-// `pi` process. Exposed via the `@pig/core/testing` subpath.
+// `pi` process. Exposed via the `@pigui/core/testing` subpath.
 
 import type {
   PiRpcCommand,

@@ -63,37 +63,37 @@
       },
     },
     "apps/desktop": {
-      "name": "@pig/desktop",
+      "name": "@pigui/desktop",
       "version": "0.1.0",
       "dependencies": {
-        "@pig/backend": "workspace:*",
-        "@pig/core": "workspace:*",
+        "@pigui/backend": "workspace:*",
+        "@pigui/core": "workspace:*",
       },
     },
     "apps/server": {
-      "name": "@pig/server",
+      "name": "@pigui/server",
       "version": "0.1.0",
       "dependencies": {
-        "@pig/backend": "workspace:*",
-        "@pig/core": "workspace:*",
+        "@pigui/backend": "workspace:*",
+        "@pigui/core": "workspace:*",
       },
     },
     "apps/web": {
-      "name": "@pig/web",
+      "name": "@pigui/web",
       "version": "0.1.0",
       "dependencies": {
-        "@pig/core": "workspace:*",
+        "@pigui/core": "workspace:*",
       },
     },
     "packages/backend": {
-      "name": "@pig/backend",
+      "name": "@pigui/backend",
       "version": "0.1.0",
       "dependencies": {
-        "@pig/core": "workspace:*",
+        "@pigui/core": "workspace:*",
       },
     },
     "packages/core": {
-      "name": "@pig/core",
+      "name": "@pigui/core",
       "version": "0.1.0",
     },
   },
@@ -368,15 +368,15 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.133.0", "", {}, "sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA=="],
 
-    "@pig/backend": ["@pig/backend@workspace:packages/backend"],
+    "@pigui/backend": ["@pigui/backend@workspace:packages/backend"],
 
-    "@pig/core": ["@pig/core@workspace:packages/core"],
+    "@pigui/core": ["@pigui/core@workspace:packages/core"],
 
-    "@pig/desktop": ["@pig/desktop@workspace:apps/desktop"],
+    "@pigui/desktop": ["@pigui/desktop@workspace:apps/desktop"],
 
-    "@pig/server": ["@pig/server@workspace:apps/server"],
+    "@pigui/server": ["@pigui/server@workspace:apps/server"],
 
-    "@pig/web": ["@pig/web@workspace:apps/web"],
+    "@pigui/web": ["@pigui/web@workspace:apps/web"],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 

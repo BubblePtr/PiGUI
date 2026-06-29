@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ConfigInventory, ExtensionInfo, SkillInfo } from "@pig/core";
+import type { ConfigInventory, ExtensionInfo, SkillInfo } from "@pigui/core";
 
 type JsonRecord = Record<string, unknown>;
 

@@ -8,9 +8,9 @@ import { AppFrame } from "@/app/app-shell";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import { invoke } from "@/shared/runtime";
 
-import type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pig/core";
+import type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pigui/core";
 
-export type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pig/core";
+export type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pigui/core";
 
 type SetupCategory = "models" | "packages" | "extensions" | "skills" | "templates";
 

@@ -4,7 +4,7 @@ import type {
   PiRpcRawEvent,
   PiRpcTransport,
   PiRpcTransportStartInput,
-} from "@pig/core";
+} from "@pigui/core";
 import { buildConfigInventory } from "./config";
 import { createNodeExecutionCheckoutGitClient } from "./execution-checkout";
 import { createNodePiRpcProcess } from "./pi-rpc";

@@ -1,7 +1,7 @@
 import { invoke } from "@/shared/runtime";
-import type { SessionSummary } from "@pig/core";
+import type { SessionSummary } from "@pigui/core";
 
-export type { SessionSummary, ModelUsage, NamedCount, Title } from "@pig/core";
+export type { SessionSummary, ModelUsage, NamedCount, Title } from "@pigui/core";
 
 export async function listSessions() {
   return invoke<SessionSummary[]>("list_sessions");

@@ -7,7 +7,7 @@ import {
   utilityProcess,
 } from "electron";
 import { join } from "node:path";
-import type { BackendRpcEvent, BackendRpcResponse } from "@pig/backend";
+import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -35,7 +35,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 960,
     height: 720,
-    title: "Pig",
+    title: "PiGUI",
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 13 },
     webPreferences: {
@@ -90,7 +90,7 @@ function createBackendBridge() {
   });
   backendPort.start();
   backend.on("exit", (code) => {
-    const error = new Error(`Pig backend utility process exited with code ${code}.`);
+    const error = new Error(`PiGUI backend utility process exited with code ${code}.`);
 
     backendPort?.close();
     backendPort = null;
@@ -110,7 +110,7 @@ function createBackendBridge() {
 
 function invokeBackend(command: string, args?: Record<string, unknown>) {
   if (!backendPort) {
-    return Promise.reject(new Error("Pig backend utility process is not connected."));
+    return Promise.reject(new Error("PiGUI backend utility process is not connected."));
   }
 
   backendRequestCounter += 1;

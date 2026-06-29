@@ -115,7 +115,7 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     {
       id: "timeline-read-context",
       title: "Project context loaded",
-      meta: "Pig workspace and recent session evidence",
+      meta: "PiGUI workspace and recent session evidence",
     },
     {
       id: "timeline-render-shell",
@@ -537,7 +537,7 @@ function checkoutModeLabel(mode: string) {
   }
 
   if (mode === "managed-worktree") {
-    return "Pig-managed worktree";
+    return "PiGUI-managed worktree";
   }
 
   return mode;

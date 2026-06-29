@@ -6,7 +6,7 @@ import {
   createElectronPiRpcTransport,
   type ElectronPiRpcTransportOptions,
 } from "@/shared/pi-rpc-transport";
-import type { BackendRpcEvent } from "@pig/backend";
+import type { BackendRpcEvent } from "@pigui/backend";
 
 describe("Pi RPC Electron transport", () => {
   it("delegates runtime commands through invoke and forwards backend Pi RPC events", async () => {

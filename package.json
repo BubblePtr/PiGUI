@@ -1,5 +1,5 @@
 {
-  "name": "pig",
+  "name": "pigui",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,11 +8,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun --filter @pig/desktop dev",
+    "dev": "bun --filter @pigui/desktop dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit && bun --filter @pig/desktop build",
-    "preview": "bun --filter @pig/desktop preview"
+    "build": "tsc --noEmit && bun --filter @pigui/desktop build",
+    "preview": "bun --filter @pigui/desktop preview"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.0",

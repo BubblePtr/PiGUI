@@ -1,10 +1,10 @@
-# Pig
+# PiGUI
 
 > A GUI control plane for [Pi Agent](https://pi.dev) — making the CLI's runtime no longer a black box.
 
-Pig is a desktop control plane for the Pi coding agent: it creates, starts, observes, and manages Pi agent workspaces, and replays each session as a legible timeline with cost and token truth. Pi remains the only runtime and owns session truth — Pig drives it as an **isolated subprocess** over a transport-agnostic RPC protocol, never embedding the agent in-process. The dashboard must never be able to stall the engine.
+PiGUI is a desktop control plane for the Pi coding agent: it creates, starts, observes, and manages Pi agent workspaces, and replays each session as a legible timeline with cost and token truth. Pi remains the only runtime and owns session truth — PiGUI drives it as an **isolated subprocess** over a transport-agnostic RPC protocol, never embedding the agent in-process. The dashboard must never be able to stall the engine.
 
-After a session, Pig lets you answer — in seconds — the three questions the terminal hides:
+After a session, PiGUI lets you answer — in seconds — the three questions the terminal hides:
 
 - **How much did this cost?**
 - **Which step was expensive?**
@@ -22,7 +22,7 @@ The product began as a passive session-replay tool and has since evolved into an
 
 ## Scope
 
-Pig organizes Pi's runtime into a desktop control plane: create and drive **Sessions** under a **Project**, replay each **Session Trace** as a legible timeline with cost and token truth, and view cross-session **usage** and **config**. An embedded browser with DOM annotation is planned (the load-bearing reason for the Electron shell). A full terminal emulator and file tree are deliberately deferred.
+PiGUI organizes Pi's runtime into a desktop control plane: create and drive **Sessions** under a **Project**, replay each **Session Trace** as a legible timeline with cost and token truth, and view cross-session **usage** and **config**. An embedded browser with DOM annotation is planned (the load-bearing reason for the Electron shell). A full terminal emulator and file tree are deliberately deferred.
 
 ## Planned stack
 
@@ -32,7 +32,7 @@ Pig organizes Pi's runtime into a desktop control plane: create and drive **Sess
 
 ## Architecture principle
 
-**The dashboard must never stall the engine.** Pi owns session truth and runs as an isolated subprocess; Pig observes and steers it over a single transport-agnostic RPC protocol. The backend lives in a `utilityProcess` so a runtime crash never freezes the window — and so the same backend can later be relocated behind a remote transport without touching business code.
+**The dashboard must never stall the engine.** Pi owns session truth and runs as an isolated subprocess; PiGUI observes and steers it over a single transport-agnostic RPC protocol. The backend lives in a `utilityProcess` so a runtime crash never freezes the window — and so the same backend can later be relocated behind a remote transport without touching business code.
 
 ---
 

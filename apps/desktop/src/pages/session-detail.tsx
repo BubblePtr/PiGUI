@@ -23,7 +23,7 @@ import type {
   CostBreakdown,
   SessionTurn,
   SessionDetail,
-} from "@pig/core";
+} from "@pigui/core";
 
 export type {
   SessionContentPart,
@@ -31,7 +31,7 @@ export type {
   CostBreakdown,
   SessionTurn,
   SessionDetail,
-} from "@pig/core";
+} from "@pigui/core";
 
 const thinkingPreviewLines = 6;
 const thinkingPreviewChars = 1200;

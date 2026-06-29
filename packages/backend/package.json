@@ -1,5 +1,5 @@
 {
-  "name": "@pig/backend",
+  "name": "@pigui/backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,6 +7,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@pig/core": "workspace:*"
+    "@pigui/core": "workspace:*"
   }
 }
