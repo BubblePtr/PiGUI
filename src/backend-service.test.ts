@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createBackendService } from "./backend/service";
-import { createFakePiRpcTransport } from "./pi-runtime-bridge";
+import { createFakePiRpcTransport } from "./pi-rpc-transport.fakes";
 
 function fixtureAgentDir() {
   return join(process.cwd(), "fixtures/pi-agent");

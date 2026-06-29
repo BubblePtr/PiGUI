@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  PiRuntimeBridgeError,
-  createFakePiRuntimeBridge,
-  createFakePiRpcTransport,
-  createPiRpcRuntimeBridge,
-} from "./pi-runtime-bridge";
+import { PiRuntimeBridgeError } from "./pi-runtime-bridge";
+import { createInMemoryPiRuntimeBridge } from "./in-memory-pi-runtime-bridge";
+import { createPiRpcRuntimeBridge } from "./pi-rpc-runtime-bridge";
+import { createFakePiRpcTransport } from "./pi-rpc-transport.fakes";
 
 describe("Pi Runtime Bridge contract", () => {
   it("sends the initial prompt through Pi RPC and streams normalized runtime events", async () => {
@@ -202,7 +200,7 @@ describe("Pi Runtime Bridge contract", () => {
   });
 
   it("withdraws pending queued follow-up prompts before processing starts", async () => {
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       now: () => "2026-06-26T08:00:00.000Z",
     });
     const runtime = await bridge.startRuntime({
@@ -345,7 +343,7 @@ describe("Pi Runtime Bridge contract", () => {
   });
 
   it("creates Pi Session State and emits the first runtime event after accepting the initial prompt", async () => {
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       now: () => "2026-06-26T08:00:00.000Z",
     });
     const runtime = await bridge.startRuntime({
@@ -397,7 +395,7 @@ describe("Pi Runtime Bridge contract", () => {
   });
 
   it("reports fake bridge failures with the runtime stage and error detail", async () => {
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       failAt: "send-initial-prompt",
       failureMessage: "Pi rejected the initial prompt",
     });
@@ -435,7 +433,7 @@ describe("Pi Runtime Bridge contract", () => {
   });
 
   it("restores fake Pi Session State so projections can resync from runtime truth", async () => {
-    const bridge = createFakePiRuntimeBridge();
+    const bridge = createInMemoryPiRuntimeBridge();
 
     await bridge.restoreSessionState({
       piSessionId: "pi-session-restored",

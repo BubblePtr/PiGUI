@@ -17,7 +17,8 @@ import {
   AgentWorkspaceSessionsView,
   SessionActionsContent,
 } from "./agent-workspace";
-import { PiRuntimeBridgeError, createFakePiRuntimeBridge } from "./pi-runtime-bridge";
+import { PiRuntimeBridgeError } from "./pi-runtime-bridge";
+import { createInMemoryPiRuntimeBridge } from "./in-memory-pi-runtime-bridge";
 import { createExecutionCheckoutManager } from "./execution-checkout";
 import {
   createInMemorySessionProjectionStore,
@@ -261,7 +262,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("records stop failure in Live Chat without unlocking active archive", async () => {
     const user = userEvent.setup();
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       failAt: "stop-run",
       failureMessage: "Pi rejected the stop request.",
     });
@@ -388,7 +389,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const source = readFileSync(join(process.cwd(), "src/agent-workspace.tsx"), "utf8");
 
     expect(source).toContain("createDefaultPiRuntimeBridge");
-    expect(source).not.toContain("createFakePiRuntimeBridge");
+    expect(source).not.toContain("createInMemoryPiRuntimeBridge");
   });
 
   it("renders completion and failure results inside Live Chat", async () => {
@@ -440,7 +441,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("queues default active-run input in a pending area without adding it to Live Chat", async () => {
     const user = userEvent.setup();
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       now: () => "2026-06-26T08:10:00.000Z",
     });
     let projection = applySessionProjectionEvent(
@@ -536,7 +537,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("submits ordinary prompts to an idle Session instead of queuing them", async () => {
     const user = userEvent.setup();
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       now: () => "2026-06-26T08:12:00.000Z",
     });
     let projection = applySessionProjectionEvent(
@@ -639,7 +640,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("steers an active run as a Live Chat control event instead of a queued message", async () => {
     const user = userEvent.setup();
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       now: () => "2026-06-26T08:10:00.000Z",
     });
     let projection = applySessionProjectionEvent(
@@ -726,7 +727,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("keeps steer text editable and shows a recoverable error when steer fails", async () => {
     const user = userEvent.setup();
-    const bridge = createFakePiRuntimeBridge();
+    const bridge = createInMemoryPiRuntimeBridge();
     let projection = applySessionProjectionEvent(
       createSessionProjection({
         id: "active-session",
@@ -902,7 +903,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         sessionCreator={(input) =>
           createSessionFromDraft({
             ...input,
-            bridge: createFakePiRuntimeBridge({
+            bridge: createInMemoryPiRuntimeBridge({
               now: () => "2026-06-26T08:00:03.000Z",
             }),
             projections,
@@ -1112,7 +1113,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         sessionCreator={(input) =>
           createSessionFromDraft({
             ...input,
-            bridge: createFakePiRuntimeBridge({
+            bridge: createInMemoryPiRuntimeBridge({
               failAt: "send-initial-prompt",
               failureMessage: "Pi rejected the initial prompt",
             }),

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  createFakePiRuntimeBridge,
-  createFakePiRpcTransport,
-  createPiRpcRuntimeBridge,
-} from "./pi-runtime-bridge";
+import { createInMemoryPiRuntimeBridge } from "./in-memory-pi-runtime-bridge";
+import { createPiRpcRuntimeBridge } from "./pi-rpc-runtime-bridge";
+import { createFakePiRpcTransport } from "./pi-rpc-transport.fakes";
 import { createExecutionCheckoutManager } from "./execution-checkout";
 import {
   createInMemorySessionProjectionStore,
@@ -16,7 +14,7 @@ describe("Session Creation state machine", () => {
     const observedStages: string[] = [];
 
     const result = await createSessionFromDraft({
-      bridge: createFakePiRuntimeBridge({
+      bridge: createInMemoryPiRuntimeBridge({
         now: () => "2026-06-26T08:00:03.000Z",
       }),
       projections,
@@ -202,7 +200,7 @@ describe("Session Creation state machine", () => {
 
   it("keeps multiple Sessions active for one Project and isolates background concurrent checkouts", async () => {
     const projections = createInMemorySessionProjectionStore();
-    const bridge = createFakePiRuntimeBridge({
+    const bridge = createInMemoryPiRuntimeBridge({
       now: () => "2026-06-27T08:00:03.000Z",
     });
     const createdWorktrees: string[] = [];
@@ -294,7 +292,7 @@ describe("Session Creation state machine", () => {
       const observedStages: string[] = [];
 
       const result = await createSessionFromDraft({
-        bridge: createFakePiRuntimeBridge({
+        bridge: createInMemoryPiRuntimeBridge({
           failAt,
           failureMessage: `Failure while ${failureStage}`,
         }),

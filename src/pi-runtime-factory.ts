@@ -1,9 +1,6 @@
-import {
-  createFakePiRuntimeBridge,
-  createPiRpcRuntimeBridge,
-  type PiRpcTransport,
-  type PiRuntimeBridge,
-} from "./pi-runtime-bridge";
+import type { PiRpcTransport, PiRuntimeBridge } from "./pi-runtime-bridge";
+import { createPiRpcRuntimeBridge } from "./pi-rpc-runtime-bridge";
+import { createInMemoryPiRuntimeBridge } from "./in-memory-pi-runtime-bridge";
 import { createElectronPiRpcTransport } from "./pi-rpc-transport";
 import { isElectronRuntime } from "./runtime";
 
@@ -16,7 +13,7 @@ export function createDefaultPiRuntimeBridge(
   options: DefaultPiRuntimeBridgeOptions = {},
 ): PiRuntimeBridge {
   if (!options.transport && !isElectronRuntime()) {
-    return createFakePiRuntimeBridge({
+    return createInMemoryPiRuntimeBridge({
       now: options.now,
     });
   }
