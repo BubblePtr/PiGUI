@@ -78,7 +78,7 @@ describe("AppFrame", () => {
 
     expect(within(projectGroup).getByText("Pig")).toBeInTheDocument();
     expect(within(projectNavigation).getByText("Agent Workspace shell")).toBeInTheDocument();
-    expect(within(projectNavigation).getByText("Analyze boundary pass")).toBeInTheDocument();
+    expect(within(projectNavigation).getByText("Trace boundary pass")).toBeInTheDocument();
     expect(within(projectNavigation).getByLabelText("Active run")).toBeInTheDocument();
     expect(within(projectNavigation).getByText("08:06")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Sessions" })).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe("AppFrame", () => {
       ),
     ).toEqual([
       "Agent Workspace shell",
-      "Analyze boundary pass",
+      "Trace boundary pass",
       "Usage evidence review",
     ]);
     expect(within(sessionRows[0]).getByLabelText("Active run")).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("AppFrame", () => {
       "Pig project sessions",
     );
     const unreadRow = within(projectNavigation).getByRole("row", {
-      name: "Analyze boundary pass",
+      name: "Trace boundary pass",
     });
 
     expect(within(unreadRow).getByLabelText("Unread result")).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe("AppFrame", () => {
     await user.click(unreadRow);
 
     const openedRow = within(projectNavigation).getByRole("row", {
-      name: "Analyze boundary pass",
+      name: "Trace boundary pass",
     });
 
     expect(openedRow).toHaveAttribute("data-current", "true");
@@ -151,29 +151,28 @@ describe("AppFrame", () => {
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
   });
 
-  it("renders Analyze as an expanded second-level sidebar menu", async () => {
+  it("renders Trace and Usage as first-level sidebar menu items", async () => {
     renderAppFrame("/");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const analyzeNavigation = screen.getByLabelText("Analyze navigation");
-    const analyzeItem = analyzeNavigation
-      .querySelector('[data-key="Analyze"]')
-      ?.querySelector('[data-slot="sidebar-menu-item-content"]');
+    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
+    const traceItem = within(traceUsageNavigation).getByRole("row", { name: "Trace" });
+    const usageItem = within(traceUsageNavigation).getByRole("row", { name: "Usage" });
 
-    expect(within(analyzeNavigation).getByText("Analyze")).toBeInTheDocument();
-    expect(within(analyzeNavigation).getByText("Trace")).toBeInTheDocument();
-    expect(within(analyzeNavigation).getByText("Usage")).toBeInTheDocument();
-    expect(analyzeItem).toHaveClass("min-w-0", "flex-1");
-    expect(screen.getByRole("heading", { level: 1, name: "Analyze" })).toBeInTheDocument();
+    expect(within(traceUsageNavigation).queryByText("Analyze")).not.toBeInTheDocument();
+    expect(traceUsageNavigation.querySelector('[data-key="Analyze"]')).not.toBeInTheDocument();
+    expect(traceItem).toHaveAttribute("data-current", "true");
+    expect(usageItem).not.toHaveAttribute("data-current", "true");
+    expect(screen.getByRole("heading", { level: 1, name: "Trace" })).toBeInTheDocument();
   });
 
-  it("orders Analyze above a large Workspace area and pins Settings to the footer", async () => {
+  it("orders Trace and Usage above a large Workspace area and pins Settings to the footer", async () => {
     const { container } = renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const sidebarContent = container.querySelector('[data-slot="sidebar-content"]');
     const sidebarFooter = container.querySelector('[data-slot="sidebar-footer"]');
-    const analyzeNavigation = screen.getByLabelText("Analyze navigation");
+    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
     const workspaceGroup = screen.getByTestId("sidebar-workspace");
     const projectGroup = screen.getByTestId("sidebar-projects");
 
@@ -183,7 +182,7 @@ describe("AppFrame", () => {
     expect(workspaceGroup).toHaveClass("flex-1", "min-h-0", "overflow-y-auto");
     expect(within(workspaceGroup).getByText("Workspace")).toBeInTheDocument();
     expect(sidebarContent?.children[0]).toBe(
-      analyzeNavigation.closest('[data-slot="sidebar-group"]'),
+      traceUsageNavigation.closest('[data-slot="sidebar-group"]'),
     );
     expect(sidebarContent?.children[1]).toBe(workspaceGroup);
     expect(projectGroup).toBe(workspaceGroup.querySelector('[data-testid="sidebar-projects"]'));
@@ -223,8 +222,8 @@ describe("AppFrame", () => {
     const macTrafficSpace = within(headerChrome).getByTestId("mac-traffic-space");
 
     expect(macTrafficSpace).toBeInTheDocument();
-    expect(macTrafficSpace).toHaveAttribute("data-tauri-drag-region");
-    expect(headerChrome.querySelector("[data-tauri-drag-region]")).toBeInTheDocument();
+    expect(macTrafficSpace).toHaveAttribute("data-window-drag-region");
+    expect(headerChrome.querySelector("[data-window-drag-region]")).toBeInTheDocument();
     const sidebarCollapseTrigger = within(headerChrome).getByRole("button", {
       name: "Collapse sidebar",
     });
@@ -239,17 +238,14 @@ describe("AppFrame", () => {
     expect(resizeHandle).toHaveAttribute("aria-label", "Resize handle");
     expect(resizeHandle).toHaveAttribute("data-type", "line");
     const currentItems = Array.from(container.querySelectorAll('[data-current="true"]'));
-    expect(currentItems.some((item) => item.textContent?.includes("Analyze"))).toBe(true);
     expect(currentItems.some((item) => item.textContent?.includes("Usage"))).toBe(true);
-    expect(screen.getByRole("heading", { level: 1, name: "Analyze" })).toBeInTheDocument();
+    expect(currentItems.some((item) => item.textContent?.includes("Analyze"))).toBe(false);
+    expect(screen.getByRole("heading", { level: 1, name: "Usage" })).toBeInTheDocument();
   });
 
   it("keeps titlebar controls on the native traffic-light center line", async () => {
     const { container } = renderAppFrame("/");
-    const config = JSON.parse(
-      readFileSync(join(process.cwd(), "src-tauri/tauri.conf.json"), "utf8"),
-    );
-    const [mainWindow] = config.app.windows;
+    const mainSource = readFileSync(join(process.cwd(), "electron/main.ts"), "utf8");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
 
@@ -257,7 +253,7 @@ describe("AppFrame", () => {
     const titleTrack = screen.getByTestId("header-chrome-title-track");
     const title = screen.getByTestId("header-chrome-title");
     const trigger = screen.getByRole("button", { name: "Collapse sidebar" });
-    const heading = screen.getByRole("heading", { level: 1, name: "Analyze" });
+    const heading = screen.getByRole("heading", { level: 1, name: "Trace" });
 
     expect(container.querySelector('[data-slot="navbar"]')).not.toBeInTheDocument();
     const headerHeight = Number.parseInt(
@@ -266,13 +262,14 @@ describe("AppFrame", () => {
     );
 
     expect(headerChrome).toHaveStyle({ height: "40px" });
-    expect(mainWindow.trafficLightPosition.y).toBe(headerHeight / 2 + 2);
+    expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 13 }");
+    expect(13).toBe((headerHeight - 14) / 2);
     expect(titleTrack).toHaveStyle({ "--pig-main-left": "280px" });
     expect(titleTrack).toHaveStyle({ "--pig-title-x": "280px" });
-    expect(titleTrack).toHaveStyle({ left: "0px" });
+    expect(titleTrack).toHaveStyle({ left: "var(--pig-chrome-safe-left)" });
     expect(title).toHaveStyle({
       "--pig-title-x": "280px",
-      transform: "translateX(280px)",
+      transform: "translateX(calc(280px - var(--pig-chrome-safe-left)))",
     });
     expect(trigger).toHaveStyle({ width: "28px", height: "28px" });
     expect(screen.getByTestId("header-chrome-left")).toHaveClass("pig-header-chrome__left");
@@ -280,26 +277,29 @@ describe("AppFrame", () => {
     expect(heading).toHaveClass("leading-7");
   });
 
-  it("uses only blank titlebar space as Tauri drag regions", async () => {
+  it("uses only blank titlebar space as window drag regions", async () => {
     const { container } = renderAppFrame("/");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: "Collapse sidebar" });
-    const heading = screen.getByRole("heading", { level: 1, name: "Analyze" });
+    const heading = screen.getByRole("heading", { level: 1, name: "Trace" });
     const title = screen.getByTestId("header-chrome-title");
     const navbarSpacer = container.querySelector('[data-slot="navbar-spacer"]');
     const macTrafficSpace = within(screen.getByTestId("header-chrome")).getByTestId(
       "mac-traffic-space",
     );
-    const dragRegions = container.querySelectorAll("[data-tauri-drag-region]");
+    const dragRegions = container.querySelectorAll("[data-window-drag-region]");
 
     expect(dragRegions).toHaveLength(3);
-    expect(macTrafficSpace).toHaveAttribute("data-tauri-drag-region");
-    expect(navbarSpacer).toHaveAttribute("data-tauri-drag-region");
+    expect(macTrafficSpace).toHaveAttribute("data-window-drag-region");
+    expect(navbarSpacer).toHaveAttribute("data-window-drag-region");
     expect(navbarSpacer).toHaveClass("h-full", "min-w-0", "flex-1", "select-none");
-    expect(trigger).not.toHaveAttribute("data-tauri-drag-region");
-    expect(title).not.toHaveAttribute("data-tauri-drag-region");
-    expect(heading).not.toHaveAttribute("data-tauri-drag-region");
+    expect(screen.getByTestId("header-chrome-title-track")).toHaveStyle({
+      left: "var(--pig-chrome-safe-left)",
+    });
+    expect(trigger).not.toHaveAttribute("data-window-drag-region");
+    expect(title).not.toHaveAttribute("data-window-drag-region");
+    expect(heading).not.toHaveAttribute("data-window-drag-region");
     expect(heading).toHaveClass("select-none");
   });
 
@@ -316,10 +316,10 @@ describe("AppFrame", () => {
 
     expect(navbarActions).toBeInTheDocument();
     expect(action).toBeInTheDocument();
-    expect(navbarActions).not.toHaveAttribute("data-tauri-drag-region");
-    expect(action).not.toHaveAttribute("data-tauri-drag-region");
+    expect(navbarActions).not.toHaveAttribute("data-window-drag-region");
+    expect(action).not.toHaveAttribute("data-window-drag-region");
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
-      "data-tauri-drag-region",
+      "data-window-drag-region",
     );
     expect(container.querySelector('[data-slot="navbar"]')).not.toBeInTheDocument();
   });
@@ -343,10 +343,10 @@ describe("AppFrame", () => {
     expect(headerChrome).toHaveStyle({ "--pig-main-left": "280px" });
     expect(titleTrack).toHaveStyle({ "--pig-main-left": "280px" });
     expect(titleTrack).toHaveStyle({ "--pig-title-x": "280px" });
-    expect(titleTrack).toHaveStyle({ left: "0px" });
+    expect(titleTrack).toHaveStyle({ left: "var(--pig-chrome-safe-left)" });
     expect(title).toHaveStyle({
       "--pig-title-x": "280px",
-      transform: "translateX(280px)",
+      transform: "translateX(calc(280px - var(--pig-chrome-safe-left)))",
     });
 
     await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
@@ -357,16 +357,16 @@ describe("AppFrame", () => {
     const collapsedTrigger = within(headerChrome).getByRole("button", {
       name: "Expand sidebar",
     });
-    const dragRegions = container.querySelectorAll("[data-tauri-drag-region]");
+    const dragRegions = container.querySelectorAll("[data-window-drag-region]");
 
     expect(collapsedTrigger).toBe(fixedTrigger);
     expect(headerChrome).toHaveStyle({ "--pig-main-left": "0px" });
     expect(titleTrack).toHaveStyle({ "--pig-main-left": "0px" });
-    expect(titleTrack).toHaveStyle({ left: "0px" });
+    expect(titleTrack).toHaveStyle({ left: "var(--pig-chrome-safe-left)" });
     expect(titleTrack).toHaveStyle({ "--pig-title-x": "132px" });
     expect(title).toHaveStyle({
       "--pig-title-x": "132px",
-      transform: "translateX(132px)",
+      transform: "translateX(calc(132px - var(--pig-chrome-safe-left)))",
     });
     expect(styles).not.toContain("collapsed-traffic-space");
     expect(styles).not.toContain("left: max(var(--pig-main-left)");
@@ -378,7 +378,7 @@ describe("AppFrame", () => {
     expect(styles).toContain("z-index: 1;");
     expect(styles).toContain(".pig-header-chrome__title-track {\n  position: absolute;");
     expect(styles).toContain("z-index: 0;");
-    expect(collapsedTrigger).not.toHaveAttribute("data-tauri-drag-region");
+    expect(collapsedTrigger).not.toHaveAttribute("data-window-drag-region");
     expect(dragRegions).toHaveLength(3);
   });
 
@@ -442,14 +442,14 @@ describe("AppFrame", () => {
 
       expect(title).toHaveStyle({
         "--pig-title-x": "224px",
-        transform: "translateX(224px)",
+        transform: "translateX(calc(224px - var(--pig-chrome-safe-left)))",
       });
 
       await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
       expect(title).toHaveStyle({
         "--pig-title-x": "132px",
-        transform: "translateX(132px)",
+        transform: "translateX(calc(132px - var(--pig-chrome-safe-left)))",
       });
 
       measuredWidth = 12;
@@ -461,7 +461,7 @@ describe("AppFrame", () => {
 
       expect(title).toHaveStyle({
         "--pig-title-x": "224px",
-        transform: "translateX(224px)",
+        transform: "translateX(calc(224px - var(--pig-chrome-safe-left)))",
       });
     } finally {
       Object.defineProperty(globalThis, "ResizeObserver", {
@@ -575,7 +575,7 @@ describe("AppFrame", () => {
     renderAppFrame("/sessions/session-a");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Analyze" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Trace" })).toBeInTheDocument();
   });
 
   it("gives routed pages a fixed-height content slot", async () => {
@@ -621,16 +621,12 @@ describe("AppFrame", () => {
   });
 
   it("extends web content into the native macOS titlebar overlay", () => {
-    const config = JSON.parse(
-      readFileSync(join(process.cwd(), "src-tauri/tauri.conf.json"), "utf8"),
-    );
-    const [mainWindow] = config.app.windows;
+    const mainSource = readFileSync(join(process.cwd(), "electron/main.ts"), "utf8");
 
-    expect(mainWindow.label).toBe("main");
-    expect(mainWindow.decorations).toBe(true);
-    expect(mainWindow.titleBarStyle).toBe("Overlay");
-    expect(mainWindow.hiddenTitle).toBe(true);
-    expect(mainWindow.trafficLightPosition).toEqual({ x: 16, y: 22 });
+    expect(mainSource).toContain('titleBarStyle: "hidden"');
+    expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 13 }");
+    expect(mainSource).toContain("width: 960");
+    expect(mainSource).toContain("height: 720");
   });
 
   it("does not replace macOS titlebar gestures with React window API handlers", () => {
@@ -640,18 +636,13 @@ describe("AppFrame", () => {
     expect(source).not.toContain("toggleWindowMaximize");
   });
 
-  it("allows Tauri drag-region window commands for the main window", () => {
-    const capability = JSON.parse(
-      readFileSync(join(process.cwd(), "src-tauri/capabilities/default.json"), "utf8"),
-    );
+  it("marks Electron drag regions with app-region CSS instead of renderer window commands", () => {
+    const styles = readFileSync(join(process.cwd(), "src/styles.css"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/app-shell.tsx"), "utf8");
 
-    expect(capability.windows).toEqual(["main"]);
-    expect(capability.permissions).toEqual(
-      expect.arrayContaining([
-        "core:window:default",
-        "core:window:allow-start-dragging",
-        "core:window:allow-toggle-maximize",
-      ]),
-    );
+    expect(styles).toContain("-webkit-app-region: drag;");
+    expect(styles).toContain("-webkit-app-region: no-drag;");
+    expect(source).not.toContain("startWindowDrag");
+    expect(source).not.toContain("toggleWindowMaximize");
   });
 });

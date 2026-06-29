@@ -1,4 +1,4 @@
-import { invoke } from "./tauri-runtime";
+import { invoke } from "./runtime";
 
 export type SessionSummary = {
   id: string;

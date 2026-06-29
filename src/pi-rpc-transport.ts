@@ -1,4 +1,4 @@
-import { listen as listenTauri, type Event as TauriEvent } from "@tauri-apps/api/event";
+import type { BackendRpcEvent } from "./backend/service";
 import type {
   PiRpcCommand,
   PiRpcRawEvent,
@@ -6,69 +6,58 @@ import type {
   PiRpcTransport,
   PiRpcTransportStartInput,
 } from "./pi-runtime-bridge";
-import { invoke as invokeTauriRuntime } from "./tauri-runtime";
+import { invoke as invokeRuntime, onBackendEvent as onRuntimeBackendEvent } from "./runtime";
 
-type InvokeTauriCommand = <T>(
+type InvokeCommand = <T>(
   command: string,
   args?: Record<string, unknown>,
 ) => Promise<T>;
 
-type ListenToPiRpcEvent = (
-  eventName: string,
-  handler: (event: { payload: PiRpcRawEvent }) => void,
-) => Promise<() => void>;
+type SubscribeBackendEvent = (listener: (event: BackendRpcEvent) => void) => () => void;
 
-export type TauriPiRpcTransportOptions = {
-  invoke?: InvokeTauriCommand;
-  listen?: ListenToPiRpcEvent;
+export type ElectronPiRpcTransportOptions = {
+  invoke?: InvokeCommand;
+  onBackendEvent?: SubscribeBackendEvent;
 };
 
-const defaultListen: ListenToPiRpcEvent = (eventName, handler) =>
-  listenTauri<PiRpcRawEvent>(
-    eventName,
-    handler as (event: TauriEvent<PiRpcRawEvent>) => void,
-  );
-
-export function createTauriPiRpcTransport(
-  options: TauriPiRpcTransportOptions = {},
+export function createElectronPiRpcTransport(
+  options: ElectronPiRpcTransportOptions = {},
 ): PiRpcTransport {
-  const invoke = options.invoke ?? invokeTauriRuntime;
-  const listen = options.listen ?? defaultListen;
+  const invoke = options.invoke ?? invokeRuntime;
+  const onBackendEvent = options.onBackendEvent ?? onRuntimeBackendEvent;
   const listeners = new Set<(event: PiRpcRawEvent) => void>();
-  let unlistenPromise: Promise<() => void> | null = null;
+  let unsubscribeBackendEvent: (() => void) | null = null;
+  let started = false;
 
   const ensureListening = () => {
-    if (!unlistenPromise) {
-      unlistenPromise = listen("pi-rpc-event", ({ payload }) => {
-        for (const listener of listeners) {
-          listener(payload);
-        }
-      }).catch((error) => {
-        unlistenPromise = null;
-
-        throw error;
-      });
-    }
-
-    return unlistenPromise;
-  };
-  const releaseTauriListenerIfIdle = () => {
-    if (listeners.size || !unlistenPromise) {
+    if (unsubscribeBackendEvent) {
       return;
     }
 
-    const pendingUnlisten = unlistenPromise;
+    unsubscribeBackendEvent = onBackendEvent((event) => {
+      if (event.type !== "event") {
+        return;
+      }
 
-    unlistenPromise = null;
-    void pendingUnlisten.then((unlisten) => {
-      unlisten();
+      for (const listener of listeners) {
+        listener(event.event);
+      }
     });
+  };
+  const releaseListenerIfIdle = () => {
+    if (listeners.size || !unsubscribeBackendEvent) {
+      return;
+    }
+
+    unsubscribeBackendEvent();
+    unsubscribeBackendEvent = null;
   };
 
   return {
     async start(input: PiRpcTransportStartInput) {
-      await ensureListening();
+      ensureListening();
       await invoke<void>("start_pi_rpc_runtime", { input });
+      started = true;
     },
 
     async send(command: PiRpcCommand) {
@@ -77,16 +66,19 @@ export function createTauriPiRpcTransport(
 
     onEvent(listener) {
       listeners.add(listener);
-      void ensureListening();
+      if (started) {
+        ensureListening();
+      }
 
       return () => {
         listeners.delete(listener);
-        releaseTauriListenerIfIdle();
+        releaseListenerIfIdle();
       };
     },
 
     async stop() {
       await invoke<void>("stop_pi_rpc_runtime");
+      started = false;
     },
   };
 }

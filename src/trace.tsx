@@ -55,7 +55,7 @@ function TraceEmptyState() {
     <div className="flex h-full min-h-0 items-center justify-center">
       <Card className="w-full max-w-xl">
         <Card.Header className="block">
-          <div className="text-sm font-semibold uppercase text-muted">Analyze / Trace</div>
+          <div className="text-sm font-semibold uppercase text-muted">Trace</div>
           <Card.Title className="mt-3 text-2xl font-semibold tracking-normal text-foreground">
             Select a Pi session trace
           </Card.Title>

@@ -3,12 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "out/main/main.js",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 1420",
+    "dev": "electron-vite dev",
     "test": "vitest run",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
+    "build": "tsc && electron-vite build",
+    "preview": "electron-vite preview"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.0",
@@ -23,7 +23,6 @@
     "@tanstack/react-query": "^5.85.5",
     "@tanstack/react-router": "^1.132.0",
     "@tanstack/react-virtual": "^3.14.3",
-    "@tauri-apps/api": "^2.8.0",
     "@tiptap/core": "^3.14.0",
     "@tiptap/extension-link": "^3.14.0",
     "@tiptap/extension-underline": "^3.14.0",
@@ -53,7 +52,6 @@
   "devDependencies": {
     "@hyperse/eslint-config-hyperse": "^1.7.3",
     "@tailwindcss/vite": "^4.1.12",
-    "@tauri-apps/cli": "^2.8.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -61,6 +59,8 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^42.5.0",
+    "electron-vite": "^5.0.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.5.4",

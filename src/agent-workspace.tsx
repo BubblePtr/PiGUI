@@ -12,7 +12,7 @@ import {
   createExecutionCheckoutManager,
   type ExecutionCheckoutManager,
 } from "./execution-checkout";
-import { createTauriExecutionCheckoutGitClient } from "./execution-checkout-tauri";
+import { createInvokeExecutionCheckoutGitClient } from "./execution-checkout-client";
 import { createDefaultPiRuntimeBridge } from "./pi-runtime-factory";
 import type { PiRuntimeBridge, PiSessionState } from "./pi-runtime-bridge";
 import {
@@ -108,7 +108,7 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     {
       id: "message-assistant",
       role: "assistant",
-      body: "Project Sessions keep live Pi work separate from Analyze evidence.",
+      body: "Project Sessions keep live Pi work separate from Trace and Usage evidence.",
     },
   ],
   runTimeline: [
@@ -124,7 +124,7 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     },
     {
       id: "timeline-analyze",
-      title: "Analyze preserved",
+      title: "Evidence preserved",
       meta: "Trace and Usage stay as historical evidence views",
     },
   ],
@@ -1220,7 +1220,7 @@ export function AgentWorkspaceSessionsView({
   );
   const [defaultCheckoutManager] = useState(() =>
     createExecutionCheckoutManager({
-      gitClient: createTauriExecutionCheckoutGitClient(),
+      gitClient: createInvokeExecutionCheckoutGitClient(),
     }),
   );
   const activeCheckoutManager = checkoutManager ?? defaultCheckoutManager;

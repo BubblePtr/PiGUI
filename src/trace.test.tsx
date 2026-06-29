@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import {
   Outlet,
   RouterProvider,
@@ -141,10 +141,15 @@ describe("TraceWorkspace", () => {
     expect(container.querySelector(".app-layout__main")).toBeInTheDocument();
   });
 
-  it("frames trace replay as Analyze history instead of live Session control", async () => {
+  it("frames trace replay as a first-level Trace surface", async () => {
     renderTraceIndexPage();
 
-    expect(await screen.findByText("Analyze / Trace")).toBeInTheDocument();
+    const detailPane = await screen.findByTestId("trace-detail-pane");
+
+    expect(
+      await within(detailPane).findByText("Trace"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Analyze / Trace")).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Select a Pi session trace" }),
     ).toBeInTheDocument();

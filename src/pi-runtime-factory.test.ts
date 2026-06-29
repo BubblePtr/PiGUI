@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDefaultPiRuntimeBridge } from "./pi-runtime-factory";
 
 describe("default Pi runtime bridge factory", () => {
-  it("uses an in-browser fake bridge outside Tauri so dev-server sessions stay interactive", async () => {
+  it("uses an in-browser fake bridge outside Electron so dev-server sessions stay interactive", async () => {
     const bridge = createDefaultPiRuntimeBridge({
       now: () => "2026-06-26T08:00:00.000Z",
     });

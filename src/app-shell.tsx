@@ -131,7 +131,7 @@ export const defaultSidebarProjectSessionProjections: SessionProjection[] = [
   }),
   createSidebarProjection({
     id: "session-analyze-boundary",
-    title: "Analyze boundary pass",
+    title: "Trace boundary pass",
     status: "completed",
     unreadResult: true,
     summary: {
@@ -143,7 +143,7 @@ export const defaultSidebarProjectSessionProjections: SessionProjection[] = [
   }),
 ];
 
-const analyzeNavigationItems = [
+const traceUsageNavigationItems = [
   {
     label: "Trace",
     to: "/",
@@ -193,8 +193,12 @@ function getActiveTab(pathname: string) {
     return "Sessions";
   }
 
-  if (pathname === "/" || pathname.startsWith("/sessions/") || pathname === "/usage") {
-    return "Analyze";
+  if (pathname === "/" || pathname.startsWith("/sessions/")) {
+    return "Trace";
+  }
+
+  if (pathname === "/usage") {
+    return "Usage";
   }
 
   return "Settings";
@@ -353,56 +357,29 @@ function WorkspaceNavigation({
   );
 }
 
-function AnalyzeNavigation({ pathname }: { pathname: string }) {
-  const analyzeActive =
-    pathname === "/" || pathname.startsWith("/sessions/") || pathname === "/usage";
-
+function TraceUsageNavigation({ pathname }: { pathname: string }) {
   return (
     <Sidebar.Group>
-      <Sidebar.Menu
-        aria-label="Analyze navigation"
-        defaultExpandedKeys={["Analyze"]}
-        showGuideLines
-      >
-        <Sidebar.MenuItem
-          id="Analyze"
-          isCurrent={analyzeActive}
-          textValue="Analyze"
-        >
-          <Sidebar.MenuItemContent className="min-w-0 flex-1">
-            {null}
-          </Sidebar.MenuItemContent>
-          <Sidebar.MenuIcon>
-            <BarChart3 className="size-4" />
-          </Sidebar.MenuIcon>
-          <Sidebar.MenuLabel>
-            Analyze
-          </Sidebar.MenuLabel>
-          <Sidebar.MenuTrigger>
-            <Sidebar.MenuIndicator />
-          </Sidebar.MenuTrigger>
-          <Sidebar.Submenu>
-            {analyzeNavigationItems.map((item) => {
-              const Icon = item.icon;
-              const active = item.isActive(pathname);
+      <Sidebar.Menu aria-label="Trace and usage navigation" showGuideLines={false}>
+        {traceUsageNavigationItems.map((item) => {
+          const Icon = item.icon;
+          const active = item.isActive(pathname);
 
-              return (
-                <Sidebar.MenuItem
-                  key={item.to}
-                  href={item.to}
-                  id={`Analyze-${item.label}`}
-                  isCurrent={active}
-                  textValue={item.label}
-                >
-                  <Sidebar.MenuIcon>
-                    <Icon className="size-4" />
-                  </Sidebar.MenuIcon>
-                  <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-                </Sidebar.MenuItem>
-              );
-            })}
-          </Sidebar.Submenu>
-        </Sidebar.MenuItem>
+          return (
+            <Sidebar.MenuItem
+              key={item.to}
+              href={item.to}
+              id={item.label}
+              isCurrent={active}
+              textValue={item.label}
+            >
+              <Sidebar.MenuIcon>
+                <Icon className="size-4" />
+              </Sidebar.MenuIcon>
+              <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+            </Sidebar.MenuItem>
+          );
+        })}
       </Sidebar.Menu>
     </Sidebar.Group>
   );
@@ -460,7 +437,7 @@ function SidebarPanelContent({
         style={titlebarHeaderStyle}
       />
       <Sidebar.Content className="min-h-0 flex-1 flex-col overflow-hidden">
-        <AnalyzeNavigation pathname={pathname} />
+        <TraceUsageNavigation pathname={pathname} />
         <WorkspaceNavigation
           draftViewActive={draftViewActive}
           pathname={pathname}
@@ -502,11 +479,11 @@ function HeaderChrome({
   const titleTrackStyle = {
     "--pig-main-left": mainLeft,
     "--pig-title-x": titleX,
-    left: "0px",
+    left: "var(--pig-chrome-safe-left)",
   } as CSSProperties;
   const titleStyle = {
     "--pig-title-x": titleX,
-    transform: `translateX(${titleX})`,
+    transform: `translateX(calc(${titleX} - var(--pig-chrome-safe-left)))`,
   } as CSSProperties;
 
   return (
@@ -520,7 +497,7 @@ function HeaderChrome({
         <div
           aria-hidden="true"
           className="h-full shrink-0"
-          data-tauri-drag-region
+          data-window-drag-region
           data-testid="mac-traffic-space"
           style={{ width: trafficWidth }}
         />
@@ -532,7 +509,7 @@ function HeaderChrome({
         <div
           aria-hidden="true"
           className="h-full min-w-0 flex-1"
-          data-tauri-drag-region
+          data-window-drag-region
         />
       </div>
       <div
@@ -553,7 +530,7 @@ function HeaderChrome({
           aria-hidden="true"
           className="pig-header-chrome__drag h-full min-w-0 flex-1 select-none"
           data-slot="navbar-spacer"
-          data-tauri-drag-region
+          data-window-drag-region
         />
         {toolbarActions ? (
           <div

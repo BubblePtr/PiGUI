@@ -4,8 +4,8 @@ import {
   type PiRpcTransport,
   type PiRuntimeBridge,
 } from "./pi-runtime-bridge";
-import { createTauriPiRpcTransport } from "./pi-rpc-transport";
-import { isTauriRuntime } from "./tauri-runtime";
+import { createElectronPiRpcTransport } from "./pi-rpc-transport";
+import { isElectronRuntime } from "./runtime";
 
 export type DefaultPiRuntimeBridgeOptions = {
   transport?: PiRpcTransport;
@@ -15,14 +15,14 @@ export type DefaultPiRuntimeBridgeOptions = {
 export function createDefaultPiRuntimeBridge(
   options: DefaultPiRuntimeBridgeOptions = {},
 ): PiRuntimeBridge {
-  if (!options.transport && !isTauriRuntime()) {
+  if (!options.transport && !isElectronRuntime()) {
     return createFakePiRuntimeBridge({
       now: options.now,
     });
   }
 
   return createPiRpcRuntimeBridge({
-    transport: options.transport ?? createTauriPiRpcTransport(),
+    transport: options.transport ?? createElectronPiRpcTransport(),
     now: options.now,
   });
 }

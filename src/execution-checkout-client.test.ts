@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createTauriExecutionCheckoutGitClient } from "./execution-checkout-tauri";
+import { createInvokeExecutionCheckoutGitClient } from "./execution-checkout-client";
 
-describe("Tauri Execution Checkout Git client", () => {
+describe("Invoke Execution Checkout Git client", () => {
   it("delegates Git repository checks and detached worktree creation through invoke", async () => {
     const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
     const invoke = async <T,>(command: string, args?: Record<string, unknown>) => {
@@ -13,7 +13,7 @@ describe("Tauri Execution Checkout Git client", () => {
 
       return undefined as T;
     };
-    const client = createTauriExecutionCheckoutGitClient({ invoke });
+    const client = createInvokeExecutionCheckoutGitClient({ invoke });
 
     await expect(client.isGitRepository("/Users/void/code/opensource/Pig")).resolves.toBe(true);
     await expect(

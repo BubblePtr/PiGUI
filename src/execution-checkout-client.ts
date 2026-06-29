@@ -1,19 +1,19 @@
 import type { ExecutionCheckoutGitClient } from "./execution-checkout";
-import { invoke as invokeTauriRuntime } from "./tauri-runtime";
+import { invoke as invokeRuntime } from "./runtime";
 
-type InvokeTauriCommand = <T>(
+type InvokeCommand = <T>(
   command: string,
   args?: Record<string, unknown>,
 ) => Promise<T>;
 
-export type TauriExecutionCheckoutGitClientOptions = {
-  invoke?: InvokeTauriCommand;
+export type InvokeExecutionCheckoutGitClientOptions = {
+  invoke?: InvokeCommand;
 };
 
-export function createTauriExecutionCheckoutGitClient(
-  options: TauriExecutionCheckoutGitClientOptions = {},
+export function createInvokeExecutionCheckoutGitClient(
+  options: InvokeExecutionCheckoutGitClientOptions = {},
 ): ExecutionCheckoutGitClient {
-  const invoke = options.invoke ?? invokeTauriRuntime;
+  const invoke = options.invoke ?? invokeRuntime;
 
   return {
     async isGitRepository(repoRoot) {

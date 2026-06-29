@@ -63,6 +63,15 @@ describe("AgentWorkspaceSessionsPage", () => {
     const liveColumn = screen.getByTestId("live-session-column");
     const navbarActions = screen.getByTestId("navbar-actions");
 
+    const source = readFileSync(join(process.cwd(), "src/agent-workspace.tsx"), "utf8");
+
+    expect(source).toContain(
+      "Project Sessions keep live Pi work separate from Trace and Usage evidence.",
+    );
+    expect(source).not.toContain("Analyze evidence");
+    expect(within(liveColumn).getByText("Evidence preserved")).toBeInTheDocument();
+    expect(within(liveColumn).queryByText("Analyze preserved")).not.toBeInTheDocument();
+
     expect(screen.getByTestId("sidebar-projects")).toBeInTheDocument();
     expect(
       within(sessionsView).queryByTestId("project-session-list-column"),
@@ -85,7 +94,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(sessionActionsButton).toBeInTheDocument();
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
-      "data-tauri-drag-region",
+      "data-window-drag-region",
     );
     expect(chatConversation).toBeInTheDocument();
     expect(chatConversation?.closest(".card")).toBeNull();
@@ -172,7 +181,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     await user.click(
       within(projectNavigation).getByRole("row", {
-        name: "Analyze boundary pass",
+        name: "Trace boundary pass",
       }),
     );
     await user.click(screen.getByRole("button", { name: "Session actions" }));
@@ -342,7 +351,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const projectNavigation = await screen.findByLabelText("Pig project sessions");
     const unreadRow = within(projectNavigation).getByRole("row", {
-      name: "Analyze boundary pass",
+      name: "Trace boundary pass",
     });
 
     expect(within(unreadRow).getByLabelText("Unread result")).toBeInTheDocument();
@@ -350,13 +359,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     await user.click(unreadRow);
 
     expect(
-      within(screen.getByLabelText("Live Chat messages")).getByText("Analyze boundary pass"),
+      within(screen.getByLabelText("Live Chat messages")).getByText("Trace boundary pass"),
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(
         within(
           within(projectNavigation).getByRole("row", {
-            name: "Analyze boundary pass",
+            name: "Trace boundary pass",
           }),
         ).queryByLabelText("Unread result"),
       ).not.toBeInTheDocument();

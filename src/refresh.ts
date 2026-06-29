@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { onWindowFocusChanged } from "./tauri-runtime";
+import { onWindowFocusChanged } from "./runtime";
 
 export function useRefreshOnWindowFocus(refetch: () => unknown) {
   useEffect(() => {

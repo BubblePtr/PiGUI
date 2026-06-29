@@ -6,7 +6,7 @@ import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "lucide-reac
 import { useMemo, useState } from "react";
 import { AppFrame } from "./app-shell";
 import { useRefreshOnWindowFocus } from "./refresh";
-import { invoke } from "./tauri-runtime";
+import { invoke } from "./runtime";
 
 export type ConfigInventory = {
   defaultModel?: string;

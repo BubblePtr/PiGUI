@@ -3,23 +3,24 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { PiRpcRawEvent, PiRpcResponse } from "./pi-runtime-bridge";
 import {
-  createTauriPiRpcTransport,
-  type TauriPiRpcTransportOptions,
+  createElectronPiRpcTransport,
+  type ElectronPiRpcTransportOptions,
 } from "./pi-rpc-transport";
+import type { BackendRpcEvent } from "./backend/service";
 
-describe("Pi RPC Tauri transport", () => {
-  it("delegates runtime commands through Tauri invoke and forwards Pi RPC events", async () => {
+describe("Pi RPC Electron transport", () => {
+  it("delegates runtime commands through invoke and forwards backend Pi RPC events", async () => {
     const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
-    const eventHandlers: Array<(event: { payload: PiRpcRawEvent }) => void> = [];
+    const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
     const unlisten = vi.fn();
-    const listen = vi.fn(
-      async (_eventName: string, handler: (event: { payload: PiRpcRawEvent }) => void) => {
+    const onBackendEvent = vi.fn(
+      (handler: (event: BackendRpcEvent) => void) => {
         eventHandlers.push(handler);
 
         return unlisten;
       },
     );
-    const invoke: NonNullable<TauriPiRpcTransportOptions["invoke"]> = async <T,>(
+    const invoke: NonNullable<ElectronPiRpcTransportOptions["invoke"]> = async <T,>(
       command: string,
       args?: Record<string, unknown>,
     ) => {
@@ -37,7 +38,7 @@ describe("Pi RPC Tauri transport", () => {
 
       return undefined as T;
     };
-    const transport = createTauriPiRpcTransport({ invoke, listen });
+    const transport = createElectronPiRpcTransport({ invoke, onBackendEvent });
     const events: PiRpcRawEvent[] = [];
 
     const unsubscribe = transport.onEvent((event) => {
@@ -55,7 +56,8 @@ describe("Pi RPC Tauri transport", () => {
     });
 
     eventHandlers[0]?.({
-      payload: {
+      type: "event",
+      event: {
         type: "message_end",
         message: {
           role: "assistant",
@@ -92,7 +94,7 @@ describe("Pi RPC Tauri transport", () => {
         },
       },
     ]);
-    expect(listen).toHaveBeenCalledWith("pi-rpc-event", expect.any(Function));
+    expect(onBackendEvent).toHaveBeenCalledWith(expect.any(Function));
     expect(events).toEqual([
       {
         type: "message_end",
@@ -105,12 +107,12 @@ describe("Pi RPC Tauri transport", () => {
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
-  it("fails startup when the WebView cannot subscribe to Pi RPC events", async () => {
-    const listen = vi.fn(async () => {
+  it("fails startup when the renderer cannot subscribe to backend events", async () => {
+    const onBackendEvent = vi.fn(() => {
       throw new Error("listen denied");
     });
     const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
-    const invoke: NonNullable<TauriPiRpcTransportOptions["invoke"]> = async <T,>(
+    const invoke: NonNullable<ElectronPiRpcTransportOptions["invoke"]> = async <T,>(
       command: string,
       args?: Record<string, unknown>,
     ) => {
@@ -118,7 +120,7 @@ describe("Pi RPC Tauri transport", () => {
 
       return undefined as T;
     };
-    const transport = createTauriPiRpcTransport({ invoke, listen });
+    const transport = createElectronPiRpcTransport({ invoke, onBackendEvent });
 
     transport.onEvent(() => {});
 
@@ -132,7 +134,7 @@ describe("Pi RPC Tauri transport", () => {
     expect(invocations).toEqual([]);
   });
 
-  it("keeps the WebView transport free of Node process imports", () => {
+  it("keeps the renderer transport free of Node process imports", () => {
     const source = readFileSync(join(process.cwd(), "src/pi-rpc-transport.ts"), "utf8");
 
     expect(source).not.toContain("node:child_process");

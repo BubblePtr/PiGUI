@@ -42,14 +42,16 @@ body {
   pointer-events: none;
 }
 
-.pig-header-chrome__left [data-tauri-drag-region],
+.pig-header-chrome__left [data-window-drag-region],
 .pig-header-chrome__drag {
   pointer-events: auto;
+  -webkit-app-region: drag;
 }
 
 .pig-header-chrome [data-slot="sidebar-trigger"] {
   margin-left: 0;
   pointer-events: auto;
+  -webkit-app-region: no-drag;
 }
 
 .pig-header-chrome__title-track {
@@ -70,6 +72,7 @@ body {
 .pig-header-chrome__title,
 .pig-header-chrome__actions {
   pointer-events: auto;
+  -webkit-app-region: no-drag;
 }
 
 .pig-header-chrome__title {

@@ -237,6 +237,13 @@ describe("TokenHeatmap", () => {
 });
 
 describe("UsageSummaryPanel", () => {
+  it("labels the route as a first-level Usage surface", () => {
+    const source = readFileSync(join(process.cwd(), "src/usage.tsx"), "utf8");
+
+    expect(source).toContain(">Usage</div>");
+    expect(source).not.toContain("Analyze / Usage");
+  });
+
   it("keeps summary KPI cards visually aligned without repeated pricing copy", () => {
     const { container } = render(
       <UsageSummaryPanel sessions={[session()]} isFetching={false} onRefresh={() => {}} />,

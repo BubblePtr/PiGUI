@@ -15,7 +15,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
-import { invoke } from "./tauri-runtime";
+import { invoke } from "./runtime";
 
 type MessageRole = "user" | "assistant" | "toolResult" | "unknown";
 
@@ -547,7 +547,7 @@ export function SessionDetailView({
               className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted transition hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
-              Analyze Trace
+              Trace
             </Link>
             <h1 className="truncate text-xl font-semibold tracking-normal">
               {session?.project ?? "Session"}

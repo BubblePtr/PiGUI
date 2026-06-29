@@ -1,14 +1,19 @@
-import { invoke as invokeTauri, isTauri as isTauriCore } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import browserSessionSummaries from "./fixtures/browser-session-summaries.json";
+import type { BackendRpcEvent } from "./backend/service";
 import type { SessionDetail } from "./session-detail";
 import type { SessionSummary } from "./sessions";
 
 declare global {
   interface Window {
-    __TAURI_INTERNALS__?: unknown;
+    pig?: PigRendererApi;
   }
 }
+
+export type PigRendererApi = {
+  invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
+  onBackendEvent(listener: (event: BackendRpcEvent) => void): () => void;
+  onWindowFocusChanged(listener: () => void): () => void;
+};
 
 type InvokeArgs = Record<string, unknown>;
 
@@ -20,10 +25,8 @@ const emptyConfigInventory = {
 };
 const browserSessionSummaryFixture = browserSessionSummaries as SessionSummary[];
 
-export function isTauriRuntime() {
-  return isTauriCore() || (
-    typeof window !== "undefined" && window.__TAURI_INTERNALS__ !== undefined
-  );
+export function isElectronRuntime() {
+  return typeof window !== "undefined" && window.pig !== undefined;
 }
 
 function browserSessionDetail(summary: SessionSummary): SessionDetail {
@@ -102,7 +105,7 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
         parts: [
           {
             partType: "text",
-            text: "This trace detail is generated from browser-session-summaries.json for web-only debugging outside Tauri.",
+            text: "This trace detail is generated from browser-session-summaries.json for web-only debugging outside Electron.",
             payload: {},
           },
         ],
@@ -127,25 +130,23 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
       return Promise.resolve(emptyConfigInventory as T);
     default:
       return Promise.reject(
-        new Error(`Tauri command "${command}" is unavailable outside the Tauri runtime.`),
+        new Error(`Backend command "${command}" is unavailable outside Electron.`),
       );
   }
 }
 
 export function invoke<T>(command: string, args?: InvokeArgs) {
-  if (isTauriRuntime()) {
-    return invokeTauri<T>(command, args);
+  if (isElectronRuntime()) {
+    return window.pig!.invoke<T>(command, args);
   }
 
   return invokeBrowserFallback<T>(command, args);
 }
 
 export async function onWindowFocusChanged(refetch: () => unknown) {
-  if (isTauriRuntime()) {
-    return getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) {
-        void refetch();
-      }
+  if (isElectronRuntime()) {
+    return window.pig!.onWindowFocusChanged(() => {
+      void refetch();
     });
   }
 
@@ -161,4 +162,12 @@ export async function onWindowFocusChanged(refetch: () => unknown) {
   return () => {
     window.removeEventListener("focus", handleFocus);
   };
+}
+
+export function onBackendEvent(listener: (event: BackendRpcEvent) => void) {
+  if (!isElectronRuntime()) {
+    return () => {};
+  }
+
+  return window.pig!.onBackendEvent(listener);
 }
