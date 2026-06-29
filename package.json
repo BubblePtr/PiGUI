@@ -73,6 +73,7 @@
   },
   "trustedDependencies": [
     "heroui-pro",
-    "@heroui-pro/react"
+    "@heroui-pro/react",
+    "electron"
   ]
 }
