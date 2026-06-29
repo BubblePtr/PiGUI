@@ -1,6 +1,6 @@
 # 02 — Session detail timeline skeleton
 
-Status: ready-for-agent
+Status: done
 Blocked by: 01
 
 ## Parent

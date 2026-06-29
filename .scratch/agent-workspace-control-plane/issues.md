@@ -1,10 +1,10 @@
 # Agent Workspace Control Plane Issues
 
-Status: local-only
+Status: done
 Source PRD: `.scratch/agent-workspace-control-plane/PRD.md`
 Created: 2026-06-25
 
-> 这些 issue 是给后续子 Agent 使用的本地实现 brief。它们尚未发布到 Multica 或其他外部 issue tracker。每个 issue 都应当作为一个独立实现上下文处理：只携带 PRD、相关 ADR/CONTEXT 术语和当前 issue body。
+> 这些 issue 是给后续子 Agent 使用的本地实现 brief，与 PRD 一样以仓库内 markdown 为家（无外部 tracker）。每个 issue 都应当作为一个独立实现上下文处理：只携带 PRD、相关 ADR/CONTEXT 术语和当前 issue body。
 
 ## Issue 1: 建立 Agent Workspace Session 壳与 Analyze 边界
 

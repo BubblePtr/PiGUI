@@ -1,6 +1,6 @@
 # 03 — Cost & token truth (list + detail)
 
-Status: ready-for-agent
+Status: done
 Blocked by: 02
 
 ## Parent

@@ -1,6 +1,6 @@
 # PRD: Pig V1.5 — 三 Tab 应用壳 + 用量 Dashboard + 配置清单
 
-Status: ready-for-agent
+Status: done
 Feature: v1.5-usage-config-dashboard
 Created: 2026-06-24
 

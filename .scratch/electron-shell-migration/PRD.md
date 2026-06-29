@@ -1,6 +1,6 @@
 # PRD: Pig 外壳迁移 — Tauri → Electron（可重定位后端）
 
-Status: ready-for-agent（未发布到 tracker，按用户指令仅生成 PRD）
+Status: done
 Feature: electron-shell-migration
 Created: 2026-06-29
 ADR: docs/adr/0013-electron-shell-and-relocatable-backend.md

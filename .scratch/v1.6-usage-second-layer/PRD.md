@@ -1,6 +1,6 @@
 # PRD: Pig V1.6 — 用量 Dashboard 第二层（按模型 / 工具调用 / skill 使用）
 
-Status: ready-for-agent
+Status: done
 Feature: v1.6-usage-second-layer
 Created: 2026-06-24
 

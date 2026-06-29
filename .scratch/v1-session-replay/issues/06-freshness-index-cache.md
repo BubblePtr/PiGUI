@@ -1,6 +1,6 @@
 # 06 — Freshness & index cache
 
-Status: ready-for-agent
+Status: done
 Blocked by: 03
 
 ## Parent

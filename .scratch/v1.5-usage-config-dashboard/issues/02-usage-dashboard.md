@@ -1,6 +1,6 @@
 # Slice 02 — 用量 Dashboard（成本趋势堆叠柱 + token 日历热力图）
 
-Status: ready-for-agent
+Status: done
 Feature: v1.5-usage-config-dashboard
 Covers user stories: 6, 7, 8, 9, 10, 11, 12, 13, 23
 

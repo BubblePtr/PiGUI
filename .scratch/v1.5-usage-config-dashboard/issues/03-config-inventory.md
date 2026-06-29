@@ -1,6 +1,6 @@
 # Slice 03 — 配置清单（后端 build_config_inventory + master-detail UI）
 
-Status: ready-for-agent
+Status: done
 Feature: v1.5-usage-config-dashboard
 Covers user stories: 14, 15, 16, 17, 18, 19, 20, 21, 22, 23
 

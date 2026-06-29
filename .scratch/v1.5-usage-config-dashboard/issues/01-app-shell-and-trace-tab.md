@@ -1,6 +1,6 @@
 # Slice 01 — 三 Tab 应用壳 + Trace 搬运（行走骨架）
 
-Status: ready-for-agent
+Status: done
 Feature: v1.5-usage-config-dashboard
 Covers user stories: 1, 2, 3, 4, 5, 24
 

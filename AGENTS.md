@@ -8,11 +8,11 @@ Pig is a GUI control plane for the Pi coding agent. It creates, starts, observes
 
 ### Issue tracker
 
-Issues live in **Multica** (the agent-orchestration platform driving the EverWard Works squad), managed via the `multica` CLI — native statuses track execution, the five triage roles are applied as labels. PRDs stay in-repo under `.scratch/<feature>/PRD.md`. See `docs/agents/issue-tracker.md`.
+Issues and PRDs live **in the repo** as markdown under `.scratch/<feature>/` — no external tracker. PRDs at `.scratch/<feature>/PRD.md`, slices as `issues.md` or `issues/NN-*.md`, status via the `Status:` front matter. See `docs/agents/issue-tracker.md`.
 
-### Triage labels
+### Triage roles
 
-The default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), applied as Multica labels. See `docs/agents/triage-labels.md`.
+The default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), expressed as an issue's `Status:` value. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

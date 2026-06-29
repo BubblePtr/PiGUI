@@ -1,6 +1,6 @@
 # PRD: Pig Agent Workspace Control Plane MVP
 
-Status: ready-for-agent
+Status: done
 Feature: agent-workspace-control-plane
 Created: 2026-06-25
 

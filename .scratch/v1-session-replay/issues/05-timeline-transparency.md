@@ -1,6 +1,6 @@
 # 05 — Timeline transparency UX
 
-Status: ready-for-agent
+Status: done
 Blocked by: 02, 03
 
 ## Parent

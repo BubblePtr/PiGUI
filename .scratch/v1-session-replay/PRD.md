@@ -1,6 +1,6 @@
 # PRD: Pig V1 — Session Replay（会话飞行记录仪）
 
-Status: ready-for-agent
+Status: done
 Feature: v1-session-replay
 Created: 2026-06-20
 

@@ -1,6 +1,6 @@
 # 01 — Walking skeleton: session list
 
-Status: ready-for-agent
+Status: done
 Blocked by: None - can start immediately
 
 ## Parent
