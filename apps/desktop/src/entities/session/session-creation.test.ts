@@ -1,0 +1,336 @@
+import { describe, expect, it } from "vitest";
+import { createInMemoryPiRuntimeBridge } from "@/entities/runtime/in-memory-pi-runtime-bridge";
+import { createPiRpcRuntimeBridge } from "@/entities/runtime/pi-rpc-runtime-bridge";
+import { createFakePiRpcTransport } from "@pig/core/testing";
+import { createExecutionCheckoutManager } from "@/entities/checkout/execution-checkout";
+import {
+  createInMemorySessionProjectionStore,
+  createSessionFromDraft,
+} from "@/entities/session/session-creation";
+
+describe("Session Creation state machine", () => {
+  it("submits a draft into a resumable Live Session through the fake Pi Runtime Bridge", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const observedStages: string[] = [];
+
+    const result = await createSessionFromDraft({
+      bridge: createInMemoryPiRuntimeBridge({
+        now: () => "2026-06-26T08:00:03.000Z",
+      }),
+      projections,
+      draft: {
+        projectId: "pig",
+        prompt: "Create a resumable live session",
+        updatedAt: "2026-06-26T08:00:00.000Z",
+      },
+      project: {
+        id: "pig",
+        repoRoot: "/Users/void/code/opensource/Pig",
+        projectRoot: "/Users/void/code/opensource/Pig",
+      },
+      now: () => "2026-06-26T08:00:00.000Z",
+      idFactory: () => "session-1",
+      onProjectionChange: (projection) => {
+        observedStages.push(projection.creationStage);
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      clearDraft: true,
+      projection: {
+        id: "session-1",
+        projectId: "pig",
+        status: "running",
+        creationStage: "accepted",
+        checkout: {
+          mode: "foreground-local",
+          root: "/Users/void/code/opensource/Pig",
+          runtimeCwd: "/Users/void/code/opensource/Pig",
+        },
+        runtimeId: "runtime-1",
+        piSessionId: "pi-session-1",
+        runtimeEvents: [
+          expect.objectContaining({
+            kind: "message",
+            role: "user",
+            body: "Create a resumable live session",
+          }),
+        ],
+      },
+    });
+    expect(projections.get("session-1")).toEqual(result.projection);
+    expect(observedStages).toEqual([
+      "preparing checkout",
+      "preparing checkout",
+      "starting runtime",
+      "sending prompt",
+      "accepted",
+    ]);
+  });
+
+  it("keeps Session Projection in sync with the Pi RPC Runtime Event Stream", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const transport = createFakePiRpcTransport({
+      sessionId: "pi-session-rpc",
+      model: {
+        provider: "openai",
+        id: "gpt-5-codex",
+      },
+    });
+    const bridge = createPiRpcRuntimeBridge({
+      transport,
+      now: () => "2026-06-26T08:00:00.000Z",
+    });
+
+    const result = await createSessionFromDraft({
+      bridge,
+      projections,
+      draft: {
+        projectId: "pig",
+        prompt: "Create a real Pi RPC-backed session",
+        updatedAt: "2026-06-26T08:00:00.000Z",
+      },
+      project: {
+        id: "pig",
+        repoRoot: "/Users/void/code/opensource/Pig",
+        projectRoot: "/Users/void/code/opensource/Pig",
+      },
+      now: () => "2026-06-26T08:00:00.000Z",
+      idFactory: () => "session-1",
+    });
+
+    transport.emitEvent({
+      type: "message_update",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Live" }],
+      },
+      assistantMessageEvent: {
+        type: "text_delta",
+        delta: "Live",
+      },
+    });
+    transport.emitEvent({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        provider: "openai",
+        model: "gpt-5-codex",
+        usage: {
+          totalTokens: 1280,
+          cost: {
+            total: 0.012345,
+          },
+        },
+        content: [{ type: "text", text: "Live session is ready." }],
+        timestamp: "2026-06-26T08:00:04.000Z",
+      },
+    });
+    transport.emitEvent({
+      type: "tool_execution_start",
+      toolCallId: "tool-read-1",
+      toolName: "read",
+      args: { path: "AGENTS.md" },
+      timestamp: "2026-06-26T08:00:05.000Z",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      projection: {
+        summary: {
+          provider: "openai",
+          model: "gpt-5-codex",
+        },
+      },
+    });
+    expect(projections.get("session-1")).toMatchObject({
+      runtimeEvents: [
+        expect.objectContaining({
+          kind: "message",
+          role: "user",
+          body: "Create a real Pi RPC-backed session",
+        }),
+        expect.objectContaining({
+          kind: "message",
+          role: "assistant",
+          body: "Live session is ready.",
+        }),
+        expect.objectContaining({
+          kind: "tool-call",
+          title: "read",
+          body: "{\"path\":\"AGENTS.md\"}",
+        }),
+      ],
+      summary: {
+        provider: "openai",
+        model: "gpt-5-codex",
+        totalTokens: 1280,
+        totalCostUsd: 0.012345,
+      },
+      updatedAt: "2026-06-26T08:00:05.000Z",
+    });
+    expect(
+      projections
+        .get("session-1")
+        ?.runtimeEvents.filter((event) => event.role === "assistant"),
+    ).toHaveLength(1);
+
+    if (!result.ok) {
+      throw new Error("expected session creation to succeed");
+    }
+
+    result.unsubscribeRuntimeEvents();
+    transport.emitEvent({
+      type: "tool_execution_start",
+      toolCallId: "tool-after-dispose",
+      toolName: "write",
+      args: { path: "README.md" },
+      timestamp: "2026-06-26T08:00:06.000Z",
+    });
+
+    expect(projections.get("session-1")?.runtimeEvents).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "write",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps multiple Sessions active for one Project and isolates background concurrent checkouts", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-06-27T08:00:03.000Z",
+    });
+    const createdWorktrees: string[] = [];
+    const checkoutManager = createExecutionCheckoutManager({
+      worktreesRoot: "/tmp/pig-worktrees",
+      gitClient: {
+        async isGitRepository() {
+          return true;
+        },
+        async addDetachedWorktree({ checkoutRoot }) {
+          createdWorktrees.push(checkoutRoot);
+        },
+      },
+    });
+    const project = {
+      id: "pig",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+    };
+
+    const foreground = await createSessionFromDraft({
+      bridge,
+      projections,
+      checkoutManager,
+      executionMode: "foreground",
+      draft: {
+        projectId: "pig",
+        prompt: "Run in the local checkout",
+        updatedAt: "2026-06-27T08:00:00.000Z",
+      },
+      project,
+      now: () => "2026-06-27T08:00:00.000Z",
+      idFactory: () => "session-local",
+    });
+    const background = await createSessionFromDraft({
+      bridge,
+      projections,
+      checkoutManager,
+      executionMode: "background",
+      draft: {
+        projectId: "pig",
+        prompt: "Run in an isolated worktree",
+        updatedAt: "2026-06-27T08:01:00.000Z",
+      },
+      project,
+      now: () => "2026-06-27T08:01:00.000Z",
+      idFactory: () => "session-background",
+    });
+
+    expect(foreground).toMatchObject({
+      ok: true,
+      projection: {
+        status: "running",
+        checkout: {
+          mode: "foreground-local",
+          executionCheckoutRoot: "/Users/void/code/opensource/Pig",
+          runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
+        },
+      },
+    });
+    expect(background).toMatchObject({
+      ok: true,
+      projection: {
+        status: "running",
+        checkout: {
+          mode: "managed-worktree",
+          projectRelativePath: "packages/web",
+          executionCheckoutRoot: "/tmp/pig-worktrees/session-background",
+          runtimeCwd: "/tmp/pig-worktrees/session-background/packages/web",
+        },
+      },
+    });
+    expect(createdWorktrees).toEqual(["/tmp/pig-worktrees/session-background"]);
+    expect(
+      projections
+        .list()
+        .filter((projection) => projection.projectId === "pig" && projection.status === "running"),
+    ).toHaveLength(2);
+  });
+
+  it.each([
+    ["start-runtime", "starting runtime"],
+    ["create-pi-session-state", "starting runtime"],
+    ["send-initial-prompt", "sending prompt"],
+  ] as const)(
+    "keeps the draft recoverable and records failure detail when %s fails",
+    async (failAt, failureStage) => {
+      const projections = createInMemorySessionProjectionStore();
+      const observedStages: string[] = [];
+
+      const result = await createSessionFromDraft({
+        bridge: createInMemoryPiRuntimeBridge({
+          failAt,
+          failureMessage: `Failure while ${failureStage}`,
+        }),
+        projections,
+        draft: {
+          projectId: "pig",
+          prompt: "Create a resumable live session",
+          updatedAt: "2026-06-26T08:00:00.000Z",
+        },
+        project: {
+          id: "pig",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          projectRoot: "/Users/void/code/opensource/Pig",
+        },
+        now: () => "2026-06-26T08:00:00.000Z",
+        idFactory: () => `session-${failAt}`,
+        onProjectionChange: (projection) => {
+          observedStages.push(projection.creationStage);
+        },
+      });
+
+      expect(result).toMatchObject({
+        ok: false,
+        clearDraft: false,
+        projection: {
+          id: `session-${failAt}`,
+          projectId: "pig",
+          initialPrompt: "Create a resumable live session",
+          status: "failed",
+          creationStage: "failed",
+          failure: {
+            stage: failureStage,
+            message: `Failure while ${failureStage}`,
+          },
+        },
+      });
+      expect(projections.get(`session-${failAt}`)).toEqual(result.projection);
+      expect(observedStages[observedStages.length - 1]).toBe("failed");
+    },
+  );
+});

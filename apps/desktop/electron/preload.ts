@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { BackendRpcEvent } from "@pig/backend";
-import type { PigRendererApi } from "../src/runtime";
+import type { PigRendererApi } from "@/shared/runtime";
 
 const api: PigRendererApi = {
   invoke(command, args) {

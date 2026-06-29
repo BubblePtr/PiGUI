@@ -11,6 +11,7 @@ export default defineConfig({
       "@pig/core/testing": resolve(__dirname, "packages/core/src/testing.ts"),
       "@pig/core": resolve(__dirname, "packages/core/src/index.ts"),
       "@pig/backend": resolve(__dirname, "packages/backend/src/index.ts"),
+      "@": resolve(__dirname, "apps/desktop/src"),
     },
   },
   server: {

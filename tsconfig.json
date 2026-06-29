@@ -19,7 +19,8 @@
     "paths": {
       "@pig/core": ["packages/core/src/index.ts"],
       "@pig/core/testing": ["packages/core/src/testing.ts"],
-      "@pig/backend": ["packages/backend/src/index.ts"]
+      "@pig/backend": ["packages/backend/src/index.ts"],
+      "@/*": ["apps/desktop/src/*"]
     }
   },
   "include": ["apps", "packages"],
