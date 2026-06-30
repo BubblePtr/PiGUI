@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
 import { NativeSelect } from "@heroui-pro/react/native-select";
-import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import {
   formatCost,
@@ -38,9 +38,7 @@ function SessionTitle({ title }: { title: Title }) {
     return (
       <div className="flex min-w-0 flex-col gap-1">
         <Chip className="max-w-full" size="sm" variant="soft">
-          <span aria-hidden="true" className="shrink-0">
-            ⚡
-          </span>
+          <Command aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="block truncate">{title.name}</span>
         </Chip>
         {title.args ? <span className="block truncate text-xs text-muted">{title.args}</span> : null}
@@ -51,16 +49,18 @@ function SessionTitle({ title }: { title: Title }) {
   if (title.kind === "skill") {
     return (
       <Chip className="max-w-full" size="sm" variant="soft">
-        <span aria-hidden="true" className="shrink-0">
-          🧩
-        </span>
+        <Puzzle aria-hidden="true" className="size-3.5 shrink-0" />
         <span className="block truncate">{title.name}</span>
       </Chip>
     );
   }
 
   if (title.kind === "text") {
-    return <span className="block truncate text-sm text-foreground">{title.sentence}</span>;
+    return (
+      <span className="block truncate text-sm text-foreground">
+        {title.sentence}
+      </span>
+    );
   }
 
   return (

@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { BackendRpcEvent } from "@pigui/backend";
-import type { PigRendererApi } from "@/shared/runtime";
+import type { PiGUIRendererApi } from "@/shared/runtime";
 
-const api: PigRendererApi = {
+const api: PiGUIRendererApi = {
   invoke(command, args) {
-    return ipcRenderer.invoke("pig:invoke", { command, args });
+    return ipcRenderer.invoke("pigui:invoke", { command, args });
   },
 
   onBackendEvent(listener: (event: BackendRpcEvent) => void) {
@@ -12,9 +12,9 @@ const api: PigRendererApi = {
       listener(event);
     };
 
-    ipcRenderer.on("pig:backend-event", handler);
+    ipcRenderer.on("pigui:backend-event", handler);
     return () => {
-      ipcRenderer.removeListener("pig:backend-event", handler);
+      ipcRenderer.removeListener("pigui:backend-event", handler);
     };
   },
 
@@ -23,11 +23,11 @@ const api: PigRendererApi = {
       listener();
     };
 
-    ipcRenderer.on("pig:window-focus", handler);
+    ipcRenderer.on("pigui:window-focus", handler);
     return () => {
-      ipcRenderer.removeListener("pig:window-focus", handler);
+      ipcRenderer.removeListener("pigui:window-focus", handler);
     };
   },
 };
 
-contextBridge.exposeInMainWorld("pig", api);
+contextBridge.exposeInMainWorld("pigui", api);

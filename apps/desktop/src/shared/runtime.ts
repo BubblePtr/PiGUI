@@ -5,11 +5,11 @@ import type { SessionSummary } from "@/entities/session/sessions";
 
 declare global {
   interface Window {
-    pig?: PigRendererApi;
+    pigui?: PiGUIRendererApi;
   }
 }
 
-export type PigRendererApi = {
+export type PiGUIRendererApi = {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
   onBackendEvent(listener: (event: BackendRpcEvent) => void): () => void;
   onWindowFocusChanged(listener: () => void): () => void;
@@ -26,7 +26,7 @@ const emptyConfigInventory = {
 const browserSessionSummaryFixture = browserSessionSummaries as SessionSummary[];
 
 export function isElectronRuntime() {
-  return typeof window !== "undefined" && window.pig !== undefined;
+  return typeof window !== "undefined" && window.pigui !== undefined;
 }
 
 function browserSessionDetail(summary: SessionSummary): SessionDetail {
@@ -125,6 +125,8 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
 
       return Promise.resolve((selectedPath?.trim() || null) as T);
     }
+    case "reveal_project_in_finder":
+      return Promise.resolve(undefined as T);
     case "list_sessions":
       return Promise.resolve(browserSessionSummaryFixture as T);
     case "get_session_detail": {
@@ -146,7 +148,7 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
 
 export function invoke<T>(command: string, args?: InvokeArgs) {
   if (isElectronRuntime()) {
-    return window.pig!.invoke<T>(command, args);
+    return window.pigui!.invoke<T>(command, args);
   }
 
   return invokeBrowserFallback<T>(command, args);
@@ -156,9 +158,13 @@ export function selectProjectDirectory() {
   return invoke<string | null>("select_project_directory");
 }
 
+export function revealProjectInFinder(path: string) {
+  return invoke<void>("reveal_project_in_finder", { path });
+}
+
 export async function onWindowFocusChanged(refetch: () => unknown) {
   if (isElectronRuntime()) {
-    return window.pig!.onWindowFocusChanged(() => {
+    return window.pigui!.onWindowFocusChanged(() => {
       void refetch();
     });
   }
@@ -182,5 +188,5 @@ export function onBackendEvent(listener: (event: BackendRpcEvent) => void) {
     return () => {};
   }
 
-  return window.pig!.onBackendEvent(listener);
+  return window.pigui!.onBackendEvent(listener);
 }

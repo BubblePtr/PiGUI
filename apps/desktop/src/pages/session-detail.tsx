@@ -3,6 +3,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
 import { KPI } from "@heroui-pro/react/kpi";
+import { lazy, Suspense, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bot,
@@ -13,8 +14,7 @@ import {
   Terminal,
   User,
   Wrench,
-} from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+} from "@/shared/ui/icons";
 import { invoke } from "@/shared/runtime";
 import type {
   MessageRole,

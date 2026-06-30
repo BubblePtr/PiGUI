@@ -4,10 +4,10 @@ import { ChatConversation } from "@heroui-pro/react/chat-conversation";
 import { ChatMessage } from "@heroui-pro/react/chat-message";
 import { PromptInput } from "@heroui-pro/react/prompt-input";
 import { Sheet } from "@heroui-pro/react/sheet";
-import { Activity, Archive, GitBranch } from "lucide-react";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
+import { Activity, Archive, GitBranch } from "@/shared/ui/icons";
 import {
   createExecutionCheckoutManager,
   type ExecutionCheckoutManager,
@@ -522,11 +522,11 @@ function SessionDraftComposer({
       data-testid="session-draft-composer"
     >
       <div className="mx-auto w-full max-w-[44rem]">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">
+        <h2 className="mb-3 text-sm text-foreground">
           Session Draft
         </h2>
         <div className="mb-3 flex items-center gap-2">
-          <label className="text-sm font-medium text-muted" htmlFor="session-draft-project">
+          <label className="text-sm text-muted" htmlFor="session-draft-project">
             Target Project
           </label>
           <select

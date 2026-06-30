@@ -106,6 +106,17 @@ describe("AgentWorkspaceSessionsPage", () => {
     const chatConversation = liveColumn.querySelector('[data-slot="chat-conversation"]');
     const promptInput = liveColumn.querySelector('[data-slot="prompt-input"]');
     const composer = liveColumn.querySelector('[data-testid="full-chat-composer"]');
+    const liveComposerInput = within(liveColumn).getByPlaceholderText(
+      "What do you want to know?",
+    );
+    const traceSidebarLabel = within(screen.getByRole("row", { name: "Trace" }))
+      .getByText("Trace")
+      .closest('[data-slot="sidebar-menu-label"]');
+    const newSessionSidebarLabel = within(
+      screen.getByLabelText("Trace and usage navigation"),
+    )
+      .getByText("New Session")
+      .closest('[data-slot="sidebar-menu-label"]');
 
     expect(sessionActionsButton).toBeInTheDocument();
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
@@ -115,6 +126,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(chatConversation?.closest(".card")).toBeNull();
     expect(promptInput?.closest(".card")).toBeNull();
     expect(chatConversation).toHaveAttribute("role", "log");
+    expect(traceSidebarLabel).not.toHaveClass("font-medium");
+    expect(newSessionSidebarLabel).not.toHaveClass("font-medium");
+    expect(liveComposerInput).not.toHaveClass("font-medium");
     expect(
       liveColumn.querySelector('[data-slot="chat-conversation-content"]'),
     ).toBeInTheDocument();
@@ -259,7 +273,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "New Session for Pig" }));
+    await user.click(await screen.findByRole("row", { name: "New Session" }));
+    await user.selectOptions(screen.getByLabelText("Target Project"), pigProjectPath);
     fireEvent.change(await screen.findByPlaceholderText("Describe the first Pi prompt"), {
       target: { value: "Create a draft-backed active Session" },
     });
@@ -897,26 +912,42 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(getFollowUpDraft("active-session")?.message).toBe("Keep this steer text");
   });
 
-  it("opens a Project-scoped Session Draft from New Session without adding a session row", async () => {
+  it("opens a global Session Draft from New Session without adding a Project row", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
 
     const projectNavigation = await screen.findByLabelText("Pig project sessions");
+    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
     const initialRows = within(projectNavigation).getAllByRole("row");
 
-    await user.click(screen.getByRole("button", { name: "New Session for Pig" }));
+    await user.click(within(traceUsageNavigation).getByRole("row", { name: "New Session" }));
 
     const draftComposer = await screen.findByTestId("session-draft-composer");
+    const draftTitle = within(draftComposer).getByText("Session Draft");
+    const draftPrompt = within(draftComposer).getByPlaceholderText(
+      "Describe the first Pi prompt",
+    );
+    const targetProjectLabel = within(draftComposer).getByText("Target Project");
+    const targetProjectSelect = within(draftComposer).getByLabelText("Target Project");
 
-    expect(within(draftComposer).getByText("Session Draft")).toBeInTheDocument();
+    expect(draftTitle).not.toHaveClass("font-medium");
+    expect(draftTitle).not.toHaveClass("font-semibold");
     expect(draftComposer.closest(".card")).toBeNull();
-    expect(
-      within(draftComposer).getByPlaceholderText("Describe the first Pi prompt"),
-    ).toBeInTheDocument();
+    expect(draftPrompt).not.toHaveClass("font-medium");
+    expect(targetProjectLabel).not.toHaveClass("font-medium");
+    expect(targetProjectSelect).not.toHaveClass("font-medium");
+    expect(targetProjectSelect).toHaveValue("");
+    expect(getSessionDraft()).toMatchObject({
+      projectId: null,
+      prompt: "",
+    });
     expect(within(projectNavigation).getAllByRole("row")).toHaveLength(
       initialRows.length,
     );
+    expect(
+      within(projectNavigation).queryByRole("row", { name: "New Session" }),
+    ).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
   });
 
@@ -934,7 +965,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
   });
 
-  it("restores the same Project draft after repeated New Session clicks and reload", async () => {
+  it("restores the same global draft after repeated New Session clicks and reload", async () => {
     const user = userEvent.setup();
     const firstRender = renderProjectSessions();
 
@@ -943,9 +974,12 @@ describe("AgentWorkspaceSessionsPage", () => {
       target: { value: "Keep this initial prompt" },
     });
 
-    expect(getSessionDraft("pig")?.prompt).toBe("Keep this initial prompt");
+    expect(getSessionDraft()).toMatchObject({
+      projectId: null,
+      prompt: "Keep this initial prompt",
+    });
 
-    await user.click(screen.getByRole("button", { name: "New Session for Pig" }));
+    await user.click(screen.getByRole("row", { name: "New Session" }));
 
     expect(screen.getByPlaceholderText("Describe the first Pi prompt")).toHaveValue(
       "Keep this initial prompt",

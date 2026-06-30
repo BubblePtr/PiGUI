@@ -3,15 +3,22 @@ import { AppLayout } from "@heroui-pro/react/app-layout";
 import { Sidebar } from "@heroui-pro/react/sidebar";
 import {
   BarChart3,
+  ChatAdd,
   ChevronRight,
   Circle,
+  FolderClosed,
+  FolderOpen,
+  FolderOpenState,
+  LayoutAlignLeft,
   ListTree,
   LoaderCircle,
   MoreHorizontal,
+  Pencil,
   Plus,
   Settings,
+  SidebarLeft,
   Trash2,
-} from "lucide-react";
+} from "@/shared/ui/icons";
 import {
   useEffect,
   useLayoutEffect,
@@ -19,11 +26,13 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type Key,
   type ReactNode,
 } from "react";
 import {
   addProjectToRegistry,
   getProjectRegistry,
+  renameProjectInRegistry,
   removeProjectFromRegistry,
   subscribeProjectRegistry,
   type ProjectRegistryEntry,
@@ -35,9 +44,7 @@ import {
 import {
   ensureSessionDraft,
   getSessionDraft,
-  hasSessionDraft,
   setSessionDraftTarget,
-  subscribeSessionDrafts,
 } from "@/entities/session/session-drafts";
 import {
   createSessionProjection,
@@ -45,7 +52,11 @@ import {
   type SessionProjection,
   type SessionProjectionListItem,
 } from "@/entities/session/session-projection";
-import { selectProjectDirectory } from "@/shared/runtime";
+import { revealProjectInFinder, selectProjectDirectory } from "@/shared/runtime";
+import {
+  SidebarActionDropdown,
+  SidebarActionDropdownItem,
+} from "./sidebar-action-dropdown";
 
 type AppFrameProps = {
   sidebar?: ReactNode;
@@ -187,10 +198,10 @@ const systemNavigationItems = [
   },
 ] as const;
 
-const sidebarDefaultSize = "280px";
+const sidebarDefaultSize = "260px";
 const sidebarMinSize = "240px";
-const sidebarMaxSize = "360px";
-const projectExpansionStorageKey = "pig.projectSidebar.expanded.v1";
+const sidebarMaxSize = "320px";
+const projectExpansionStorageKey = "pigui.projectSidebar.expanded.v1";
 const sidebarStyle = {
   "--sidebar-width": sidebarDefaultSize,
 } as CSSProperties;
@@ -262,8 +273,35 @@ function DraftBadge() {
   );
 }
 
+function ProjectExpansionIndicator({ expanded }: { expanded: boolean }) {
+  const StateIcon = expanded ? FolderOpenState : FolderClosed;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="pigui-project-expansion-indicator"
+      data-expanded={expanded ? "true" : "false"}
+    >
+      <StateIcon className="pigui-project-expansion-indicator__state" />
+      <ChevronRight className="pigui-project-expansion-indicator__chevron" />
+    </span>
+  );
+}
+
 function projectRoute(projectId: string) {
   return `/projects/${encodeURIComponent(projectId)}/sessions`;
+}
+
+function projectIdFromRoute(pathname: string, projects: ProjectRegistryEntry[]) {
+  const match = /^\/projects\/(.+)\/sessions$/.exec(pathname);
+
+  if (!match) {
+    return null;
+  }
+
+  const projectId = decodeURIComponent(match[1]);
+
+  return projects.some((project) => project.id === projectId) ? projectId : null;
 }
 
 function readProjectExpansionState(): Record<string, boolean> {
@@ -329,7 +367,7 @@ function AddProjectButton({
     <div className="px-3 py-2">
       <button
         aria-busy={choosing}
-        className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-md border border-default px-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-md border border-default px-2 text-sm text-foreground transition-colors hover:bg-muted/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         type="button"
         onClick={() => void chooseProject()}
       >
@@ -350,7 +388,8 @@ function ProjectNavigation({
   onAddProject,
   onToggleProject,
   onOpenSession,
-  onNewSession,
+  onRenameProject,
+  onRevealProject,
   onRemoveProject,
 }: {
   draftViewActive: boolean;
@@ -362,21 +401,13 @@ function ProjectNavigation({
   onAddProject: (path: string) => void;
   onToggleProject: (projectId: string) => void;
   onOpenSession: (sessionId: string, projectId: string) => void;
-  onNewSession: (projectId: string) => void;
+  onRenameProject: (projectId: string) => void;
+  onRevealProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
 }) {
   const projectActive = pathname.startsWith("/projects/");
-  const [draftVersion, setDraftVersion] = useState(0);
   const [followUpDraftVersion, setFollowUpDraftVersion] = useState(0);
-  const [openActionsProjectId, setOpenActionsProjectId] = useState<string | null>(null);
 
-  useEffect(
-    () =>
-      subscribeSessionDrafts(() => {
-        setDraftVersion((version) => version + 1);
-      }),
-    [],
-  );
   useEffect(
     () =>
       subscribeFollowUpDrafts(() => {
@@ -412,119 +443,135 @@ function ProjectNavigation({
           (session) => session.projection.projectId === project.id,
         );
         const expanded = expandedProjects[project.id] ?? true;
-        const hasDraft = hasSessionDraft(project.id);
-        const hasProjectDraft =
-          hasDraft || projectSessions.some((session) => hasFollowUpDraft(session.id));
+        const hasProjectDraft = projectSessions.some((session) =>
+          hasFollowUpDraft(session.id),
+        );
 
-        void draftVersion;
         void followUpDraftVersion;
+
+        const projectMenuItemId = `project:${project.id}`;
+        const projectExpandedKeys = expanded ? [projectMenuItemId] : [];
+        const onProjectExpandedChange = (keys: "all" | Set<Key>) => {
+          const nextExpanded = keys === "all" || keys.has(projectMenuItemId);
+
+          if (nextExpanded !== expanded) {
+            onToggleProject(project.id);
+          }
+        };
 
         return (
           <div key={project.id} className="grid gap-1">
-            <Sidebar.GroupLabel className="flex items-center gap-2 px-3 text-sm normal-case">
-              <button
-                aria-expanded={expanded}
-                aria-label={`${expanded ? "Collapse" : "Expand"} ${project.displayName}`}
-                className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                type="button"
-                onClick={() => onToggleProject(project.id)}
+            <Sidebar.Menu
+              aria-label={`${project.displayName} project sessions`}
+              expandedKeys={projectExpandedKeys}
+              showGuideLines={false}
+              onExpandedChange={onProjectExpandedChange}
+            >
+              <Sidebar.MenuItem
+                id={projectMenuItemId}
+                closeMobileOnAction={false}
+                textValue={project.displayName}
               >
-                <ChevronRight
-                  aria-hidden="true"
-                  className={`size-3.5 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
-                />
-                <span className="min-w-0 flex-1 truncate">{project.displayName}</span>
-              </button>
-              {hasProjectDraft ? <DraftBadge /> : null}
-              <button
-                aria-label={`New Session for ${project.displayName}`}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-muted/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                type="button"
-                onClick={() => onNewSession(project.id)}
-              >
-                <Plus aria-hidden="true" className="size-3.5" />
-              </button>
-              <div className="relative shrink-0">
-                <button
-                  aria-expanded={openActionsProjectId === project.id}
-                  aria-label={`Project actions for ${project.displayName}`}
-                  className="inline-flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-muted/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  type="button"
-                  onClick={() =>
-                    setOpenActionsProjectId((currentProjectId) =>
-                      currentProjectId === project.id ? null : project.id,
-                    )
-                  }
-                >
-                  <MoreHorizontal aria-hidden="true" className="size-3.5" />
-                </button>
-                {openActionsProjectId === project.id ? (
-                  <div
-                    className="absolute right-0 top-7 z-20 min-w-40 rounded-md border border-default bg-surface p-1 shadow-lg"
-                    role="menu"
-                  >
-                    <button
-                      className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm text-danger transition-colors hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
-                      role="menuitem"
-                      type="button"
-                      onClick={() => {
-                        setOpenActionsProjectId(null);
+                <Sidebar.MenuTrigger>
+                  <ProjectExpansionIndicator expanded={expanded} />
+                </Sidebar.MenuTrigger>
+                <Sidebar.MenuLabel>{project.displayName}</Sidebar.MenuLabel>
+                {hasProjectDraft ? (
+                  <Sidebar.MenuChip>
+                    <DraftBadge />
+                  </Sidebar.MenuChip>
+                ) : null}
+                <Sidebar.MenuActions className="ml-auto">
+                  <SidebarActionDropdown
+                    ariaLabel={`Project actions for ${project.displayName}`}
+                    icon={<MoreHorizontal aria-hidden="true" />}
+                    onAction={(key) => {
+                      if (key === "rename-project") {
+                        onRenameProject(project.id);
+                        return;
+                      }
+
+                      if (key === "reveal-project") {
+                        onRevealProject(project.id);
+                        return;
+                      }
+
+                      if (key === "remove-project") {
                         onRemoveProject(project.id);
-                      }}
-                    >
-                      <Trash2 aria-hidden="true" className="size-3.5" />
-                      Remove Project...
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </Sidebar.GroupLabel>
-            {expanded ? (
-              <Sidebar.Menu
-                aria-label={`${project.displayName} project sessions`}
-                showGuideLines={false}
-              >
-                <Sidebar.MenuItem
-                  id={`${project.id}-new-session`}
-                  isCurrent={draftViewActive}
-                  textValue="New Session"
-                  onAction={() => onNewSession(project.id)}
-                >
-                  <Sidebar.MenuIcon>
-                    <Plus className="size-4" />
-                  </Sidebar.MenuIcon>
-                  <Sidebar.MenuLabel>New Session</Sidebar.MenuLabel>
-                  {hasDraft ? (
-                    <Sidebar.MenuActions className="ml-auto">
-                      <DraftBadge />
-                    </Sidebar.MenuActions>
-                  ) : null}
-                </Sidebar.MenuItem>
-                {projectSessions.length === 0 ? (
-                  <div className="px-8 py-2 text-sm text-muted">No chats</div>
-                ) : null}
-                {projectSessions.map((session) => (
-                  <Sidebar.MenuItem
-                    key={session.id}
-                    id={session.id}
-                    isCurrent={!draftViewActive && projectActive && session.id === selectedSessionId}
-                    textValue={session.title}
-                    onAction={() => onOpenSession(session.id, project.id)}
+                      }
+                    }}
                   >
-                    <Sidebar.MenuIcon className="justify-center">
-                      <SidebarSessionGlyph active={session.active} unread={session.unread} />
-                    </Sidebar.MenuIcon>
-                    <Sidebar.MenuLabel className="min-w-0">
-                      <span className="block truncate">{session.title}</span>
-                    </Sidebar.MenuLabel>
-                    <Sidebar.MenuActions className="ml-auto flex items-center gap-1 text-xs tabular-nums text-muted">
-                      {hasFollowUpDraft(session.id) ? <DraftBadge /> : null}
-                      <span>{session.updatedAt.slice(11, 16)}</span>
-                    </Sidebar.MenuActions>
-                  </Sidebar.MenuItem>
-                ))}
-              </Sidebar.Menu>
-            ) : null}
+                    <SidebarActionDropdownItem
+                      icon={(
+                        <Pencil aria-hidden="true" />
+                      )}
+                      id="rename-project"
+                      textValue="Rename Project"
+                    >
+                      Rename Project
+                    </SidebarActionDropdownItem>
+                    <SidebarActionDropdownItem
+                      icon={(
+                        <FolderOpen aria-hidden="true" />
+                      )}
+                      id="reveal-project"
+                      textValue="Reveal in Finder"
+                    >
+                      Reveal in Finder
+                    </SidebarActionDropdownItem>
+                    <SidebarActionDropdownItem
+                      icon={(
+                        <Trash2 aria-hidden="true" />
+                      )}
+                      id="remove-project"
+                      textValue="Remove Project..."
+                      variant="danger"
+                    >
+                      Remove Project...
+                    </SidebarActionDropdownItem>
+                  </SidebarActionDropdown>
+                </Sidebar.MenuActions>
+                <Sidebar.Submenu>
+                  {projectSessions.length === 0 ? (
+                    <Sidebar.MenuItem
+                      id={`${project.id}-empty`}
+                      isDisabled
+                      textValue="No chats"
+                    >
+                      <Sidebar.MenuLabel>No chats</Sidebar.MenuLabel>
+                    </Sidebar.MenuItem>
+                  ) : null}
+                  {projectSessions.map((session) => (
+                    <Sidebar.MenuItem
+                      key={session.id}
+                      id={session.id}
+                      isCurrent={
+                        !draftViewActive && projectActive && session.id === selectedSessionId
+                      }
+                      textValue={session.title}
+                      onAction={() => onOpenSession(session.id, project.id)}
+                    >
+                      <Sidebar.MenuIcon className="justify-center">
+                        <SidebarSessionGlyph active={session.active} unread={session.unread} />
+                      </Sidebar.MenuIcon>
+                      <Sidebar.MenuLabel className="min-w-0">
+                        <span className="block truncate">{session.title}</span>
+                      </Sidebar.MenuLabel>
+                      <Sidebar.MenuChip>
+                        <span className="text-muted text-[10px] leading-none">
+                          {session.updatedAt.slice(11, 16)}
+                        </span>
+                      </Sidebar.MenuChip>
+                      {hasFollowUpDraft(session.id) ? (
+                        <Sidebar.MenuActions className="ml-auto">
+                          <DraftBadge />
+                        </Sidebar.MenuActions>
+                      ) : null}
+                    </Sidebar.MenuItem>
+                  ))}
+                </Sidebar.Submenu>
+              </Sidebar.MenuItem>
+            </Sidebar.Menu>
           </div>
         );
       })}
@@ -533,10 +580,33 @@ function ProjectNavigation({
   );
 }
 
-function TraceUsageNavigation({ pathname }: { pathname: string }) {
+function TraceUsageNavigation({
+  draftViewActive,
+  hasProjects,
+  pathname,
+  onNewSession,
+}: {
+  draftViewActive: boolean;
+  hasProjects: boolean;
+  pathname: string;
+  onNewSession: () => void;
+}) {
   return (
     <Sidebar.Group>
       <Sidebar.Menu aria-label="Trace and usage navigation" showGuideLines={false}>
+        {hasProjects ? (
+          <Sidebar.MenuItem
+            id="global-new-session"
+            isCurrent={draftViewActive}
+            textValue="New Session"
+            onAction={onNewSession}
+          >
+            <Sidebar.MenuIcon>
+              <ChatAdd className="size-4" />
+            </Sidebar.MenuIcon>
+            <Sidebar.MenuLabel>New Session</Sidebar.MenuLabel>
+          </Sidebar.MenuItem>
+        ) : null}
         {traceUsageNavigationItems.map((item) => {
           const Icon = item.icon;
           const active = item.isActive(pathname);
@@ -600,6 +670,8 @@ function SidebarPanelContent({
   onToggleProject,
   onOpenSession,
   onNewSession,
+  onRenameProject,
+  onRevealProject,
   onRemoveProject,
 }: {
   draftViewActive: boolean;
@@ -611,7 +683,9 @@ function SidebarPanelContent({
   onAddProject: (path: string) => void;
   onToggleProject: (projectId: string) => void;
   onOpenSession: (sessionId: string, projectId: string) => void;
-  onNewSession: (projectId: string) => void;
+  onNewSession: () => void;
+  onRenameProject: (projectId: string) => void;
+  onRevealProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
 }) {
   return (
@@ -623,7 +697,12 @@ function SidebarPanelContent({
         style={titlebarHeaderStyle}
       />
       <Sidebar.Content className="min-h-0 flex-1 flex-col overflow-hidden">
-        <TraceUsageNavigation pathname={pathname} />
+        <TraceUsageNavigation
+          draftViewActive={draftViewActive}
+          hasProjects={projects.length > 0}
+          pathname={pathname}
+          onNewSession={onNewSession}
+        />
         <ProjectNavigation
           draftViewActive={draftViewActive}
           pathname={pathname}
@@ -634,7 +713,8 @@ function SidebarPanelContent({
           onAddProject={onAddProject}
           onToggleProject={onToggleProject}
           onOpenSession={onOpenSession}
-          onNewSession={onNewSession}
+          onRenameProject={onRenameProject}
+          onRevealProject={onRevealProject}
           onRemoveProject={onRemoveProject}
         />
       </Sidebar.Content>
@@ -643,6 +723,12 @@ function SidebarPanelContent({
       </Sidebar.Footer>
     </>
   );
+}
+
+function SidebarToggleIcon({ sidebarOpen }: { sidebarOpen: boolean }) {
+  const Icon = sidebarOpen ? SidebarLeft : LayoutAlignLeft;
+
+  return <Icon aria-hidden="true" className="size-4" />;
 }
 
 function HeaderChrome({
@@ -660,31 +746,31 @@ function HeaderChrome({
     ? mainLeft
     : chromeSafeLeft;
   const chromeStyle = {
-    "--pig-chrome-safe-left": chromeSafeLeft,
-    "--pig-header-height": titlebarHeight,
-    "--pig-main-left": mainLeft,
-    "--pig-title-x": titleX,
-    "--pig-traffic-width": trafficWidth,
+    "--pigui-chrome-safe-left": chromeSafeLeft,
+    "--pigui-header-height": titlebarHeight,
+    "--pigui-main-left": mainLeft,
+    "--pigui-title-x": titleX,
+    "--pigui-traffic-width": trafficWidth,
     height: titlebarHeight,
   } as CSSProperties;
   const titleTrackStyle = {
-    "--pig-main-left": mainLeft,
-    "--pig-title-x": titleX,
-    left: "var(--pig-chrome-safe-left)",
+    "--pigui-main-left": mainLeft,
+    "--pigui-title-x": titleX,
+    left: "var(--pigui-chrome-safe-left)",
   } as CSSProperties;
   const titleStyle = {
-    "--pig-title-x": titleX,
-    transform: `translateX(calc(${titleX} - var(--pig-chrome-safe-left)))`,
+    "--pigui-title-x": titleX,
+    transform: `translateX(calc(${titleX} - var(--pigui-chrome-safe-left)))`,
   } as CSSProperties;
 
   return (
     <div
-      className="pig-header-chrome"
+      className="pigui-header-chrome"
       data-sidebar={sidebarOpen ? "open" : "closed"}
       data-testid="header-chrome"
       style={chromeStyle}
     >
-      <div className="pig-header-chrome__left" data-testid="header-chrome-left">
+      <div className="pigui-header-chrome__left" data-testid="header-chrome-left">
         <div
           aria-hidden="true"
           className="h-full shrink-0"
@@ -696,7 +782,9 @@ function HeaderChrome({
           aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           className="shrink-0"
           style={titlebarControlStyle}
-        />
+        >
+          <SidebarToggleIcon sidebarOpen={sidebarOpen} />
+        </Sidebar.Trigger>
         <div
           aria-hidden="true"
           className="h-full min-w-0 flex-1"
@@ -704,12 +792,12 @@ function HeaderChrome({
         />
       </div>
       <div
-        className="pig-header-chrome__title-track"
+        className="pigui-header-chrome__title-track"
         data-testid="header-chrome-title-track"
         style={titleTrackStyle}
       >
         <div
-          className="pig-header-chrome__title flex h-7 min-w-0 shrink-0 select-none items-center"
+          className="pigui-header-chrome__title flex h-7 min-w-0 shrink-0 select-none items-center"
           data-testid="header-chrome-title"
           style={titleStyle}
         >
@@ -719,13 +807,13 @@ function HeaderChrome({
         </div>
         <div
           aria-hidden="true"
-          className="pig-header-chrome__drag h-full min-w-0 flex-1 select-none"
+          className="pigui-header-chrome__drag h-full min-w-0 flex-1 select-none"
           data-slot="navbar-spacer"
           data-window-drag-region
         />
         {toolbarActions ? (
           <div
-            className="pig-header-chrome__actions flex h-full shrink-0 items-center gap-1"
+            className="pigui-header-chrome__actions flex h-full shrink-0 items-center gap-1"
             data-testid="navbar-actions"
           >
             {toolbarActions}
@@ -878,12 +966,25 @@ export function AppFrame({
     };
   }, []);
 
-  const handleNewSession = (projectId: string) => {
-    ensureSessionDraft(projectId);
+  const openSessionDraft = (
+    targetProjectId: string | null,
+    routeProjectId = targetProjectId,
+  ) => {
+    ensureSessionDraft(targetProjectId);
+    const navigationProjectId =
+      routeProjectId ?? projectIdFromRoute(pathname, projects) ?? projects[0]?.id;
+
+    if (!navigationProjectId) {
+      return;
+    }
+
     void router.navigate({
-      to: projectRoute(projectId) as never,
+      to: projectRoute(navigationProjectId) as never,
       search: { view: "draft" } as never,
     });
+  };
+  const handleNewSession = () => {
+    openSessionDraft(null);
   };
   const handleAddProject = (path: string) => {
     const result = addProjectToRegistry(path);
@@ -892,7 +993,31 @@ export function AppFrame({
       ...currentExpandedProjects,
       [result.project.id]: true,
     }));
-    handleNewSession(result.project.id);
+    openSessionDraft(result.project.id, result.project.id);
+  };
+  const handleRenameProject = (projectId: string) => {
+    const project = projects.find((candidate) => candidate.id === projectId);
+
+    if (!project) {
+      return;
+    }
+
+    const nextDisplayName = window.prompt("Rename Project", project.displayName);
+
+    if (nextDisplayName === null) {
+      return;
+    }
+
+    renameProjectInRegistry(project.id, nextDisplayName);
+  };
+  const handleRevealProject = (projectId: string) => {
+    const project = projects.find((candidate) => candidate.id === projectId);
+
+    if (!project) {
+      return;
+    }
+
+    void revealProjectInFinder(project.path);
   };
   const handleRemoveProject = (projectId: string) => {
     const project = projects.find((candidate) => candidate.id === projectId);
@@ -963,10 +1088,10 @@ export function AppFrame({
   return (
     <AppLayout
       ref={layoutRef}
-      className="pig-app-layout bg-background text-foreground"
+      className="pigui-app-layout bg-background text-foreground"
       data-sidebar-animating={sidebarAnimating ? "true" : undefined}
       navigate={(href) => void router.navigate({ to: href as never })}
-      resizableAutoSaveId="pig-app-shell"
+      resizableAutoSaveId="pigui-app-shell"
       scrollMode="content"
       sidebar={
         <Sidebar style={sidebarStyle}>
@@ -981,6 +1106,8 @@ export function AppFrame({
             onToggleProject={handleToggleProject}
             onOpenSession={handleOpenSession}
             onNewSession={handleNewSession}
+            onRenameProject={handleRenameProject}
+            onRevealProject={handleRevealProject}
             onRemoveProject={handleRemoveProject}
           />
         </Sidebar>

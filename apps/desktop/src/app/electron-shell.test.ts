@@ -13,7 +13,10 @@ describe("Electron shell", () => {
     expect(main).toContain("utilityProcess.fork");
     expect(main).toContain("MessageChannelMain");
     expect(main).toContain("ipcMain.handle");
-    expect(main).toContain('"pig:invoke"');
+    expect(main).toContain('"pigui:invoke"');
+    expect(main).not.toContain('"pig:invoke"');
+    expect(main).not.toContain('"pig:backend-event"');
+    expect(main).not.toContain('"pig:window-focus"');
     expect(main).not.toContain("createBackendService");
     expect(main).not.toContain("buildSessionIndex");
     expect(main).not.toContain("spawn(");
@@ -29,13 +32,17 @@ describe("Electron shell", () => {
     expect(main).toContain("trafficLightPosition: { x: 16, y: 13 }");
   });
 
-  it("exposes only a typed Pig API from preload", () => {
+  it("exposes only a typed PiGUI API from preload", () => {
     const preload = readProjectFile("apps/desktop/electron/preload.ts");
 
-    expect(preload).toContain('contextBridge.exposeInMainWorld("pig"');
-    expect(preload).toContain('ipcRenderer.invoke("pig:invoke"');
-    expect(preload).toContain('ipcRenderer.on("pig:backend-event"');
-    expect(preload).toContain('ipcRenderer.on("pig:window-focus"');
+    expect(preload).toContain('contextBridge.exposeInMainWorld("pigui"');
+    expect(preload).toContain('ipcRenderer.invoke("pigui:invoke"');
+    expect(preload).toContain('ipcRenderer.on("pigui:backend-event"');
+    expect(preload).toContain('ipcRenderer.on("pigui:window-focus"');
+    expect(preload).not.toContain('contextBridge.exposeInMainWorld("pig",');
+    expect(preload).not.toContain('ipcRenderer.invoke("pig:invoke"');
+    expect(preload).not.toContain('ipcRenderer.on("pig:backend-event"');
+    expect(preload).not.toContain('ipcRenderer.on("pig:window-focus"');
     expect(preload).not.toContain("window.ipcRenderer");
   });
 
@@ -46,6 +53,14 @@ describe("Electron shell", () => {
     expect(main).toContain('input.command === "select_project_directory"');
     expect(main).toContain('title: "Select Project"');
     expect(main).toContain('properties: ["openDirectory"]');
+  });
+
+  it("reveals Projects in Finder through the main process", () => {
+    const main = readProjectFile("apps/desktop/electron/main.ts");
+
+    expect(main).toContain('import { join } from "node:path";');
+    expect(main).toContain("shell.showItemInFolder");
+    expect(main).toContain('input.command === "reveal_project_in_finder"');
   });
 
   it("hosts the backend service inside the utility process entrypoint", () => {

@@ -14,8 +14,8 @@ export type AddProjectOptions = {
   now?: () => string;
 };
 
-const storageKey = "pig.projectRegistry.v1";
-const registryChangedEvent = "pig:project-registry-changed";
+const storageKey = "pigui.projectRegistry.v1";
+const registryChangedEvent = "pigui:project-registry-changed";
 
 function nowIso() {
   return new Date().toISOString();
@@ -176,6 +176,38 @@ export function removeProjectFromRegistry(projectId: string) {
 
   writeRegistry(remainingProjects);
   emitRegistryChanged(normalizedProjectId);
+}
+
+export function renameProjectInRegistry(projectId: string, displayName: string) {
+  const normalizedProjectId = normalizeProjectPath(projectId);
+  const nextDisplayName = displayName.trim();
+
+  if (!nextDisplayName) {
+    return null;
+  }
+
+  let renamedProject: ProjectRegistryEntry | null = null;
+  const projects = getProjectRegistry().map((project) => {
+    if (project.id !== normalizedProjectId) {
+      return project;
+    }
+
+    renamedProject = {
+      ...project,
+      displayName: nextDisplayName,
+    };
+
+    return renamedProject;
+  });
+
+  if (!renamedProject) {
+    return null;
+  }
+
+  writeRegistry(projects);
+  emitRegistryChanged(normalizedProjectId);
+
+  return renamedProject;
 }
 
 export function subscribeProjectRegistry(listener: () => void) {

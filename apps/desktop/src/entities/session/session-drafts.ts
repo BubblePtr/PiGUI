@@ -8,9 +8,8 @@ export type GetSessionDraftOptions = {
   projectIds?: string[];
 };
 
-const storageKey = "pig.sessionDraft.v2";
-const legacyStorageKey = "pig.sessionDrafts.v1";
-const draftsChangedEvent = "pig:session-drafts-changed";
+const storageKey = "pigui.sessionDraft.v2";
+const draftsChangedEvent = "pigui:session-drafts-changed";
 
 function nowIso() {
   return new Date().toISOString();
@@ -35,29 +34,6 @@ function isSessionDraft(value: unknown): value is SessionDraft {
   );
 }
 
-function newestLegacyDraft(rawDrafts: string | null): SessionDraft | null {
-  if (!rawDrafts) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawDrafts) as Record<string, SessionDraft>;
-    const drafts = Object.entries(parsed)
-      .filter(
-        ([projectId, draft]) =>
-          draft?.projectId === projectId &&
-          typeof draft.prompt === "string" &&
-          typeof draft.updatedAt === "string",
-      )
-      .map(([, draft]) => draft)
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-
-    return drafts[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function readDraft(): SessionDraft | null {
   const storage = getStorage();
 
@@ -67,17 +43,17 @@ function readDraft(): SessionDraft | null {
 
   const rawDraft = storage.getItem(storageKey);
 
-  if (rawDraft) {
-    try {
-      const parsed = JSON.parse(rawDraft) as SessionDraft;
-
-      return isSessionDraft(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
+  if (!rawDraft) {
+    return null;
   }
 
-  return newestLegacyDraft(storage.getItem(legacyStorageKey));
+  try {
+    const parsed = JSON.parse(rawDraft) as SessionDraft;
+
+    return isSessionDraft(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function writeDraft(draft: SessionDraft | null) {
@@ -207,7 +183,7 @@ export function subscribeSessionDrafts(listener: () => void) {
   }
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === storageKey || event.key === legacyStorageKey) {
+    if (event.key === storageKey) {
       listener();
     }
   };

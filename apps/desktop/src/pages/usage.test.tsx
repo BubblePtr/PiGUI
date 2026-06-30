@@ -105,7 +105,7 @@ describe("CostTrendChart", () => {
     expect(viewport).toHaveAttribute("data-scrollable", "false");
     expect(chart).toHaveAttribute("aria-label", "Monthly cost by project chart");
     expect(viewport).toContainElement(chart);
-    expect(container.innerHTML).not.toContain("--pig-color-");
+    expect(container.innerHTML).not.toContain("--pigui-color-");
   });
 
   it("uses HeroUI Pro chart tokens instead of Pig color variables", () => {
@@ -114,7 +114,7 @@ describe("CostTrendChart", () => {
     expect(source).toContain("const chartColorCount = 5;");
     expect(source).toContain("var(--chart-${(index % chartColorCount) + 1})");
     expect(source).toContain("var(--surface-tertiary)");
-    expect(source).not.toContain("--pig-color-");
+    expect(source).not.toContain("--pigui-color-");
   });
 });
 
@@ -189,7 +189,7 @@ describe("TokenHeatmap", () => {
     expect(container.querySelector('[data-date="2026-03-20"]')).toHaveStyle({
       backgroundColor: "var(--chart-2)",
     });
-    expect(container.innerHTML).not.toContain("--pig-color-");
+    expect(container.innerHTML).not.toContain("--pigui-color-");
     expect(container.querySelector('[data-date="2026-06-30"]')).toHaveAttribute(
       "data-tokens",
       "0",

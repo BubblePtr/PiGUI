@@ -4,8 +4,8 @@ export type FollowUpDraft = {
   updatedAt: string;
 };
 
-const storageKey = "pig.followUpDrafts.v1";
-const followUpDraftsChangedEvent = "pig:follow-up-drafts-changed";
+const storageKey = "pigui.followUpDrafts.v1";
+const followUpDraftsChangedEvent = "pigui:follow-up-drafts-changed";
 
 type FollowUpDraftMap = Record<string, FollowUpDraft>;
 

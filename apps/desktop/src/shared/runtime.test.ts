@@ -1,18 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionDetail } from "@/pages/session-detail";
 import type { SessionSummary } from "@/entities/session/sessions";
-import { invoke, isElectronRuntime, onWindowFocusChanged, type PigRendererApi } from "@/shared/runtime";
+import {
+  invoke,
+  isElectronRuntime,
+  onWindowFocusChanged,
+  revealProjectInFinder,
+  type PiGUIRendererApi,
+} from "@/shared/runtime";
 
 describe("renderer runtime bridge", () => {
   afterEach(() => {
-    delete window.pig;
+    delete window.pigui;
     vi.clearAllMocks();
   });
 
   it("detects the Electron preload API", () => {
     expect(isElectronRuntime()).toBe(false);
 
-    window.pig = {
+    window.pigui = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
@@ -23,8 +29,8 @@ describe("renderer runtime bridge", () => {
 
   it("delegates invoke calls to Electron when preload is available", async () => {
     const electronInvoke = vi.fn(async (command: string) => `electron:${command}`);
-    window.pig = {
-      invoke: electronInvoke as unknown as PigRendererApi["invoke"],
+    window.pigui = {
+      invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
@@ -32,6 +38,25 @@ describe("renderer runtime bridge", () => {
     await expect(invoke("list_sessions")).resolves.toBe("electron:list_sessions");
 
     expect(electronInvoke).toHaveBeenCalledWith("list_sessions", undefined);
+  });
+
+  it("reveals a Project in Finder through Electron when preload is available", async () => {
+    const electronInvoke = vi.fn(async () => undefined);
+    window.pigui = {
+      invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: vi.fn(),
+      onWindowFocusChanged: vi.fn(),
+    };
+
+    await revealProjectInFinder("/Users/void/code/opensource/Pig");
+
+    expect(electronInvoke).toHaveBeenCalledWith("reveal_project_in_finder", {
+      path: "/Users/void/code/opensource/Pig",
+    });
+  });
+
+  it("treats Reveal in Finder as a no-op outside Electron", async () => {
+    await expect(revealProjectInFinder("/Users/void/code/opensource/Pig")).resolves.toBeUndefined();
   });
 
   it("returns browser development data outside Electron", async () => {
@@ -80,7 +105,7 @@ describe("renderer runtime bridge", () => {
       handler();
       return unlisten;
     });
-    window.pig = {
+    window.pigui = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onWindowFocusChanged: onWindowFocusChangedPreload,

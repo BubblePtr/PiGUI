@@ -34,6 +34,35 @@ describe("Session Draft storage", () => {
       prompt: "Run the control-plane tests",
     });
     expect(getSessionDraft()).toEqual(retargetedDraft);
+    expect(window.localStorage.getItem("pig.sessionDraft.v2")).toBeNull();
+    expect(JSON.parse(window.localStorage.getItem("pigui.sessionDraft.v2") ?? "{}"))
+      .toMatchObject({
+        projectId: "/Users/void/Documents/study",
+        prompt: "Run the control-plane tests",
+      });
+  });
+
+  it("does not read obsolete pig namespace draft data", () => {
+    window.localStorage.setItem(
+      "pig.sessionDraft.v2",
+      JSON.stringify({
+        projectId: "/Users/void/code/opensource/Pig",
+        prompt: "Old current draft",
+        updatedAt: "2026-06-30T08:00:00.000Z",
+      }),
+    );
+    window.localStorage.setItem(
+      "pig.sessionDrafts.v1",
+      JSON.stringify({
+        "/Users/void/Documents/study": {
+          projectId: "/Users/void/Documents/study",
+          prompt: "Old legacy draft",
+          updatedAt: "2026-06-30T08:01:00.000Z",
+        },
+      }),
+    );
+
+    expect(getSessionDraft()).toBeNull();
   });
 
   it("clears a missing target Project while preserving the draft text", () => {

@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   MessageChannelMain,
+  shell,
   type MessagePortMain,
   utilityProcess,
 } from "electron";
@@ -48,7 +49,7 @@ function createMainWindow() {
   });
 
   mainWindow.on("focus", () => {
-    mainWindow?.webContents.send("pig:window-focus");
+    mainWindow?.webContents.send("pigui:window-focus");
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -71,7 +72,7 @@ function createBackendBridge() {
   backend.postMessage({ type: "connect" }, [port2]);
   backendPort.on("message", ({ data }) => {
     if (isBackendRpcEvent(data)) {
-      mainWindow?.webContents.send("pig:backend-event", data);
+      mainWindow?.webContents.send("pigui:backend-event", data);
       return;
     }
 
@@ -99,7 +100,7 @@ function createBackendBridge() {
       pending.reject(error);
     }
     pendingRequests.clear();
-    mainWindow?.webContents.send("pig:backend-event", {
+    mainWindow?.webContents.send("pigui:backend-event", {
       type: "event",
       event: {
         id: "backend-exit",
@@ -155,11 +156,25 @@ async function selectProjectDirectory() {
   return result.filePaths[0] ?? null;
 }
 
+function revealProjectInFinder(args?: Record<string, unknown>) {
+  const path = typeof args?.path === "string" ? args.path : "";
+
+  if (!path) {
+    throw new Error("Project path is required.");
+  }
+
+  shell.showItemInFolder(path);
+}
+
 ipcMain.handle(
-  "pig:invoke",
+  "pigui:invoke",
   (_event, input: { command: string; args?: Record<string, unknown> }) => {
     if (input.command === "select_project_directory") {
       return selectProjectDirectory();
+    }
+
+    if (input.command === "reveal_project_in_finder") {
+      return revealProjectInFinder(input.args);
     }
 
     return invokeBackend(input.command, input.args);
