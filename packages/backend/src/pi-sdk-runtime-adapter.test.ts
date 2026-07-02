@@ -58,7 +58,11 @@ describe("Pi SDK public runtime adapter", () => {
     expect(createAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
         cwd: "/Users/void/code/opensource/Pig",
-        noTools: "all",
+      }),
+    );
+    expect(createAgentSession).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        noTools: expect.anything(),
       }),
     );
     expect(prompt).toHaveBeenCalledWith("Reply with exactly: PIGUI_SDK_SPIKE_OK");
@@ -98,6 +102,60 @@ describe("Pi SDK public runtime adapter", () => {
         body: "PIGUI_SDK_SPIKE_OK",
         messageId: "pi-sdk:sdk-session-1:assistant:0",
         bodyFormat: "full",
+      },
+    });
+  });
+
+  it("maps public SDK assistant tool call events to tool trace events", () => {
+    expect(
+      runtimeEventFromAgentSessionEvent({
+        piSessionId: "sdk-session-1",
+        now: () => "2026-07-01T00:00:00.000Z",
+        event: {
+          type: "message_update",
+          assistantMessageEvent: {
+            type: "toolcall_end",
+            contentIndex: 1,
+            toolCall: {
+              type: "toolCall",
+              id: "tool-call-1",
+              name: "read",
+              arguments: { path: "AGENTS.md" },
+            },
+            partial: {
+              role: "assistant",
+              content: [
+                { type: "text", text: "I will inspect the instructions." },
+                {
+                  type: "toolCall",
+                  id: "tool-call-1",
+                  name: "read",
+                  arguments: { path: "AGENTS.md" },
+                },
+              ],
+            },
+          },
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "I will inspect the instructions." },
+              {
+                type: "toolCall",
+                id: "tool-call-1",
+                name: "read",
+                arguments: { path: "AGENTS.md" },
+              },
+            ],
+          },
+        },
+      }),
+    ).toMatchObject({
+      piSessionId: "sdk-session-1",
+      type: "tool_execution_update",
+      payload: {
+        kind: "tool-call",
+        title: "read",
+        body: "{\"path\":\"AGENTS.md\"}",
       },
     });
   });
@@ -250,6 +308,116 @@ describe("Pi SDK public runtime adapter", () => {
         phase: "partial",
       }),
     ]);
+  });
+
+  it("maps SDK thinking deltas to trace events without leaking them into assistant text", async () => {
+    const listeners: Array<(event: unknown) => void> = [];
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe(listener: (event: unknown) => void) {
+        listeners.push(listener);
+
+        return vi.fn();
+      },
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: {
+        createAgentSession: vi.fn(async () => ({ session })),
+      },
+      now: () => "2026-07-01T00:00:00.000Z",
+    });
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const events: Array<{
+      payload?: Record<string, unknown>;
+    }> = [];
+
+    runtime.onEvent?.((event) => events.push(event));
+    listeners[0]?.({
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "thinking_delta",
+        delta: "I should inspect the workspace first.",
+      },
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: "I should inspect the workspace first.",
+          },
+        ],
+      },
+    });
+    listeners[0]?.({
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "text_delta",
+        delta: "Done.",
+      },
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: "I should inspect the workspace first.",
+          },
+          { type: "text", text: "Done." },
+        ],
+      },
+    });
+
+    expect(events.map((event) => event.payload)).toEqual([
+      expect.objectContaining({
+        kind: "thinking",
+        role: "assistant",
+        body: "I should inspect the workspace first.",
+        messageId: "pi-sdk:sdk-session-1:assistant:0",
+        bodyFormat: "full",
+        phase: "delta",
+      }),
+      expect.objectContaining({
+        kind: "message",
+        role: "assistant",
+        body: "Done.",
+        messageId: "pi-sdk:sdk-session-1:assistant:0",
+        bodyFormat: "full",
+        phase: "delta",
+      }),
+    ]);
+  });
+
+  it("maps SDK tool execution end events to tool result trace events", () => {
+    expect(
+      runtimeEventFromAgentSessionEvent({
+        piSessionId: "sdk-session-1",
+        now: () => "2026-07-01T00:00:00.000Z",
+        event: {
+          type: "tool_execution_end",
+          toolCallId: "tool-call-1",
+          toolName: "read",
+          result: { text: "Agent instructions" },
+        },
+      }),
+    ).toMatchObject({
+      piSessionId: "sdk-session-1",
+      type: "tool_execution_update",
+      payload: {
+        kind: "tool-result",
+        title: "read",
+        toolCallId: "tool-call-1",
+        body: "{\"text\":\"Agent instructions\"}",
+        phase: "final",
+      },
+    });
   });
 
   it("maps public SDK queue, steer, stop, and usage stats into runtime semantics", async () => {
@@ -408,6 +576,32 @@ describe("Pi SDK public runtime adapter", () => {
       thinkingLevel: "high",
       cwd: "/Users/void/code/opensource/Pig",
       noTools: "builtin",
+    });
+  });
+
+  it("does not disable SDK tools unless the caller explicitly requests it", async () => {
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const createAgentSession = vi.fn(async () => ({ session }));
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession },
+    });
+
+    await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    expect(createAgentSession).toHaveBeenCalledWith({
+      cwd: "/Users/void/code/opensource/Pig",
     });
   });
 

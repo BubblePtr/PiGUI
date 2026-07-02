@@ -181,9 +181,9 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
         } catch (error) {
           emit({
             piSessionId: input.piSessionId,
-            type: "status",
+            type: "error",
             payload: {
-              kind: "status",
+              kind: "error",
               title: "SDK prompt failed",
               body: errorMessage(error),
             },

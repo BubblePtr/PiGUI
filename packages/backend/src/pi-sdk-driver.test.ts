@@ -266,6 +266,46 @@ describe("Pi SDK driver", () => {
     expect(steerRun).toHaveBeenCalledWith("Steer through SDK");
   });
 
+  it("emits prompt failures as visible runtime errors instead of hidden status events", async () => {
+    const driver = createPiSdkDriver({
+      runtimeFactory: async () => ({
+        piSessionId: "pi-sdk-session-1",
+        sendPrompt: vi.fn(async () => {
+          throw new Error("Provider request failed.");
+        }),
+      }),
+    });
+    const events: PiSdkRuntimeEvent[] = [];
+
+    driver.onEvent((event) => {
+      events.push(event);
+    });
+    await driver.createSession({
+      sessionId: "session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    await driver.sendPrompt({
+      piSessionId: "pi-sdk-session-1",
+      prompt: "Trigger provider failure",
+    });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(events).toEqual([
+      {
+        piSessionId: "pi-sdk-session-1",
+        type: "error",
+        payload: {
+          kind: "error",
+          title: "SDK prompt failed",
+          body: "Provider request failed.",
+        },
+      },
+    ]);
+  });
+
   it("returns attributable unsupported errors for SDK capabilities that are not wired yet", async () => {
     const driver = createPiSdkDriver({
       runtimeFactory: async () => ({

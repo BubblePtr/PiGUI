@@ -69,10 +69,22 @@ export type PiRuntimeSummary = {
 export type PiRuntimeEvent = {
   id: string;
   piSessionId: string;
-  kind: "message" | "tool-call" | "error" | "usage" | "status" | "control";
+  messageId?: string;
+  toolCallId?: string;
+  kind:
+    | "message"
+    | "thinking"
+    | "tool-call"
+    | "tool-result"
+    | "error"
+    | "usage"
+    | "status"
+    | "control";
   role?: "user" | "assistant";
   title?: string;
   body: string;
+  bodyFormat?: "full" | "delta";
+  phase?: "partial" | "delta" | "final";
   timestamp: string;
   summary?: Partial<PiRuntimeSummary>;
 };

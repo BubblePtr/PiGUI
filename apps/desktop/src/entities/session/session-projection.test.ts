@@ -353,6 +353,132 @@ describe("Session Projection state", () => {
     ]);
   });
 
+  it("updates one Live Chat assistant message for streaming events with the same message identity", () => {
+    const base = projection({
+      id: "streaming-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const first = applySessionProjectionEvent(base, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-event-assistant-1",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "assistant",
+        body: "我们",
+        timestamp: "2026-06-26T08:00:01.000Z",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      },
+    });
+    const second = applySessionProjectionEvent(first, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-event-assistant-2",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "assistant",
+        body: "我们被",
+        timestamp: "2026-06-26T08:00:02.000Z",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      },
+    });
+    const latest = applySessionProjectionEvent(second, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-event-assistant-3",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "assistant",
+        body: "我们被要求",
+        timestamp: "2026-06-26T08:00:03.000Z",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      },
+    });
+
+    expect(latest.runtimeEvents).toEqual([
+      expect.objectContaining({
+        role: "assistant",
+        body: "我们被要求",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      }),
+    ]);
+    expect(latest.updatedAt).toBe("2026-06-26T08:00:03.000Z");
+  });
+
+  it("updates one trace item for streaming events with the same trace identity", () => {
+    const base = projection({
+      id: "active-run",
+      status: "running",
+      piSessionId: "pi-session-active",
+      updatedAt: "2026-06-26T08:00:00.000Z",
+    });
+    const thinkingStarted = applySessionProjectionEvent(base, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-thinking-1",
+        piSessionId: "pi-session-active",
+        kind: "thinking",
+        role: "assistant",
+        body: "先看",
+        timestamp: "2026-06-26T08:00:01.000Z",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      },
+    });
+    const thinkingUpdated = applySessionProjectionEvent(thinkingStarted, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-thinking-2",
+        piSessionId: "pi-session-active",
+        kind: "thinking",
+        role: "assistant",
+        body: "先看项目结构",
+        timestamp: "2026-06-26T08:00:02.000Z",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      },
+    });
+    const toolStarted = applySessionProjectionEvent(thinkingUpdated, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-tool-1",
+        piSessionId: "pi-session-active",
+        kind: "tool-call",
+        title: "read",
+        body: "{\"path\":\"AGENTS.md\"}",
+        timestamp: "2026-06-26T08:00:03.000Z",
+        toolCallId: "tool-call-1",
+      },
+    });
+    const toolUpdated = applySessionProjectionEvent(toolStarted, {
+      type: "runtime-event-received",
+      event: {
+        id: "runtime-tool-2",
+        piSessionId: "pi-session-active",
+        kind: "tool-call",
+        title: "read",
+        body: "{\"path\":\"CONTEXT.md\"}",
+        timestamp: "2026-06-26T08:00:04.000Z",
+        toolCallId: "tool-call-1",
+      },
+    });
+
+    expect(toolUpdated.runtimeEvents).toEqual([
+      expect.objectContaining({
+        id: "runtime-thinking-2",
+        kind: "thinking",
+        body: "先看项目结构",
+        messageId: "pi-sdk:pi-session-active:assistant:0",
+      }),
+      expect.objectContaining({
+        id: "runtime-tool-2",
+        kind: "tool-call",
+        body: "{\"path\":\"CONTEXT.md\"}",
+        toolCallId: "tool-call-1",
+      }),
+    ]);
+  });
+
   it("records steer control events in the active Live Chat stream", () => {
     const base = projection({
       id: "active-run",
@@ -553,5 +679,62 @@ describe("Session Projection state", () => {
       ],
       updatedAt: "2026-06-26T08:00:12.000Z",
     });
+  });
+
+  it("collapses streaming assistant updates when resyncing runtime state", () => {
+    const projection = createSessionProjection({
+      id: "session-1",
+      projectId: "pig",
+      initialPrompt: "测试一下",
+      createdAt: "2026-06-26T08:00:00.000Z",
+    });
+    const resynced = applySessionProjectionEvent(projection, {
+      type: "runtime-state-resynced",
+      state: {
+        piSessionId: "pi-session-1",
+        runtimeId: "runtime-1",
+        projectId: "pig",
+        cwd: "/Users/void/code/opensource/Pig",
+        status: "running",
+        events: [
+          {
+            id: "runtime-event-1",
+            piSessionId: "pi-session-1",
+            kind: "message",
+            role: "assistant",
+            body: "我们",
+            timestamp: "2026-06-26T08:00:03.000Z",
+            messageId: "pi-sdk:pi-session-1:assistant:0",
+          },
+          {
+            id: "runtime-event-2",
+            piSessionId: "pi-session-1",
+            kind: "message",
+            role: "assistant",
+            body: "我们被",
+            timestamp: "2026-06-26T08:00:04.000Z",
+            messageId: "pi-sdk:pi-session-1:assistant:0",
+          },
+          {
+            id: "runtime-event-3",
+            piSessionId: "pi-session-1",
+            kind: "message",
+            role: "assistant",
+            body: "我们被要求",
+            timestamp: "2026-06-26T08:00:05.000Z",
+            messageId: "pi-sdk:pi-session-1:assistant:0",
+          },
+        ],
+        updatedAt: "2026-06-26T08:00:05.000Z",
+      },
+    });
+
+    expect(resynced.runtimeEvents).toEqual([
+      expect.objectContaining({
+        role: "assistant",
+        body: "我们被要求",
+        messageId: "pi-sdk:pi-session-1:assistant:0",
+      }),
+    ]);
   });
 });

@@ -2,7 +2,9 @@ import { Button, type Key, ListBox, ScrollShadow, Tooltip } from "@heroui/react"
 import { ChainOfThought } from "@heroui-pro/react/chain-of-thought";
 import { ChatConversation } from "@heroui-pro/react/chat-conversation";
 import { ChatMessage } from "@heroui-pro/react/chat-message";
+import { ChatTool, type ToolPartState } from "@heroui-pro/react/chat-tool";
 import { InlineSelect } from "@heroui-pro/react/inline-select";
+import { Markdown, StreamMarkdown } from "@heroui-pro/react/markdown";
 import { PromptInput } from "@heroui-pro/react/prompt-input";
 import { PromptSuggestion } from "@heroui-pro/react/prompt-suggestion";
 import { Sheet } from "@heroui-pro/react/sheet";
@@ -58,6 +60,7 @@ import {
 import {
   applySessionProjectionEvent,
   canArchiveSessionProjection,
+  isSessionProjectionArchived,
   getSessionProjectionListItems,
   isSessionProjectionActive,
   type SessionProjection,
@@ -69,12 +72,21 @@ type LiveMessage = {
   role: "user" | "assistant";
   body: string;
   controlLabel?: string;
+  isStreaming?: boolean;
+  relatedMessageIds?: string[];
 };
 
 type RunTimelineItem = {
   id: string;
+  kind?: "trace" | "thinking" | "tool";
   title: string;
   meta: string;
+  messageId?: string;
+  toolCallId?: string;
+  toolName?: string;
+  toolState?: ToolPartState;
+  argsText?: string;
+  outputText?: string;
 };
 
 type AgentWorkspaceFixture = {
@@ -167,6 +179,12 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
   },
 };
 
+const modelFirstResponseWatchdogMs = 15_000;
+const contactingModelPlaceholder = "Pi is contacting the model...";
+const stalledModelResponsePlaceholder =
+  "Still waiting for the model response. The provider has not returned a first chunk yet.";
+const runningAssistantPlaceholder = "Pi is working...";
+
 function getVisibleProjectRegistry() {
   return getProjectRegistryWithBrowserDevelopmentFallback(getProjectRegistry());
 }
@@ -202,24 +220,81 @@ function LiveChatMessage({
             {message.controlLabel}
           </p>
         ) : null}
-        <ChatMessage.Content>{message.body}</ChatMessage.Content>
-        {timeline.length ? (
-          <ChainOfThought defaultExpanded>
-            <ChainOfThought.Trigger>Thought for 3s</ChainOfThought.Trigger>
-            <ChainOfThought.Content>
-              <ChainOfThought.Steps>
-                {timeline.map((item) => (
-                  <ChainOfThought.Step key={item.id} label={item.title}>
-                    {item.meta}
-                  </ChainOfThought.Step>
-                ))}
-              </ChainOfThought.Steps>
-            </ChainOfThought.Content>
-          </ChainOfThought>
+        {!message.controlLabel ? (
+          <AssistantRunTrace
+            isStreaming={message.isStreaming}
+            timeline={timeline}
+          />
         ) : null}
+        <ChatMessage.Content>
+          <AssistantMessageContent message={message} />
+        </ChatMessage.Content>
       </ChatMessage.Body>
     </ChatMessage.Assistant>
   );
+}
+
+function AssistantRunTrace({
+  isStreaming = false,
+  timeline,
+}: {
+  isStreaming?: boolean;
+  timeline: RunTimelineItem[];
+}) {
+  if (!timeline.length) {
+    return null;
+  }
+
+  return (
+    <ChainOfThought defaultExpanded isStreaming={isStreaming}>
+      <ChainOfThought.Trigger>
+        {isStreaming ? "Thinking..." : "Thought for 3s"}
+      </ChainOfThought.Trigger>
+      <ChainOfThought.Content>
+        <ChainOfThought.Steps>
+          {timeline.map((item) => (
+            <ChainOfThought.Step key={item.id} label={item.title}>
+              <RunTimelineStepContent item={item} />
+            </ChainOfThought.Step>
+          ))}
+        </ChainOfThought.Steps>
+      </ChainOfThought.Content>
+    </ChainOfThought>
+  );
+}
+
+function RunTimelineStepContent({ item }: { item: RunTimelineItem }) {
+  if (item.kind !== "tool") {
+    return item.meta;
+  }
+
+  return (
+    <ChatTool
+      argsText={item.argsText}
+      defaultExpanded
+      output={item.outputText}
+      state={item.toolState ?? "input-available"}
+      toolCallId={item.toolCallId}
+      toolName={item.toolName ?? item.title}
+      triggerPrefix="Used tool: "
+    />
+  );
+}
+
+function AssistantMessageContent({ message }: { message: LiveMessage }) {
+  if (message.controlLabel) {
+    return message.body;
+  }
+
+  if (message.isStreaming) {
+    return (
+      <StreamMarkdown caret="block" isStreaming>
+        {message.body}
+      </StreamMarkdown>
+    );
+  }
+
+  return <Markdown>{message.body}</Markdown>;
 }
 
 function QueuedMessageList({
@@ -435,18 +510,39 @@ function FullChatComposer({
 
 function liveMessagesFromProjection(
   projection: SessionProjection,
+  clockNowMs = Date.now(),
 ): LiveMessage[] {
-  const projectedMessages = projection.runtimeEvents
-    .filter(
-      (event) =>
-        ((event.kind === "message" || event.kind === "control") &&
-          (event.role === "user" || event.role === "assistant")) ||
-        event.kind === "status" ||
-        event.kind === "error",
-    )
+  const liveEvents = projection.runtimeEvents
+    .filter(isLiveChatRuntimeEvent)
+    .reduce<SessionProjection["runtimeEvents"]>((events, event) => {
+      const previousEvent = events[events.length - 1];
+
+      if (isAdjacentDuplicateLiveMessageEvent(previousEvent, event)) {
+        return [...events.slice(0, -1), event];
+      }
+
+      const identity = liveRuntimeMessageIdentity(event);
+
+      if (!identity) {
+        return [...events, event];
+      }
+
+      const existingIndex = events.findIndex(
+        (existingEvent) => liveRuntimeMessageIdentity(existingEvent) === identity,
+      );
+
+      if (existingIndex === -1) {
+        return [...events, event];
+      }
+
+      return events.map((existingEvent, index) =>
+        index === existingIndex ? event : existingEvent,
+      );
+    }, []);
+  const projectedMessages = liveEvents
     .map(
       (event): LiveMessage => ({
-        id: event.id,
+        id: event.messageId ?? event.id,
         role:
           event.role === "user"
             ? "user"
@@ -462,13 +558,36 @@ function liveMessagesFromProjection(
             : undefined,
       }),
     );
+  const collapsedMessages = collapseAssistantRunMessages(projectedMessages);
+  const streamingMessageId =
+    projection.status === "running" && !projection.stale
+      ? [...collapsedMessages]
+          .reverse()
+          .find(
+            (message) =>
+              message.role === "assistant" && !message.controlLabel,
+          )?.id
+      : undefined;
+  const visibleMessages = collapsedMessages.map((message) =>
+    message.id === streamingMessageId
+      ? {
+          ...message,
+          isStreaming: true,
+        }
+      : message,
+  );
+  const messagesWithRunningPlaceholder = appendRunningAssistantPlaceholder(
+    projection,
+    visibleMessages,
+    clockNowMs,
+  );
   const hasInitialPromptEvent = projectedMessages.some(
     (message) =>
       message.role === "user" && message.body === projection.initialPrompt,
   );
 
   if (hasInitialPromptEvent) {
-    return projectedMessages;
+    return messagesWithRunningPlaceholder;
   }
 
   return [
@@ -477,32 +596,227 @@ function liveMessagesFromProjection(
       role: "user",
       body: projection.initialPrompt,
     },
-    ...projectedMessages,
+    ...messagesWithRunningPlaceholder,
   ];
+}
+
+function isAssistantAnswerMessage(message: LiveMessage) {
+  return message.role === "assistant" && !message.controlLabel;
+}
+
+function relatedMessageIdsFor(message: LiveMessage) {
+  return message.relatedMessageIds ?? [message.id];
+}
+
+function collapseAssistantRunMessages(messages: LiveMessage[]) {
+  return messages.reduce<LiveMessage[]>((collapsedMessages, message) => {
+    if (!isAssistantAnswerMessage(message)) {
+      return [...collapsedMessages, message];
+    }
+
+    const previousMessage = collapsedMessages[collapsedMessages.length - 1];
+
+    if (!previousMessage || !isAssistantAnswerMessage(previousMessage)) {
+      return [
+        ...collapsedMessages,
+        {
+          ...message,
+          relatedMessageIds: relatedMessageIdsFor(message),
+        },
+      ];
+    }
+
+    return [
+      ...collapsedMessages.slice(0, -1),
+      {
+        ...message,
+        relatedMessageIds: [
+          ...relatedMessageIdsFor(previousMessage),
+          ...relatedMessageIdsFor(message),
+        ],
+      },
+    ];
+  }, []);
+}
+
+function appendRunningAssistantPlaceholder(
+  projection: SessionProjection,
+  messages: LiveMessage[],
+  clockNowMs: number,
+): LiveMessage[] {
+  if (projection.status !== "running" || projection.stale) {
+    return messages;
+  }
+
+  const hasAssistantMessage = messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      !message.controlLabel &&
+      message.body.trim().length > 0,
+  );
+
+  if (hasAssistantMessage) {
+    return messages;
+  }
+
+  const traceMessageId = [...projection.runtimeEvents]
+    .reverse()
+    .find(
+      (event) =>
+        (event.kind === "thinking" ||
+          event.kind === "tool-call" ||
+          event.kind === "tool-result") &&
+        event.messageId,
+    )?.messageId;
+
+  return [
+    ...messages,
+    {
+      id: traceMessageId ?? `${projection.id}-running-placeholder`,
+      role: "assistant",
+      body: runningAssistantPlaceholderBody(projection, clockNowMs),
+      isStreaming: true,
+    },
+  ];
+}
+
+function runningAssistantPlaceholderBody(
+  projection: SessionProjection,
+  clockNowMs: number,
+) {
+  const hasModelActivity = projection.runtimeEvents.some(
+    (event) =>
+      event.kind === "thinking" ||
+      event.kind === "tool-call" ||
+      event.kind === "tool-result" ||
+      (event.kind === "message" && event.role === "assistant"),
+  );
+
+  if (hasModelActivity) {
+    return runningAssistantPlaceholder;
+  }
+
+  const latestRuntimeTimestamp =
+    projection.runtimeEvents[projection.runtimeEvents.length - 1]?.timestamp ??
+    projection.updatedAt;
+  const latestRuntimeTimeMs = Date.parse(latestRuntimeTimestamp);
+  const elapsedMs = Number.isFinite(latestRuntimeTimeMs)
+    ? Math.max(0, clockNowMs - latestRuntimeTimeMs)
+    : 0;
+
+  return elapsedMs >= modelFirstResponseWatchdogMs
+    ? stalledModelResponsePlaceholder
+    : contactingModelPlaceholder;
+}
+
+function isLiveChatRuntimeEvent(
+  event: SessionProjection["runtimeEvents"][number],
+) {
+  return (
+    ((event.kind === "message" || event.kind === "control") &&
+      (event.role === "user" || event.role === "assistant")) ||
+    event.kind === "error"
+  );
+}
+
+function liveRuntimeMessageIdentity(
+  event: SessionProjection["runtimeEvents"][number],
+) {
+  if (event.kind !== "message" || !event.messageId) {
+    return null;
+  }
+
+  return `${event.piSessionId}\u0000${event.messageId}`;
+}
+
+function isAdjacentDuplicateLiveMessageEvent(
+  previousEvent: SessionProjection["runtimeEvents"][number] | undefined,
+  event: SessionProjection["runtimeEvents"][number],
+) {
+  return (
+    previousEvent?.kind === "message" &&
+    event.kind === "message" &&
+    previousEvent.piSessionId === event.piSessionId &&
+    previousEvent.role === "assistant" &&
+    event.role === "assistant" &&
+    previousEvent.body.trim() !== "" &&
+    previousEvent.body === event.body
+  );
 }
 
 function runTimelineFromProjection(
   projection: SessionProjection,
 ): RunTimelineItem[] {
-  return projection.runtimeEvents
-    .filter((event) => event.kind === "tool-call")
-    .map((event) => ({
-      id: event.id,
-      title: event.title ?? event.kind,
-      meta: event.body,
-    }));
+  const items: RunTimelineItem[] = [];
+  const toolItemIndexes = new Map<string, number>();
+
+  for (const event of projection.runtimeEvents) {
+    if (event.kind === "thinking") {
+      items.push({
+        id: event.id,
+        kind: "thinking",
+        title: "Thinking",
+        meta: event.body,
+        messageId: event.messageId,
+      });
+      continue;
+    }
+
+    if (event.kind !== "tool-call" && event.kind !== "tool-result") {
+      continue;
+    }
+
+    const toolName = event.title ?? "Tool";
+    const toolIdentity = event.toolCallId ?? event.id;
+    const existingIndex = toolItemIndexes.get(toolIdentity);
+
+    if (existingIndex === undefined) {
+      const item: RunTimelineItem = {
+        id: event.id,
+        kind: "tool",
+        title: `Tool: ${toolName}`,
+        meta: event.body,
+        messageId: event.messageId,
+        toolCallId: event.toolCallId,
+        toolName,
+        toolState:
+          event.kind === "tool-result" ? "output-available" : "input-available",
+        argsText: event.kind === "tool-call" ? event.body : undefined,
+        outputText: event.kind === "tool-result" ? event.body : undefined,
+      };
+
+      toolItemIndexes.set(toolIdentity, items.length);
+      items.push(item);
+      continue;
+    }
+
+    const existingItem = items[existingIndex];
+
+    items[existingIndex] = {
+      ...existingItem,
+      id: `${existingItem.id}:${event.id}`,
+      messageId: existingItem.messageId ?? event.messageId,
+      toolCallId: existingItem.toolCallId ?? event.toolCallId,
+      toolName: existingItem.toolName ?? toolName,
+      toolState:
+        event.kind === "tool-result" ? "output-available" : existingItem.toolState,
+      argsText:
+        event.kind === "tool-call" ? event.body : existingItem.argsText,
+      outputText:
+        event.kind === "tool-result" ? event.body : existingItem.outputText,
+      meta: event.kind === "tool-result" ? event.body : existingItem.meta,
+    };
+  }
+
+  return items;
 }
 
 function isReadOnlyProjection(projection: SessionProjection | null) {
-  if (!projection) {
-    return false;
-  }
+  return Boolean(projection && isSessionProjectionArchived(projection));
+}
 
-  return (
-    projection.stale ||
-    projection.status === "completed" ||
-    projection.status === "failed"
-  );
+function isRuntimeUnavailableProjection(projection: SessionProjection | null) {
+  return Boolean(projection?.stale);
 }
 
 const SESSION_DRAFT_SUGGESTED_PROMPTS = [
@@ -1128,6 +1442,7 @@ function LiveSessionColumn({
   sessionCreator,
   getRuntimeBridge,
   sessionProjection,
+  clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
 }: {
@@ -1138,6 +1453,7 @@ function LiveSessionColumn({
   sessionCreator: SessionCreator;
   getRuntimeBridge: () => PiRuntimeBridge;
   sessionProjection?: SessionProjection | null;
+  clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
 }) {
@@ -1165,6 +1481,7 @@ function LiveSessionColumn({
   const [interactionProjection, setInteractionProjection] =
     useState<SessionProjection | null>(null);
   const [stoppingRun, setStoppingRun] = useState(false);
+  const [liveClockNowMs, setLiveClockNowMs] = useState(() => Date.now());
 
   useEffect(
     () =>
@@ -1264,8 +1581,25 @@ function LiveSessionColumn({
   };
   const liveProjection =
     interactionProjection ?? creationProjection ?? sessionProjection ?? null;
+  const shouldTickLiveClock =
+    clockNowMs === undefined &&
+    Boolean(liveProjection && isSessionProjectionActive(liveProjection));
+
+  useEffect(() => {
+    if (!shouldTickLiveClock) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setLiveClockNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [shouldTickLiveClock, liveProjection?.id]);
+
+  const effectiveClockNowMs = clockNowMs ?? liveClockNowMs;
   const projectionMessages = liveProjection
-    ? liveMessagesFromProjection(liveProjection)
+    ? liveMessagesFromProjection(liveProjection, effectiveClockNowMs)
     : [];
   const projectionTimeline = liveProjection
     ? runTimelineFromProjection(liveProjection)
@@ -1273,10 +1607,27 @@ function LiveSessionColumn({
   const liveMessages = projectionMessages.length
     ? projectionMessages
     : workspace.liveMessages;
-  const runTimeline = projectionTimeline.length
-    ? projectionTimeline
-    : workspace.runTimeline;
+  const runTimeline = liveProjection ? projectionTimeline : workspace.runTimeline;
+  const fallbackTraceMessageId = runTimeline.some((item) => !item.messageId)
+    ? [...liveMessages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === "assistant" && !message.controlLabel,
+        )?.id
+    : undefined;
+  const timelineForMessage = (message: LiveMessage) => {
+    const relatedMessageIds = new Set(relatedMessageIdsFor(message));
+
+    return runTimeline.filter((item) =>
+      item.messageId
+        ? relatedMessageIds.has(item.messageId)
+        : message.id === fallbackTraceMessageId,
+    );
+  };
   const readOnlyProjection = isReadOnlyProjection(liveProjection);
+  const runtimeUnavailableProjection =
+    isRuntimeUnavailableProjection(liveProjection);
   const queueMode =
     Boolean(liveProjection?.piSessionId) &&
     Boolean(liveProjection && isSessionProjectionActive(liveProjection)) &&
@@ -1415,7 +1766,7 @@ function LiveSessionColumn({
         />
       ) : (
         <>
-          {readOnlyProjection ? (
+          {runtimeUnavailableProjection ? (
             <div
               className="border-b border-border bg-surface px-4 py-2 text-sm text-muted"
               data-testid="runtime-fallback-banner"
@@ -1433,11 +1784,7 @@ function LiveSessionColumn({
                 <LiveChatMessage
                   key={message.id}
                   message={message}
-                  timeline={
-                    message.role === "assistant" && !message.controlLabel
-                      ? runTimeline
-                      : undefined
-                  }
+                  timeline={timelineForMessage(message)}
                 />
               ))}
               <ChatConversation.ScrollAnchor />
@@ -1472,6 +1819,7 @@ export function AgentWorkspaceSessionsView({
   hasActiveSession,
   runtimeBridge,
   sessionProjection,
+  clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
 }: {
@@ -1484,6 +1832,7 @@ export function AgentWorkspaceSessionsView({
   hasActiveSession?: boolean;
   runtimeBridge?: PiRuntimeBridge;
   sessionProjection?: SessionProjection | null;
+  clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
 }) {
@@ -1537,6 +1886,7 @@ export function AgentWorkspaceSessionsView({
             sessionCreator={sessionCreator ?? defaultSessionCreator}
             getRuntimeBridge={getActiveRuntimeBridge}
             sessionProjection={sessionProjection}
+            clockNowMs={clockNowMs}
             onProjectionChange={onProjectionChange}
             onLatestMessageRendered={onLatestMessageRendered}
           />

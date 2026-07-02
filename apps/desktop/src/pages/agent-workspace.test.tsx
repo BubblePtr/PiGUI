@@ -29,6 +29,52 @@ import { applySessionProjectionEvent, createSessionProjection } from "@/entities
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 
+vi.mock("@heroui-pro/react/markdown", () => ({
+  Markdown: ({ children }: { children: string }) => (
+    <div data-testid="markdown-renderer">{children}</div>
+  ),
+  StreamMarkdown: ({
+    children,
+    isStreaming,
+  }: {
+    children: string;
+    isStreaming?: boolean;
+  }) => (
+    <div data-is-streaming={String(Boolean(isStreaming))} data-testid="stream-markdown-renderer">
+      {children}
+    </div>
+  ),
+}));
+
+vi.mock("@heroui-pro/react/chat-tool", () => ({
+  ChatTool: ({
+    argsText,
+    output,
+    state,
+    toolName,
+    triggerPrefix,
+  }: {
+    argsText?: string;
+    output?: unknown;
+    state: string;
+    toolName?: string;
+    triggerPrefix?: string;
+  }) => (
+    <div data-slot="chat-tool" data-state={state}>
+      <div data-slot="chat-tool-trigger">
+        {triggerPrefix}
+        {toolName}
+      </div>
+      {argsText ? <div data-slot="chat-tool-args">{argsText}</div> : null}
+      {output !== undefined ? (
+        <div data-slot="chat-tool-result">
+          {typeof output === "string" ? output : JSON.stringify(output)}
+        </div>
+      ) : null}
+    </div>
+  ),
+}));
+
 const pigProjectPath = "/Users/void/code/opensource/Pig";
 const studyProjectPath = "/Users/void/Documents/study";
 
@@ -97,7 +143,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       "Project Sessions keep live Pi work separate from Trace and Usage evidence.",
     );
     expect(source).not.toContain("Analyze evidence");
-    expect(within(liveColumn).getByText("Evidence preserved")).toBeInTheDocument();
+    expect(within(liveColumn).queryByText("Evidence preserved")).not.toBeInTheDocument();
     expect(within(liveColumn).queryByText("Analyze preserved")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("sidebar-projects")).toBeInTheDocument();
@@ -151,9 +197,19 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-body"]')).toHaveLength(1);
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-content"]')).toHaveLength(2);
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-avatar"]')).toHaveLength(1);
-    expect(liveColumn.querySelector('[data-slot="chain-of-thought"]')).toBeInTheDocument();
-    expect(liveColumn.querySelectorAll('[data-slot="chain-of-thought-step"]')).toHaveLength(3);
-    expect(within(liveColumn).getByText("Project context loaded")).toBeInTheDocument();
+    const assistantMessage = liveColumn.querySelector(
+      '[data-slot="chat-message-assistant"]',
+    );
+    const assistantTrace = assistantMessage?.querySelector(
+      '[data-slot="chain-of-thought"]',
+    );
+    const assistantContent = assistantMessage?.querySelector(
+      '[data-slot="chat-message-content"]',
+    );
+    expect(assistantTrace).not.toBeInTheDocument();
+    expect(assistantContent).toBeInTheDocument();
+    expect(liveColumn.querySelectorAll('[data-slot="chain-of-thought-step"]')).toHaveLength(0);
+    expect(within(liveColumn).queryByText("Project context loaded")).not.toBeInTheDocument();
     expect(promptInput).toBeInTheDocument();
     expect(composer).toBeInTheDocument();
     expect(composer).toHaveClass("mt-auto", "pb-3");
@@ -294,11 +350,13 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
-    expect(await within(liveChat).findByText("Stopped")).toBeInTheDocument();
-    expect(within(liveChat).getByText("Pi stopped the active run.")).toBeInTheDocument();
     await waitFor(() => {
       expect(within(liveColumn).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     });
+    expect(within(liveChat).queryByText("Stopped")).not.toBeInTheDocument();
+    expect(
+      within(liveChat).queryByText("Pi stopped the active run."),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Session actions" }));
 
@@ -310,7 +368,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows composer Stop results in Live Chat for a draft-created Session", async () => {
+  it("stops a draft-created Session without appending a runtime status message", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
@@ -336,8 +394,17 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
-    expect(await within(liveChat).findByText("Stopped")).toBeInTheDocument();
-    expect(within(liveChat).getByText("Pi stopped the active run.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId("live-session-column")).queryByRole("button", {
+          name: "Stop",
+        }),
+      ).not.toBeInTheDocument();
+    });
+    expect(within(liveChat).queryByText("Stopped")).not.toBeInTheDocument();
+    expect(
+      within(liveChat).queryByText("Pi stopped the active run."),
+    ).not.toBeInTheDocument();
   });
 
   it("records stop failure in Live Chat without unlocking active archive", async () => {
@@ -616,6 +683,140 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(await within(pendingQueue).findByText("Withdrawn")).toBeInTheDocument();
   });
 
+  it("shows an ephemeral assistant placeholder while a run has no assistant events yet", async () => {
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "starting-session",
+        projectId: "pig-docs",
+        initialPrompt: "Look at the current project",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-starting",
+        piSessionId: "pi-session-starting",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-starting-user",
+        piSessionId: "pi-session-starting",
+        kind: "message",
+        role: "user",
+        body: "Look at the current project",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        clockNowMs={Date.parse("2026-06-26T08:00:03.000Z")}
+        projectId="pig-docs"
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "starting-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveColumn = await screen.findByTestId("live-session-column");
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(within(liveChat).getByText("Look at the current project")).toBeInTheDocument();
+    expect(within(liveChat).getByText("Pi is contacting the model...")).toBeInTheDocument();
+    expect(liveColumn.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
+    expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a stalled first model response in the main chat", async () => {
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "starting-session",
+        projectId: "pig-docs",
+        initialPrompt: "Check whether DeepSeek responds",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-starting",
+        piSessionId: "pi-session-starting",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-starting-user",
+        piSessionId: "pi-session-starting",
+        kind: "message",
+        role: "user",
+        body: "Check whether DeepSeek responds",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        clockNowMs={Date.parse("2026-06-26T08:00:18.000Z")}
+        projectId="pig-docs"
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "starting-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "deepseek-v4-pro",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(
+      within(liveChat).getByText(
+        "Still waiting for the model response. The provider has not returned a first chunk yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+  });
+
   it("submits ordinary prompts to an idle Session instead of queuing them", async () => {
     const user = userEvent.setup();
     const bridge = createInMemoryPiRuntimeBridge({
@@ -718,6 +919,94 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).toBeInTheDocument();
     expect(getFollowUpDraft("waiting-session")).toBeNull();
     expect(screen.queryByTestId("queued-message-list")).not.toBeInTheDocument();
+  });
+
+  it("keeps the composer available after a completed run for follow-up prompts", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-06-26T08:20:00.000Z",
+    });
+    const projection = {
+      ...createSessionProjection({
+        id: "completed-session",
+        projectId: "pig-docs",
+        initialPrompt: "Review the first result",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "runtime-completed",
+      piSessionId: "pi-session-completed",
+      runtimeEvents: [
+        {
+          id: "runtime-event-initial",
+          piSessionId: "pi-session-completed",
+          kind: "message" as const,
+          role: "user" as const,
+          body: "Review the first result",
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+        {
+          id: "runtime-event-assistant",
+          piSessionId: "pi-session-completed",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "The first result is ready.",
+          timestamp: "2026-06-26T08:00:03.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:03.000Z",
+    };
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-completed",
+      runtimeId: "runtime-completed",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "completed",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "completed-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Steer" })).not.toBeInTheDocument();
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Continue after completion",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(
+      await within(liveChat).findByText("Continue after completion"),
+    ).toBeInTheDocument();
+    expect(getFollowUpDraft("completed-session")).toBeNull();
   });
 
   it("restores a per-Session Follow-up Draft without showing a Project selector", async () => {
@@ -1598,7 +1887,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
-  it("falls back to read-only Projection data and exposes runtime summary to the action surface", () => {
+  it("renders completed Projection data with follow-up composer and without a runtime-unavailable warning", () => {
     const workspace = {
       id: "pig-docs",
       name: "Pig Docs",
@@ -1681,13 +1970,14 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
-      "Runtime unavailable",
-    );
+    expect(screen.queryByTestId("runtime-fallback-banner")).not.toBeInTheDocument();
     expect(screen.getByText("Create a real Pi RPC-backed session")).toBeInTheDocument();
     expect(screen.getByText("Live session is ready.")).toBeInTheDocument();
-    expect(screen.getByText("read")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
+    expect(screen.getByText("Tool: read")).toBeInTheDocument();
+    expect(screen.getByText("Used tool: read")).toBeInTheDocument();
+    expect(screen.getByText("{\"path\":\"AGENTS.md\"}")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 
     render(<SessionActionsContent workspace={workspace} projection={projection} />);
 
@@ -1695,6 +1985,759 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("openai")).toBeInTheDocument();
     expect(screen.getByText("$0.012345")).toBeInTheDocument();
     expect(screen.getByText("1.3K")).toBeInTheDocument();
+  });
+
+  it("shows the runtime-unavailable warning for stale Projection data without hiding the composer", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "Continue a stale session",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "running" as const,
+      stale: true,
+      staleReason: "runtime event stream disconnected",
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      updatedAt: "2026-06-26T08:00:05.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
+      "Runtime unavailable",
+    );
+    expect(screen.getByTestId("full-chat-composer")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+  });
+
+  it("renders one assistant bubble for read-only streaming updates with the same message identity", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "测试一下",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant-1",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "我们",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-assistant-2",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "我们被",
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+        {
+          id: "runtime-event-assistant-3",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "我们被要求",
+          timestamp: "2026-06-26T08:00:03.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:03.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+
+    expect(liveChat.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
+    expect(within(liveChat).getByText("我们被要求")).toBeInTheDocument();
+    expect(within(liveChat).getByTestId("markdown-renderer")).toHaveTextContent("我们被要求");
+    expect(within(liveChat).queryByTestId("stream-markdown-renderer")).not.toBeInTheDocument();
+    expect(within(liveChat).queryByText("我们")).not.toBeInTheDocument();
+    expect(within(liveChat).queryByText("我们被")).not.toBeInTheDocument();
+  });
+
+  it("collapses adjacent read-only duplicate assistant messages without message identity", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const duplicateBody =
+      "收到，流式消息测试正常。当前可以正常接收流式响应。你那边看到消息是逐步出现的吗？";
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "测试一下",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant-1",
+          piSessionId: "pi-session-rpc",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: duplicateBody,
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-assistant-2",
+          piSessionId: "pi-session-rpc",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: duplicateBody,
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+        {
+          id: "runtime-event-assistant-3",
+          piSessionId: "pi-session-rpc",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: duplicateBody,
+          timestamp: "2026-06-26T08:00:03.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:03.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+
+    expect(liveChat.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
+    expect(within(liveChat).getAllByText(duplicateBody)).toHaveLength(1);
+    expect(within(liveChat).getByTestId("markdown-renderer")).toHaveTextContent(duplicateBody);
+  });
+
+  it("collapses adjacent duplicate assistant messages even when they have different event identities", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const duplicateBody = "你好！有什么可以帮你的吗？";
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "你好",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant-1",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: duplicateBody,
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-assistant-2",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:1",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: duplicateBody,
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+        {
+          id: "runtime-event-assistant-3",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:2",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: duplicateBody,
+          timestamp: "2026-06-26T08:00:03.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:03.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+
+    expect(liveChat.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
+    expect(within(liveChat).getAllByText(duplicateBody)).toHaveLength(1);
+  });
+
+  it("collapses intermediate assistant run messages into the final answer bubble", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "测试 DeepSeek 的服务恢复没有",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-sdk",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant-1",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "我来帮你测试 DeepSeek 的服务状态。",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-thinking-1",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "thinking" as const,
+          role: "assistant" as const,
+          body: "先确认配置和 endpoint。",
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+        {
+          id: "runtime-event-assistant-2",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:1",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "API 有响应了！再测试一下 chat completions 端点。",
+          timestamp: "2026-06-26T08:00:03.000Z",
+        },
+        {
+          id: "runtime-event-thinking-2",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:1",
+          kind: "thinking" as const,
+          role: "assistant" as const,
+          body: "继续确认 chat completions。",
+          timestamp: "2026-06-26T08:00:04.000Z",
+        },
+        {
+          id: "runtime-event-assistant-3",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:2",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "DeepSeek API 服务已完全恢复，可以正常使用。",
+          timestamp: "2026-06-26T08:00:05.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:05.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessages = liveChat.querySelectorAll<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(within(assistantMessages[0]).getByText("Thought for 3s")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("先确认配置和 endpoint。")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("继续确认 chat completions。")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByTestId("markdown-renderer")).toHaveTextContent(
+      "DeepSeek API 服务已完全恢复，可以正常使用。",
+    );
+    expect(
+      within(assistantMessages[0]).queryByText("我来帮你测试 DeepSeek 的服务状态。"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).queryByText("API 有响应了！再测试一下 chat completions 端点。"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps runtime status events out of the Live Chat message list", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "你好",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "你好！有什么可以帮你的吗？",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-completed",
+          piSessionId: "pi-session-rpc",
+          kind: "status" as const,
+          title: "Completed",
+          body: "Pi SDK runtime ended the active run.",
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:02.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+
+    expect(liveChat.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
+    expect(within(liveChat).getByText("你好！有什么可以帮你的吗？")).toBeInTheDocument();
+    expect(within(liveChat).queryByText("Completed")).not.toBeInTheDocument();
+    expect(
+      within(liveChat).queryByText("Pi SDK runtime ended the active run."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("uses streaming markdown for the collapsed assistant run bubble", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "测试一下",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "running" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant-1",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "**Earlier** assistant result",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-assistant-2",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:1",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "Streaming `markdown` now",
+          timestamp: "2026-06-26T08:00:02.000Z",
+        },
+        {
+          id: "runtime-event-tool",
+          piSessionId: "pi-session-rpc",
+          kind: "tool-call" as const,
+          title: "Inspect context",
+          body: "Read AGENTS.md",
+          timestamp: "2026-06-26T08:00:03.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:03.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessages = liveChat.querySelectorAll<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+    const streamingAssistant = assistantMessages[0];
+    const streamingTrace = streamingAssistant.querySelector(
+      '[data-slot="chain-of-thought"]',
+    );
+    const streamingContent = streamingAssistant.querySelector(
+      '[data-testid="stream-markdown-renderer"]',
+    );
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(within(liveChat).queryByTestId("markdown-renderer")).not.toBeInTheDocument();
+    expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveTextContent(
+      "Streaming `markdown` now",
+    );
+    expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveAttribute(
+      "data-is-streaming",
+      "true",
+    );
+    expect(
+      within(liveChat).queryByText("**Earlier** assistant result"),
+    ).not.toBeInTheDocument();
+    expect(liveChat.querySelectorAll('[data-slot="chain-of-thought"]')).toHaveLength(1);
+    expect(streamingTrace).toBeInTheDocument();
+    expect(streamingContent).toBeInTheDocument();
+    expect(within(streamingAssistant).getByText("Thinking...")).toBeInTheDocument();
+    expect(
+      streamingTrace!.compareDocumentPosition(streamingContent!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders assistant trace events above the visible answer without mixing them into markdown", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "测试 Agent Trace 的效果",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "running" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-sdk",
+      runtimeEvents: [
+        {
+          id: "runtime-event-thinking",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "thinking" as const,
+          role: "assistant" as const,
+          body: "我需要先检查项目结构。",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-tool-call",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "tool-call" as const,
+          title: "read",
+          body: "{\"path\":\"AGENTS.md\"}",
+          timestamp: "2026-06-26T08:00:02.000Z",
+          toolCallId: "tool-call-1",
+        },
+        {
+          id: "runtime-event-tool-result",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "tool-result" as const,
+          title: "read",
+          body: "Agent instructions loaded.",
+          timestamp: "2026-06-26T08:00:03.000Z",
+          toolCallId: "tool-call-1",
+        },
+        {
+          id: "runtime-event-assistant",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "最终回答只保留结论。",
+          timestamp: "2026-06-26T08:00:04.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:04.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessage = liveChat.querySelector<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+    const trace = assistantMessage!.querySelector(
+      '[data-slot="chain-of-thought"]',
+    );
+    const tool = assistantMessage!.querySelector('[data-slot="chat-tool"]');
+    const streamingContent = assistantMessage!.querySelector(
+      '[data-testid="stream-markdown-renderer"]',
+    );
+
+    expect(trace).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Thinking...")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Thinking")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("我需要先检查项目结构。")).toBeInTheDocument();
+    expect(tool).toHaveAttribute("data-state", "output-available");
+    expect(tool).toHaveTextContent("Used tool: read");
+    expect(tool).toHaveTextContent("{\"path\":\"AGENTS.md\"}");
+    expect(tool).toHaveTextContent("Agent instructions loaded.");
+    expect(streamingContent).toHaveTextContent("最终回答只保留结论。");
+    expect(streamingContent).not.toHaveTextContent("我需要先检查项目结构。");
+    expect(streamingContent).not.toHaveTextContent("Agent instructions loaded.");
+    expect(
+      trace!.compareDocumentPosition(streamingContent!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("does not show fixture trace steps when a live Projection has no tool calls", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [
+        {
+          id: "fixture-assistant",
+          role: "assistant" as const,
+          body: "Fixture fallback should not drive a real Projection.",
+        },
+      ],
+      runTimeline: [
+        {
+          id: "fixture-context",
+          title: "Project context loaded",
+          meta: "Fixture trace step",
+        },
+      ],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "测试一下",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "running" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-rpc",
+      runtimeEvents: [
+        {
+          id: "runtime-event-assistant-1",
+          piSessionId: "pi-session-rpc",
+          messageId: "pi-sdk:pi-session-rpc:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "真实回复",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:01.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+
+    expect(within(liveChat).getByText("真实回复")).toBeInTheDocument();
+    expect(within(liveChat).queryByText("Project context loaded")).not.toBeInTheDocument();
+    expect(liveChat.querySelector('[data-slot="chain-of-thought"]')).not.toBeInTheDocument();
   });
 
   it("shows managed checkout root and runtime cwd while keeping advanced checkout details collapsed", () => {
