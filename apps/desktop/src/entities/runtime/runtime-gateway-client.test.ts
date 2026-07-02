@@ -342,4 +342,430 @@ describe("Runtime Gateway client", () => {
       }),
     ]);
   });
+
+  it("maps Agent Runtime Event Model payloads to legacy runtime events for the current UI", async () => {
+    const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      events: [],
+      updatedAt: "2026-06-29T12:00:00.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string) => {
+        if (command === "create_session" || command === "get_runtime_snapshot") {
+          return snapshot as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+      onBackendEvent: (handler) => {
+        eventHandlers.push(handler);
+
+        return vi.fn();
+      },
+    });
+    const runtime = await client.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const state = await client.createPiSessionState({
+      runtimeId: runtime.runtimeId,
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const observedEvents: unknown[] = [];
+
+    client.subscribeToEvents(state.piSessionId, (event) => {
+      observedEvents.push(event);
+    });
+
+    const runId = "pi-session-1:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    const partId = `${messageId}:part-0`;
+    const agentEnvelopes: RuntimeGatewayEventEnvelope[] = [
+      {
+        id: "evt-1",
+        seq: 1,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "run",
+        ts: "2026-06-29T12:00:01.000Z",
+        payload: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" },
+      },
+      {
+        id: "evt-2",
+        seq: 2,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "turn",
+        ts: "2026-06-29T12:00:02.000Z",
+        payload: { type: "turn", runId, turnId, phase: "start", surface: "hidden", origin: "sdk" },
+      },
+      {
+        id: "evt-3",
+        seq: 3,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "message",
+        ts: "2026-06-29T12:00:03.000Z",
+        payload: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-4",
+        seq: 4,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "message_part",
+        ts: "2026-06-29T12:00:04.000Z",
+        payload: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "text",
+          phase: "update",
+          bodyMode: "delta",
+          body: "Hel",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-5",
+        seq: 5,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "message_part",
+        ts: "2026-06-29T12:00:05.000Z",
+        payload: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "text",
+          phase: "update",
+          bodyMode: "delta",
+          body: "lo",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-6",
+        seq: 6,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "message_part",
+        ts: "2026-06-29T12:00:06.000Z",
+        payload: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "text",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: "Hello",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-7",
+        seq: 7,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "message",
+        ts: "2026-06-29T12:00:07.000Z",
+        payload: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId, partType: "text", body: "Hello" }],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-8",
+        seq: 8,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "tool",
+        ts: "2026-06-29T12:00:08.000Z",
+        payload: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-1",
+          phase: "start",
+          name: "read_file",
+          args: { path: "a.ts" },
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-9",
+        seq: 9,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        turnId,
+        type: "tool",
+        ts: "2026-06-29T12:00:09.000Z",
+        payload: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-1",
+          phase: "end",
+          name: "read_file",
+          result: { ok: true },
+          isError: false,
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-10",
+        seq: 10,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "status",
+        ts: "2026-06-29T12:00:10.000Z",
+        payload: {
+          type: "status",
+          runId,
+          code: "retrying",
+          body: "stream disconnected",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        id: "evt-11",
+        seq: 11,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "run",
+        ts: "2026-06-29T12:00:11.000Z",
+        payload: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    ];
+
+    for (const envelope of agentEnvelopes) {
+      eventHandlers[0]?.({ type: "event", event: envelope });
+    }
+
+    expect(observedEvents).toEqual([
+      {
+        id: "evt-4",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "assistant",
+        messageId,
+        body: "Hel",
+        bodyFormat: "full",
+        phase: "delta",
+        timestamp: "2026-06-29T12:00:04.000Z",
+      },
+      {
+        id: "evt-5",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "assistant",
+        messageId,
+        body: "Hello",
+        bodyFormat: "full",
+        phase: "delta",
+        timestamp: "2026-06-29T12:00:05.000Z",
+      },
+      {
+        id: "evt-6",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "assistant",
+        messageId,
+        body: "Hello",
+        bodyFormat: "full",
+        phase: "final",
+        timestamp: "2026-06-29T12:00:06.000Z",
+      },
+      {
+        id: "evt-8",
+        piSessionId: "pi-session-1",
+        kind: "tool-call",
+        title: "read_file",
+        toolCallId: "call-1",
+        body: '{"path":"a.ts"}',
+        phase: "partial",
+        timestamp: "2026-06-29T12:00:08.000Z",
+      },
+      {
+        id: "evt-9",
+        piSessionId: "pi-session-1",
+        kind: "tool-result",
+        title: "read_file",
+        toolCallId: "call-1",
+        body: '{"ok":true}',
+        phase: "final",
+        timestamp: "2026-06-29T12:00:09.000Z",
+      },
+      {
+        id: "evt-10",
+        piSessionId: "pi-session-1",
+        kind: "status",
+        title: "Retrying",
+        body: "stream disconnected",
+        timestamp: "2026-06-29T12:00:10.000Z",
+      },
+      {
+        id: "evt-11",
+        piSessionId: "pi-session-1",
+        kind: "status",
+        title: "Completed",
+        body: "Pi SDK runtime ended the active run.",
+        timestamp: "2026-06-29T12:00:11.000Z",
+      },
+    ]);
+  });
+
+  it("keeps a failed Active Run failed: maps the chat error and drops the failed run end", async () => {
+    const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      events: [],
+      updatedAt: "2026-06-29T12:00:00.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string) => {
+        if (command === "create_session" || command === "get_runtime_snapshot") {
+          return snapshot as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+      onBackendEvent: (handler) => {
+        eventHandlers.push(handler);
+
+        return vi.fn();
+      },
+    });
+    const runtime = await client.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const state = await client.createPiSessionState({
+      runtimeId: runtime.runtimeId,
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const observedEvents: unknown[] = [];
+
+    client.subscribeToEvents(state.piSessionId, (event) => {
+      observedEvents.push(event);
+    });
+
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-error",
+        seq: 1,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "error",
+        ts: "2026-06-29T12:00:01.000Z",
+        payload: {
+          type: "error",
+          runId: "pi-session-1:run-1",
+          code: "run_error",
+          body: "model overloaded",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+    });
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-run-end",
+        seq: 2,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "run",
+        ts: "2026-06-29T12:00:02.000Z",
+        payload: {
+          type: "run",
+          runId: "pi-session-1:run-1",
+          phase: "end",
+          trigger: "prompt",
+          outcome: "failed",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+
+    expect(observedEvents).toEqual([
+      {
+        id: "evt-error",
+        piSessionId: "pi-session-1",
+        kind: "error",
+        title: "Run failed",
+        body: "model overloaded",
+        timestamp: "2026-06-29T12:00:01.000Z",
+      },
+    ]);
+  });
 });

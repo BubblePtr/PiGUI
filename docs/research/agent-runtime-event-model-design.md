@@ -270,3 +270,5 @@ type SessionRuntimeModel = {
 3. **status→surface 产品路由**：按 §8 表格执行。
 
 遗留的低风险默认项（未单独拍板，按推荐执行）：`message(end)` 携带全量 parts 快照。首版桌面 MessagePort 场景保留全量快照，换取 replay/审计的简单性；未来低带宽 transport 可改为 hash/长度校验，属于可逆调整。
+
+切片 2 发现的待决协议缺口（切片 3 处理）：**user message 与 runId 的时序矛盾**。协议中 `message` 事件的 `runId/turnId` 必填，但 Gateway 在命令接受时铸造 user message，此时 run 尚未开始。切片 2 的规避方式是 user echo 保留 legacy envelope 形状（不进新模型）；切片 3 让 projection 消费新模型时需要定案：放宽 user message 的 `runId/turnId` 为可选，或由 Gateway 在 `run(start)` 时回填归属。

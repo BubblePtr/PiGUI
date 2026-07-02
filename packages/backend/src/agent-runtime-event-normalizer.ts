@@ -360,6 +360,32 @@ export function createAgentRuntimeEventNormalizer(
         return toolExecutionEvent(rawEvent);
       }
 
+      if (rawEvent.type === "queue_update") {
+        return [
+          {
+            type: "queue",
+            steering: Array.isArray(rawEvent.steering)
+              ? rawEvent.steering.filter((entry): entry is string => typeof entry === "string")
+              : [],
+            followUp: Array.isArray(rawEvent.followUp)
+              ? rawEvent.followUp.filter((entry): entry is string => typeof entry === "string")
+              : [],
+            surface: "hidden",
+            origin,
+          },
+        ];
+      }
+
+      if (rawEvent.type === "compaction_start") {
+        return [
+          statusEvent("compacting", typeof rawEvent.reason === "string" ? rawEvent.reason : undefined),
+        ];
+      }
+
+      if (rawEvent.type === "compaction_end") {
+        return [statusEvent("compaction_done", undefined)];
+      }
+
       if (rawEvent.type === "auto_retry_start" && runId) {
         return [
           // Retry interrupts the in-flight message; close it with an explicit

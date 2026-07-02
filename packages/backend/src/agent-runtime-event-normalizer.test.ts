@@ -752,6 +752,58 @@ describe("agent runtime event normalizer", () => {
     ]);
   });
 
+  it("maps queue and compaction session events without inventing chat messages", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
+
+    normalizer.normalize({ type: "agent_start" });
+
+    const events = normalizeAll(normalizer, [
+      { type: "queue_update", steering: ["focus on tests"], followUp: ["then commit"] },
+      { type: "compaction_start", reason: "context window pressure" },
+      { type: "compaction_end" },
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "queue",
+        steering: ["focus on tests"],
+        followUp: ["then commit"],
+        surface: "hidden",
+        origin: "sdk",
+      },
+      {
+        type: "status",
+        runId: "pi-session-1:run-1",
+        code: "compacting",
+        body: "context window pressure",
+        surface: "trace",
+        origin: "sdk",
+      },
+      {
+        type: "status",
+        runId: "pi-session-1:run-1",
+        code: "compaction_done",
+        surface: "trace",
+        origin: "sdk",
+      },
+    ]);
+  });
+
+  it("drops user message lifecycle events — the Gateway mints the user projection at command accept", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
+    const userMessage = { role: "user", content: "do the thing", timestamp: 1 };
+
+    normalizer.normalize({ type: "agent_start" });
+    normalizer.normalize({ type: "turn_start" });
+
+    const events = normalizeAll(normalizer, [
+      { type: "message_start", message: userMessage },
+      { type: "message_end", message: userMessage },
+    ]);
+
+    expect(events).toEqual([]);
+  });
+
   it("surfaces a failed Active Run as a chat error with outcome failed", () => {
     const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
     const failedMessage = {
