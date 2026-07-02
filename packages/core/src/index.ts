@@ -33,6 +33,21 @@ export type {
 export type { ExecutionCheckoutGitClient } from "./checkout";
 
 export {
+  surfaceForMessagePart,
+  AGENT_STATUS_SURFACES,
+  type AgentRunPhase,
+  type AgentBodyMode,
+  type AgentSurface,
+  type AgentEventOrigin,
+  type AgentRunTrigger,
+  type AgentRunOutcome,
+  type AgentMessagePartType,
+  type AgentStatusCode,
+  type AgentMessagePartSnapshot,
+  type AgentRuntimeEvent,
+} from "./agent-runtime-event";
+
+export {
   createRuntimeGatewaySequencer,
   type RuntimeGatewayRequest,
   type RuntimeGatewayResponse,

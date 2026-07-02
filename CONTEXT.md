@@ -109,8 +109,16 @@ _Avoid_: AI Gateway, Pi SDK API, Pi RPC protocol, renderer bridge
 _Avoid_: Runtime, agent, workspace
 
 **Agent Run**:
-Agent Workspace 中一次可运行、可停止、可观察的 Pi Runtime 实例。一个 workspace 可以同时拥有多个 Agent Run；每个 Agent Run 对应独立进程、session 状态和 Session Trace。
-_Avoid_: Workspace, model, task label
+Agent Workspace 中一次可运行、可停止、可观察的 Pi Runtime 实例。一个 workspace 可以同时拥有多个 Agent Run；每个 Agent Run 对应独立进程、session 状态和 Session Trace。它是 runtime 实例语义，不是一次 agent loop 执行；后者叫 Active Run。
+_Avoid_: Workspace, model, task label, active run, agent loop run
+
+**Active Run**:
+Session 中一次由 prompt 提交、steer 恢复或 queued follow-up 触发的 agent loop 执行，边界来自 agent-core 的 run 生命周期。它是 Live Chat 消息归属、Steer/Queue 可用性和 Session 运行状态的权威边界；协议中的 runId 指 Active Run。一个 Session 先后可以有多个 Active Run，但同一时刻最多一个；retry 和 steer 发生在当前 Active Run 内部，不产生新的 Active Run。
+_Avoid_: Agent Run, runtime instance, turn, prompt cycle, session
+
+**Turn**:
+Active Run 内一次 model response 加 tool execution 循环的边界。一个 Active Run 包含一个或多个 Turn；同一 Turn 产生的 thinking、回答文本和 tool call 都归属该 Turn。
+_Avoid_: Active Run, message, round trip
 
 **Execution Checkout**:
 Agent Run 操作文件系统时所属的 checkout，可以是前台本地目录，也可以在 Git Project 中是 PiGUI 管理的 Git worktree。它是并发运行的文件隔离边界。非 Git Project 可以使用 foreground local directory 运行 Session，但 Git-only 的 diff、managed worktree、commit、push 和 PR 能力不可用。
