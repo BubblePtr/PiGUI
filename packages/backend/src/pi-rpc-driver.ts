@@ -199,14 +199,17 @@ function normalizeRpcEvent(input: {
           ? rawEvent.partialResult
           : rawEvent.args;
 
+    const toolCallId = maybeString(rawEvent.toolCallId);
+
     return {
       piSessionId,
       turnId: maybeString(rawEvent.turnId) ?? undefined,
       type: "tool_execution_update",
       payload: {
-        kind: "tool-call",
+        kind: rawEvent.type === "tool_execution_end" ? "tool-result" : "tool-call",
         title: maybeString(rawEvent.toolName) ?? "Tool call",
         body: serializeEventBody(detail),
+        ...(toolCallId ? { toolCallId } : {}),
       },
     };
   }

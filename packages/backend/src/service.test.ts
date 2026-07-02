@@ -135,7 +135,6 @@ describe("backend service", () => {
     });
     expect(createAgentSession).toHaveBeenCalledWith({
       cwd: process.cwd(),
-      noTools: "all",
     });
     expect(piRpc.startCalls).toEqual([]);
     expect(piRpc.commands).toEqual([]);

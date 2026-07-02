@@ -191,10 +191,13 @@ function normalizeRpcEvent(input: {
           ? rawEvent.partialResult
           : rawEvent.args;
 
+    const toolCallId = maybeString(rawEvent.toolCallId);
+
     return {
       id: maybeString(rawEvent.toolCallId) ?? idFactory(),
       piSessionId,
-      kind: "tool-call",
+      kind: rawEvent.type === "tool_execution_end" ? "tool-result" : "tool-call",
+      ...(toolCallId ? { toolCallId } : {}),
       title: maybeString(rawEvent.toolName) ?? "Tool call",
       body: serializeEventBody(detail),
       timestamp,

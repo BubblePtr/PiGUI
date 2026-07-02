@@ -184,7 +184,7 @@ export function isSessionProjectionActive(projection: SessionProjection): boolea
   return projection.status === "creating" || projection.status === "running";
 }
 
-function isSessionProjectionArchived(projection: SessionProjection): boolean {
+export function isSessionProjectionArchived(projection: SessionProjection): boolean {
   return projection.status === "archived" || projection.archivedAt !== null;
 }
 
@@ -313,6 +313,55 @@ function queuedMessagesAfterRuntimeEvent(
   );
 }
 
+function runtimeEventIdentity(event: PiRuntimeEvent): string | null {
+  if (
+    (event.kind === "message" || event.kind === "thinking") &&
+    event.messageId
+  ) {
+    return `${event.piSessionId}\u0000${event.kind}\u0000${event.messageId}`;
+  }
+
+  if (
+    (event.kind === "tool-call" || event.kind === "tool-result") &&
+    event.toolCallId
+  ) {
+    return `${event.piSessionId}\u0000${event.kind}\u0000${event.toolCallId}`;
+  }
+
+  return null;
+}
+
+function upsertRuntimeEvent(
+  events: PiRuntimeEvent[],
+  event: PiRuntimeEvent,
+): PiRuntimeEvent[] {
+  const identity = runtimeEventIdentity(event);
+
+  if (!identity) {
+    return [...events, { ...event }];
+  }
+
+  const existingIndex = events.findIndex(
+    (existingEvent) => runtimeEventIdentity(existingEvent) === identity,
+  );
+
+  if (existingIndex === -1) {
+    return [...events, { ...event }];
+  }
+
+  return events.map((existingEvent, index) =>
+    index === existingIndex ? { ...event } : existingEvent,
+  );
+}
+
+function normalizedRuntimeEvents(events: PiRuntimeEvent[]): PiRuntimeEvent[] {
+  return events.reduce<PiRuntimeEvent[]>(
+    (normalizedEvents, runtimeEvent) =>
+      upsertRuntimeEvent(normalizedEvents, runtimeEvent),
+    [],
+  );
+}
+
 export function applySessionProjectionEvent(
   projection: SessionProjection,
   event: SessionProjectionEvent,
@@ -350,7 +399,7 @@ export function applySessionProjectionEvent(
               ? "completed"
               : "running",
         creationStage: event.stage ?? projection.creationStage,
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         queuedMessages: queuedMessagesAfterRuntimeEvent(projection, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
@@ -360,7 +409,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         status: "completed",
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -369,7 +418,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         status: "failed",
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -406,7 +455,7 @@ export function applySessionProjectionEvent(
     case "queued-message-processing-started":
       return {
         ...projection,
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         queuedMessages: projection.queuedMessages.map((queuedMessage) =>
           queuedMessage.id === event.queuedMessageId
             ? {
@@ -422,7 +471,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         status: "running",
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
@@ -431,7 +480,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         status: "completed",
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -440,7 +489,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         status: projection.status,
-        runtimeEvents: [...projection.runtimeEvents, { ...event.event }],
+        runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
@@ -472,7 +521,7 @@ export function applySessionProjectionEvent(
         status: sessionStatusFromRuntimeState(event.state),
         runtimeId: event.state.runtimeId,
         piSessionId: event.state.piSessionId,
-        runtimeEvents: event.state.events.map((runtimeEvent) => ({ ...runtimeEvent })),
+        runtimeEvents: normalizedRuntimeEvents(event.state.events),
         summary: event.state.summary ? { ...event.state.summary } : projection.summary,
         stale: false,
         staleReason: null,

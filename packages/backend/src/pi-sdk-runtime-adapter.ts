@@ -73,6 +73,8 @@ type AssistantMessageAccumulator = {
   index: number;
   body: string;
   hasBody: boolean;
+  thinkingBody: string;
+  hasThinkingBody: boolean;
 };
 
 type PiSdkRuntimeEventNormalizer = {
@@ -142,6 +144,31 @@ function textFromContent(content: unknown): string {
     .join("");
 }
 
+function thinkingFromContent(content: unknown): string {
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((block) => {
+      if (!isRecord(block)) {
+        return "";
+      }
+
+      if (block.type === "thinking" && typeof block.thinking === "string") {
+        return block.thinking;
+      }
+
+      if (block.type === "thinking" && typeof block.text === "string") {
+        return block.text;
+      }
+
+      return "";
+    })
+    .filter(Boolean)
+    .join("");
+}
+
 function textFromAssistantMessageEvent(event: Record<string, unknown>) {
   const assistantMessageEvent = isRecord(event.assistantMessageEvent)
     ? event.assistantMessageEvent
@@ -153,6 +180,48 @@ function textFromAssistantMessageEvent(event: Record<string, unknown>) {
     maybeString(assistantMessageEvent?.text) ??
     ""
   );
+}
+
+function thinkingFromAssistantMessageEvent(event: Record<string, unknown>) {
+  const assistantMessageEvent = isRecord(event.assistantMessageEvent)
+    ? event.assistantMessageEvent
+    : null;
+
+  return (
+    maybeString(assistantMessageEvent?.delta) ??
+    maybeString(assistantMessageEvent?.thinking) ??
+    maybeString(assistantMessageEvent?.content) ??
+    maybeString(assistantMessageEvent?.text) ??
+    ""
+  );
+}
+
+function isThinkingAssistantMessageEvent(event: Record<string, unknown>) {
+  const assistantMessageEvent = isRecord(event.assistantMessageEvent)
+    ? event.assistantMessageEvent
+    : null;
+
+  return (
+    assistantMessageEvent?.type === "thinking_delta" ||
+    assistantMessageEvent?.type === "thinking_end" ||
+    assistantMessageEvent?.type === "thinking_start"
+  );
+}
+
+function thinkingEventPhase(event: Record<string, unknown>) {
+  const assistantMessageEvent = isRecord(event.assistantMessageEvent)
+    ? event.assistantMessageEvent
+    : null;
+
+  if (assistantMessageEvent?.type === "thinking_delta") {
+    return "delta";
+  }
+
+  if (assistantMessageEvent?.type === "thinking_end") {
+    return "final";
+  }
+
+  return "partial";
 }
 
 function assistantMessageEventPhase(event: Record<string, unknown>) {
@@ -183,6 +252,15 @@ function assistantMessageText(input: {
     ? input.event.assistantMessageEvent
     : null;
 
+  if (assistantMessageEvent && assistantMessageEvent.type !== undefined) {
+    if (
+      assistantMessageEvent.type !== "text_delta" &&
+      assistantMessageEvent.type !== "text_end"
+    ) {
+      return "";
+    }
+  }
+
   if (
     assistantMessageEvent?.type === "text_delta" &&
     typeof assistantMessageEvent.delta === "string"
@@ -200,6 +278,29 @@ function assistantMessageText(input: {
   return input.message
     ? textFromContent(input.message.content) || textFromAssistantMessageEvent(input.event)
     : textFromAssistantMessageEvent(input.event);
+}
+
+function toolCallFromAssistantMessageEvent(event: Record<string, unknown>) {
+  const assistantMessageEvent = isRecord(event.assistantMessageEvent)
+    ? event.assistantMessageEvent
+    : null;
+
+  if (assistantMessageEvent?.type !== "toolcall_end") {
+    return null;
+  }
+
+  if (isRecord(assistantMessageEvent.toolCall)) {
+    return assistantMessageEvent.toolCall;
+  }
+
+  const contentIndex = maybeNumber(assistantMessageEvent.contentIndex);
+  const partial = isRecord(assistantMessageEvent.partial)
+    ? assistantMessageEvent.partial
+    : null;
+  const content = Array.isArray(partial?.content) ? partial.content : [];
+  const block = contentIndex === null ? null : content[contentIndex];
+
+  return isRecord(block) ? block : null;
 }
 
 function roleFromMessageEvent(input: {
@@ -387,6 +488,8 @@ function messageEventFromAgentEvent(input: {
     assistant.index += 1;
     assistant.body = "";
     assistant.hasBody = false;
+    assistant.thinkingBody = "";
+    assistant.hasThinkingBody = false;
 
     return null;
   }
@@ -398,6 +501,8 @@ function messageEventFromAgentEvent(input: {
     assistant.index += 1;
     assistant.body = "";
     assistant.hasBody = false;
+    assistant.thinkingBody = "";
+    assistant.hasThinkingBody = false;
   }
 
   return {
@@ -408,6 +513,77 @@ function messageEventFromAgentEvent(input: {
       kind: "message",
       role,
       body,
+      bodyFormat: "full",
+      messageId,
+      phase,
+      timestamp,
+    },
+  };
+}
+
+function thinkingEventFromAgentEvent(input: {
+  event: Record<string, unknown>;
+  piSessionId: string;
+  now: () => string;
+  assistant: AssistantMessageAccumulator;
+}): RuntimeGatewayDriverEvent | null {
+  const { event, piSessionId, now, assistant } = input;
+
+  if (!isThinkingAssistantMessageEvent(event)) {
+    return null;
+  }
+
+  const message = isRecord(event.message) ? event.message : null;
+  const body = message
+    ? thinkingFromContent(message.content) ||
+      thinkingFromAssistantMessageEvent(event)
+    : thinkingFromAssistantMessageEvent(event);
+
+  if (!body) {
+    return null;
+  }
+
+  const phase = thinkingEventPhase(event);
+  const messageId = messageIdFor({
+    piSessionId,
+    role: "assistant",
+    index: assistant.index,
+  });
+  const timestamp = timestampFrom(message?.timestamp, now());
+
+  if (phase === "delta") {
+    assistant.thinkingBody += body;
+    assistant.hasThinkingBody = true;
+  } else if (phase === "partial") {
+    const nextBody = !assistant.hasThinkingBody
+      ? body
+      : body.startsWith(assistant.thinkingBody)
+        ? body
+        : `${assistant.thinkingBody}${body}`;
+
+    if (assistant.hasThinkingBody && nextBody === assistant.thinkingBody) {
+      return null;
+    }
+
+    assistant.thinkingBody = nextBody;
+    assistant.hasThinkingBody = true;
+  } else {
+    if (assistant.hasThinkingBody && body === assistant.thinkingBody) {
+      return null;
+    }
+
+    assistant.thinkingBody = body;
+    assistant.hasThinkingBody = true;
+  }
+
+  return {
+    piSessionId,
+    turnId: maybeString(event.turnId) ?? maybeString(message?.turnId) ?? undefined,
+    type: "message_update",
+    payload: {
+      kind: "thinking",
+      role: "assistant",
+      body: assistant.thinkingBody,
       bodyFormat: "full",
       messageId,
       phase,
@@ -428,13 +604,67 @@ function toolEventFromAgentEvent(input: {
         ? event.partialResult
         : event.args;
 
+  const toolCallId =
+    maybeString(event.toolCallId) ??
+    maybeString(event.tool_call_id) ??
+    maybeString(event.id) ??
+    undefined;
+  const phase =
+    event.type === "tool_execution_end"
+      ? "final"
+      : event.type === "tool_execution_update"
+        ? "partial"
+        : "partial";
+
   return {
     piSessionId,
+    turnId: maybeString(event.turnId) ?? undefined,
+    type: "tool_execution_update",
+    payload: {
+      kind:
+        event.type === "tool_execution_start" ? "tool-call" : "tool-result",
+      title: maybeString(event.toolName) ?? "Tool call",
+      body: serializeEventBody(detail),
+      ...(toolCallId ? { toolCallId } : {}),
+      phase,
+    },
+  };
+}
+
+function toolEventFromAssistantToolCall(input: {
+  event: Record<string, unknown>;
+  piSessionId: string;
+  assistant: AssistantMessageAccumulator;
+}): RuntimeGatewayDriverEvent | null {
+  const toolCall = toolCallFromAssistantMessageEvent(input.event);
+
+  if (toolCall?.type !== "toolCall") {
+    return null;
+  }
+
+  const title = maybeString(toolCall.name);
+
+  if (!title) {
+    return null;
+  }
+
+  const toolCallId = maybeString(toolCall.id);
+
+  return {
+    piSessionId: input.piSessionId,
+    turnId: maybeString(input.event.turnId) ?? undefined,
     type: "tool_execution_update",
     payload: {
       kind: "tool-call",
-      title: maybeString(event.toolName) ?? "Tool call",
-      body: serializeEventBody(detail),
+      title,
+      body: serializeEventBody(toolCall.arguments),
+      ...(toolCallId ? { toolCallId } : {}),
+      messageId: messageIdFor({
+        piSessionId: input.piSessionId,
+        role: "assistant",
+        index: input.assistant.index,
+      }),
+      phase: "final",
     },
   };
 }
@@ -532,6 +762,8 @@ function createPiSdkRuntimeEventNormalizer(input: {
     index: 0,
     body: "",
     hasBody: false,
+    thinkingBody: "",
+    hasThinkingBody: false,
   };
 
   return {
@@ -546,6 +778,27 @@ function createPiSdkRuntimeEventNormalizer(input: {
         event.type === "message_end" ||
         event.type === "turn_end"
       ) {
+        const thinkingEvent = thinkingEventFromAgentEvent({
+          event,
+          piSessionId: input.piSessionId,
+          now,
+          assistant,
+        });
+
+        if (thinkingEvent) {
+          return thinkingEvent;
+        }
+
+        const toolEvent = toolEventFromAssistantToolCall({
+          event,
+          piSessionId: input.piSessionId,
+          assistant,
+        });
+
+        if (toolEvent) {
+          return toolEvent;
+        }
+
         return messageEventFromAgentEvent({
           event,
           piSessionId: input.piSessionId,
@@ -606,7 +859,6 @@ export function createPublicPiSdkRuntimeFactory(
     const { session } = await options.sdk.createAgentSession({
       ...options.sessionOptions,
       cwd: input.cwd,
-      noTools: options.sessionOptions?.noTools ?? "all",
     });
     const eventNormalizer = createPiSdkRuntimeEventNormalizer({
       piSessionId: session.sessionId,

@@ -57,7 +57,9 @@ function eventKindFromEnvelope(
 
   if (
     kind === "message" ||
+    kind === "thinking" ||
     kind === "tool-call" ||
+    kind === "tool-result" ||
     kind === "error" ||
     kind === "usage" ||
     kind === "status" ||
@@ -128,7 +130,19 @@ function runtimeEventFromEnvelope(envelope: RuntimeGatewayEventEnvelope): PiRunt
   };
   const role = maybeString(payload.role);
   const title = maybeString(payload.title);
+  const messageId = maybeString(payload.messageId);
+  const toolCallId = maybeString(payload.toolCallId);
+  const bodyFormat = maybeString(payload.bodyFormat);
+  const phase = maybeString(payload.phase);
   const summary = partialSummaryFromPayload(payload.summary);
+
+  if (messageId) {
+    event.messageId = messageId;
+  }
+
+  if (toolCallId) {
+    event.toolCallId = toolCallId;
+  }
 
   if (role === "user" || role === "assistant") {
     event.role = role;
@@ -140,6 +154,14 @@ function runtimeEventFromEnvelope(envelope: RuntimeGatewayEventEnvelope): PiRunt
 
   if (summary) {
     event.summary = summary;
+  }
+
+  if (bodyFormat === "full" || bodyFormat === "delta") {
+    event.bodyFormat = bodyFormat;
+  }
+
+  if (phase === "partial" || phase === "delta" || phase === "final") {
+    event.phase = phase;
   }
 
   return event;
@@ -181,8 +203,24 @@ function cloneRuntimeEvent(event: PiRuntimeEvent): PiRuntimeEvent {
     cloned.title = event.title;
   }
 
+  if (event.messageId) {
+    cloned.messageId = event.messageId;
+  }
+
+  if (event.toolCallId) {
+    cloned.toolCallId = event.toolCallId;
+  }
+
   if (event.summary) {
     cloned.summary = { ...event.summary };
+  }
+
+  if (event.bodyFormat) {
+    cloned.bodyFormat = event.bodyFormat;
+  }
+
+  if (event.phase) {
+    cloned.phase = event.phase;
   }
 
   return cloned;

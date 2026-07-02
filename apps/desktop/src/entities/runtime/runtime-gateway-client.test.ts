@@ -168,4 +168,178 @@ describe("Runtime Gateway client", () => {
       ],
     });
   });
+
+  it("preserves Gateway message identity metadata for streaming updates", async () => {
+    const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      events: [],
+      updatedAt: "2026-06-29T12:00:00.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string) => {
+        if (command === "create_session" || command === "get_runtime_snapshot") {
+          return snapshot as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+      onBackendEvent: (handler) => {
+        eventHandlers.push(handler);
+
+        return vi.fn();
+      },
+    });
+    const runtime = await client.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const state = await client.createPiSessionState({
+      runtimeId: runtime.runtimeId,
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const observedEvents: unknown[] = [];
+
+    client.subscribeToEvents(state.piSessionId, (event) => {
+      observedEvents.push(event);
+    });
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-assistant-1",
+        seq: 1,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "message_update",
+        ts: "2026-06-29T12:00:01.000Z",
+        payload: {
+          kind: "message",
+          role: "assistant",
+          body: "我们",
+          messageId: "pi-sdk:pi-session-1:assistant:0",
+        },
+      },
+    });
+
+    expect(observedEvents).toEqual([
+      expect.objectContaining({
+        id: "evt-assistant-1",
+        messageId: "pi-sdk:pi-session-1:assistant:0",
+        body: "我们",
+      }),
+    ]);
+  });
+
+  it("preserves Gateway trace event kinds and tool call identity metadata", async () => {
+    const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      events: [],
+      updatedAt: "2026-06-29T12:00:00.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string) => {
+        if (command === "create_session" || command === "get_runtime_snapshot") {
+          return snapshot as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+      onBackendEvent: (handler) => {
+        eventHandlers.push(handler);
+
+        return vi.fn();
+      },
+    });
+    const runtime = await client.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const state = await client.createPiSessionState({
+      runtimeId: runtime.runtimeId,
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const observedEvents: unknown[] = [];
+
+    client.subscribeToEvents(state.piSessionId, (event) => {
+      observedEvents.push(event);
+    });
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-thinking-1",
+        seq: 1,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "message_update",
+        ts: "2026-06-29T12:00:01.000Z",
+        payload: {
+          kind: "thinking",
+          role: "assistant",
+          body: "Inspect context first.",
+          messageId: "pi-sdk:pi-session-1:assistant:0",
+          phase: "delta",
+        },
+      },
+    });
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-tool-result-1",
+        seq: 2,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "tool_execution_update",
+        ts: "2026-06-29T12:00:02.000Z",
+        payload: {
+          kind: "tool-result",
+          title: "read",
+          body: "Agent instructions",
+          toolCallId: "tool-call-1",
+          phase: "final",
+        },
+      },
+    });
+
+    expect(observedEvents).toEqual([
+      expect.objectContaining({
+        id: "evt-thinking-1",
+        kind: "thinking",
+        role: "assistant",
+        messageId: "pi-sdk:pi-session-1:assistant:0",
+        phase: "delta",
+        body: "Inspect context first.",
+      }),
+      expect.objectContaining({
+        id: "evt-tool-result-1",
+        kind: "tool-result",
+        title: "read",
+        toolCallId: "tool-call-1",
+        phase: "final",
+        body: "Agent instructions",
+      }),
+    ]);
+  });
 });
