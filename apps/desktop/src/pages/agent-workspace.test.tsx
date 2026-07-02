@@ -26,6 +26,7 @@ import {
   createSessionFromDraft,
 } from "@/entities/session/session-creation";
 import { applySessionProjectionEvent, createSessionProjection } from "@/entities/session/session-projection";
+import { createSessionRuntimeModel } from "@/entities/session/session-runtime-model";
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 
@@ -1946,6 +1947,7 @@ describe("AgentWorkspaceSessionsPage", () => {
           timestamp: "2026-06-26T08:00:05.000Z",
         },
       ],
+      runtimeModel: createSessionRuntimeModel(),
       queuedMessages: [],
       summary: {
         provider: "openai",

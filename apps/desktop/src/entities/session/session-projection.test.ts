@@ -737,4 +737,101 @@ describe("Session Projection state", () => {
       }),
     ]);
   });
+
+  it("derives status from Active Run events and stops letting legacy status events flip it", () => {
+    const runId = "pi-session-1:run-1";
+    let projection = createSessionProjection({
+      id: "session-1",
+      projectId: "project-1",
+      initialPrompt: "Ship it",
+      createdAt: "2026-07-02T10:00:00.000Z",
+    });
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+
+    expect(projection.status).toBe("running");
+    expect(projection.runtimeModel.runs.get(runId)).toBeDefined();
+
+    // The legacy compat stream still records events, but once run events own
+    // the status a legacy "status" kind must not complete the session.
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "legacy-retrying",
+        piSessionId: "pi-session-1",
+        kind: "status",
+        title: "Retrying",
+        body: "stream disconnected",
+        timestamp: "2026-07-02T10:00:02.000Z",
+      },
+    });
+
+    expect(projection.status).toBe("running");
+    expect(projection.runtimeEvents).toHaveLength(1);
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: `${runId}:turn-1`,
+          messageId: `${runId}:turn-1:msg-1`,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${runId}:turn-1:msg-1:part-0`,
+              partType: "text",
+              body: "Done",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+    });
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+
+    expect(projection.status).toBe("completed");
+    expect(projection.unreadResult).toBe(true);
+    expect(projection.updatedAt).toBe("2026-07-02T10:00:04.000Z");
+    expect(
+      projection.runtimeModel.messages.get(`${runId}:turn-1:msg-1`),
+    ).toMatchObject({
+      phase: "final",
+      parts: [{ partType: "text", body: "Done" }],
+    });
+  });
 });

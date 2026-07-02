@@ -3,12 +3,133 @@ import { createInMemoryPiRuntimeBridge } from "@/entities/runtime/in-memory-pi-r
 import { createPiRpcRuntimeBridge } from "@/entities/runtime/pi-rpc-runtime-bridge";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
 import { createExecutionCheckoutManager } from "@/entities/checkout/execution-checkout";
+import type {
+  AgentRuntimeEventEntry,
+  PiRuntimeBridge,
+} from "@/entities/runtime/pi-runtime-bridge";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
 } from "@/entities/session/session-creation";
 
 describe("Session Creation state machine", () => {
+  it("feeds the structured runtime model when the bridge exposes the Agent Runtime Event stream", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const agentListeners = new Set<(entry: AgentRuntimeEventEntry) => void>();
+    const emitAgentEvent = (entry: AgentRuntimeEventEntry) => {
+      for (const listener of agentListeners) {
+        listener(entry);
+      }
+    };
+    const bridge: PiRuntimeBridge = {
+      async startRuntime(input) {
+        return {
+          runtimeId: "runtime-1",
+          sessionId: input.sessionId,
+          projectId: input.projectId,
+          checkout: input.checkout,
+          status: "ready",
+        };
+      },
+      async createPiSessionState(input) {
+        return {
+          piSessionId: "pi-session-1",
+          runtimeId: input.runtimeId,
+          projectId: input.projectId,
+          cwd: input.cwd,
+          status: "idle",
+          events: [],
+          updatedAt: "2026-07-02T10:00:00.000Z",
+        };
+      },
+      async sendInitialPrompt(input) {
+        return {
+          accepted: true,
+          piSessionId: input.piSessionId,
+          event: {
+            id: "user-echo-1",
+            piSessionId: input.piSessionId,
+            kind: "message",
+            role: "user",
+            body: input.prompt,
+            timestamp: "2026-07-02T10:00:00.500Z",
+          },
+        };
+      },
+      queueFollowUp: () => Promise.reject(new Error("unused")),
+      withdrawQueuedMessage: () => Promise.reject(new Error("unused")),
+      steerRun: () => Promise.reject(new Error("unused")),
+      abortRun: () => Promise.reject(new Error("unused")),
+      getSessionState: () => Promise.reject(new Error("unused")),
+      subscribeToEvents: () => () => {},
+      subscribeToAgentEvents(_piSessionId, listener) {
+        agentListeners.add(listener);
+
+        return () => {
+          agentListeners.delete(listener);
+        };
+      },
+    };
+
+    const result = await createSessionFromDraft({
+      bridge,
+      projections,
+      draft: {
+        projectId: "pig",
+        prompt: "Ship the slice",
+        updatedAt: "2026-07-02T10:00:00.000Z",
+      },
+      project: {
+        id: "pig",
+        projectRoot: "/Users/void/code/opensource/Pig",
+      },
+      now: () => "2026-07-02T10:00:00.000Z",
+      idFactory: () => "session-1",
+    });
+
+    const runId = "pi-session-1:run-1";
+
+    emitAgentEvent({
+      seq: 1,
+      timestamp: "2026-07-02T10:00:01.000Z",
+      event: {
+        type: "run",
+        runId,
+        phase: "start",
+        trigger: "prompt",
+        surface: "hidden",
+        origin: "sdk",
+      },
+    });
+
+    expect(projections.get("session-1")?.status).toBe("running");
+    expect(projections.get("session-1")?.runtimeModel.runs.get(runId)).toMatchObject({
+      trigger: "prompt",
+    });
+
+    if (!result.ok) {
+      throw new Error("expected session creation to succeed");
+    }
+
+    // Unsubscribing tears down both the legacy and the agent event streams.
+    result.unsubscribeRuntimeEvents();
+    emitAgentEvent({
+      seq: 2,
+      timestamp: "2026-07-02T10:00:02.000Z",
+      event: {
+        type: "run",
+        runId,
+        phase: "end",
+        trigger: "prompt",
+        outcome: "completed",
+        surface: "hidden",
+        origin: "sdk",
+      },
+    });
+
+    expect(projections.get("session-1")?.status).toBe("running");
+  });
+
   it("submits a draft into a resumable Live Session through the fake Pi Runtime Bridge", async () => {
     const projections = createInMemorySessionProjectionStore();
     const observedStages: string[] = [];

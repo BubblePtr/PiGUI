@@ -162,14 +162,35 @@ export async function createSessionFromDraft(
       projectId: input.project.id,
       cwd: checkout.runtimeCwd,
     });
-    unsubscribeRuntimeEvents = input.bridge.subscribeToEvents(piState.piSessionId, (event) => {
-      commit(
-        applySessionProjectionEvent(projection, {
-          type: "runtime-event-received",
-          event,
-        }),
-      );
-    });
+    const unsubscribeLegacyEvents = input.bridge.subscribeToEvents(
+      piState.piSessionId,
+      (event) => {
+        commit(
+          applySessionProjectionEvent(projection, {
+            type: "runtime-event-received",
+            event,
+          }),
+        );
+      },
+    );
+    // Bridges that speak the Agent Runtime Event Model also feed the
+    // structured runtime model; run events then own the Session Status.
+    const unsubscribeAgentEvents = input.bridge.subscribeToAgentEvents?.(
+      piState.piSessionId,
+      (entry) => {
+        commit(
+          applySessionProjectionEvent(projection, {
+            type: "agent-event-received",
+            entry,
+          }),
+        );
+      },
+    );
+
+    unsubscribeRuntimeEvents = () => {
+      unsubscribeLegacyEvents();
+      unsubscribeAgentEvents?.();
+    };
 
     commit(
       applySessionProjectionEvent(projection, {

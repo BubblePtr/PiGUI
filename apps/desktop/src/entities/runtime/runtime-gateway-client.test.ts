@@ -768,4 +768,91 @@ describe("Runtime Gateway client", () => {
       },
     ]);
   });
+
+  it("exposes the Agent Runtime Event stream with seq for the structured projection", async () => {
+    const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      events: [],
+      updatedAt: "2026-06-29T12:00:00.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string) => {
+        if (command === "create_session" || command === "get_runtime_snapshot") {
+          return snapshot as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+      onBackendEvent: (handler) => {
+        eventHandlers.push(handler);
+
+        return vi.fn();
+      },
+    });
+
+    await client.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+
+    const observedEntries: unknown[] = [];
+
+    client.subscribeToAgentEvents?.("pi-session-1", (entry) => {
+      observedEntries.push(entry);
+    });
+
+    const runPayload = {
+      type: "run",
+      runId: "pi-session-1:run-1",
+      phase: "start",
+      trigger: "prompt",
+      surface: "hidden",
+      origin: "sdk",
+    };
+
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-run",
+        seq: 7,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "run",
+        ts: "2026-06-29T12:00:01.000Z",
+        payload: runPayload,
+      },
+    });
+    // Legacy command-echo envelopes never reach the agent event stream.
+    eventHandlers[0]?.({
+      type: "event",
+      event: {
+        id: "evt-legacy",
+        seq: 8,
+        sessionId: "session-1",
+        piSessionId: "pi-session-1",
+        type: "message_update",
+        ts: "2026-06-29T12:00:02.000Z",
+        payload: { kind: "message", role: "user", body: "Hello Pi" },
+      },
+    });
+
+    expect(observedEntries).toEqual([
+      {
+        seq: 7,
+        timestamp: "2026-06-29T12:00:01.000Z",
+        event: runPayload,
+      },
+    ]);
+  });
 });

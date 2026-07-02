@@ -5,6 +5,13 @@ import type {
   PiRuntimeSummary,
   PiSessionState,
 } from "@/entities/runtime/pi-runtime-bridge";
+import {
+  applyAgentRuntimeEvent,
+  createSessionRuntimeModel,
+  sessionStatusFromRuntimeModel,
+  type AgentRuntimeEventInput,
+  type SessionRuntimeModel,
+} from "@/entities/session/session-runtime-model";
 
 export type SessionStatus = "creating" | "running" | "waiting" | "failed" | "completed" | "archived";
 
@@ -35,6 +42,10 @@ export type SessionProjection = {
   runtimeId: string | null;
   piSessionId: string | null;
   runtimeEvents: PiRuntimeEvent[];
+  // Structured model built from the Agent Runtime Event stream. Once it has
+  // seen run events, it owns the Session Status; legacy event kinds only
+  // drive status for bridges that don't speak the new model yet.
+  runtimeModel: SessionRuntimeModel;
   queuedMessages: PiQueuedMessage[];
   summary: PiRuntimeSummary;
   stale: boolean;
@@ -77,6 +88,10 @@ export type SessionProjectionEvent =
       type: "runtime-event-received";
       stage?: "accepted";
       event: PiRuntimeEvent;
+    }
+  | {
+      type: "agent-event-received";
+      entry: AgentRuntimeEventInput;
     }
   | {
       type: "run-completed";
@@ -163,6 +178,7 @@ export function createSessionProjection(
     runtimeId: null,
     piSessionId: null,
     runtimeEvents: [],
+    runtimeModel: createSessionRuntimeModel(),
     queuedMessages: [],
     summary: {
       provider: null,
@@ -392,12 +408,16 @@ export function applySessionProjectionEvent(
     case "runtime-event-received":
       return {
         ...projection,
+        // Once Active Run events own the status, legacy kinds stop guessing —
+        // a compat "Retrying" status must not complete a running Session.
         status:
-          event.event.kind === "error"
-            ? "failed"
-            : event.event.kind === "status"
-              ? "completed"
-              : "running",
+          projection.runtimeModel.runs.size > 0
+            ? projection.status
+            : event.event.kind === "error"
+              ? "failed"
+              : event.event.kind === "status"
+                ? "completed"
+                : "running",
         creationStage: event.stage ?? projection.creationStage,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         queuedMessages: queuedMessagesAfterRuntimeEvent(projection, event.event),
@@ -405,6 +425,28 @@ export function applySessionProjectionEvent(
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
       };
+    case "agent-event-received": {
+      const runtimeModel = applyAgentRuntimeEvent(projection.runtimeModel, event.entry);
+
+      if (runtimeModel === projection.runtimeModel) {
+        return projection;
+      }
+
+      const agentEvent = event.entry.event;
+      const finalizedAssistantAnswer =
+        agentEvent.type === "message" &&
+        agentEvent.phase === "end" &&
+        agentEvent.role === "assistant" &&
+        !agentEvent.abandoned;
+
+      return {
+        ...projection,
+        status: sessionStatusFromRuntimeModel(runtimeModel) ?? projection.status,
+        runtimeModel,
+        unreadResult: finalizedAssistantAnswer ? true : projection.unreadResult,
+        updatedAt: event.entry.timestamp,
+      };
+    }
     case "run-completed":
       return {
         ...projection,

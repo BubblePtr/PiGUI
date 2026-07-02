@@ -257,6 +257,7 @@ type SessionRuntimeModel = {
 1. **契约 + normalizer（不碰 UI）**：新增 `packages/core/agent-runtime-event.ts` 与 `packages/backend/agent-runtime-event-normalizer.ts`；用 agent-core 风格 fixture 覆盖六条流：纯文本、thinking+text、text→toolCall→toolResult→text、多 turn、retry、abort。断言完整 id/phase/surface 序列。
 2. **SDK adapter 接入 normalizer**：`pi-sdk-runtime-adapter` 退化为"SDK subscription → normalizer"接线；在 gateway-client 加旧 `PiRuntimeEvent` 兼容映射，现有 UI 行为零回退（以现有 agent-workspace 测试为准）。
 3. **projection 换输入**：`session-projection` 直接消费 AgentRuntimeEvent，重构为 §7 的结构化模型；`collapseAssistantRunMessages` 降级为兼容 fallback。
+   - 实际落地形态（过渡期）：projection 同时持有 `runtimeEvents`（legacy，继续驱动现有 UI）和 `runtimeModel`（新结构化模型，`agent-event-received` 喂入，按 seq 去重）；bridge 契约新增可选 `subscribeToAgentEvents`，`session-creation` 双订阅。**模型见到 run 事件后即拥有 Session Status**，legacy status kind 不再翻转 status（"任意 status → completed" 缺陷对新模型会话已消灭）；旧 bridge（in-memory/RPC）没有新流时维持旧推导。切片 4 把 UI 切到 `runtimeModel` 后删除 legacy 流与扁平数组。
 4. **page 简化**：agent-workspace 按 surface 渲染；删除兼容映射与 collapse。
 5. **RPC driver 对齐**：`PiRpcProcessDriver` 映射到同一模型，能力不足显式标 `origin:"rpc"` + capability 缺口记录（沿用 ADR-0018 的缺口纪律）。
 6. **持久化与 replay**（后续独立设计）：projection 快照落盘；历史 session 直接加载 normalized projection，静态渲染，绝不重放 streaming。
