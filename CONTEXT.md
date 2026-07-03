@@ -56,6 +56,18 @@ _Avoid_: Session Draft, Project draft, new-session draft, queued message
 Session Draft 提交后的创建状态机。PiGUI 先创建 `creating` 状态的 Session Projection，再选择或创建 Execution Checkout，然后启动或 attach Pi Runtime / 创建 Pi Session State，最后发送 initial prompt。每个阶段都要能记录错误和恢复点。
 _Avoid_: Draft editing, single-step create, invisible side effect
 
+**Resume**:
+打开一个当前没有存活 runtime 的 Session 并让它重新可继续对话的能力。它是 Gateway 能力而不是用户动词：用户只有"打开 Session"一个动作，底层走热 attach（runtime 仍存活）还是冷恢复（进程重启后从 Pi 会话记录重新打开）对用户透明。冷恢复时对话上下文永远由 Pi Runtime 从 Pi Session State 的持久记录自行重建，PiGUI 不自行拼装 LLM 上下文；UI 时间线来自 Session Event Journal 的回放，两者分工不可互换。
+_Avoid_: Resume button, reattach-only recovery, PiGUI-rebuilt LLM context, plain session switch
+
+**Fork**:
+从已有 Session 的某条 user message 边界分叉出新 Session 的动作。Fork 只复制对话上下文（root 到 fork 点的线性路径），永远产生一个带独立 identity、独立 Execution Checkout、出现在 Session 列表中的新 Session，并保留指回源 Session 的谱系；被选中的 user message 原文预填进新 Session 的 composer 供改写。Fork 不承诺磁盘状态回到 fork 点：Git Project 下新 Session 强制使用新的 managed worktree，非 Git Project 复用前台目录并提示可能存在源 Session 的文件改动。树内分支（同一 Session 内移动 leaf 形成非线性历史）不在产品边界内。
+_Avoid_: In-session branch, tree navigation, disk snapshot, filesystem time travel, checkout copy
+
+**Session Import**:
+用户显式把一条在 PiGUI 之外产生的 Pi session（如 Pi CLI/TUI 会话）导入 PiGUI 的动作，导入时补建 Session Projection 并进入 Session 列表。PiGUI 不自动扫描 Pi 的 session 目录生成列表行；未导入的外部 session 不出现在任何列表中。导入 session 的历史时间线保真度低于 PiGUI 原生 Session，其具体呈现另行设计。
+_Avoid_: Auto-discovery, session directory scan, background sync, full-fidelity replay
+
 **Session Status**:
 Session Projection 使用的内部收敛状态集合：`creating`、`running`、`waiting`、`failed`、`completed`、`archived`。Draft 不属于 Session Status。UI 不直接暴露完整内部集合；Session 列表首版只用 spinner/shimmer 这类动态图标表达 active run。失败和完成都作为 Live Chat 中的新结果/消息呈现，不在列表里做状态区分。
 _Avoid_: Draft, full UI status taxonomy, arbitrary runtime string
