@@ -25,7 +25,11 @@ import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
 } from "@/entities/session/session-creation";
-import { applySessionProjectionEvent, createSessionProjection } from "@/entities/session/session-projection";
+import {
+  applySessionProjectionEvent,
+  createSessionProjection,
+  type SessionProjection,
+} from "@/entities/session/session-projection";
 import { createSessionRuntimeModel } from "@/entities/session/session-runtime-model";
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
@@ -1886,6 +1890,177 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByPlaceholderText("Do anything with Pi")).toHaveValue(
       "Summarize the docs ADR",
     );
+  });
+
+  it("renders Live Chat and trace from the structured runtime model when run events own the session", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    const turnId = `${runId}:turn-1`;
+    const abandonedId = `${turnId}:msg-1`;
+    const answerId = `${turnId}:msg-2`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Ship the slice",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    // Gateway-minted user echo arrives on the legacy stream and is mirrored.
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "user-echo-1",
+        piSessionId: "pi-session-model",
+        kind: "message",
+        role: "user",
+        body: "Ship the slice",
+        messageId: "pi-sdk:pi-session-model:user:0",
+        timestamp: "2026-07-02T10:00:00.500Z",
+      },
+    });
+
+    const agentEntries = [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: abandonedId,
+          role: "assistant",
+          phase: "end",
+          abandoned: true,
+          parts: [
+            { partId: `${abandonedId}:part-0`, partType: "text", body: "Partial answer before retry" },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId: answerId,
+          partId: `${answerId}:part-0`,
+          partType: "thinking",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: "Inspect the repo first.",
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-1",
+          phase: "end",
+          name: "read_file",
+          args: { path: "AGENTS.md" },
+          result: { ok: true },
+          isError: false,
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:05.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: answerId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            { partId: `${answerId}:part-0`, partType: "thinking", body: "Inspect the repo first." },
+            { partId: `${answerId}:part-1`, partType: "text", body: "The slice is shipped." },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:06.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ];
+
+    for (const entry of agentEntries) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    expect(screen.getByText("Ship the slice")).toBeInTheDocument();
+    expect(screen.getByText("The slice is shipped.")).toBeInTheDocument();
+    // Abandoned retry partials never render as chat answers.
+    expect(screen.queryByText("Partial answer before retry")).not.toBeInTheDocument();
+    expect(screen.getByText("Tool: read_file")).toBeInTheDocument();
+    expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
   it("renders completed Projection data with follow-up composer and without a runtime-unavailable warning", () => {

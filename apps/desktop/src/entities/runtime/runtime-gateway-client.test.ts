@@ -608,6 +608,7 @@ describe("Runtime Gateway client", () => {
         body: "Hel",
         bodyFormat: "full",
         phase: "delta",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:04.000Z",
       },
       {
@@ -619,6 +620,7 @@ describe("Runtime Gateway client", () => {
         body: "Hello",
         bodyFormat: "full",
         phase: "delta",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:05.000Z",
       },
       {
@@ -630,6 +632,7 @@ describe("Runtime Gateway client", () => {
         body: "Hello",
         bodyFormat: "full",
         phase: "final",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:06.000Z",
       },
       {
@@ -640,6 +643,7 @@ describe("Runtime Gateway client", () => {
         toolCallId: "call-1",
         body: '{"path":"a.ts"}',
         phase: "partial",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:08.000Z",
       },
       {
@@ -650,6 +654,7 @@ describe("Runtime Gateway client", () => {
         toolCallId: "call-1",
         body: '{"ok":true}',
         phase: "final",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:09.000Z",
       },
       {
@@ -658,6 +663,7 @@ describe("Runtime Gateway client", () => {
         kind: "status",
         title: "Retrying",
         body: "stream disconnected",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:10.000Z",
       },
       {
@@ -666,6 +672,7 @@ describe("Runtime Gateway client", () => {
         kind: "status",
         title: "Completed",
         body: "Pi SDK runtime ended the active run.",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:11.000Z",
       },
     ]);
@@ -764,6 +771,7 @@ describe("Runtime Gateway client", () => {
         kind: "error",
         title: "Run failed",
         body: "model overloaded",
+        derivedFromAgentEvent: true,
         timestamp: "2026-06-29T12:00:01.000Z",
       },
     ]);

@@ -6,6 +6,7 @@ import type {
   PiSessionState,
 } from "@/entities/runtime/pi-runtime-bridge";
 import {
+  addLegacyChatEventToModel,
   applyAgentRuntimeEvent,
   createSessionRuntimeModel,
   sessionStatusFromRuntimeModel,
@@ -329,6 +330,37 @@ function queuedMessagesAfterRuntimeEvent(
   );
 }
 
+// Gateway-minted chat events (user echo, steer control, driver/renderer
+// errors) exist only on the legacy stream; mirror them into the runtime model
+// so chat can render entirely from it. Compat-derived events already reached
+// the model through the agent stream.
+function runtimeModelAfterLegacyEvent(
+  model: SessionRuntimeModel,
+  event: PiRuntimeEvent,
+): SessionRuntimeModel {
+  if (event.derivedFromAgentEvent) {
+    return model;
+  }
+
+  if (
+    (event.kind === "message" && event.role === "user") ||
+    event.kind === "control" ||
+    event.kind === "error"
+  ) {
+    return addLegacyChatEventToModel(model, {
+      id: event.id,
+      kind: event.kind,
+      role: event.role,
+      title: event.title,
+      body: event.body,
+      messageId: event.messageId,
+      timestamp: event.timestamp,
+    });
+  }
+
+  return model;
+}
+
 function runtimeEventIdentity(event: PiRuntimeEvent): string | null {
   if (
     (event.kind === "message" || event.kind === "thinking") &&
@@ -420,6 +452,7 @@ export function applySessionProjectionEvent(
                 : "running",
         creationStage: event.stage ?? projection.creationStage,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         queuedMessages: queuedMessagesAfterRuntimeEvent(projection, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
@@ -452,6 +485,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "completed",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -461,6 +495,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "failed",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -498,6 +533,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         queuedMessages: projection.queuedMessages.map((queuedMessage) =>
           queuedMessage.id === event.queuedMessageId
             ? {
@@ -514,6 +550,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "running",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
@@ -523,6 +560,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "completed",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -532,6 +570,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: projection.status,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,

@@ -50,7 +50,7 @@ export type AgentRuntimeEvent =
       messageId: string;
       role: "user" | "assistant";
       phase: "start" | "end";
-      parts?: AgentMessagePartSnapshot[];
+      parts?: readonly AgentMessagePartSnapshot[];
       abandoned?: boolean;
       surface: "chat";
       origin: AgentEventOrigin;

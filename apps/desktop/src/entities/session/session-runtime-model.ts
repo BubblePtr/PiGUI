@@ -30,10 +30,16 @@ export type SessionRuntimeMessagePart = {
 export type SessionRuntimeMessage = {
   messageId: string;
   role: "user" | "assistant";
-  runId: string;
-  turnId: string;
+  // Absent on Gateway-minted chat entries (user echo, steer control): they
+  // are created at command accept, before the Active Run exists. See the
+  // design doc §10 open gap on user-message run attribution.
+  runId?: string;
+  turnId?: string;
   phase: "streaming" | "final";
   abandoned?: boolean;
+  // Set on mirrored control/error entries (Steer echo, run failures) so the
+  // chat can render them as control bubbles.
+  controlLabel?: string;
   parts: SessionRuntimeMessagePart[];
   updatedAt: string;
 };
@@ -338,6 +344,63 @@ export function applyAgentRuntimeEvent(
     default:
       return { ...model, ...base };
   }
+}
+
+export type LegacyChatEventInput = {
+  id: string;
+  kind: "message" | "control" | "error";
+  role?: "user" | "assistant";
+  title?: string;
+  body: string;
+  messageId?: string;
+  timestamp: string;
+};
+
+// Mirrors a Gateway-minted legacy chat event (user echo, steer control echo,
+// driver/renderer error) into the model so chat can render entirely from it.
+// Mirrored entries slot between agent events with a fractional seq and never
+// advance the agent seq watermark — advancing it would swallow the next
+// Gateway event as a replay.
+export function addLegacyChatEventToModel(
+  model: SessionRuntimeModel,
+  input: LegacyChatEventInput,
+): SessionRuntimeModel {
+  const messageId = input.messageId ?? input.id;
+  const controlLabel =
+    input.kind === "control" || input.kind === "error"
+      ? (input.title ?? (input.kind === "error" ? "Error" : "Control"))
+      : undefined;
+  const existing = model.messages.get(messageId);
+  const messages = new Map(model.messages);
+
+  messages.set(messageId, {
+    messageId,
+    role: input.role ?? (input.kind === "error" ? "assistant" : "user"),
+    ...(existing?.runId ? { runId: existing.runId } : {}),
+    ...(existing?.turnId ? { turnId: existing.turnId } : {}),
+    phase: "final",
+    ...(controlLabel ? { controlLabel } : {}),
+    parts: [
+      {
+        partId: `${messageId}:legacy`,
+        partType: "text",
+        body: input.body,
+        done: true,
+      },
+    ],
+    updatedAt: input.timestamp,
+  });
+
+  return {
+    ...model,
+    messages,
+    order: withOrderEntry(model.order, {
+      kind: "message",
+      id: messageId,
+      seq: model.lastSeq + 0.5,
+    }),
+    updatedAt: input.timestamp,
+  };
 }
 
 export function sessionStatusFromRuntimeModel(

@@ -834,4 +834,73 @@ describe("Session Projection state", () => {
       parts: [{ partType: "text", body: "Done" }],
     });
   });
+
+  it("mirrors Gateway-minted chat events into the runtime model but never compat-derived ones", () => {
+    let projection = createSessionProjection({
+      id: "session-1",
+      projectId: "project-1",
+      initialPrompt: "Ship it",
+      createdAt: "2026-07-02T10:00:00.000Z",
+    });
+
+    // User echo minted by the Gateway at command accept.
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "user-echo-1",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "user",
+        body: "Ship it",
+        messageId: "pi-sdk:pi-session-1:user:0",
+        timestamp: "2026-07-02T10:00:00.500Z",
+      },
+    });
+
+    expect(
+      projection.runtimeModel.messages.get("pi-sdk:pi-session-1:user:0"),
+    ).toMatchObject({
+      role: "user",
+      parts: [{ body: "Ship it" }],
+    });
+
+    // Steer control echo keeps its label in the model.
+    projection = applySessionProjectionEvent(projection, {
+      type: "steer-submitted",
+      event: {
+        id: "steer-echo-1",
+        piSessionId: "pi-session-1",
+        kind: "control",
+        role: "user",
+        title: "Steer",
+        body: "Focus on tests",
+        timestamp: "2026-07-02T10:00:01.000Z",
+      },
+    });
+
+    expect(projection.runtimeModel.messages.get("steer-echo-1")).toMatchObject({
+      role: "user",
+      controlLabel: "Steer",
+    });
+
+    // Compat-derived legacy events already exist in the model via the agent
+    // stream; mirroring them again would duplicate chat content.
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "compat-assistant-1",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "assistant",
+        body: "Hello",
+        messageId: "pi-session-1:run-1:turn-1:msg-1",
+        derivedFromAgentEvent: true,
+        timestamp: "2026-07-02T10:00:02.000Z",
+      },
+    });
+
+    expect(
+      projection.runtimeModel.messages.get("pi-session-1:run-1:turn-1:msg-1"),
+    ).toBeUndefined();
+  });
 });

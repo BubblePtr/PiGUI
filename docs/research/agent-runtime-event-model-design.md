@@ -259,6 +259,7 @@ type SessionRuntimeModel = {
 3. **projection 换输入**：`session-projection` 直接消费 AgentRuntimeEvent，重构为 §7 的结构化模型；`collapseAssistantRunMessages` 降级为兼容 fallback。
    - 实际落地形态（过渡期）：projection 同时持有 `runtimeEvents`（legacy，继续驱动现有 UI）和 `runtimeModel`（新结构化模型，`agent-event-received` 喂入，按 seq 去重）；bridge 契约新增可选 `subscribeToAgentEvents`，`session-creation` 双订阅。**模型见到 run 事件后即拥有 Session Status**，legacy status kind 不再翻转 status（"任意 status → completed" 缺陷对新模型会话已消灭）；旧 bridge（in-memory/RPC）没有新流时维持旧推导。切片 4 把 UI 切到 `runtimeModel` 后删除 legacy 流与扁平数组。
 4. **page 简化**：agent-workspace 按 surface 渲染；删除兼容映射与 collapse。
+   - 实际落地形态（过渡期）：`runtimeModel.runs` 非空即进入模型模式——chat/trace 完全从结构化模型渲染（text part → chat，thinking/tool → trace，abandoned 消息不进 chat）；旧 bridge 无 run 事件时走原 legacy 渲染路径。Gateway 铸造的 chat 事件（user echo、steer control、driver/renderer error）由 projection 镜像进模型（fractional seq 排序、不推进 agent seq 水位线）；compat 产物带 `derivedFromAgentEvent` 标记防止二次镜像。`collapseAssistantRunMessages` 已降级为 legacy fallback 专用；compat 映射与 legacy 流的物理删除推迟到切片 5（RPC driver 对齐）完成后统一清理。
 5. **RPC driver 对齐**：`PiRpcProcessDriver` 映射到同一模型，能力不足显式标 `origin:"rpc"` + capability 缺口记录（沿用 ADR-0018 的缺口纪律）。
 6. **持久化与 replay**（后续独立设计）：projection 快照落盘；历史 session 直接加载 normalized projection，静态渲染，绝不重放 streaming。
 

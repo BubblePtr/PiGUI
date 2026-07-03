@@ -88,6 +88,9 @@ export type PiRuntimeEvent = {
   phase?: "partial" | "delta" | "final";
   timestamp: string;
   summary?: Partial<PiRuntimeSummary>;
+  // True on legacy events folded down from Agent Runtime Event payloads; the
+  // projection must not mirror those back into the runtime model.
+  derivedFromAgentEvent?: boolean;
 };
 
 export type PiQueuedMessageStatus = "pending" | "processing" | "withdrawn";

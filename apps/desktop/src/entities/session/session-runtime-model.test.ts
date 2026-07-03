@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentRuntimeEvent } from "@pigui/core";
 import {
+  addLegacyChatEventToModel,
   applyAgentRuntimeEvent,
   createSessionRuntimeModel,
   sessionStatusFromRuntimeModel,
@@ -335,6 +336,75 @@ describe("session runtime model", () => {
         at: "2026-07-02T10:00:02.000Z",
       },
     ]);
+  });
+
+  it("mirrors Gateway-minted legacy chat events without advancing the agent seq watermark", () => {
+    let model = createSessionRuntimeModel();
+
+    // The user echo is minted at command accept, before the run starts.
+    model = addLegacyChatEventToModel(model, {
+      id: "user-echo-1",
+      kind: "message",
+      role: "user",
+      body: "Ship the slice",
+      messageId: "pi-sdk:pi-session-1:user:0",
+      timestamp: "2026-07-02T10:00:00.500Z",
+    });
+
+    expect(model.lastSeq).toBe(0);
+    expect(model.messages.get("pi-sdk:pi-session-1:user:0")).toMatchObject({
+      role: "user",
+      phase: "final",
+      parts: [{ partType: "text", body: "Ship the slice" }],
+    });
+
+    // The following agent event is not treated as a replay.
+    model = applyAgentRuntimeEvent(model, {
+      seq: 1,
+      timestamp: "2026-07-02T10:00:01.000Z",
+      event: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" },
+    });
+
+    expect(model.runs.get(runId)).toBeDefined();
+    // The mirrored user message orders before the run's first agent event.
+    expect(model.order.map((entry) => entry.id)).toEqual([
+      "pi-sdk:pi-session-1:user:0",
+    ]);
+    expect(model.order[0]?.seq).toBeLessThan(1);
+
+    // A steer control echo mid-run keeps its control label and lands after
+    // the latest agent event.
+    model = addLegacyChatEventToModel(model, {
+      id: "steer-echo-1",
+      kind: "control",
+      role: "user",
+      title: "Steer",
+      body: "Focus on tests",
+      timestamp: "2026-07-02T10:00:02.000Z",
+    });
+
+    expect(model.messages.get("steer-echo-1")).toMatchObject({
+      role: "user",
+      controlLabel: "Steer",
+      parts: [{ partType: "text", body: "Focus on tests" }],
+    });
+    expect(model.order.map((entry) => entry.id)).toEqual([
+      "pi-sdk:pi-session-1:user:0",
+      "steer-echo-1",
+    ]);
+    expect(model.order[1]?.seq).toBeGreaterThan(1);
+
+    // Mirroring the same echo twice upserts instead of duplicating.
+    const remirrored = addLegacyChatEventToModel(model, {
+      id: "steer-echo-1",
+      kind: "control",
+      role: "user",
+      title: "Steer",
+      body: "Focus on tests",
+      timestamp: "2026-07-02T10:00:02.000Z",
+    });
+
+    expect(remirrored.order).toHaveLength(2);
   });
 
   it("ignores replayed events at or below the last applied seq", () => {
