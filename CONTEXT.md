@@ -132,6 +132,10 @@ _Avoid_: PiGUI database record, trace, UI cache
 Pi Runtime 在 Session 运行期间向 PiGUI 暴露的 live 事件流，包括消息增量、工具调用、状态变更、错误、队列变化和 token/cost 增量。它驱动 Live Session View，并同步更新 Session Projection。
 _Avoid_: Historical trace, file log tail, polling-only UI
 
+**Session Event Journal**:
+Runtime Gateway 为每个 Pi session 保存的边界事件日志，只收录归一化事件流中的生命周期边界，不收录流式增量。它是 Session 重放与快照恢复的事件来源：加载它得到完整静态时间线，永远不会重放 streaming。它不是 Pi Session State（Pi 自己的会话真相），也不是 Session Projection（renderer 的查询模型）。
+_Avoid_: Pi session file, projection cache, event replay stream, chat history
+
 **Structured Action Surface**:
 PiGUI 首版替代 terminal/file-tree 的结构化操作面，通常位于 Session 页右侧，承载 diff 摘要、checkout 信息、模型/成本摘要、打开外部编辑器、运行预设命令、handoff、commit、push、PR、archive 等明确动作。它不提供任意 shell 交互，也不承担通用文件浏览器职责。
 _Avoid_: Terminal emulator, file explorer, IDE panel

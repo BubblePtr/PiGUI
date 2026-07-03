@@ -361,6 +361,30 @@ function runtimeModelAfterLegacyEvent(
   return model;
 }
 
+// Rebuilds the runtime model from the snapshot's replay sequence, in Gateway
+// seq order. The journal only carries boundary events, so the result is fully
+// static — no message is left streaming. Without a replay sequence (legacy
+// bridges) the model already accumulated live is kept as-is.
+function runtimeModelFromReplay(
+  current: SessionRuntimeModel,
+  state: PiSessionState,
+): SessionRuntimeModel {
+  if (!state.replay?.length) {
+    return current;
+  }
+
+  let model = createSessionRuntimeModel();
+
+  for (const step of state.replay) {
+    model =
+      step.kind === "agent"
+        ? applyAgentRuntimeEvent(model, step.entry)
+        : runtimeModelAfterLegacyEvent(model, step.event);
+  }
+
+  return model;
+}
+
 function runtimeEventIdentity(event: PiRuntimeEvent): string | null {
   if (
     (event.kind === "message" || event.kind === "thinking") &&
@@ -600,18 +624,26 @@ export function applySessionProjectionEvent(
         staleReason: event.reason,
         updatedAt: event.occurredAt,
       };
-    case "runtime-state-resynced":
+    case "runtime-state-resynced": {
+      const runtimeModel = runtimeModelFromReplay(projection.runtimeModel, event.state);
+
       return {
         ...projection,
-        status: sessionStatusFromRuntimeState(event.state),
+        // Once the rebuilt model has Active Runs it owns the Session Status;
+        // otherwise the bridge-reported state remains the truth.
+        status:
+          sessionStatusFromRuntimeModel(runtimeModel) ??
+          sessionStatusFromRuntimeState(event.state),
         runtimeId: event.state.runtimeId,
         piSessionId: event.state.piSessionId,
         runtimeEvents: normalizedRuntimeEvents(event.state.events),
+        runtimeModel,
         summary: event.state.summary ? { ...event.state.summary } : projection.summary,
         stale: false,
         staleReason: null,
         updatedAt: event.state.updatedAt,
       };
+    }
     case "creation-failed":
       return {
         ...projection,

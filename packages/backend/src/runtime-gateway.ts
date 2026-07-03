@@ -6,7 +6,8 @@ import type {
   RuntimeGatewayResponse,
   RuntimeGatewaySnapshot,
 } from "@pigui/core";
-import { createRuntimeGatewaySequencer } from "@pigui/core";
+import { createRuntimeGatewaySequencer, shouldJournalRuntimeEvent } from "@pigui/core";
+import type { SessionEventJournal } from "./session-event-journal";
 
 export type RuntimeGatewayDriverEvent = Omit<RuntimeGatewayEventInput, "sessionId"> & {
   sessionId?: string;
@@ -66,6 +67,9 @@ export type RuntimeGatewayService = {
 
 export type RuntimeGatewayServiceOptions = {
   driver: PiRuntimeDriver;
+  // Boundary-event journal backing snapshot replay; without it snapshots
+  // fall back to whatever events the driver reports (historically none).
+  journal?: SessionEventJournal;
   now?: () => string;
   idFactory?: () => string;
 };
@@ -100,6 +104,10 @@ export function createRuntimeGatewayService(
       event: envelope,
     };
 
+    if (options.journal && shouldJournalRuntimeEvent(envelope.payload)) {
+      options.journal.append(envelope);
+    }
+
     for (const listener of listeners) {
       listener(backendEvent);
     }
@@ -119,6 +127,7 @@ export function createRuntimeGatewayService(
           result: await dispatchRuntimeGatewayRequest({
             request,
             driver: options.driver,
+            journal: options.journal,
             emit,
             rememberSession(snapshot) {
               sessionIdsByPiSessionId.set(snapshot.piSessionId, snapshot.sessionId);
@@ -146,6 +155,7 @@ export function createRuntimeGatewayService(
 async function dispatchRuntimeGatewayRequest(input: {
   request: RuntimeGatewayRequest;
   driver: PiRuntimeDriver;
+  journal?: SessionEventJournal;
   emit: (event: RuntimeGatewayDriverEvent) => RuntimeGatewayEventEnvelope | null;
   rememberSession: (snapshot: RuntimeGatewaySnapshot) => void;
 }) {
@@ -194,8 +204,15 @@ async function dispatchRuntimeGatewayRequest(input: {
           piSessionId: requiredString(params.piSessionId, "piSessionId"),
         }),
       );
-    case "get_runtime_snapshot":
-      return input.driver.getSnapshot(requiredString(params.piSessionId, "piSessionId"));
+    case "get_runtime_snapshot": {
+      const piSessionId = requiredString(params.piSessionId, "piSessionId");
+      const snapshot = await input.driver.getSnapshot(piSessionId);
+      const journaled = (await input.journal?.read(piSessionId)) ?? [];
+
+      // The journal is the Gateway's event truth; drivers only own
+      // status/summary. Fall back to driver events when nothing was journaled.
+      return journaled.length ? { ...snapshot, events: journaled } : snapshot;
+    }
     default:
       throw new Error(`Unknown Runtime Gateway method "${input.request.method}".`);
   }

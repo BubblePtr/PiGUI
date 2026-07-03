@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PiSessionState } from "@/entities/runtime/pi-runtime-bridge";
 import {
   applySessionProjectionEvent,
   canArchiveSessionProjection,
@@ -679,6 +680,206 @@ describe("Session Projection state", () => {
       ],
       updatedAt: "2026-06-26T08:00:12.000Z",
     });
+  });
+
+  it("rebuilds the runtime model statically from the snapshot replay sequence", () => {
+    const runId = "pi-session-1:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    const partId = `${messageId}:part-0`;
+    const projection = createSessionProjection({
+      id: "session-1",
+      projectId: "pig",
+      initialPrompt: "Fix the bug",
+      createdAt: "2026-07-03T10:00:00.000Z",
+    });
+    const state: PiSessionState = {
+      piSessionId: "pi-session-1",
+      runtimeId: "pi-sdk:session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "completed",
+      events: [],
+      replay: [
+        {
+          kind: "chat",
+          seq: 1,
+          event: {
+            id: "evt-user",
+            piSessionId: "pi-session-1",
+            kind: "message",
+            role: "user",
+            body: "Fix the bug",
+            timestamp: "2026-07-03T10:00:01.000Z",
+          },
+        },
+        {
+          kind: "agent",
+          entry: {
+            seq: 2,
+            timestamp: "2026-07-03T10:00:02.000Z",
+            event: {
+              type: "run",
+              runId,
+              phase: "start",
+              trigger: "prompt",
+              surface: "hidden",
+              origin: "sdk",
+            },
+          },
+        },
+        {
+          kind: "agent",
+          entry: {
+            seq: 3,
+            timestamp: "2026-07-03T10:00:03.000Z",
+            event: {
+              type: "message",
+              runId,
+              turnId,
+              messageId,
+              role: "assistant",
+              phase: "start",
+              surface: "chat",
+              origin: "sdk",
+            },
+          },
+        },
+        {
+          kind: "agent",
+          entry: {
+            seq: 4,
+            timestamp: "2026-07-03T10:00:04.000Z",
+            event: {
+              type: "message_part",
+              runId,
+              turnId,
+              messageId,
+              partId,
+              partType: "text",
+              phase: "end",
+              bodyMode: "snapshot",
+              body: "Hello.",
+              surface: "chat",
+              origin: "sdk",
+            },
+          },
+        },
+        {
+          kind: "agent",
+          entry: {
+            seq: 5,
+            timestamp: "2026-07-03T10:00:05.000Z",
+            event: {
+              type: "message",
+              runId,
+              turnId,
+              messageId,
+              role: "assistant",
+              phase: "end",
+              parts: [{ partId, partType: "text", body: "Hello." }],
+              surface: "chat",
+              origin: "sdk",
+            },
+          },
+        },
+        {
+          kind: "agent",
+          entry: {
+            seq: 6,
+            timestamp: "2026-07-03T10:00:06.000Z",
+            event: {
+              type: "run",
+              runId,
+              phase: "end",
+              trigger: "prompt",
+              outcome: "completed",
+              surface: "hidden",
+              origin: "sdk",
+            },
+          },
+        },
+      ],
+      updatedAt: "2026-07-03T10:00:06.000Z",
+    };
+    const resynced = applySessionProjectionEvent(projection, {
+      type: "runtime-state-resynced",
+      state,
+    });
+
+    // Session Status comes from the rebuilt model (run end owns it), and the
+    // replayed timeline is fully static: nothing is left streaming.
+    expect(resynced.status).toBe("completed");
+    expect(resynced.runtimeModel.runs.get(runId)).toMatchObject({
+      trigger: "prompt",
+      outcome: "completed",
+    });
+    expect(resynced.runtimeModel.messages.get(messageId)).toMatchObject({
+      role: "assistant",
+      phase: "final",
+      parts: [expect.objectContaining({ body: "Hello.", done: true })],
+    });
+    expect(resynced.runtimeModel.messages.get("evt-user")).toMatchObject({
+      role: "user",
+      phase: "final",
+      parts: [expect.objectContaining({ body: "Fix the bug" })],
+    });
+    // The mirrored user echo keeps its place before the Active Run.
+    expect(
+      resynced.runtimeModel.order.filter((entry) => entry.kind === "message"),
+    ).toEqual([
+      expect.objectContaining({ id: "evt-user" }),
+      expect.objectContaining({ id: messageId }),
+    ]);
+
+    // Replaying the same snapshot again must not duplicate anything.
+    const replayedTwice = applySessionProjectionEvent(resynced, {
+      type: "runtime-state-resynced",
+      state,
+    });
+
+    expect(replayedTwice.runtimeModel.order).toEqual(resynced.runtimeModel.order);
+    expect(replayedTwice.runtimeModel.messages.size).toBe(
+      resynced.runtimeModel.messages.size,
+    );
+  });
+
+  it("keeps the runtime model untouched when resync state carries no replay sequence", () => {
+    const projection = createSessionProjection({
+      id: "session-1",
+      projectId: "pig",
+      initialPrompt: "Fix the bug",
+      createdAt: "2026-07-03T10:00:00.000Z",
+    });
+    const withLiveModel = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 1,
+        timestamp: "2026-07-03T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId: "pi-session-1:run-1",
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+    const resynced = applySessionProjectionEvent(withLiveModel, {
+      type: "runtime-state-resynced",
+      state: {
+        piSessionId: "pi-session-1",
+        runtimeId: "runtime-1",
+        projectId: "pig",
+        cwd: "/Users/void/code/opensource/Pig",
+        status: "running",
+        events: [],
+        updatedAt: "2026-07-03T10:00:02.000Z",
+      },
+    });
+
+    expect(resynced.runtimeModel).toBe(withLiveModel.runtimeModel);
   });
 
   it("collapses streaming assistant updates when resyncing runtime state", () => {

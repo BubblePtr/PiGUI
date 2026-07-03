@@ -105,6 +105,14 @@ export type PiQueuedMessage = {
   withdrawnAt?: string;
 };
 
+// One step of a session's replay sequence, in Gateway seq order. Agent events
+// rebuild the runtime model; chat entries are Gateway-minted legacy events
+// (user echo, steer control, errors) that exist only on the legacy stream
+// until the user-message protocol gap is settled (design doc §10).
+export type SessionReplayEntry =
+  | { kind: "agent"; entry: AgentRuntimeEventEntry }
+  | { kind: "chat"; seq: number; event: PiRuntimeEvent };
+
 export type PiSessionState = {
   piSessionId: string;
   runtimeId: string;
@@ -112,6 +120,9 @@ export type PiSessionState = {
   cwd: string;
   status: "idle" | "running" | "failed" | "completed";
   events: PiRuntimeEvent[];
+  // Journaled boundary events from the Gateway snapshot; absent on bridges
+  // that don't speak the Agent Runtime Event Model.
+  replay?: SessionReplayEntry[];
   summary?: PiRuntimeSummary;
   updatedAt: string;
 };
@@ -198,10 +209,19 @@ export function defaultRuntimeSummary(
   };
 }
 
+function cloneReplayEntry(entry: SessionReplayEntry): SessionReplayEntry {
+  if (entry.kind === "agent") {
+    return { kind: "agent", entry: { ...entry.entry } };
+  }
+
+  return { kind: "chat", seq: entry.seq, event: { ...entry.event } };
+}
+
 export function cloneSessionState(state: PiSessionState): PiSessionState {
   return {
     ...state,
     events: state.events.map((event) => ({ ...event })),
+    ...(state.replay ? { replay: state.replay.map(cloneReplayEntry) } : {}),
     summary: state.summary ? { ...state.summary } : undefined,
   };
 }

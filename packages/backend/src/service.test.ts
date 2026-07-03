@@ -1,6 +1,9 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackendService } from "./service";
+import { createInMemorySessionEventJournal } from "./session-event-journal";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
 
 const createAgentSession = vi.hoisted(() => vi.fn());
@@ -56,9 +59,25 @@ function createFakeSdkAgentSession() {
   };
 }
 
+const tempDirs: string[] = [];
+
+async function tempDataDir() {
+  const dir = await mkdtemp(join(tmpdir(), "pigui-service-"));
+
+  tempDirs.push(dir);
+
+  return dir;
+}
+
 describe("backend service", () => {
   beforeEach(() => {
     createAgentSession.mockReset();
+  });
+
+  afterEach(async () => {
+    await Promise.all(
+      tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+    );
   });
 
   it("handles query commands through request/response envelopes", async () => {
@@ -101,12 +120,117 @@ describe("backend service", () => {
     });
   });
 
+  it("journals boundary events to the data dir and serves them from the runtime snapshot", async () => {
+    const sdkSession = createFakeSdkAgentSession();
+    createAgentSession.mockResolvedValue({ session: sdkSession.session });
+    const dataDir = await tempDataDir();
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      dataDir,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "session-1", projectId: "project-1", cwd: process.cwd() },
+    });
+    await service.handleRequest({
+      id: "req-send",
+      method: "send_prompt",
+      params: { piSessionId: "pi-session-sdk", prompt: "Hello Pi" },
+    });
+
+    const streamingMessage = { role: "assistant", content: [] };
+
+    sdkSession.emit({ type: "agent_start" });
+    sdkSession.emit({ type: "turn_start" });
+    sdkSession.emit({ type: "message_start", message: streamingMessage });
+    sdkSession.emit({
+      type: "message_update",
+      message: streamingMessage,
+      assistantMessageEvent: { type: "text_start", contentIndex: 0, partial: streamingMessage },
+    });
+    sdkSession.emit({
+      type: "message_update",
+      message: streamingMessage,
+      assistantMessageEvent: {
+        type: "text_delta",
+        contentIndex: 0,
+        delta: "Hi from",
+        partial: streamingMessage,
+      },
+    });
+    sdkSession.emit({
+      type: "message_update",
+      message: streamingMessage,
+      assistantMessageEvent: {
+        type: "text_end",
+        contentIndex: 0,
+        content: "Hi from SDK",
+        partial: streamingMessage,
+      },
+    });
+    sdkSession.emit({ type: "message_end", message: streamingMessage });
+    sdkSession.emit({ type: "turn_end" });
+    sdkSession.emit({ type: "agent_end" });
+    sdkSession.resolvePrompt();
+
+    const response = await service.handleRequest({
+      id: "req-snapshot",
+      method: "get_runtime_snapshot",
+      params: { piSessionId: "pi-session-sdk" },
+    });
+    const snapshot = response.result as {
+      events: Array<{ seq: number; payload: Record<string, unknown> }>;
+    };
+
+    expect(snapshot.events[0]?.payload).toEqual(
+      expect.objectContaining({ role: "user", body: "Hello Pi" }),
+    );
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          type: "message_part",
+          phase: "end",
+          body: "Hi from SDK",
+        }),
+      }),
+    );
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          type: "run",
+          phase: "end",
+          outcome: "completed",
+        }),
+      }),
+    );
+    expect(
+      snapshot.events.some(
+        (event) =>
+          event.payload.type === "message_part" && event.payload.phase === "update",
+      ),
+    ).toBe(false);
+
+    const journalLines = (
+      await readFile(join(dataDir, "sessions", "pi-session-sdk.jsonl"), "utf8")
+    )
+      .trim()
+      .split("\n");
+
+    expect(journalLines).toHaveLength(snapshot.events.length);
+  });
+
   it("uses the SDK driver for Runtime Gateway by default while retaining raw RPC commands", async () => {
     const sdkSession = createFakeSdkAgentSession();
     const piRpc = createFakePiRpcTransport();
     createAgentSession.mockResolvedValue({ session: sdkSession.session });
     const service = createBackendService({
       agentDir: fixtureAgentDir(),
+      // In-memory journal: this test never reads the snapshot back, so a file
+      // journal's in-flight append would race the temp-dir cleanup.
+      runtimeJournal: createInMemorySessionEventJournal(),
       piRpc,
     });
     const events: unknown[] = [];

@@ -34,6 +34,7 @@ export type { ExecutionCheckoutGitClient } from "./checkout";
 
 export {
   surfaceForMessagePart,
+  shouldJournalRuntimeEvent,
   AGENT_STATUS_SURFACES,
   type AgentRunPhase,
   type AgentBodyMode,

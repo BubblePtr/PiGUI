@@ -17,6 +17,11 @@ import {
   type RuntimeGatewayService,
 } from "./runtime-gateway";
 import {
+  createFileSessionEventJournal,
+  resolveDataDir,
+  type SessionEventJournal,
+} from "./session-event-journal";
+import {
   buildSessionIndexWithCache,
   createSessionIndexCache,
   loadSessionDetail,
@@ -48,10 +53,12 @@ export type BackendService = {
 
 export type BackendServiceOptions = {
   agentDir?: string;
+  dataDir?: string;
   sessionCache?: SessionIndexCache;
   gitClient?: ExecutionCheckoutGitClient;
   piRpc?: PiRpcTransport;
   runtimeDriver?: PiRuntimeDriver;
+  runtimeJournal?: SessionEventJournal;
 };
 
 export function createBackendService(options: BackendServiceOptions = {}): BackendService {
@@ -64,6 +71,11 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
       options.runtimeDriver ??
       createPiSdkDriver({
         runtimeFactory: createPublicPiSdkRuntimeFactory({ sdk: piSdk }),
+      }),
+    journal:
+      options.runtimeJournal ??
+      createFileSessionEventJournal({
+        dataDir: options.dataDir ?? resolveDataDir(),
       }),
   });
   const listeners = new Set<(event: BackendRpcEvent) => void>();
