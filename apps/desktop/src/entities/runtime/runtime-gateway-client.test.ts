@@ -777,6 +777,166 @@ describe("Runtime Gateway client", () => {
     ]);
   });
 
+  it("rebuilds a seq-ordered replay sequence from the snapshot's journaled events", async () => {
+    const runId = "pi-session-1:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    const partId = `${messageId}:part-0`;
+    const runStartPayload = {
+      type: "run",
+      runId,
+      phase: "start",
+      trigger: "prompt",
+      surface: "hidden",
+      origin: "sdk",
+    };
+    const partEndPayload = {
+      type: "message_part",
+      runId,
+      turnId,
+      messageId,
+      partId,
+      partType: "text",
+      phase: "end",
+      bodyMode: "snapshot",
+      body: "Hello.",
+      surface: "chat",
+      origin: "sdk",
+    };
+    const messageEndPayload = {
+      type: "message",
+      runId,
+      turnId,
+      messageId,
+      role: "assistant",
+      phase: "end",
+      parts: [{ partId, partType: "text", body: "Hello." }],
+      surface: "chat",
+      origin: "sdk",
+    };
+    const runEndPayload = {
+      type: "run",
+      runId,
+      phase: "end",
+      trigger: "prompt",
+      outcome: "completed",
+      surface: "hidden",
+      origin: "sdk",
+    };
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "completed",
+      events: [
+        {
+          id: "evt-user",
+          seq: 1,
+          sessionId: "session-1",
+          piSessionId: "pi-session-1",
+          type: "message_update",
+          ts: "2026-07-03T10:00:01.000Z",
+          payload: { kind: "message", role: "user", body: "Fix the bug" },
+        },
+        {
+          id: "evt-run-start",
+          seq: 2,
+          sessionId: "session-1",
+          piSessionId: "pi-session-1",
+          type: "run",
+          ts: "2026-07-03T10:00:02.000Z",
+          payload: runStartPayload,
+        },
+        {
+          id: "evt-part-end",
+          seq: 3,
+          sessionId: "session-1",
+          piSessionId: "pi-session-1",
+          turnId,
+          type: "message_part",
+          ts: "2026-07-03T10:00:03.000Z",
+          payload: partEndPayload,
+        },
+        {
+          id: "evt-message-end",
+          seq: 4,
+          sessionId: "session-1",
+          piSessionId: "pi-session-1",
+          turnId,
+          type: "message",
+          ts: "2026-07-03T10:00:04.000Z",
+          payload: messageEndPayload,
+        },
+        {
+          id: "evt-run-end",
+          seq: 5,
+          sessionId: "session-1",
+          piSessionId: "pi-session-1",
+          type: "run",
+          ts: "2026-07-03T10:00:05.000Z",
+          payload: runEndPayload,
+        },
+      ],
+      updatedAt: "2026-07-03T10:00:05.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string) => {
+        if (command === "get_runtime_snapshot") {
+          return snapshot as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+      onBackendEvent: () => vi.fn(),
+    });
+
+    const state = await client.getSessionState("pi-session-1");
+
+    // The mixed replay sequence keeps Gateway seq order so the projection can
+    // interleave agent events and Gateway-minted chat events faithfully.
+    expect(state.replay).toEqual([
+      {
+        kind: "chat",
+        seq: 1,
+        event: expect.objectContaining({
+          id: "evt-user",
+          kind: "message",
+          role: "user",
+          body: "Fix the bug",
+        }),
+      },
+      {
+        kind: "agent",
+        entry: { seq: 2, timestamp: "2026-07-03T10:00:02.000Z", event: runStartPayload },
+      },
+      {
+        kind: "agent",
+        entry: { seq: 3, timestamp: "2026-07-03T10:00:03.000Z", event: partEndPayload },
+      },
+      {
+        kind: "agent",
+        entry: { seq: 4, timestamp: "2026-07-03T10:00:04.000Z", event: messageEndPayload },
+      },
+      {
+        kind: "agent",
+        entry: { seq: 5, timestamp: "2026-07-03T10:00:05.000Z", event: runEndPayload },
+      },
+    ]);
+    // The legacy folded view stays intact for the fallback rendering path.
+    expect(state.events).toEqual([
+      expect.objectContaining({ id: "evt-user", kind: "message", role: "user" }),
+      expect.objectContaining({
+        id: "evt-part-end",
+        kind: "message",
+        body: "Hello.",
+        derivedFromAgentEvent: true,
+      }),
+      expect.objectContaining({ id: "evt-run-end", kind: "status", title: "Completed" }),
+    ]);
+  });
+
   it("exposes the Agent Runtime Event stream with seq for the structured projection", async () => {
     const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
     const snapshot: RuntimeGatewaySnapshot = {

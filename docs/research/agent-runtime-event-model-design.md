@@ -264,6 +264,10 @@ type SessionRuntimeModel = {
    - 实际落地形态：Pi RPC 模式把完整 `AgentSessionEvent` 流原样以 JSON lines 转发（证据：`rpc-mode.js` 中 `session.subscribe` 直通），与 SDK 是同一套事件——**两个 driver 共享同一个 normalizer**，仅 `origin` 不同；旧 RPC 专属映射删除。缺失生命周期的碎片事件（裸 `message_end`/`tool_execution_start`）被显式丢弃而非猜测边界。顺带补齐 `usage` 事件：normalizer 从 assistant `message_end` 的 usage 块发 hidden usage 事件，projection 合并进 summary（SDK/RPC 双路径的 token/cost 真相恢复）。
    - 仍存缺口（记录，不污染契约）：renderer 侧 `pi-rpc-runtime-bridge`（浏览器 fallback，不经 Gateway）仍是 legacy 流，走页面的 legacy 渲染路径；SDK 无原生 queued id 而 RPC 有 `withdraw_follow_up`，差异维持 ADR-0018 已记录状态。
 6. **持久化与 replay**（后续独立设计）：projection 快照落盘；历史 session 直接加载 normalized projection，静态渲染，绝不重放 streaming。
+   - 实际落地形态（2026-07-03 实现）：**Session Event Journal**——Gateway 在 emit 处把 normalized envelope 追加到 per-session 边界事件日志（内存缓冲 + `<dataDir>/sessions/<piSessionId>.jsonl` append-only 落盘）。过滤谓词 `shouldJournalRuntimeEvent`（core 单一事实来源）只排除 `message_part(update)` 流式 delta——其内容被 `part(end)`/`message(end)` 快照权威覆盖，这就是"绝不重放 streaming"的物理保证。`get_runtime_snapshot` 用 journal 填充协议中此前恒空的 `snapshot.events`（driver 只拥有 status/summary）。dataDir 解析沿用 agentDir 注入模式：`options.dataDir ?? env PIGUI_DATA_DIR ?? ~/.pigui`（不写 `~/.pi`，那是 Pi 的地盘）。
+   - Renderer 侧：`stateFromSnapshot` 把 snapshot.events 按 Gateway seq 序构造混合 replay 序列（`PiSessionState.replay`：agent entry + Gateway 铸造的 chat 事件），projection 的 `runtime-state-resynced` 据此从零重建 `runtimeModel`（agent → `applyAgentRuntimeEvent`，chat → 既有 legacy 镜像；seq 去重天然幂等，user echo 借 fractional seq 保持在 Active Run 之前）。重建出的时间线全部 final，无 streaming 状态；无 replay 序列的旧 bridge 保持现有模型不动。
+   - 范围界定（2026-07-03 确认）：本片交付 replay 通道本身；**重启后 sidebar 会话列表恢复（会话注册表持久化）另开切片**——renderer 侧目前没有 `getSessionState` 的调用方，reattach UI 接线属于注册表切片。
+   - 记录的缺口：seq/normalizer 计数器水位的跨进程续起暂不需要——SDK 无 session resume，重启后旧 piSessionId 不会再有新事件（旧 journal 只读），新 session 是新文件；resume 落地时再从 journal 推导水位（数 run 事件即 runSeq），"禁止只靠进程内 index"的契约要求不变。journal 落盘失败不阻断 live 流（记录错误，内存缓冲不受影响）。
 
 ## 10. 决策记录
 
@@ -274,5 +278,11 @@ type SessionRuntimeModel = {
 3. **status→surface 产品路由**：按 §8 表格执行。
 
 遗留的低风险默认项（未单独拍板，按推荐执行）：`message(end)` 携带全量 parts 快照。首版桌面 MessagePort 场景保留全量快照，换取 replay/审计的简单性；未来低带宽 transport 可改为 hash/长度校验，属于可逆调整。
+
+以下三项于 2026-07-03 经用户确认（切片 6 持久化与 replay）：
+
+1. **持久化形态**：Gateway 侧 normalized 边界事件 JSONL（否决 materialized 模型快照——schema 演进即报废、丢事件级审计；否决 renderer localStorage——容量小且违背多客户端吃同一协议的方向）。事件日志 + 纯函数重放天然支持"用新版 core 路由函数对历史事件重新推导"。
+2. **数据目录**：`~/.pigui` + `PIGUI_DATA_DIR` env 覆盖（沿用 `resolveAgentDir` 模式，Electron main 零改动）。
+3. **切片范围**：不含重启后 sidebar 会话列表恢复；会话注册表持久化独立成片。
 
 切片 2 发现的待决协议缺口（切片 3 处理）：**user message 与 runId 的时序矛盾**。协议中 `message` 事件的 `runId/turnId` 必填，但 Gateway 在命令接受时铸造 user message，此时 run 尚未开始。切片 2 的规避方式是 user echo 保留 legacy envelope 形状（不进新模型）；切片 3 让 projection 消费新模型时需要定案：放宽 user message 的 `runId/turnId` 为可选，或由 Gateway 在 `run(start)` 时回填归属。
