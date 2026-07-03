@@ -5,6 +5,14 @@ import type {
   PiRuntimeSummary,
   PiSessionState,
 } from "@/entities/runtime/pi-runtime-bridge";
+import {
+  addLegacyChatEventToModel,
+  applyAgentRuntimeEvent,
+  createSessionRuntimeModel,
+  sessionStatusFromRuntimeModel,
+  type AgentRuntimeEventInput,
+  type SessionRuntimeModel,
+} from "@/entities/session/session-runtime-model";
 
 export type SessionStatus = "creating" | "running" | "waiting" | "failed" | "completed" | "archived";
 
@@ -35,6 +43,10 @@ export type SessionProjection = {
   runtimeId: string | null;
   piSessionId: string | null;
   runtimeEvents: PiRuntimeEvent[];
+  // Structured model built from the Agent Runtime Event stream. Once it has
+  // seen run events, it owns the Session Status; legacy event kinds only
+  // drive status for bridges that don't speak the new model yet.
+  runtimeModel: SessionRuntimeModel;
   queuedMessages: PiQueuedMessage[];
   summary: PiRuntimeSummary;
   stale: boolean;
@@ -77,6 +89,10 @@ export type SessionProjectionEvent =
       type: "runtime-event-received";
       stage?: "accepted";
       event: PiRuntimeEvent;
+    }
+  | {
+      type: "agent-event-received";
+      entry: AgentRuntimeEventInput;
     }
   | {
       type: "run-completed";
@@ -163,6 +179,7 @@ export function createSessionProjection(
     runtimeId: null,
     piSessionId: null,
     runtimeEvents: [],
+    runtimeModel: createSessionRuntimeModel(),
     queuedMessages: [],
     summary: {
       provider: null,
@@ -313,6 +330,37 @@ function queuedMessagesAfterRuntimeEvent(
   );
 }
 
+// Gateway-minted chat events (user echo, steer control, driver/renderer
+// errors) exist only on the legacy stream; mirror them into the runtime model
+// so chat can render entirely from it. Compat-derived events already reached
+// the model through the agent stream.
+function runtimeModelAfterLegacyEvent(
+  model: SessionRuntimeModel,
+  event: PiRuntimeEvent,
+): SessionRuntimeModel {
+  if (event.derivedFromAgentEvent) {
+    return model;
+  }
+
+  if (
+    (event.kind === "message" && event.role === "user") ||
+    event.kind === "control" ||
+    event.kind === "error"
+  ) {
+    return addLegacyChatEventToModel(model, {
+      id: event.id,
+      kind: event.kind,
+      role: event.role,
+      title: event.title,
+      body: event.body,
+      messageId: event.messageId,
+      timestamp: event.timestamp,
+    });
+  }
+
+  return model;
+}
+
 function runtimeEventIdentity(event: PiRuntimeEvent): string | null {
   if (
     (event.kind === "message" || event.kind === "thinking") &&
@@ -392,24 +440,56 @@ export function applySessionProjectionEvent(
     case "runtime-event-received":
       return {
         ...projection,
+        // Once Active Run events own the status, legacy kinds stop guessing —
+        // a compat "Retrying" status must not complete a running Session.
         status:
-          event.event.kind === "error"
-            ? "failed"
-            : event.event.kind === "status"
-              ? "completed"
-              : "running",
+          projection.runtimeModel.runs.size > 0
+            ? projection.status
+            : event.event.kind === "error"
+              ? "failed"
+              : event.event.kind === "status"
+                ? "completed"
+                : "running",
         creationStage: event.stage ?? projection.creationStage,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         queuedMessages: queuedMessagesAfterRuntimeEvent(projection, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
       };
+    case "agent-event-received": {
+      const runtimeModel = applyAgentRuntimeEvent(projection.runtimeModel, event.entry);
+
+      if (runtimeModel === projection.runtimeModel) {
+        return projection;
+      }
+
+      const agentEvent = event.entry.event;
+      const finalizedAssistantAnswer =
+        agentEvent.type === "message" &&
+        agentEvent.phase === "end" &&
+        agentEvent.role === "assistant" &&
+        !agentEvent.abandoned;
+
+      return {
+        ...projection,
+        status: sessionStatusFromRuntimeModel(runtimeModel) ?? projection.status,
+        runtimeModel,
+        summary:
+          agentEvent.type === "usage"
+            ? mergeRuntimeSummary(projection.summary, agentEvent.summary)
+            : projection.summary,
+        unreadResult: finalizedAssistantAnswer ? true : projection.unreadResult,
+        updatedAt: event.entry.timestamp,
+      };
+    }
     case "run-completed":
       return {
         ...projection,
         status: "completed",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -419,6 +499,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "failed",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -456,6 +537,7 @@ export function applySessionProjectionEvent(
       return {
         ...projection,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         queuedMessages: projection.queuedMessages.map((queuedMessage) =>
           queuedMessage.id === event.queuedMessageId
             ? {
@@ -472,6 +554,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "running",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,
@@ -481,6 +564,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: "completed",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: true,
         updatedAt: event.event.timestamp,
@@ -490,6 +574,7 @@ export function applySessionProjectionEvent(
         ...projection,
         status: projection.status,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
+        runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         summary: mergeRuntimeSummary(projection.summary, event.event.summary),
         unreadResult: unreadResultFromRuntimeEvent(projection, event.event),
         updatedAt: event.event.timestamp,

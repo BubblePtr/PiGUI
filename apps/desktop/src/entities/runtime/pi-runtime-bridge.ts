@@ -9,6 +9,7 @@ export type {
   PiRpcTransportStartInput,
   PiRpcTransport,
 } from "@pigui/core";
+import type { AgentRuntimeEvent } from "@pigui/core";
 
 export type ExecutionCheckout = {
   mode: "foreground-local" | "managed-worktree";
@@ -87,6 +88,9 @@ export type PiRuntimeEvent = {
   phase?: "partial" | "delta" | "final";
   timestamp: string;
   summary?: Partial<PiRuntimeSummary>;
+  // True on legacy events folded down from Agent Runtime Event payloads; the
+  // projection must not mirror those back into the runtime model.
+  derivedFromAgentEvent?: boolean;
 };
 
 export type PiQueuedMessageStatus = "pending" | "processing" | "withdrawn";
@@ -154,6 +158,14 @@ export type AbortRunInput = {
   piSessionId: string;
 };
 
+// One Agent Runtime Event as delivered to the renderer: the protocol event
+// plus the Gateway envelope ordering metadata the projection keys on.
+export type AgentRuntimeEventEntry = {
+  seq: number;
+  timestamp: string;
+  event: AgentRuntimeEvent;
+};
+
 export type PiRuntimeBridge = {
   startRuntime(input: StartRuntimeInput): Promise<PiRuntimeHandle>;
   createPiSessionState(input: CreatePiSessionStateInput): Promise<PiSessionState>;
@@ -164,6 +176,12 @@ export type PiRuntimeBridge = {
   abortRun(input: AbortRunInput): Promise<PiRuntimeEvent>;
   getSessionState(piSessionId: string): Promise<PiSessionState>;
   subscribeToEvents(piSessionId: string, listener: (event: PiRuntimeEvent) => void): () => void;
+  // Optional until every bridge speaks the Agent Runtime Event Model; the
+  // legacy PiRuntimeEvent stream above remains the compatibility surface.
+  subscribeToAgentEvents?(
+    piSessionId: string,
+    listener: (entry: AgentRuntimeEventEntry) => void,
+  ): () => void;
 };
 
 // Domain helpers shared by both adapters — pure operations on the contract types.

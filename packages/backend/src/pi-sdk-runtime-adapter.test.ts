@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createPublicPiSdkRuntimeFactory,
-  runtimeEventFromAgentSessionEvent,
-} from "./pi-sdk-runtime-adapter";
+import { createPublicPiSdkRuntimeFactory } from "./pi-sdk-runtime-adapter";
 
 describe("Pi SDK public runtime adapter", () => {
   it("adapts a public SDK AgentSession to the PiRuntimeDriver runtime contract", async () => {
@@ -37,16 +34,6 @@ describe("Pi SDK public runtime adapter", () => {
       projectId: "pig",
       cwd: "/Users/void/code/opensource/Pig",
     });
-    const events: unknown[] = [];
-
-    runtime.onEvent?.((event) => events.push(event));
-    listeners[0]?.({
-      type: "message_end",
-      message: {
-        role: "assistant",
-        content: [{ type: "text", text: "PIGUI_SDK_SPIKE_OK" }],
-      },
-    });
 
     await runtime.sendPrompt("Reply with exactly: PIGUI_SDK_SPIKE_OK");
 
@@ -67,116 +54,9 @@ describe("Pi SDK public runtime adapter", () => {
     );
     expect(prompt).toHaveBeenCalledWith("Reply with exactly: PIGUI_SDK_SPIKE_OK");
     expect(session.dispose).toHaveBeenCalledTimes(1);
-    expect(events).toEqual([
-      expect.objectContaining({
-        piSessionId: "sdk-session-1",
-        type: "message_update",
-        payload: expect.objectContaining({
-          kind: "message",
-          role: "assistant",
-          body: "PIGUI_SDK_SPIKE_OK",
-        }),
-      }),
-    ]);
   });
 
-  it("maps public SDK assistant text deltas to assistant message events", () => {
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        now: () => "2026-07-01T00:00:00.000Z",
-        event: {
-          type: "message_update",
-          assistantMessageEvent: {
-            type: "text_delta",
-            delta: "PIGUI_SDK_SPIKE_OK",
-          },
-        },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "message_update",
-      payload: {
-        kind: "message",
-        role: "assistant",
-        body: "PIGUI_SDK_SPIKE_OK",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-      },
-    });
-  });
-
-  it("maps public SDK assistant tool call events to tool trace events", () => {
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        now: () => "2026-07-01T00:00:00.000Z",
-        event: {
-          type: "message_update",
-          assistantMessageEvent: {
-            type: "toolcall_end",
-            contentIndex: 1,
-            toolCall: {
-              type: "toolCall",
-              id: "tool-call-1",
-              name: "read",
-              arguments: { path: "AGENTS.md" },
-            },
-            partial: {
-              role: "assistant",
-              content: [
-                { type: "text", text: "I will inspect the instructions." },
-                {
-                  type: "toolCall",
-                  id: "tool-call-1",
-                  name: "read",
-                  arguments: { path: "AGENTS.md" },
-                },
-              ],
-            },
-          },
-          message: {
-            role: "assistant",
-            content: [
-              { type: "text", text: "I will inspect the instructions." },
-              {
-                type: "toolCall",
-                id: "tool-call-1",
-                name: "read",
-                arguments: { path: "AGENTS.md" },
-              },
-            ],
-          },
-        },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "tool_execution_update",
-      payload: {
-        kind: "tool-call",
-        title: "read",
-        body: "{\"path\":\"AGENTS.md\"}",
-      },
-    });
-  });
-
-  it("drops SDK user message lifecycle events so send_prompt remains the only user projection event", () => {
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        now: () => "2026-07-01T00:00:00.000Z",
-        event: {
-          type: "message_end",
-          message: {
-            role: "user",
-            content: [{ type: "text", text: "Reply with exactly: PIGUI_SDK_SPIKE_OK" }],
-          },
-        },
-      }),
-    ).toBeNull();
-  });
-
-  it("normalizes assistant delta and final content to one synthetic message identity", async () => {
+  it("emits Agent Runtime Event Model payloads from the SDK subscription with prompt trigger attribution", async () => {
     const listeners: Array<(event: unknown) => void> = [];
     const session = {
       sessionId: "sdk-session-1",
@@ -192,9 +72,7 @@ describe("Pi SDK public runtime adapter", () => {
       },
     };
     const runtimeFactory = createPublicPiSdkRuntimeFactory({
-      sdk: {
-        createAgentSession: vi.fn(async () => ({ session })),
-      },
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
       now: () => "2026-07-01T00:00:00.000Z",
     });
     const runtime = await runtimeFactory({
@@ -202,121 +80,168 @@ describe("Pi SDK public runtime adapter", () => {
       projectId: "pig",
       cwd: "/Users/void/code/opensource/Pig",
     });
-    const events: Array<{
-      payload?: Record<string, unknown>;
-    }> = [];
+    const events: unknown[] = [];
 
     runtime.onEvent?.((event) => events.push(event));
-    listeners[0]?.({
-      type: "message_update",
-      assistantMessageEvent: {
-        type: "text_delta",
-        delta: "PIGUI_",
-      },
-    });
-    listeners[0]?.({
-      type: "message_update",
-      assistantMessageEvent: {
-        type: "text_delta",
-        delta: "SDK_SPIKE_OK",
-      },
-    });
-    listeners[0]?.({
-      type: "message_end",
-      message: {
-        role: "assistant",
-        content: [{ type: "text", text: "PIGUI_SDK_SPIKE_OK" }],
-      },
-    });
+    await runtime.sendPrompt("Go");
 
-    expect(events.map((event) => event.payload)).toEqual([
-      expect.objectContaining({
-        role: "assistant",
-        body: "PIGUI_",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "delta",
-      }),
-      expect.objectContaining({
-        role: "assistant",
-        body: "PIGUI_SDK_SPIKE_OK",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "delta",
-      }),
-    ]);
-  });
-
-  it("accumulates SDK message_update content fragments when no assistant delta marker is present", async () => {
-    const listeners: Array<(event: unknown) => void> = [];
-    const session = {
-      sessionId: "sdk-session-1",
-      isStreaming: false,
-      messages: [],
-      prompt: vi.fn(async () => {}),
-      abort: vi.fn(async () => {}),
-      dispose: vi.fn(),
-      subscribe(listener: (event: unknown) => void) {
-        listeners.push(listener);
-
-        return vi.fn();
-      },
+    const streamingMessage = { role: "assistant", content: [] };
+    const finalMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Hi" }],
+      stopReason: "stop",
     };
-    const runtimeFactory = createPublicPiSdkRuntimeFactory({
-      sdk: {
-        createAgentSession: vi.fn(async () => ({ session })),
-      },
-      now: () => "2026-07-01T00:00:00.000Z",
-    });
-    const runtime = await runtimeFactory({
-      sessionId: "app-session-1",
-      projectId: "pig",
-      cwd: "/Users/void/code/opensource/Pig",
-    });
-    const events: Array<{
-      payload?: Record<string, unknown>;
-    }> = [];
 
-    runtime.onEvent?.((event) => events.push(event));
-    for (const text of ["We", " are", " done"]) {
-      listeners[0]?.({
+    for (const rawEvent of [
+      { type: "agent_start" },
+      { type: "turn_start" },
+      { type: "message_start", message: streamingMessage },
+      {
         type: "message_update",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text }],
-        },
-      });
+        message: streamingMessage,
+        assistantMessageEvent: { type: "text_start", contentIndex: 0, partial: streamingMessage },
+      },
+      {
+        type: "message_update",
+        message: streamingMessage,
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Hi", partial: streamingMessage },
+      },
+      {
+        type: "message_update",
+        message: streamingMessage,
+        assistantMessageEvent: { type: "text_end", contentIndex: 0, content: "Hi", partial: streamingMessage },
+      },
+      { type: "message_end", message: finalMessage },
+      { type: "turn_end", message: finalMessage, toolResults: [] },
+      { type: "agent_end", messages: [finalMessage] },
+    ]) {
+      listeners[0]?.(rawEvent);
     }
 
-    expect(events.map((event) => event.payload)).toEqual([
-      expect.objectContaining({
-        body: "We",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "partial",
-      }),
-      expect.objectContaining({
-        body: "We are",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "partial",
-      }),
-      expect.objectContaining({
-        body: "We are done",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "partial",
-      }),
+    const runId = "sdk-session-1:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    const partId = `${messageId}:part-0`;
+    const base = { runId, turnId, messageId, partId };
+
+    expect(events).toEqual([
+      {
+        piSessionId: "sdk-session-1",
+        type: "run",
+        payload: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "turn",
+        payload: { type: "turn", runId, turnId, phase: "start", surface: "hidden", origin: "sdk" },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "message",
+        payload: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "message_part",
+        payload: {
+          type: "message_part",
+          ...base,
+          partType: "text",
+          phase: "start",
+          bodyMode: "snapshot",
+          body: "",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "message_part",
+        payload: {
+          type: "message_part",
+          ...base,
+          partType: "text",
+          phase: "update",
+          bodyMode: "delta",
+          body: "Hi",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "message_part",
+        payload: {
+          type: "message_part",
+          ...base,
+          partType: "text",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: "Hi",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "message",
+        payload: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId, partType: "text", body: "Hi" }],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        turnId,
+        type: "turn",
+        payload: { type: "turn", runId, turnId, phase: "end", surface: "hidden", origin: "sdk" },
+      },
+      {
+        piSessionId: "sdk-session-1",
+        type: "run",
+        payload: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
     ]);
   });
 
-  it("maps SDK thinking deltas to trace events without leaking them into assistant text", async () => {
+  it("attributes the Active Run started by a queued follow-up to the follow_up trigger", async () => {
     const listeners: Array<(event: unknown) => void> = [];
     const session = {
       sessionId: "sdk-session-1",
       isStreaming: false,
       messages: [],
       prompt: vi.fn(async () => {}),
+      followUp: vi.fn(async () => {}),
       abort: vi.fn(async () => {}),
       dispose: vi.fn(),
       subscribe(listener: (event: unknown) => void) {
@@ -326,9 +251,7 @@ describe("Pi SDK public runtime adapter", () => {
       },
     };
     const runtimeFactory = createPublicPiSdkRuntimeFactory({
-      sdk: {
-        createAgentSession: vi.fn(async () => ({ session })),
-      },
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
       now: () => "2026-07-01T00:00:00.000Z",
     });
     const runtime = await runtimeFactory({
@@ -336,88 +259,26 @@ describe("Pi SDK public runtime adapter", () => {
       projectId: "pig",
       cwd: "/Users/void/code/opensource/Pig",
     });
-    const events: Array<{
-      payload?: Record<string, unknown>;
-    }> = [];
+    const events: Array<{ payload?: Record<string, unknown> }> = [];
 
-    runtime.onEvent?.((event) => events.push(event));
-    listeners[0]?.({
-      type: "message_update",
-      assistantMessageEvent: {
-        type: "thinking_delta",
-        delta: "I should inspect the workspace first.",
-      },
-      message: {
-        role: "assistant",
-        content: [
-          {
-            type: "thinking",
-            thinking: "I should inspect the workspace first.",
-          },
-        ],
-      },
-    });
-    listeners[0]?.({
-      type: "message_update",
-      assistantMessageEvent: {
-        type: "text_delta",
-        delta: "Done.",
-      },
-      message: {
-        role: "assistant",
-        content: [
-          {
-            type: "thinking",
-            thinking: "I should inspect the workspace first.",
-          },
-          { type: "text", text: "Done." },
-        ],
-      },
-    });
+    runtime.onEvent?.((event) => events.push(event as { payload?: Record<string, unknown> }));
+    await runtime.queueFollowUp?.("And then?");
+    listeners[0]?.({ type: "agent_start" });
 
-    expect(events.map((event) => event.payload)).toEqual([
-      expect.objectContaining({
-        kind: "thinking",
-        role: "assistant",
-        body: "I should inspect the workspace first.",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "delta",
-      }),
-      expect.objectContaining({
-        kind: "message",
-        role: "assistant",
-        body: "Done.",
-        messageId: "pi-sdk:sdk-session-1:assistant:0",
-        bodyFormat: "full",
-        phase: "delta",
-      }),
-    ]);
-  });
-
-  it("maps SDK tool execution end events to tool result trace events", () => {
-    expect(
-      runtimeEventFromAgentSessionEvent({
+    expect(events).toEqual([
+      {
         piSessionId: "sdk-session-1",
-        now: () => "2026-07-01T00:00:00.000Z",
-        event: {
-          type: "tool_execution_end",
-          toolCallId: "tool-call-1",
-          toolName: "read",
-          result: { text: "Agent instructions" },
+        type: "run",
+        payload: {
+          type: "run",
+          runId: "sdk-session-1:run-1",
+          phase: "start",
+          trigger: "follow_up",
+          surface: "hidden",
+          origin: "sdk",
         },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "tool_execution_update",
-      payload: {
-        kind: "tool-result",
-        title: "read",
-        toolCallId: "tool-call-1",
-        body: "{\"text\":\"Agent instructions\"}",
-        phase: "final",
       },
-    });
+    ]);
   });
 
   it("maps public SDK queue, steer, stop, and usage stats into runtime semantics", async () => {
@@ -605,77 +466,4 @@ describe("Pi SDK public runtime adapter", () => {
     });
   });
 
-  it("maps queue and retry lifecycle events to Gateway payloads", () => {
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        event: {
-          type: "queue_update",
-          steering: ["steer"],
-          followUp: ["follow"],
-        },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "queue_update",
-      payload: {
-        kind: "queue",
-        steering: ["steer"],
-        followUp: ["follow"],
-      },
-    });
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        event: {
-          type: "auto_retry_start",
-          attempt: 1,
-          maxAttempts: 3,
-          errorMessage: "rate limited",
-        },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "status",
-      payload: {
-        kind: "status",
-        title: "Retrying",
-        body: "rate limited",
-      },
-    });
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        event: {
-          type: "compaction_start",
-          reason: "threshold",
-        },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "status",
-      payload: {
-        kind: "status",
-        title: "Compacting",
-        body: "threshold",
-      },
-    });
-    expect(
-      runtimeEventFromAgentSessionEvent({
-        piSessionId: "sdk-session-1",
-        event: {
-          type: "thinking_level_changed",
-          level: "high",
-        },
-      }),
-    ).toMatchObject({
-      piSessionId: "sdk-session-1",
-      type: "model_update",
-      payload: {
-        kind: "model",
-        title: "Thinking level changed",
-        thinkingLevel: "high",
-      },
-    });
-  });
 });

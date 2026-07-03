@@ -163,43 +163,58 @@ describe("backend service", () => {
     });
     expect(sdkSession.session.prompt).toHaveBeenCalledWith("Hello Pi");
 
+    const streamingMessage = { role: "assistant", content: [] };
+
+    sdkSession.emit({ type: "agent_start" });
+    sdkSession.emit({ type: "turn_start" });
+    sdkSession.emit({ type: "message_start", message: streamingMessage });
     sdkSession.emit({
-      type: "message_end",
-      message: {
-        role: "assistant",
-        content: [{ type: "text", text: "Hi from SDK" }],
+      type: "message_update",
+      message: streamingMessage,
+      assistantMessageEvent: { type: "text_start", contentIndex: 0, partial: streamingMessage },
+    });
+    sdkSession.emit({
+      type: "message_update",
+      message: streamingMessage,
+      assistantMessageEvent: {
+        type: "text_end",
+        contentIndex: 0,
+        content: "Hi from SDK",
+        partial: streamingMessage,
       },
     });
     sdkSession.resolvePrompt();
 
-    expect(events).toEqual([
-      {
-        type: "event",
-        event: expect.objectContaining({
-          seq: 1,
-          sessionId: "session-1",
-          piSessionId: "pi-session-sdk",
-          type: "message_update",
-          payload: expect.objectContaining({
-            role: "user",
-            body: "Hello Pi",
-          }),
+    // The user echo stays a Gateway-minted legacy envelope; SDK stream events
+    // arrive as Agent Runtime Event Model payloads (ADR-0020).
+    expect(events[0]).toEqual({
+      type: "event",
+      event: expect.objectContaining({
+        seq: 1,
+        sessionId: "session-1",
+        piSessionId: "pi-session-sdk",
+        type: "message_update",
+        payload: expect.objectContaining({
+          role: "user",
+          body: "Hello Pi",
         }),
-      },
-      {
-        type: "event",
-        event: expect.objectContaining({
-          seq: 2,
-          sessionId: "session-1",
-          piSessionId: "pi-session-sdk",
-          type: "message_update",
-          payload: expect.objectContaining({
-            role: "assistant",
-            body: "Hi from SDK",
-          }),
+      }),
+    });
+    expect(events).toContainEqual({
+      type: "event",
+      event: expect.objectContaining({
+        sessionId: "session-1",
+        piSessionId: "pi-session-sdk",
+        type: "message_part",
+        payload: expect.objectContaining({
+          type: "message_part",
+          partType: "text",
+          body: "Hi from SDK",
+          surface: "chat",
+          origin: "sdk",
         }),
-      },
-    ]);
+      }),
+    });
     await expect(
       service.handleRequest({
         id: "req-rpc",

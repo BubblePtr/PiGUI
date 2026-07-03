@@ -38,6 +38,7 @@ import {
 } from "@/entities/project/project-registry";
 import { createDefaultPiRuntimeBridge } from "@/entities/runtime/pi-runtime-factory";
 import type { PiRuntimeBridge, PiSessionState } from "@/entities/runtime/pi-runtime-bridge";
+import type { SessionRuntimeMessage } from "@/entities/session/session-runtime-model";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -508,6 +509,240 @@ function FullChatComposer({
   );
 }
 
+// —— Structured runtime model rendering (Agent Runtime Event Model) ——
+// Active once run events own the session; bridges that don't speak the new
+// model fall back to the legacy runtimeEvents pipeline below.
+
+function runtimeModelIsActive(projection: SessionProjection) {
+  return projection.runtimeModel.runs.size > 0;
+}
+
+function chatTextFromModelMessage(message: SessionRuntimeMessage) {
+  return message.parts
+    .filter((part) => part.partType === "text")
+    .map((part) => part.body)
+    .join("");
+}
+
+function serializeModelDetail(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value === undefined) {
+    return "";
+  }
+
+  return JSON.stringify(value);
+}
+
+function liveMessagesFromRuntimeModel(
+  projection: SessionProjection,
+  clockNowMs = Date.now(),
+): LiveMessage[] | null {
+  if (!runtimeModelIsActive(projection)) {
+    return null;
+  }
+
+  const model = projection.runtimeModel;
+  const streamingAllowed = projection.status === "running" && !projection.stale;
+  const messages: LiveMessage[] = [];
+  let errorCursor = 0;
+
+  for (const entry of model.order) {
+    if (entry.kind === "error") {
+      const error = model.errors[errorCursor];
+
+      errorCursor += 1;
+
+      if (error) {
+        messages.push({
+          id: entry.id,
+          role: "assistant",
+          body: error.body,
+          controlLabel: "Run failed",
+        });
+      }
+
+      continue;
+    }
+
+    if (entry.kind !== "message") {
+      continue;
+    }
+
+    const message = model.messages.get(entry.id);
+
+    // Abandoned retry partials are closed boundaries, not answers.
+    if (!message || message.abandoned) {
+      continue;
+    }
+
+    const body = chatTextFromModelMessage(message);
+    const isStreaming = streamingAllowed && message.phase === "streaming";
+
+    if (!body && !message.controlLabel && !isStreaming) {
+      continue;
+    }
+
+    messages.push({
+      id: message.messageId,
+      role: message.role,
+      body,
+      ...(message.controlLabel ? { controlLabel: message.controlLabel } : {}),
+      ...(isStreaming ? { isStreaming: true } : {}),
+    });
+  }
+
+  const messagesWithPlaceholder = appendModelRunningPlaceholder(
+    projection,
+    messages,
+    clockNowMs,
+  );
+  const hasInitialPromptMessage = messagesWithPlaceholder.some(
+    (message) => message.role === "user" && message.body === projection.initialPrompt,
+  );
+
+  if (hasInitialPromptMessage) {
+    return messagesWithPlaceholder;
+  }
+
+  return [
+    {
+      id: `${projection.id}-initial-prompt`,
+      role: "user",
+      body: projection.initialPrompt,
+    },
+    ...messagesWithPlaceholder,
+  ];
+}
+
+function appendModelRunningPlaceholder(
+  projection: SessionProjection,
+  messages: LiveMessage[],
+  clockNowMs: number,
+): LiveMessage[] {
+  if (projection.status !== "running" || projection.stale) {
+    return messages;
+  }
+
+  const hasAssistantMessage = messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      !message.controlLabel &&
+      message.body.trim().length > 0,
+  );
+
+  if (hasAssistantMessage) {
+    return messages;
+  }
+
+  const model = projection.runtimeModel;
+  const traceMessageId = [...model.messages.values()]
+    .reverse()
+    .find((message) =>
+      message.parts.some(
+        (part) => part.partType === "thinking" || part.partType === "tool_call",
+      ),
+    )?.messageId;
+  const hasModelActivity =
+    model.tools.size > 0 ||
+    [...model.messages.values()].some(
+      (message) => message.role === "assistant" && message.parts.length > 0,
+    );
+  const latestTimestampMs = Date.parse(model.updatedAt ?? projection.updatedAt);
+  const elapsedMs = Number.isFinite(latestTimestampMs)
+    ? Math.max(0, clockNowMs - latestTimestampMs)
+    : 0;
+  const body = hasModelActivity
+    ? runningAssistantPlaceholder
+    : elapsedMs >= modelFirstResponseWatchdogMs
+      ? stalledModelResponsePlaceholder
+      : contactingModelPlaceholder;
+
+  return [
+    ...messages,
+    {
+      id: traceMessageId ?? `${projection.id}-running-placeholder`,
+      role: "assistant",
+      body,
+      isStreaming: true,
+    },
+  ];
+}
+
+function runTimelineFromRuntimeModel(
+  projection: SessionProjection,
+): RunTimelineItem[] | null {
+  if (!runtimeModelIsActive(projection)) {
+    return null;
+  }
+
+  const model = projection.runtimeModel;
+  const messageIdByToolCallId = new Map<string, string>();
+
+  for (const message of model.messages.values()) {
+    for (const part of message.parts) {
+      if (part.toolCallId) {
+        messageIdByToolCallId.set(part.toolCallId, message.messageId);
+      }
+    }
+  }
+
+  const items: RunTimelineItem[] = [];
+
+  for (const entry of model.order) {
+    if (entry.kind === "message") {
+      const message = model.messages.get(entry.id);
+
+      for (const part of message?.parts ?? []) {
+        if (part.partType === "thinking" && part.body) {
+          items.push({
+            id: part.partId,
+            kind: "thinking",
+            title: "Thinking",
+            meta: part.body,
+            messageId: message?.messageId,
+          });
+        }
+      }
+
+      continue;
+    }
+
+    if (entry.kind !== "tool") {
+      continue;
+    }
+
+    const tool = model.tools.get(entry.id);
+
+    if (!tool) {
+      continue;
+    }
+
+    const toolName = tool.name ?? "Tool";
+    const argsText =
+      tool.args !== undefined ? serializeModelDetail(tool.args) : tool.argsText;
+    const outputText =
+      tool.result !== undefined ? serializeModelDetail(tool.result) : undefined;
+
+    items.push({
+      id: tool.toolCallId,
+      kind: "tool",
+      title: `Tool: ${toolName}`,
+      meta: outputText ?? argsText ?? "",
+      messageId: messageIdByToolCallId.get(tool.toolCallId),
+      toolCallId: tool.toolCallId,
+      toolName,
+      toolState: tool.phase === "done" ? "output-available" : "input-available",
+      argsText,
+      outputText,
+    });
+  }
+
+  return items;
+}
+
 function liveMessagesFromProjection(
   projection: SessionProjection,
   clockNowMs = Date.now(),
@@ -608,6 +843,10 @@ function relatedMessageIdsFor(message: LiveMessage) {
   return message.relatedMessageIds ?? [message.id];
 }
 
+// Legacy-fallback only: message boundaries in the runtime-model path come from
+// the protocol, so this adjacency heuristic never runs there. Delete together
+// with the legacy runtimeEvents pipeline once every bridge speaks the Agent
+// Runtime Event Model.
 function collapseAssistantRunMessages(messages: LiveMessage[]) {
   return messages.reduce<LiveMessage[]>((collapsedMessages, message) => {
     if (!isAssistantAnswerMessage(message)) {
@@ -1599,10 +1838,12 @@ function LiveSessionColumn({
 
   const effectiveClockNowMs = clockNowMs ?? liveClockNowMs;
   const projectionMessages = liveProjection
-    ? liveMessagesFromProjection(liveProjection, effectiveClockNowMs)
+    ? (liveMessagesFromRuntimeModel(liveProjection, effectiveClockNowMs) ??
+      liveMessagesFromProjection(liveProjection, effectiveClockNowMs))
     : [];
   const projectionTimeline = liveProjection
-    ? runTimelineFromProjection(liveProjection)
+    ? (runTimelineFromRuntimeModel(liveProjection) ??
+      runTimelineFromProjection(liveProjection))
     : [];
   const liveMessages = projectionMessages.length
     ? projectionMessages
