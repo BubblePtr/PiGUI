@@ -835,6 +835,42 @@ describe("Session Projection state", () => {
     });
   });
 
+  it("merges usage agent events into the projection summary", () => {
+    let projection = createSessionProjection({
+      id: "session-1",
+      projectId: "project-1",
+      initialPrompt: "Ship it",
+      createdAt: "2026-07-02T10:00:00.000Z",
+    });
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "usage",
+          runId: "pi-session-1:run-1",
+          summary: {
+            provider: "openai",
+            model: "gpt-5-codex",
+            totalTokens: 1280,
+            totalCostUsd: 0.012345,
+          },
+          surface: "hidden",
+          origin: "rpc",
+        },
+      },
+    });
+
+    expect(projection.summary).toEqual({
+      provider: "openai",
+      model: "gpt-5-codex",
+      totalTokens: 1280,
+      totalCostUsd: 0.012345,
+    });
+  });
+
   it("mirrors Gateway-minted chat events into the runtime model but never compat-derived ones", () => {
     let projection = createSessionProjection({
       id: "session-1",

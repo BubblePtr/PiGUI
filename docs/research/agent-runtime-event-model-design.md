@@ -261,6 +261,8 @@ type SessionRuntimeModel = {
 4. **page 简化**：agent-workspace 按 surface 渲染；删除兼容映射与 collapse。
    - 实际落地形态（过渡期）：`runtimeModel.runs` 非空即进入模型模式——chat/trace 完全从结构化模型渲染（text part → chat，thinking/tool → trace，abandoned 消息不进 chat）；旧 bridge 无 run 事件时走原 legacy 渲染路径。Gateway 铸造的 chat 事件（user echo、steer control、driver/renderer error）由 projection 镜像进模型（fractional seq 排序、不推进 agent seq 水位线）；compat 产物带 `derivedFromAgentEvent` 标记防止二次镜像。`collapseAssistantRunMessages` 已降级为 legacy fallback 专用；compat 映射与 legacy 流的物理删除推迟到切片 5（RPC driver 对齐）完成后统一清理。
 5. **RPC driver 对齐**：`PiRpcProcessDriver` 映射到同一模型，能力不足显式标 `origin:"rpc"` + capability 缺口记录（沿用 ADR-0018 的缺口纪律）。
+   - 实际落地形态：Pi RPC 模式把完整 `AgentSessionEvent` 流原样以 JSON lines 转发（证据：`rpc-mode.js` 中 `session.subscribe` 直通），与 SDK 是同一套事件——**两个 driver 共享同一个 normalizer**，仅 `origin` 不同；旧 RPC 专属映射删除。缺失生命周期的碎片事件（裸 `message_end`/`tool_execution_start`）被显式丢弃而非猜测边界。顺带补齐 `usage` 事件：normalizer 从 assistant `message_end` 的 usage 块发 hidden usage 事件，projection 合并进 summary（SDK/RPC 双路径的 token/cost 真相恢复）。
+   - 仍存缺口（记录，不污染契约）：renderer 侧 `pi-rpc-runtime-bridge`（浏览器 fallback，不经 Gateway）仍是 legacy 流，走页面的 legacy 渲染路径；SDK 无原生 queued id 而 RPC 有 `withdraw_follow_up`，差异维持 ADR-0018 已记录状态。
 6. **持久化与 replay**（后续独立设计）：projection 快照落盘；历史 session 直接加载 normalized projection，静态渲染，绝不重放 streaming。
 
 ## 10. 决策记录

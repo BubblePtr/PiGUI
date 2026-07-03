@@ -1,10 +1,13 @@
 import type {
-  PiRpcRawEvent,
   PiRpcResponse,
   PiRpcTransport,
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
 } from "@pigui/core";
+import {
+  createAgentRuntimeEventNormalizer,
+  type AgentRuntimeEventNormalizer,
+} from "./agent-runtime-event-normalizer";
 import type {
   PiRuntimeDriver,
   RuntimeGatewayDriverEvent,
@@ -21,47 +24,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function maybeString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
-}
-
-function numberFrom(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function textFromContent(content: unknown): string {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return "";
-  }
-
-  return content
-    .map((part) => {
-      if (typeof part === "string") {
-        return part;
-      }
-
-      if (isRecord(part) && typeof part.text === "string") {
-        return part.text;
-      }
-
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n");
-}
-
-function timestampFrom(value: unknown, fallback: string): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return new Date(value).toISOString();
-  }
-
-  return fallback;
 }
 
 function defaultSummary(overrides: Partial<RuntimeGatewaySummary> = {}): RuntimeGatewaySummary {
@@ -85,52 +47,12 @@ function summaryFromRpcState(state: unknown): RuntimeGatewaySummary {
   });
 }
 
-function summaryFromMessage(message: Record<string, unknown>) {
-  const usage = isRecord(message.usage) ? message.usage : null;
-  const cost = usage && isRecord(usage.cost) ? usage.cost : null;
-  const summary: Partial<RuntimeGatewaySummary> = {};
-  const provider = maybeString(message.provider);
-  const model = maybeString(message.model);
-  const totalTokens = numberFrom(usage?.totalTokens);
-  const totalCostUsd = numberFrom(cost?.total);
-
-  if (provider) {
-    summary.provider = provider;
-  }
-
-  if (model) {
-    summary.model = model;
-  }
-
-  if (totalTokens !== null) {
-    summary.totalTokens = totalTokens;
-  }
-
-  if (totalCostUsd !== null) {
-    summary.totalCostUsd = totalCostUsd;
-  }
-
-  return Object.keys(summary).length ? summary : undefined;
-}
-
 function statusFromRpcState(state: unknown): RuntimeGatewaySnapshot["status"] {
   if (!isRecord(state)) {
     return "idle";
   }
 
   return state.isStreaming ? "running" : "idle";
-}
-
-function serializeEventBody(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (value === undefined) {
-    return "";
-  }
-
-  return JSON.stringify(value);
 }
 
 function queuedMessageIdFromResponse(response: PiRpcResponse, fallback: string) {
@@ -144,110 +66,14 @@ function queuedMessageIdFromResponse(response: PiRpcResponse, fallback: string) 
   );
 }
 
-function normalizeRpcEvent(input: {
-  rawEvent: PiRpcRawEvent;
-  piSessionId: string;
-  now: () => string;
-}): RuntimeGatewayDriverEvent | null {
-  const { rawEvent, piSessionId, now } = input;
-  const timestamp = timestampFrom(rawEvent.timestamp, now());
-
-  if (rawEvent.type === "message_update") {
-    return null;
-  }
-
-  if (
-    rawEvent.type === "message_start" ||
-    rawEvent.type === "message_end" ||
-    rawEvent.type === "turn_end"
-  ) {
-    const message = isRecord(rawEvent.message) ? rawEvent.message : null;
-    const role = message?.role === "user" || message?.role === "assistant" ? message.role : null;
-    const body = textFromContent(message?.content);
-
-    if (!message || !role || !body) {
-      return null;
-    }
-
-    if (role === "user") {
-      return null;
-    }
-
-    return {
-      piSessionId,
-      turnId: maybeString(rawEvent.turnId) ?? undefined,
-      type: "message_update",
-      payload: {
-        kind: "message",
-        role,
-        body,
-        timestamp: timestampFrom(message.timestamp, timestamp),
-        summary: summaryFromMessage(message),
-      },
-    };
-  }
-
-  if (
-    rawEvent.type === "tool_execution_start" ||
-    rawEvent.type === "tool_execution_update" ||
-    rawEvent.type === "tool_execution_end"
-  ) {
-    const detail =
-      rawEvent.type === "tool_execution_end"
-        ? rawEvent.result
-        : rawEvent.type === "tool_execution_update"
-          ? rawEvent.partialResult
-          : rawEvent.args;
-
-    const toolCallId = maybeString(rawEvent.toolCallId);
-
-    return {
-      piSessionId,
-      turnId: maybeString(rawEvent.turnId) ?? undefined,
-      type: "tool_execution_update",
-      payload: {
-        kind: rawEvent.type === "tool_execution_end" ? "tool-result" : "tool-call",
-        title: maybeString(rawEvent.toolName) ?? "Tool call",
-        body: serializeEventBody(detail),
-        ...(toolCallId ? { toolCallId } : {}),
-      },
-    };
-  }
-
-  if (rawEvent.type === "agent_end") {
-    return {
-      piSessionId,
-      type: "status",
-      payload: {
-        kind: "status",
-        title: "Agent run ended",
-        body: "Pi Runtime ended the active run.",
-        timestamp,
-      },
-    };
-  }
-
-  if (rawEvent.type === "error" || typeof rawEvent.error === "string") {
-    return {
-      piSessionId,
-      type: "error",
-      payload: {
-        kind: "error",
-        title: "Runtime error",
-        body: maybeString(rawEvent.error) ?? "Pi Runtime reported an error.",
-        timestamp,
-      },
-    };
-  }
-
-  return null;
-}
-
 export function createPiRpcProcessDriver(
   options: PiRpcProcessDriverOptions,
 ): PiRuntimeDriver {
   const now = options.now ?? (() => new Date().toISOString());
   const snapshots = new Map<string, RuntimeGatewaySnapshot>();
+  // Pi RPC mode streams the same AgentSessionEvent shapes the SDK exposes, so
+  // both drivers share one semantic normalizer; only the origin differs.
+  const normalizers = new Map<string, AgentRuntimeEventNormalizer>();
   const listeners = new Set<(event: RuntimeGatewayDriverEvent) => void>();
   let requestCounter = 0;
   let activePiSessionId: string | null = null;
@@ -266,15 +92,19 @@ export function createPiRpcProcessDriver(
   options.transport.onEvent((rawEvent) => {
     const piSessionId =
       maybeString(rawEvent.piSessionId) ?? maybeString(rawEvent.sessionId) ?? activePiSessionId;
+    const normalizer = piSessionId ? normalizers.get(piSessionId) : null;
 
-    if (!piSessionId) {
+    if (!piSessionId || !normalizer) {
       return;
     }
 
-    const event = normalizeRpcEvent({ rawEvent, piSessionId, now });
-
-    if (event) {
-      emit(event);
+    for (const agentEvent of normalizer.normalize(rawEvent)) {
+      emit({
+        piSessionId,
+        ...("turnId" in agentEvent && agentEvent.turnId ? { turnId: agentEvent.turnId } : {}),
+        type: agentEvent.type,
+        payload: { ...agentEvent },
+      });
     }
   });
 
@@ -313,11 +143,17 @@ export function createPiRpcProcessDriver(
 
       activePiSessionId = piSessionId;
       snapshots.set(piSessionId, snapshot);
+      normalizers.set(
+        piSessionId,
+        createAgentRuntimeEventNormalizer({ piSessionId, origin: "rpc" }),
+      );
 
       return { ...snapshot, events: [...snapshot.events], summary: { ...snapshot.summary! } };
     },
 
     async sendPrompt(input) {
+      normalizers.get(input.piSessionId)?.noteRunTrigger("prompt");
+
       const response = await options.transport.send({
         id: nextRequestId(),
         type: "prompt",
@@ -340,6 +176,8 @@ export function createPiRpcProcessDriver(
     },
 
     async queueFollowUp(input) {
+      normalizers.get(input.piSessionId)?.noteRunTrigger("follow_up");
+
       const requestId = nextRequestId();
       const response = await options.transport.send({
         id: requestId,

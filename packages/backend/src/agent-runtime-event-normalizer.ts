@@ -45,6 +45,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// Token/cost truth rides on the assistant message's usage block; it becomes a
+// hidden usage event so projections can aggregate without parsing messages.
+function usageSummaryFromMessage(message: Record<string, unknown>) {
+  const usage = isRecord(message.usage) ? message.usage : null;
+
+  if (!usage) {
+    return null;
+  }
+
+  const cost = isRecord(usage.cost) ? usage.cost : null;
+  const summary: {
+    provider?: string;
+    model?: string;
+    totalTokens?: number;
+    totalCostUsd?: number;
+  } = {};
+
+  if (typeof message.provider === "string") {
+    summary.provider = message.provider;
+  }
+
+  if (typeof message.model === "string") {
+    summary.model = message.model;
+  }
+
+  if (typeof usage.totalTokens === "number" && Number.isFinite(usage.totalTokens)) {
+    summary.totalTokens = usage.totalTokens;
+  }
+
+  if (typeof cost?.total === "number" && Number.isFinite(cost.total)) {
+    summary.totalCostUsd = cost.total;
+  }
+
+  return Object.keys(summary).length ? summary : null;
+}
+
 export function createAgentRuntimeEventNormalizer(
   input: AgentRuntimeEventNormalizerInput,
 ): AgentRuntimeEventNormalizer {
@@ -334,6 +370,8 @@ export function createAgentRuntimeEventNormalizer(
 
       if (rawEvent.type === "message_end" && runId && turnId && message) {
         const endedMessage = message;
+        const rawMessage = isRecord(rawEvent.message) ? rawEvent.message : null;
+        const usageSummary = rawMessage ? usageSummaryFromMessage(rawMessage) : null;
 
         message = null;
 
@@ -349,6 +387,17 @@ export function createAgentRuntimeEventNormalizer(
             surface: "chat",
             origin,
           },
+          ...(usageSummary
+            ? [
+                {
+                  type: "usage",
+                  runId,
+                  summary: usageSummary,
+                  surface: "hidden",
+                  origin,
+                } satisfies AgentRuntimeEvent,
+              ]
+            : []),
         ];
       }
 

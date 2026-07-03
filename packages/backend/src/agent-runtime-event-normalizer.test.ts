@@ -752,6 +752,44 @@ describe("agent runtime event normalizer", () => {
     ]);
   });
 
+  it("emits a usage event from the assistant message's usage data", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId, origin: "rpc" });
+    const streamingMessage = { role: "assistant", content: [] };
+    const finalMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Done" }],
+      provider: "openai",
+      model: "gpt-5-codex",
+      usage: {
+        totalTokens: 1280,
+        cost: { total: 0.012345 },
+      },
+      stopReason: "stop",
+    };
+
+    const events = normalizeAll(normalizer, [
+      { type: "agent_start" },
+      { type: "turn_start" },
+      { type: "message_start", message: streamingMessage },
+      { type: "message_end", message: finalMessage },
+    ]);
+
+    expect(events.filter((event) => event.type === "usage")).toEqual([
+      {
+        type: "usage",
+        runId: "pi-session-1:run-1",
+        summary: {
+          provider: "openai",
+          model: "gpt-5-codex",
+          totalTokens: 1280,
+          totalCostUsd: 0.012345,
+        },
+        surface: "hidden",
+        origin: "rpc",
+      },
+    ]);
+  });
+
   it("maps queue and compaction session events without inventing chat messages", () => {
     const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
 

@@ -476,6 +476,10 @@ export function applySessionProjectionEvent(
         ...projection,
         status: sessionStatusFromRuntimeModel(runtimeModel) ?? projection.status,
         runtimeModel,
+        summary:
+          agentEvent.type === "usage"
+            ? mergeRuntimeSummary(projection.summary, agentEvent.summary)
+            : projection.summary,
         unreadResult: finalizedAssistantAnswer ? true : projection.unreadResult,
         updatedAt: event.entry.timestamp,
       };
