@@ -269,10 +269,14 @@ function SidebarSessionGlyph({
   return null;
 }
 
-function DraftBadge() {
+function UnsentFollowUpIndicator() {
   return (
-    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[0.625rem] font-medium leading-none text-primary">
-      Draft
+    <span
+      aria-label="Unsent follow-up"
+      className="inline-flex size-4 items-center justify-center text-primary"
+      role="img"
+    >
+      <Pencil aria-hidden="true" className="size-3" />
     </span>
   );
 }
@@ -425,7 +429,7 @@ function ProjectNavigation({
   if (projects.length === 0) {
     return (
       <Sidebar.Group
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
         data-testid="sidebar-projects"
       >
         <Sidebar.GroupLabel className="px-3 text-sm normal-case">
@@ -438,7 +442,7 @@ function ProjectNavigation({
 
   return (
     <Sidebar.Group
-      className="min-h-0 flex-1 overflow-y-auto"
+      className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
       data-testid="sidebar-projects"
     >
       <Sidebar.GroupLabel className="px-3 text-sm normal-case">
@@ -449,7 +453,7 @@ function ProjectNavigation({
           (session) => session.projection.projectId === project.id,
         );
         const expanded = expandedProjects[project.id] ?? true;
-        const hasProjectDraft = projectSessions.some((session) =>
+        const hasProjectUnsentFollowUp = projectSessions.some((session) =>
           hasFollowUpDraft(session.id),
         );
 
@@ -469,6 +473,7 @@ function ProjectNavigation({
           <div key={project.id} className="grid gap-1">
             <Sidebar.Menu
               aria-label={`${project.displayName} project sessions`}
+              className="pigui-project-session-menu"
               expandedKeys={projectExpandedKeys}
               showGuideLines={false}
               onExpandedChange={onProjectExpandedChange}
@@ -478,71 +483,77 @@ function ProjectNavigation({
                 closeMobileOnAction={false}
                 textValue={project.displayName}
               >
-                <Sidebar.MenuTrigger>
-                  <ProjectExpansionIndicator expanded={expanded} />
-                </Sidebar.MenuTrigger>
-                <Sidebar.MenuLabel>{project.displayName}</Sidebar.MenuLabel>
-                {hasProjectDraft ? (
-                  <Sidebar.MenuChip>
-                    <DraftBadge />
-                  </Sidebar.MenuChip>
-                ) : null}
-                <Sidebar.MenuActions className="ml-auto">
-                  <Sidebar.MenuAction
-                    aria-label={`New Session for ${project.displayName}`}
-                    onPress={() => onNewProjectSession(project.id)}
-                  >
-                    <Plus aria-hidden="true" />
-                  </Sidebar.MenuAction>
-                  <SidebarActionDropdown
-                    ariaLabel={`Project actions for ${project.displayName}`}
-                    icon={<MoreHorizontal aria-hidden="true" />}
-                    onAction={(key) => {
-                      if (key === "rename-project") {
-                        onRenameProject(project.id);
-                        return;
-                      }
+                <Sidebar.MenuItemContent className="pigui-sidebar-row">
+                  <Sidebar.MenuTrigger>
+                    <ProjectExpansionIndicator expanded={expanded} />
+                  </Sidebar.MenuTrigger>
+                  <Sidebar.MenuLabel className="pigui-sidebar-row__label">
+                    <span className="pigui-sidebar-row__label-text">
+                      {project.displayName}
+                    </span>
+                  </Sidebar.MenuLabel>
+                  {!expanded && hasProjectUnsentFollowUp ? (
+                    <Sidebar.MenuChip className="pigui-sidebar-row__chip">
+                      <UnsentFollowUpIndicator />
+                    </Sidebar.MenuChip>
+                  ) : null}
+                  <Sidebar.MenuActions className="pigui-sidebar-row__actions ml-auto">
+                    <Sidebar.MenuAction
+                      aria-label={`New Session for ${project.displayName}`}
+                      onPress={() => onNewProjectSession(project.id)}
+                    >
+                      <Plus aria-hidden="true" />
+                    </Sidebar.MenuAction>
+                    <SidebarActionDropdown
+                      ariaLabel={`Project actions for ${project.displayName}`}
+                      icon={<MoreHorizontal aria-hidden="true" />}
+                      onAction={(key) => {
+                        if (key === "rename-project") {
+                          onRenameProject(project.id);
+                          return;
+                        }
 
-                      if (key === "reveal-project") {
-                        onRevealProject(project.id);
-                        return;
-                      }
+                        if (key === "reveal-project") {
+                          onRevealProject(project.id);
+                          return;
+                        }
 
-                      if (key === "remove-project") {
-                        onRemoveProject(project.id);
-                      }
-                    }}
-                  >
-                    <SidebarActionDropdownItem
-                      icon={(
-                        <Pencil aria-hidden="true" />
-                      )}
-                      id="rename-project"
-                      textValue="Rename Project"
+                        if (key === "remove-project") {
+                          onRemoveProject(project.id);
+                        }
+                      }}
                     >
-                      Rename Project
-                    </SidebarActionDropdownItem>
-                    <SidebarActionDropdownItem
-                      icon={(
-                        <FolderOpen aria-hidden="true" />
-                      )}
-                      id="reveal-project"
-                      textValue="Reveal in Finder"
-                    >
-                      Reveal in Finder
-                    </SidebarActionDropdownItem>
-                    <SidebarActionDropdownItem
-                      icon={(
-                        <Trash2 aria-hidden="true" />
-                      )}
-                      id="remove-project"
-                      textValue="Remove Project..."
-                      variant="danger"
-                    >
-                      Remove Project...
-                    </SidebarActionDropdownItem>
-                  </SidebarActionDropdown>
-                </Sidebar.MenuActions>
+                      <SidebarActionDropdownItem
+                        icon={(
+                          <Pencil aria-hidden="true" />
+                        )}
+                        id="rename-project"
+                        textValue="Rename Project"
+                      >
+                        Rename Project
+                      </SidebarActionDropdownItem>
+                      <SidebarActionDropdownItem
+                        icon={(
+                          <FolderOpen aria-hidden="true" />
+                        )}
+                        id="reveal-project"
+                        textValue="Reveal in Finder"
+                      >
+                        Reveal in Finder
+                      </SidebarActionDropdownItem>
+                      <SidebarActionDropdownItem
+                        icon={(
+                          <Trash2 aria-hidden="true" />
+                        )}
+                        id="remove-project"
+                        textValue="Remove Project..."
+                        variant="danger"
+                      >
+                        Remove Project...
+                      </SidebarActionDropdownItem>
+                    </SidebarActionDropdown>
+                  </Sidebar.MenuActions>
+                </Sidebar.MenuItemContent>
                 <Sidebar.Submenu>
                   {projectSessions.length === 0 ? (
                     <Sidebar.MenuItem
@@ -550,37 +561,56 @@ function ProjectNavigation({
                       isDisabled
                       textValue="No chats"
                     >
-                      <Sidebar.MenuLabel>No chats</Sidebar.MenuLabel>
+                      <Sidebar.MenuItemContent className="pigui-sidebar-row">
+                        <Sidebar.MenuIcon className="pigui-sidebar-row__icon justify-center">
+                          {null}
+                        </Sidebar.MenuIcon>
+                        <Sidebar.MenuLabel className="pigui-sidebar-row__label">
+                          <span className="pigui-sidebar-row__label-text">
+                            No chats
+                          </span>
+                        </Sidebar.MenuLabel>
+                      </Sidebar.MenuItemContent>
                     </Sidebar.MenuItem>
                   ) : null}
-                  {projectSessions.map((session) => (
-                    <Sidebar.MenuItem
-                      key={session.id}
-                      id={session.id}
-                      isCurrent={
-                        !draftViewActive && projectActive && session.id === selectedSessionId
-                      }
-                      textValue={session.title}
-                      onAction={() => onOpenSession(session.id, project.id)}
-                    >
-                      <Sidebar.MenuIcon className="justify-center">
-                        <SidebarSessionGlyph active={session.active} unread={session.unread} />
-                      </Sidebar.MenuIcon>
-                      <Sidebar.MenuLabel className="min-w-0">
-                        <span className="block truncate">{session.title}</span>
-                      </Sidebar.MenuLabel>
-                      <Sidebar.MenuChip>
-                        <span className="text-muted text-[10px] leading-none">
-                          {session.updatedAt.slice(11, 16)}
-                        </span>
-                      </Sidebar.MenuChip>
-                      {hasFollowUpDraft(session.id) ? (
-                        <Sidebar.MenuActions className="ml-auto">
-                          <DraftBadge />
-                        </Sidebar.MenuActions>
-                      ) : null}
-                    </Sidebar.MenuItem>
-                  ))}
+                  {projectSessions.map((session) => {
+                    const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
+
+                    return (
+                      <Sidebar.MenuItem
+                        key={session.id}
+                        id={session.id}
+                        isCurrent={
+                          !draftViewActive && projectActive && session.id === selectedSessionId
+                        }
+                        textValue={session.title}
+                        onAction={() => onOpenSession(session.id, project.id)}
+                      >
+                        <Sidebar.MenuItemContent className="pigui-sidebar-row">
+                          <Sidebar.MenuIcon className="pigui-sidebar-row__icon justify-center">
+                            <SidebarSessionGlyph active={session.active} unread={session.unread} />
+                          </Sidebar.MenuIcon>
+                          <Sidebar.MenuLabel className="pigui-sidebar-row__label">
+                            {hasSessionUnsentFollowUp ? (
+                              <span className="pigui-sidebar-row__label-text flex items-center gap-1">
+                                <span className="block min-w-0 truncate">{session.title}</span>
+                                <UnsentFollowUpIndicator />
+                              </span>
+                            ) : (
+                              <span className="pigui-sidebar-row__label-text block truncate">
+                                {session.title}
+                              </span>
+                            )}
+                          </Sidebar.MenuLabel>
+                          <Sidebar.MenuChip className="pigui-sidebar-row__chip">
+                            <span className="text-muted text-[10px] leading-none">
+                              {session.updatedAt.slice(11, 16)}
+                            </span>
+                          </Sidebar.MenuChip>
+                        </Sidebar.MenuItemContent>
+                      </Sidebar.MenuItem>
+                    );
+                  })}
                 </Sidebar.Submenu>
               </Sidebar.MenuItem>
             </Sidebar.Menu>
@@ -710,7 +740,7 @@ function SidebarPanelContent({
         data-testid="sidebar-titlebar-spacer"
         style={titlebarHeaderStyle}
       />
-      <Sidebar.Content className="min-h-0 flex-1 flex-col overflow-hidden">
+      <Sidebar.Content className="min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-hidden">
         <TraceUsageNavigation
           draftViewActive={draftViewActive}
           hasProjects={projects.length > 0}

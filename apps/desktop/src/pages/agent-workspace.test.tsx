@@ -58,12 +58,14 @@ vi.mock("@heroui-pro/react/markdown", () => ({
 vi.mock("@heroui-pro/react/chat-tool", () => ({
   ChatTool: ({
     argsText,
+    defaultExpanded,
     output,
     state,
     toolName,
     triggerPrefix,
   }: {
     argsText?: string;
+    defaultExpanded?: boolean;
     output?: unknown;
     state: string;
     toolName?: string;
@@ -74,11 +76,15 @@ vi.mock("@heroui-pro/react/chat-tool", () => ({
         {triggerPrefix}
         {toolName}
       </div>
-      {argsText ? <div data-slot="chat-tool-args">{argsText}</div> : null}
-      {output !== undefined ? (
-        <div data-slot="chat-tool-result">
-          {typeof output === "string" ? output : JSON.stringify(output)}
-        </div>
+      {defaultExpanded ? (
+        <>
+          {argsText ? <div data-slot="chat-tool-args">{argsText}</div> : null}
+          {output !== undefined ? (
+            <div data-slot="chat-tool-result">
+              {typeof output === "string" ? output : JSON.stringify(output)}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   ),
@@ -119,6 +125,55 @@ async function chooseProjectFromPicker(
 ) {
   await user.click(screen.getByTestId("project-picker-trigger"));
   await user.click(await screen.findByRole("option", { name: projectName }));
+}
+
+function expectAdaptiveInlineSelectPopover(listbox: HTMLElement) {
+  const popover = listbox.closest('[data-slot="select-popover"]');
+
+  expect(popover).toHaveClass(
+    "w-max",
+    "min-w-[var(--trigger-width)]",
+    "max-w-[calc(100vw-2rem)]",
+  );
+  expect(popover).toHaveClass("pigui-compact-menu-popover");
+  expect(popover).not.toHaveClass("w-[min(18rem,calc(100vw-2rem))]");
+  expect(listbox).toHaveClass("pigui-compact-menu-surface");
+}
+
+function expectInlineSelectOptionHasReservedIndicatorColumn(option: HTMLElement) {
+  expect(option).toHaveClass(
+    "pigui-compact-menu-item",
+    "grid",
+    "grid-cols-[1rem_minmax(0,1fr)_1rem]",
+    "items-center",
+    "gap-2",
+  );
+  expect(
+    within(option).getByTestId("session-draft-inline-select-item-indicator"),
+  ).toHaveClass(
+    "pigui-compact-menu-item-indicator",
+    "col-start-3",
+    "justify-self-end",
+  );
+}
+
+function expectInlineSelectOptionLabelMatchesCompactMenu(
+  option: HTMLElement,
+  label: string,
+) {
+  expect(within(option).getByText(label)).toHaveClass("pigui-compact-menu-label");
+}
+
+function getListboxByAriaLabel(ariaLabel: string) {
+  const listbox = document.querySelector(
+    `[role="listbox"][aria-label="${ariaLabel}"]`,
+  );
+
+  if (!(listbox instanceof HTMLElement)) {
+    throw new Error(`Expected ${ariaLabel} listbox to be rendered.`);
+  }
+
+  return listbox;
 }
 
 describe("AgentWorkspaceSessionsPage", () => {
@@ -1634,6 +1689,17 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(projectNavigation).queryByRole("row", { name: "New Session" }),
     ).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
+
+    await user.click(projectPickerTrigger);
+
+    expectAdaptiveInlineSelectPopover(getListboxByAriaLabel("Projects"));
+    expectInlineSelectOptionHasReservedIndicatorColumn(
+      await screen.findByRole("option", { name: "Select Project" }),
+    );
+    expectInlineSelectOptionLabelMatchesCompactMenu(
+      await screen.findByRole("option", { name: "Select Project" }),
+      "Select Project",
+    );
   });
 
   it("only shows the draft composer when draft view is selected", async () => {
@@ -1777,12 +1843,16 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(promptInput).toHaveValue("Keep this prompt while switching target");
     expect(projectPickerTrigger).toHaveTextContent("Pig");
+    expect(projectPickerTrigger).toHaveClass("text-foreground");
+    expect(projectPickerTrigger).not.toHaveClass("text-muted");
     expect(projectPickerControl).not.toHaveAttribute("style");
 
     await chooseProjectFromPicker(user, "study");
 
     expect(promptInput).toHaveValue("Keep this prompt while switching target");
     expect(projectPickerTrigger).toHaveTextContent("study");
+    expect(projectPickerTrigger).toHaveClass("text-foreground");
+    expect(projectPickerTrigger).not.toHaveClass("text-muted");
     expect(getSessionDraft()).toMatchObject({
       projectId: studyProjectPath,
       prompt: "Keep this prompt while switching target",
@@ -2042,8 +2112,27 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(screen.getByTestId("checkout-strategy-trigger")).toHaveTextContent(
-      "Managed worktree",
+      "Worktree",
     );
+    await user.click(screen.getByTestId("checkout-strategy-trigger"));
+    const localCheckoutOption = await screen.findByRole("option", { name: "Local" });
+    const worktreeCheckoutOption = await screen.findByRole("option", {
+      name: "Worktree",
+    });
+
+    expect(
+      within(localCheckoutOption).getByTestId("checkout-strategy-local-icon"),
+    ).toHaveClass("pigui-compact-menu-item-icon");
+    expect(worktreeCheckoutOption).toBeInTheDocument();
+    expectInlineSelectOptionHasReservedIndicatorColumn(worktreeCheckoutOption);
+    expectInlineSelectOptionLabelMatchesCompactMenu(
+      worktreeCheckoutOption,
+      "Worktree",
+    );
+    expectAdaptiveInlineSelectPopover(
+      getListboxByAriaLabel("Checkout strategies"),
+    );
+    await user.click(worktreeCheckoutOption);
 
     await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
 
@@ -2141,7 +2230,15 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     await user.click(screen.getByTestId("checkout-strategy-trigger"));
-    await user.click(await screen.findByRole("option", { name: "Local checkout" }));
+    await user.click(await screen.findByRole("option", { name: "Local" }));
+
+    const checkoutStrategyTrigger = screen.getByTestId("checkout-strategy-trigger");
+
+    expect(checkoutStrategyTrigger).toHaveTextContent("Local");
+    expect(
+      within(checkoutStrategyTrigger).getByTestId("checkout-strategy-local-icon"),
+    ).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
 
     const createdProjection = await waitFor(() => {
@@ -2239,6 +2336,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     bridge.forkSession = forkSession;
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(
       <AgentWorkspaceSessionsView
@@ -2273,6 +2371,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Fork from message" }));
 
+    expect(confirm).toHaveBeenCalledWith(
+      expect.stringContaining("Fork this message into a new Session?"),
+    );
     const forkInput = forkSession.mock.calls[0]?.[0];
 
     if (!forkInput) {
@@ -2305,6 +2406,117 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByPlaceholderText("What do you want to know?")).toHaveValue(
       "Revise this branch",
     );
+  });
+
+  it("does not fork a user message when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-07-03T12:10:00.000Z",
+    });
+    const projections: SessionProjection[] = [];
+    const createdWorktrees: string[] = [];
+    const checkoutManager = createExecutionCheckoutManager({
+      worktreesRoot: "/tmp/pig-worktrees",
+      gitClient: {
+        async isGitRepository() {
+          return true;
+        },
+        async addDetachedWorktree({ checkoutRoot }) {
+          createdWorktrees.push(checkoutRoot);
+        },
+      },
+    });
+    const sourceProjection: SessionProjection = {
+      ...createSessionProjection({
+        id: "source-session",
+        projectId: "pig-docs",
+        initialPrompt: "Earlier user",
+        createdAt: "2026-07-03T12:00:00.000Z",
+      }),
+      status: "completed",
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:source-session",
+      piSessionId: "pi-session-source",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      runtimeEvents: [
+        {
+          id: "evt-source-user",
+          piSessionId: "pi-session-source",
+          kind: "message",
+          role: "user",
+          body: "Revise this branch",
+          messageId: "pi-sdk:pi-session-source:user:1",
+          piEntryId: "pi-entry-user-2",
+          timestamp: "2026-07-03T12:00:01.000Z",
+        },
+      ],
+      updatedAt: "2026-07-03T12:00:01.000Z",
+    };
+    const forkSession = vi.fn(
+      async (input: ForkSessionInput): Promise<ForkSessionResult> => ({
+        selectedText: "Revise this branch",
+        state: {
+          piSessionId: "pi-session-forked",
+          runtimeId: `pi-sdk:${input.sessionId}`,
+          projectId: input.projectId,
+          cwd: input.cwd,
+          status: "idle",
+          sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+          events: [],
+          updatedAt: "2026-07-03T12:10:00.000Z",
+        },
+      }),
+    );
+
+    bridge.forkSession = forkSession;
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(
+      <AgentWorkspaceSessionsView
+        checkoutManager={checkoutManager}
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={sourceProjection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "source-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+        onProjectionChange={(projection) => {
+          projections.push(projection);
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Fork from message" }));
+    await Promise.resolve();
+
+    expect(confirm).toHaveBeenCalledWith(
+      expect.stringContaining("Fork this message into a new Session?"),
+    );
+    expect(forkSession).not.toHaveBeenCalled();
+    expect(createdWorktrees).toHaveLength(0);
+    expect(projections).toHaveLength(0);
+    expect(window.localStorage.getItem("pigui.followUpDrafts.v1")).toBeNull();
   });
 
   it("keeps draft text visible and shows failure detail when Session Creation fails", async () => {
@@ -2532,6 +2744,238 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
+  it("collapses structured runtime turn messages and attaches their trace to the final assistant answer", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    const turnOneId = `${runId}:turn-1`;
+    const turnTwoId = `${runId}:turn-2`;
+    const finalTurnId = `${runId}:turn-3`;
+    const inspectMessageId = `${turnOneId}:msg-1`;
+    const readMessageId = `${turnTwoId}:msg-1`;
+    const answerMessageId = `${finalTurnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Inspect the repo",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    const agentEntries = [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: turnOneId,
+          messageId: inspectMessageId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${inspectMessageId}:part-0`,
+              partType: "thinking",
+              body: "Plan the repository inspection.",
+            },
+            {
+              partId: `${inspectMessageId}:part-1`,
+              partType: "tool_call",
+              body: "{\"command\":\"ls -la\"}",
+              toolCallId: "call-list",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId: turnOneId,
+          toolCallId: "call-list",
+          phase: "end",
+          name: "shell",
+          args: { command: "ls -la" },
+          result: "listed files",
+          isError: false,
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: turnTwoId,
+          messageId: readMessageId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${readMessageId}:part-0`,
+              partType: "thinking",
+              body: "Read the main instructions next.",
+            },
+            {
+              partId: `${readMessageId}:part-1`,
+              partType: "text",
+              body: "Intermediate progress should not become a separate answer.",
+            },
+            {
+              partId: `${readMessageId}:part-2`,
+              partType: "tool_call",
+              body: "{\"path\":\"AGENTS.md\"}",
+              toolCallId: "call-read",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:05.000Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId: turnTwoId,
+          toolCallId: "call-read",
+          phase: "end",
+          name: "read_file",
+          args: { path: "AGENTS.md" },
+          result: "agent instructions loaded",
+          isError: false,
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:06.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: finalTurnId,
+          messageId: answerMessageId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${answerMessageId}:part-0`,
+              partType: "thinking",
+              body: "Summarize the inspection.",
+            },
+            {
+              partId: `${answerMessageId}:part-1`,
+              partType: "text",
+              body: "This repository is ready to inspect.",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 7,
+        timestamp: "2026-07-02T10:00:07.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ];
+
+    for (const entry of agentEntries) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessages = liveChat.querySelectorAll<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(within(assistantMessages[0]).getByTestId("markdown-renderer")).toHaveTextContent(
+      "This repository is ready to inspect.",
+    );
+    expect(
+      within(assistantMessages[0]).queryByText(
+        "Intermediate progress should not become a separate answer.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).getByText("Plan the repository inspection."),
+    ).toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).getByText("Read the main instructions next."),
+    ).toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).getByText("Summarize the inspection."),
+    ).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("Used tool: shell")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).queryByText("listed files")).not.toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("Used tool: read_file")).toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).queryByText("agent instructions loaded"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders completed Projection data with follow-up composer and without a runtime-unavailable warning", () => {
     const workspace = {
       id: "pig-docs",
@@ -2623,7 +3067,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("Live session is ready.")).toBeInTheDocument();
     expect(screen.getByText("Tool: read")).toBeInTheDocument();
     expect(screen.getByText("Used tool: read")).toBeInTheDocument();
-    expect(screen.getByText("{\"path\":\"AGENTS.md\"}")).toBeInTheDocument();
+    expect(screen.queryByText("{\"path\":\"AGENTS.md\"}")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 
@@ -3305,8 +3749,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(assistantMessage!).getByText("我需要先检查项目结构。")).toBeInTheDocument();
     expect(tool).toHaveAttribute("data-state", "output-available");
     expect(tool).toHaveTextContent("Used tool: read");
-    expect(tool).toHaveTextContent("{\"path\":\"AGENTS.md\"}");
-    expect(tool).toHaveTextContent("Agent instructions loaded.");
+    expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
+    expect(tool).not.toHaveTextContent("Agent instructions loaded.");
     expect(streamingContent).toHaveTextContent("最终回答只保留结论。");
     expect(streamingContent).not.toHaveTextContent("我需要先检查项目结构。");
     expect(streamingContent).not.toHaveTextContent("Agent instructions loaded.");
@@ -3314,6 +3758,105 @@ describe("AgentWorkspaceSessionsPage", () => {
       trace!.compareDocumentPosition(streamingContent!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("keeps tool call details collapsed when the assistant trace is expanded", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-docs-review",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-1",
+        projectId: "pig-docs",
+        initialPrompt: "检查 trace 展开态",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-sdk:session-1",
+      piSessionId: "pi-session-sdk",
+      runtimeEvents: [
+        {
+          id: "runtime-event-thinking",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "thinking" as const,
+          role: "assistant" as const,
+          body: "先读项目说明。",
+          timestamp: "2026-06-26T08:00:01.000Z",
+        },
+        {
+          id: "runtime-event-tool-call",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "tool-call" as const,
+          title: "read",
+          body: "{\"path\":\"AGENTS.md\"}",
+          timestamp: "2026-06-26T08:00:02.000Z",
+          toolCallId: "tool-call-1",
+        },
+        {
+          id: "runtime-event-tool-result",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "tool-result" as const,
+          title: "read",
+          body: "Agent instructions loaded.",
+          timestamp: "2026-06-26T08:00:03.000Z",
+          toolCallId: "tool-call-1",
+        },
+        {
+          id: "runtime-event-assistant",
+          piSessionId: "pi-session-sdk",
+          messageId: "pi-sdk:pi-session-sdk:assistant:0",
+          kind: "message" as const,
+          role: "assistant" as const,
+          body: "已经读取项目说明。",
+          timestamp: "2026-06-26T08:00:04.000Z",
+        },
+      ],
+      updatedAt: "2026-06-26T08:00:04.000Z",
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessage = liveChat.querySelector<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+    const trace = assistantMessage!.querySelector(
+      '[data-slot="chain-of-thought"]',
+    );
+    const tool = assistantMessage!.querySelector('[data-slot="chat-tool"]');
+
+    expect(trace).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Thought for 3s")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("先读项目说明。")).toBeInTheDocument();
+    expect(tool).toHaveTextContent("Used tool: read");
+    expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
+    expect(tool).not.toHaveTextContent("Agent instructions loaded.");
   });
 
   it("does not show fixture trace steps when a live Projection has no tool calls", () => {

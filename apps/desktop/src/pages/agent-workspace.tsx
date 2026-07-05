@@ -10,12 +10,13 @@ import { PromptSuggestion } from "@heroui-pro/react/prompt-suggestion";
 import { Sheet } from "@heroui-pro/react/sheet";
 import { TextShimmer } from "@heroui-pro/react/text-shimmer";
 import { useParams, useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
 import {
   Activity,
   Archive,
   Box,
+  Computer,
   FolderClosed,
   GitBranch,
   LayoutAlignLeft,
@@ -44,7 +45,10 @@ import {
   type PiRuntimeBridge,
   type PiSessionState,
 } from "@/entities/runtime/pi-runtime-bridge";
-import type { SessionRuntimeMessage } from "@/entities/session/session-runtime-model";
+import type {
+  SessionRuntimeMessage,
+  SessionRuntimeModel,
+} from "@/entities/session/session-runtime-model";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -86,6 +90,7 @@ type LiveMessage = {
   id: string;
   role: "user" | "assistant";
   body: string;
+  runId?: string;
   piEntryId?: string;
   controlLabel?: string;
   isStreaming?: boolean;
@@ -310,7 +315,6 @@ function RunTimelineStepContent({ item }: { item: RunTimelineItem }) {
   return (
     <ChatTool
       argsText={item.argsText}
-      defaultExpanded
       output={item.outputText}
       state={item.toolState ?? "input-available"}
       toolCallId={item.toolCallId}
@@ -562,6 +566,101 @@ function chatTextFromModelMessage(message: SessionRuntimeMessage) {
     .join("");
 }
 
+function orderedRuntimeModelAssistantMessageIds(
+  model: SessionRuntimeModel,
+  runId: string,
+) {
+  const ids: string[] = [];
+
+  for (const entry of model.order) {
+    if (entry.kind !== "message") {
+      continue;
+    }
+
+    const message = model.messages.get(entry.id);
+
+    if (
+      message?.role === "assistant" &&
+      message.runId === runId &&
+      !message.abandoned
+    ) {
+      ids.push(message.messageId);
+    }
+  }
+
+  return [...new Set(ids)];
+}
+
+function latestRuntimeModelRunId(model: SessionRuntimeModel) {
+  const runs = [...model.runs.values()];
+  const activeRun = [...runs].reverse().find((run) => !run.endedAt);
+
+  return activeRun?.runId ?? runs[runs.length - 1]?.runId;
+}
+
+function relatedRuntimeModelMessageIds(
+  model: SessionRuntimeModel,
+  message: LiveMessage,
+) {
+  if (!message.runId) {
+    return relatedMessageIdsFor(message);
+  }
+
+  const relatedMessageIds = orderedRuntimeModelAssistantMessageIds(
+    model,
+    message.runId,
+  );
+
+  return relatedMessageIds.length ? relatedMessageIds : relatedMessageIdsFor(message);
+}
+
+function collapseRuntimeModelAssistantRunMessages(
+  model: SessionRuntimeModel,
+  messages: LiveMessage[],
+) {
+  // Agent-core emits one assistant message per turn; Live Chat presents one
+  // Active Run as one answer bubble while preserving every turn's trace.
+  const collapsedMessages: LiveMessage[] = [];
+  const answerIndexByRunId = new Map<string, number>();
+
+  for (const message of messages) {
+    if (!isAssistantAnswerMessage(message) || !message.runId) {
+      collapsedMessages.push(message);
+      continue;
+    }
+
+    const relatedMessageIds = [
+      ...new Set([
+        ...relatedRuntimeModelMessageIds(model, message),
+        ...relatedMessageIdsFor(message),
+      ]),
+    ];
+    const nextMessage = {
+      ...message,
+      relatedMessageIds,
+    };
+    const existingIndex = answerIndexByRunId.get(message.runId);
+
+    if (existingIndex === undefined) {
+      answerIndexByRunId.set(message.runId, collapsedMessages.length);
+      collapsedMessages.push(nextMessage);
+      continue;
+    }
+
+    collapsedMessages[existingIndex] = {
+      ...nextMessage,
+      relatedMessageIds: [
+        ...new Set([
+          ...relatedMessageIdsFor(collapsedMessages[existingIndex]),
+          ...relatedMessageIds,
+        ]),
+      ],
+    };
+  }
+
+  return collapsedMessages;
+}
+
 function serializeModelDetail(value: unknown) {
   if (typeof value === "string") {
     return value;
@@ -597,6 +696,7 @@ function liveMessagesFromRuntimeModel(
         messages.push({
           id: entry.id,
           role: "assistant",
+          ...(error.runId ? { runId: error.runId } : {}),
           body: error.body,
           controlLabel: "Run failed",
         });
@@ -627,6 +727,7 @@ function liveMessagesFromRuntimeModel(
       id: message.messageId,
       role: message.role,
       body,
+      ...(message.runId ? { runId: message.runId } : {}),
       ...(message.piEntryId ? { piEntryId: message.piEntryId } : {}),
       ...(message.controlLabel ? { controlLabel: message.controlLabel } : {}),
       ...(isStreaming ? { isStreaming: true } : {}),
@@ -638,12 +739,16 @@ function liveMessagesFromRuntimeModel(
     messages,
     clockNowMs,
   );
-  const hasInitialPromptMessage = messagesWithPlaceholder.some(
+  const collapsedMessages = collapseRuntimeModelAssistantRunMessages(
+    model,
+    messagesWithPlaceholder,
+  );
+  const hasInitialPromptMessage = collapsedMessages.some(
     (message) => message.role === "user" && message.body === projection.initialPrompt,
   );
 
   if (hasInitialPromptMessage) {
-    return messagesWithPlaceholder;
+    return collapsedMessages;
   }
 
   return [
@@ -652,7 +757,7 @@ function liveMessagesFromRuntimeModel(
       role: "user",
       body: projection.initialPrompt,
     },
-    ...messagesWithPlaceholder,
+    ...collapsedMessages,
   ];
 }
 
@@ -677,13 +782,19 @@ function appendModelRunningPlaceholder(
   }
 
   const model = projection.runtimeModel;
-  const traceMessageId = [...model.messages.values()]
+  const runId = latestRuntimeModelRunId(model);
+  const relatedMessageIds = runId
+    ? orderedRuntimeModelAssistantMessageIds(model, runId)
+    : [];
+  const traceMessageId = [...relatedMessageIds]
     .reverse()
-    .find((message) =>
-      message.parts.some(
+    .find((messageId) => {
+      const message = model.messages.get(messageId);
+
+      return message?.parts.some(
         (part) => part.partType === "thinking" || part.partType === "tool_call",
-      ),
-    )?.messageId;
+      );
+    });
   const hasModelActivity =
     model.tools.size > 0 ||
     [...model.messages.values()].some(
@@ -704,6 +815,8 @@ function appendModelRunningPlaceholder(
     {
       id: traceMessageId ?? `${projection.id}-running-placeholder`,
       role: "assistant",
+      ...(runId ? { runId } : {}),
+      ...(relatedMessageIds.length ? { relatedMessageIds } : {}),
       body,
       isStreaming: true,
     },
@@ -1185,6 +1298,12 @@ const SESSION_DRAFT_SUGGESTED_PROMPTS = [
 
 const projectPickerPlaceholder = "Select Project";
 const projectPickerPlaceholderKey = "__project-picker-placeholder__";
+const sessionDraftInlineSelectPopoverClassName =
+  "pigui-compact-menu-popover w-max min-w-[var(--trigger-width)] max-w-[calc(100vw-2rem)]";
+const sessionDraftInlineSelectItemClassName =
+  "pigui-compact-menu-item grid grid-cols-[1rem_minmax(0,1fr)_1rem] items-center gap-2";
+const sessionDraftInlineSelectItemIconClassName =
+  "pigui-compact-menu-item-icon col-start-1 shrink-0 text-muted";
 
 function createSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -1202,6 +1321,102 @@ function projectPickerKeyToProjectId(key: Key | null) {
   return String(key);
 }
 
+function SessionDraftInlineSelect({
+  ariaLabel,
+  listBoxLabel,
+  value,
+  onChange,
+  rootTestId,
+  triggerTestId,
+  triggerClassName = "text-muted",
+  triggerContent,
+  children,
+}: {
+  ariaLabel: string;
+  listBoxLabel: string;
+  value: Key;
+  onChange: (key: Key | null) => void;
+  rootTestId: string;
+  triggerTestId: string;
+  triggerClassName?: string;
+  triggerContent: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="max-w-full" data-testid={rootTestId}>
+      <InlineSelect aria-label={ariaLabel} value={value} onChange={onChange}>
+        <InlineSelect.Trigger
+          aria-label={ariaLabel}
+          className={`inline-flex min-h-8 w-fit max-w-full min-w-0 items-center gap-2 rounded-xl border border-transparent bg-surface-secondary px-2.5 py-1.5 text-sm ${triggerClassName} transition-colors hover:text-foreground`}
+          data-testid={triggerTestId}
+        >
+          {triggerContent}
+          <InlineSelect.Indicator className="size-4 shrink-0 text-muted" />
+        </InlineSelect.Trigger>
+        <InlineSelect.Popover
+          className={sessionDraftInlineSelectPopoverClassName}
+          placement="bottom start"
+        >
+          <ListBox
+            aria-label={listBoxLabel}
+            className="pigui-compact-menu-surface"
+          >
+            {children}
+          </ListBox>
+        </InlineSelect.Popover>
+      </InlineSelect>
+    </div>
+  );
+}
+
+function SessionDraftInlineSelectItem({
+  id,
+  textValue,
+  label,
+  Icon,
+  iconTestId,
+  labelClassName = "",
+}: {
+  id: Key;
+  textValue: string;
+  label: string;
+  Icon?: typeof FolderClosed;
+  iconTestId?: string;
+  labelClassName?: string;
+}) {
+  return (
+    <ListBox.Item
+      className={sessionDraftInlineSelectItemClassName}
+      id={id}
+      textValue={textValue}
+    >
+      {Icon ? (
+        <Icon
+          aria-hidden="true"
+          className={sessionDraftInlineSelectItemIconClassName}
+          data-testid={iconTestId}
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className={sessionDraftInlineSelectItemIconClassName}
+        />
+      )}
+      <span
+        className={`pigui-compact-menu-label col-start-2 min-w-0 truncate ${labelClassName}`}
+      >
+        {label}
+      </span>
+      <span
+        className="pigui-compact-menu-item-indicator col-start-3 flex shrink-0 items-center justify-center justify-self-end"
+        data-testid="session-draft-inline-select-item-indicator"
+      >
+        <ListBox.ItemIndicator className="text-muted" />
+      </span>
+    </ListBox.Item>
+  );
+}
+
 function ProjectPicker({
   projects,
   selectedProjectId,
@@ -1214,21 +1429,16 @@ function ProjectPicker({
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
   const displayLabel = selectedProject?.displayName ?? projectPickerPlaceholder;
   const selectedPickerKey = selectedProject?.id ?? projectPickerPlaceholderKey;
+  const triggerTextColor = selectedProject ? "text-foreground" : "text-muted";
 
   return (
-    <div className="max-w-full" data-testid="project-picker">
-      <InlineSelect
-        aria-label="Target Project"
-        value={selectedPickerKey}
-        onChange={(key) => {
-          onProjectChange(projectPickerKeyToProjectId(key));
-        }}
-      >
-        <InlineSelect.Trigger
-          aria-label="Target Project"
-          className="inline-flex min-h-8 w-fit max-w-full min-w-0 items-center gap-2 rounded-xl border border-transparent bg-surface-secondary px-2.5 py-1.5 text-sm text-muted transition-colors hover:text-foreground"
-          data-testid="project-picker-trigger"
-        >
+    <SessionDraftInlineSelect
+      ariaLabel="Target Project"
+      listBoxLabel="Projects"
+      rootTestId="project-picker"
+      triggerClassName={triggerTextColor}
+      triggerContent={
+        <>
           <FolderClosed
             aria-hidden="true"
             className="size-4 shrink-0 text-muted"
@@ -1240,44 +1450,36 @@ function ProjectPicker({
           >
             {displayLabel}
           </span>
-          <InlineSelect.Indicator className="size-4 shrink-0 text-muted" />
-        </InlineSelect.Trigger>
-        <InlineSelect.Popover
-          className="w-[min(18rem,calc(100vw-2rem))]"
-          placement="bottom start"
-        >
-          <ListBox aria-label="Projects">
-            <ListBox.Item
-              id={projectPickerPlaceholderKey}
-              textValue={projectPickerPlaceholder}
-            >
-              <span className="truncate text-muted">{projectPickerPlaceholder}</span>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-            {projects.map((project) => (
-              <ListBox.Item
-                key={project.id}
-                id={project.id}
-                textValue={project.displayName}
-              >
-                <FolderClosed
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-muted"
-                />
-                <span className="min-w-0 truncate">{project.displayName}</span>
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </InlineSelect.Popover>
-      </InlineSelect>
-    </div>
+        </>
+      }
+      triggerTestId="project-picker-trigger"
+      value={selectedPickerKey}
+      onChange={(key) => {
+        onProjectChange(projectPickerKeyToProjectId(key));
+      }}
+    >
+      <SessionDraftInlineSelectItem
+        id={projectPickerPlaceholderKey}
+        label={projectPickerPlaceholder}
+        labelClassName="text-muted"
+        textValue={projectPickerPlaceholder}
+      />
+      {projects.map((project) => (
+        <SessionDraftInlineSelectItem
+          key={project.id}
+          Icon={FolderClosed}
+          id={project.id}
+          label={project.displayName}
+          textValue={project.displayName}
+        />
+      ))}
+    </SessionDraftInlineSelect>
   );
 }
 
 const checkoutModeLabels: Record<SessionDraftCheckoutMode, string> = {
-  local: "Local checkout",
-  worktree: "Managed worktree",
+  local: "Local",
+  worktree: "Worktree",
 };
 
 function checkoutModeToExecutionMode(
@@ -1294,48 +1496,46 @@ function CheckoutStrategyPicker({
   onCheckoutModeChange: (checkoutMode: SessionDraftCheckoutMode) => void;
 }) {
   return (
-    <div className="max-w-full" data-testid="checkout-strategy-picker">
-      <InlineSelect
-        aria-label="Checkout strategy"
-        value={selectedCheckoutMode}
-        onChange={(key) => {
-          onCheckoutModeChange(String(key) === "worktree" ? "worktree" : "local");
-        }}
-      >
-        <InlineSelect.Trigger
-          aria-label="Checkout strategy"
-          className="inline-flex min-h-8 w-fit max-w-full min-w-0 items-center gap-2 rounded-xl border border-transparent bg-surface-secondary px-2.5 py-1.5 text-sm text-muted transition-colors hover:text-foreground"
-          data-testid="checkout-strategy-trigger"
-        >
+    <SessionDraftInlineSelect
+      ariaLabel="Checkout strategy"
+      listBoxLabel="Checkout strategies"
+      rootTestId="checkout-strategy-picker"
+      triggerContent={
+        <>
           {selectedCheckoutMode === "worktree" ? (
             <GitBranch aria-hidden="true" className="size-4 shrink-0 text-muted" />
           ) : (
-            <FolderClosed aria-hidden="true" className="size-4 shrink-0 text-muted" />
+            <Computer
+              aria-hidden="true"
+              className="size-4 shrink-0 text-muted"
+              data-testid="checkout-strategy-local-icon"
+            />
           )}
           <span className="min-w-0 truncate">
             {checkoutModeLabels[selectedCheckoutMode]}
           </span>
-          <InlineSelect.Indicator className="size-4 shrink-0 text-muted" />
-        </InlineSelect.Trigger>
-        <InlineSelect.Popover
-          className="w-[min(18rem,calc(100vw-2rem))]"
-          placement="bottom start"
-        >
-          <ListBox aria-label="Checkout strategies">
-            <ListBox.Item id="local" textValue={checkoutModeLabels.local}>
-              <FolderClosed aria-hidden="true" className="size-4 shrink-0 text-muted" />
-              <span className="min-w-0 truncate">{checkoutModeLabels.local}</span>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-            <ListBox.Item id="worktree" textValue={checkoutModeLabels.worktree}>
-              <GitBranch aria-hidden="true" className="size-4 shrink-0 text-muted" />
-              <span className="min-w-0 truncate">{checkoutModeLabels.worktree}</span>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          </ListBox>
-        </InlineSelect.Popover>
-      </InlineSelect>
-    </div>
+        </>
+      }
+      triggerTestId="checkout-strategy-trigger"
+      value={selectedCheckoutMode}
+      onChange={(key) => {
+        onCheckoutModeChange(String(key) === "worktree" ? "worktree" : "local");
+      }}
+    >
+      <SessionDraftInlineSelectItem
+        Icon={Computer}
+        iconTestId="checkout-strategy-local-icon"
+        id="local"
+        label={checkoutModeLabels.local}
+        textValue={checkoutModeLabels.local}
+      />
+      <SessionDraftInlineSelectItem
+        Icon={GitBranch}
+        id="worktree"
+        label={checkoutModeLabels.worktree}
+        textValue={checkoutModeLabels.worktree}
+      />
+    </SessionDraftInlineSelect>
   );
 }
 
@@ -2314,6 +2514,20 @@ function LiveSessionColumn({
     const bridge = getRuntimeBridge();
 
     if (!bridge.forkSession) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      [
+        "Fork this message into a new Session?",
+        "",
+        "PiGUI will create a separate Session from this message boundary.",
+        "Git Projects use a managed worktree; non-Git Projects may reuse the foreground directory.",
+        "The selected message text will be pre-filled in the new composer.",
+      ].join("\n"),
+    );
+
+    if (!confirmed) {
       return;
     }
 

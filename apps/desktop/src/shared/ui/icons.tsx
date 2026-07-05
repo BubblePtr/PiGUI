@@ -12,6 +12,7 @@ import {
   ChevronRightIcon,
   CircleIcon,
   CommandIcon,
+  ComputerIcon,
   Delete02Icon,
   Folder01Icon,
   Folder02Icon,
@@ -63,6 +64,7 @@ export const ChevronDown = iconComponent(ChevronDownIcon);
 export const ChevronRight = iconComponent(ChevronRightIcon);
 export const Circle = iconComponent(CircleIcon);
 export const Command = iconComponent(CommandIcon);
+export const Computer = iconComponent(ComputerIcon);
 export const FolderClosed = iconComponent(Folder01Icon);
 export const FolderOpen = iconComponent(FolderOpenIcon);
 export const FolderOpenState = iconComponent(Folder02Icon);
