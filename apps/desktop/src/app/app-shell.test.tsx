@@ -265,14 +265,15 @@ describe("AppFrame", () => {
     expect(source).toContain("ChevronRight,");
     expect(source).toContain("<ProjectExpansionIndicator expanded={expanded} />");
     expect(source).not.toContain("<Sidebar.MenuIndicator />");
+    expect(source).toContain("<Sidebar.MenuTrigger>");
     expect(iconSource).toContain("Folder01Icon");
     expect(iconSource).toContain("Folder02Icon");
     expect(iconSource).toContain("export const FolderClosed = iconComponent(Folder01Icon);");
     expect(iconSource).toContain("export const FolderOpenState = iconComponent(Folder02Icon);");
     expect(styles).toContain(".pigui-project-expansion-indicator__state");
     expect(styles).toContain(".pigui-project-expansion-indicator__chevron");
-    expect(styles).toContain(":has(.sidebar__menu-trigger:focus-visible)");
-    expect(styles).toContain(":has(.sidebar__menu-trigger[data-focus-visible=\"true\"])");
+    expect(styles).toContain(":focus-visible");
+    expect(styles).toContain("[data-focus-visible=\"true\"]");
     expect(styles).toContain(".pigui-project-expansion-indicator__state");
     expect(styles).toContain("opacity: 0;");
     expect(styles).toContain(".pigui-project-expansion-indicator[data-expanded=\"true\"]");
@@ -431,7 +432,7 @@ describe("AppFrame", () => {
     );
   });
 
-  it("shows Follow-up Draft indicators on Session rows and collapsed Projects", async () => {
+  it("shows unsent follow-up icons on Session rows and collapsed Projects", async () => {
     const user = userEvent.setup();
 
     saveFollowUpDraft("session-analyze-boundary", "Continue the trace review");
@@ -443,14 +444,20 @@ describe("AppFrame", () => {
     const sessionRow = within(projectNavigation).getByRole("row", {
       name: "Trace boundary pass",
     });
+    const expandedProjectHeader = getProjectHeaderRow(projectGroup, "Pig");
 
-    expect(within(sessionRow).getByText("Draft")).toBeInTheDocument();
+    expect(within(sessionRow).getByLabelText("Unsent follow-up")).toBeInTheDocument();
+    expect(
+      within(expandedProjectHeader).queryByLabelText("Unsent follow-up"),
+    ).not.toBeInTheDocument();
+    expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
 
     await user.click(getProjectToggleButton(projectGroup, "Pig"));
 
     const projectHeader = getProjectHeaderRow(projectGroup, "Pig");
 
-    expect(within(projectHeader).getByText("Draft")).toBeInTheDocument();
+    expect(within(projectHeader).getByLabelText("Unsent follow-up")).toBeInTheDocument();
+    expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
     expect(projectHeader).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -483,11 +490,16 @@ describe("AppFrame", () => {
     });
 
     expect(projectActionsMenu).toHaveAttribute("data-slot", "dropdown-menu");
+    expect(projectActionsPopover).toHaveClass("pigui-compact-menu-popover");
     expect(projectActionsPopover).toHaveClass("pigui-sidebar-action-dropdown__popover");
+    expect(projectActionsMenu).toHaveClass("pigui-compact-menu-surface");
     expect(projectActionsMenu).toHaveClass("pigui-sidebar-action-dropdown__menu");
     expect(within(projectActionsMenu).queryByRole("menuitem", { name: "New Session" })).toBeNull();
+    expect(renameProjectItem).toHaveClass("pigui-compact-menu-item");
     expect(renameProjectItem).toHaveClass("pigui-sidebar-action-dropdown__item");
+    expect(revealProjectItem).toHaveClass("pigui-compact-menu-item");
     expect(revealProjectItem).toHaveClass("pigui-sidebar-action-dropdown__item");
+    expect(removeProjectItem).toHaveClass("pigui-compact-menu-item");
     expect(removeProjectItem).toHaveClass("pigui-sidebar-action-dropdown__item");
     expect(
       within(projectActionsMenu).getAllByRole("menuitem").map((item) => item.textContent?.trim()),
@@ -1030,6 +1042,98 @@ describe("AppFrame", () => {
     expect(source).toContain("sidebarMinSize={sidebarMinSize}");
     expect(source).toContain("sidebarMaxSize={sidebarMaxSize}");
     expect(source).toContain("sidebarResizable");
+  });
+
+  it("smooths sidebar icon rendering without changing icon sizing tokens", () => {
+    const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
+    const themeRootBlock = styles.match(
+      /:root,\n\.light,\n\.default,\n\[data-theme="light"\],\n\[data-theme="default"\] \{(?<body>[\s\S]*?)\n\}/,
+    )?.groups?.body;
+
+    expect(styles).toContain("-webkit-font-smoothing: antialiased;");
+    expect(styles).toContain("-moz-osx-font-smoothing: grayscale;");
+    expect(styles).toContain("text-rendering: optimizeLegibility;");
+    expect(themeRootBlock).toContain("--pigui-sidebar-content-padding-x: 0.5rem;");
+    expect(themeRootBlock).toContain("--pigui-sidebar-icon-box-size: 1.25rem;");
+    expect(themeRootBlock).toContain("--pigui-sidebar-icon-size: 1rem;");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger svg,");
+    expect(styles).toContain(".pigui-app-layout .sidebar__menu-icon svg,");
+    expect(styles).toContain(".pigui-app-layout .sidebar__menu-action svg");
+    expect(styles).toContain("shape-rendering: geometricPrecision;");
+  });
+
+  it("keeps Project and Session sidebar rows aligned while shrinking titles only", async () => {
+    addProjectToRegistry(pigProjectPath, {
+      now: () => "2026-06-30T08:00:00.000Z",
+    });
+    addProjectToRegistry("/Users/void/Documents/study", {
+      now: () => "2026-06-30T09:00:00.000Z",
+    });
+
+    const { container } = renderAppFrame("/projects/pig/sessions", { seedProjects: false });
+
+    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
+    const projectGroup = screen.getByTestId("sidebar-projects");
+    const projectHeader = getProjectHeaderRow(projectGroup, "Pig");
+    const projectContent = projectHeader.querySelector('[data-slot="sidebar-menu-item-content"]');
+    const projectTrigger = projectHeader.querySelector('[data-slot="sidebar-menu-trigger"]');
+    const projectLabel = projectHeader.querySelector('[data-slot="sidebar-menu-label"]');
+    const projectLabelText = projectHeader.querySelector(".pigui-sidebar-row__label-text");
+    const projectNavigation = within(projectGroup).getByLabelText("Pig project sessions");
+    const activeSessionRow = within(projectNavigation).getByRole("row", {
+      name: "Agent Workspace shell",
+    });
+    const sessionContent = activeSessionRow.querySelector('[data-slot="sidebar-menu-item-content"]');
+    const sessionIcon = activeSessionRow.querySelector('[data-slot="sidebar-menu-icon"]');
+    const sessionLabel = activeSessionRow.querySelector('[data-slot="sidebar-menu-label"]');
+    const sessionLabelText = activeSessionRow.querySelector(".pigui-sidebar-row__label-text");
+    const sessionChip = activeSessionRow.querySelector('[data-slot="sidebar-menu-chip"]');
+    const projectActions = projectHeader.querySelector('[data-slot="sidebar-menu-actions"]');
+    const emptyProjectNavigation = within(projectGroup).getByLabelText("study project sessions");
+    const emptySessionRow = within(emptyProjectNavigation).getByRole("row", {
+      name: "No chats",
+    });
+    const emptySessionContent = emptySessionRow.querySelector(
+      '[data-slot="sidebar-menu-item-content"]',
+    );
+    const emptySessionIcon = emptySessionRow.querySelector('[data-slot="sidebar-menu-icon"]');
+    const emptySessionLabel = emptySessionRow.querySelector('[data-slot="sidebar-menu-label"]');
+    const emptySessionLabelText = emptySessionRow.querySelector(".pigui-sidebar-row__label-text");
+    const sidebarContent = container.querySelector('[data-slot="sidebar-content"]');
+    const sidebarProjects = container.querySelector('[data-testid="sidebar-projects"]');
+
+    expect(projectTrigger).toBeInTheDocument();
+    expect(projectTrigger).toContainElement(projectHeader.querySelector(".pigui-project-expansion-indicator"));
+    expect(sessionIcon).toBeInTheDocument();
+    expect(within(sessionIcon as HTMLElement).getByLabelText("Active run")).toBeInTheDocument();
+    expect(projectContent).toHaveClass("pigui-sidebar-row");
+    expect(sessionContent).toHaveClass("pigui-sidebar-row");
+    expect(emptySessionContent).toHaveClass("pigui-sidebar-row");
+    expect(projectLabel).toHaveClass("pigui-sidebar-row__label");
+    expect(sessionLabel).toHaveClass("pigui-sidebar-row__label");
+    expect(emptySessionLabel).toHaveClass("pigui-sidebar-row__label");
+    expect(projectLabelText).toHaveClass("pigui-sidebar-row__label-text");
+    expect(sessionLabelText).toHaveClass("pigui-sidebar-row__label-text");
+    expect(emptySessionLabelText).toHaveClass("pigui-sidebar-row__label-text");
+    expect(emptySessionIcon).toHaveClass("pigui-sidebar-row__icon");
+    expect(emptySessionIcon).toBeEmptyDOMElement();
+    expect(sessionChip).toHaveClass("pigui-sidebar-row__chip");
+    expect(projectActions).toHaveClass("pigui-sidebar-row__actions");
+    expect(sidebarContent).toHaveClass("overflow-x-hidden");
+    expect(sidebarProjects).toHaveClass("overflow-x-hidden");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row {");
+    expect(styles).toContain("min-width: 0;");
+    expect(styles).toContain("overflow-x: hidden;");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger,");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__icon");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__label,");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__label-text");
+    expect(styles).toContain("flex: 1 1 auto;");
+    expect(styles).toContain("text-overflow: ellipsis;");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__chip,");
+    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__actions");
+    expect(styles).toContain("flex: 0 0 auto;");
   });
 
   it("uses the default resizable separator line", async () => {

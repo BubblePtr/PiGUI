@@ -36,11 +36,11 @@ export function SidebarActionDropdown({
         {icon}
       </Dropdown.Trigger>
       <Dropdown.Popover
-        className="pigui-sidebar-action-dropdown__popover"
+        className="pigui-sidebar-action-dropdown__popover pigui-compact-menu-popover"
         placement={placement}
       >
         <Dropdown.Menu
-          className="pigui-sidebar-action-dropdown__menu"
+          className="pigui-sidebar-action-dropdown__menu pigui-compact-menu-surface"
           onAction={onAction}
         >
           {children}
@@ -59,7 +59,7 @@ export function SidebarActionDropdownItem({
 }: SidebarActionDropdownItemProps) {
   return (
     <Dropdown.Item
-      className="pigui-sidebar-action-dropdown__item"
+      className="pigui-sidebar-action-dropdown__item pigui-compact-menu-item"
       id={id}
       textValue={textValue}
       variant={variant}
