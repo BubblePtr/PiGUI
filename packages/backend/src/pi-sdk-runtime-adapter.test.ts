@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPublicPiSdkRuntimeFactory } from "./pi-sdk-runtime-adapter";
+import {
+  createPublicPiSdkRuntimeForker,
+  createPublicPiSdkRuntimeFactory,
+  createPublicPiSdkRuntimeResumer,
+} from "./pi-sdk-runtime-adapter";
 
 describe("Pi SDK public runtime adapter", () => {
   it("adapts a public SDK AgentSession to the PiRuntimeDriver runtime contract", async () => {
@@ -54,6 +58,212 @@ describe("Pi SDK public runtime adapter", () => {
     );
     expect(prompt).toHaveBeenCalledWith("Reply with exactly: PIGUI_SDK_SPIKE_OK");
     expect(session.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a persisted SessionManager path when resuming a cold SDK session", async () => {
+    const sessionManager = {
+      getCwd: vi.fn(() => "/Users/void/code/opensource/Pig"),
+      getSessionFile: vi.fn(
+        () => "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+      ),
+      getLeafId: vi.fn(() => "entry-resumed-leaf"),
+    };
+    const session = {
+      sessionId: "pi-session-resumed",
+      isStreaming: false,
+      messages: [],
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const createAgentSession = vi.fn(async () => ({ session }));
+    const open = vi.fn(() => sessionManager);
+    const runtimeResumer = createPublicPiSdkRuntimeResumer({
+      sdk: {
+        createAgentSession,
+        SessionManager: {
+          open,
+        },
+      },
+      now: () => "2026-07-03T12:00:00.000Z",
+    });
+
+    const runtime = await runtimeResumer({
+      sessionId: "app-session-resumed",
+      projectId: "pig",
+      piSessionId: "pi-session-resumed",
+      cwd: "/fallback/cwd",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+    });
+
+    expect(open).toHaveBeenCalledWith(
+      "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+    );
+    expect(createAgentSession).toHaveBeenCalledWith({
+      cwd: "/Users/void/code/opensource/Pig",
+      sessionManager,
+    });
+    expect(runtime.piSessionId).toBe("pi-session-resumed");
+    expect(runtime.sessionFile).toBe(
+      "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+    );
+  });
+
+  it("exposes the SDK SessionManager leaf id for user message identity", async () => {
+    const sessionManager = {
+      getSessionFile: vi.fn(() => "/Users/void/.pi/session.jsonl"),
+      getLeafId: vi.fn(() => "pi-entry-user-1"),
+    };
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+    });
+
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    expect(runtime.getLeafId?.()).toBe("pi-entry-user-1");
+    expect(sessionManager.getLeafId).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves user message boundaries after the SDK appends the user entry", async () => {
+    const listeners: Array<(event: unknown) => void> = [];
+    let leafId: string | null = "pi-entry-before-prompt";
+    const sessionManager = {
+      getSessionFile: vi.fn(() => "/Users/void/.pi/session.jsonl"),
+      getLeafId: vi.fn(() => leafId),
+      getEntry: vi.fn((entryId: string) =>
+        entryId === "pi-entry-user-1"
+          ? {
+              type: "message",
+              id: "pi-entry-user-1",
+              parentId: "pi-entry-before-user-1",
+              message: { role: "user", content: "Build through SDK" },
+            }
+          : undefined,
+      ),
+    };
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe(listener: (event: unknown) => void) {
+        listeners.push(listener);
+
+        return vi.fn();
+      },
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+    });
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    runtime.onEvent?.(() => {});
+    const boundary = runtime.waitForNextUserMessageBoundary?.();
+
+    leafId = "pi-entry-user-1";
+    listeners[0]?.({
+      type: "message_end",
+      message: { role: "user", content: "Build through SDK" },
+    });
+
+    await expect(boundary).resolves.toEqual({
+      piEntryId: "pi-entry-user-1",
+    });
+    expect(sessionManager.getLeafId).toHaveBeenCalledTimes(1);
+    expect(sessionManager.getEntry).toHaveBeenCalledWith("pi-entry-user-1");
+  });
+
+  it("creates a forked SDK runtime from a user message entry id", async () => {
+    const sessionManager = {
+      getCwd: vi.fn(() => "/Users/void/code/opensource/Pig"),
+      getSessionFile: vi.fn(
+        () => "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+      ),
+      getEntry: vi.fn((entryId: string) =>
+        entryId === "pi-entry-user-2"
+          ? {
+              id: "pi-entry-user-2",
+              parentId: "pi-entry-before-user-2",
+              type: "message",
+              message: {
+                role: "user",
+                content: "Revise this branch",
+              },
+            }
+          : undefined,
+      ),
+      createBranchedSession: vi.fn(
+        () => "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+      ),
+    };
+    const session = {
+      sessionId: "pi-session-forked",
+      isStreaming: false,
+      messages: [],
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const createAgentSession = vi.fn(async () => ({ session }));
+    const open = vi.fn(() => sessionManager);
+    const runtimeForker = createPublicPiSdkRuntimeForker({
+      sdk: {
+        createAgentSession,
+        SessionManager: {
+          open,
+        },
+      },
+      now: () => "2026-07-03T12:00:00.000Z",
+    });
+
+    const result = await runtimeForker({
+      sessionId: "app-session-forked",
+      projectId: "pig",
+      sourcePiSessionId: "pi-session-source",
+      sourceSessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+      piEntryId: "pi-entry-user-2",
+      cwd: "/fallback/cwd",
+    });
+
+    expect(open).toHaveBeenCalledWith(
+      "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+    );
+    expect(sessionManager.createBranchedSession).toHaveBeenCalledWith(
+      "pi-entry-before-user-2",
+    );
+    expect(createAgentSession).toHaveBeenCalledWith({
+      cwd: "/Users/void/code/opensource/Pig",
+      sessionManager,
+    });
+    expect(result.selectedText).toBe("Revise this branch");
+    expect(result.runtime.piSessionId).toBe("pi-session-forked");
+    expect(result.runtime.sessionFile).toBe(
+      "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+    );
   });
 
   it("emits Agent Runtime Event Model payloads from the SDK subscription with prompt trigger attribution", async () => {

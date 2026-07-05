@@ -10,7 +10,7 @@ import { PromptSuggestion } from "@heroui-pro/react/prompt-suggestion";
 import { Sheet } from "@heroui-pro/react/sheet";
 import { TextShimmer } from "@heroui-pro/react/text-shimmer";
 import { useParams, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
 import {
   Activity,
@@ -37,7 +37,13 @@ import {
   type ProjectRegistryEntry,
 } from "@/entities/project/project-registry";
 import { createDefaultPiRuntimeBridge } from "@/entities/runtime/pi-runtime-factory";
-import type { PiRuntimeBridge, PiSessionState } from "@/entities/runtime/pi-runtime-bridge";
+import {
+  PiRuntimeBridgeError,
+  defaultRuntimeSummary,
+  type ExecutionCheckout,
+  type PiRuntimeBridge,
+  type PiSessionState,
+} from "@/entities/runtime/pi-runtime-bridge";
 import type { SessionRuntimeMessage } from "@/entities/session/session-runtime-model";
 import {
   createInMemorySessionProjectionStore,
@@ -54,24 +60,33 @@ import {
   clearSessionDraft,
   getSessionDraft,
   saveSessionDraft,
+  setSessionDraftCheckoutMode,
   setSessionDraftTarget,
   subscribeSessionDrafts,
+  type SessionDraftCheckoutMode,
   type SessionDraft,
 } from "@/entities/session/session-drafts";
 import {
   applySessionProjectionEvent,
   canArchiveSessionProjection,
+  createSessionProjection,
   isSessionProjectionArchived,
   getSessionProjectionListItems,
   isSessionProjectionActive,
   type SessionProjection,
 } from "@/entities/session/session-projection";
-import { formatCost, formatTokens } from "@/entities/session/sessions";
+import {
+  formatCost,
+  formatTokens,
+  listSessionProjections,
+  type PersistedSessionProjection,
+} from "@/entities/session/sessions";
 
 type LiveMessage = {
   id: string;
   role: "user" | "assistant";
   body: string;
+  piEntryId?: string;
   controlLabel?: string;
   isStreaming?: boolean;
   relatedMessageIds?: string[];
@@ -122,6 +137,7 @@ type RestorablePiRuntimeBridge = PiRuntimeBridge & {
 export type SessionDraftSubmitEvent = {
   projectId: string;
   prompt: string;
+  checkoutMode: SessionDraftCheckoutMode;
 };
 
 type SessionCreatorInput = Omit<
@@ -193,21 +209,43 @@ function getVisibleProjectRegistry() {
 function LiveChatMessage({
   message,
   timeline = [],
+  onForkMessage,
 }: {
   message: LiveMessage;
   timeline?: RunTimelineItem[];
+  onForkMessage?: (message: LiveMessage) => void;
 }) {
   if (message.role === "user") {
+    const canFork = Boolean(message.piEntryId && onForkMessage);
+
     return (
       <ChatMessage.User>
-        <ChatMessage.Bubble>
-          {message.controlLabel ? (
-            <p className="mb-1 text-xs font-medium text-muted">
-              {message.controlLabel}
-            </p>
+        <div className="flex items-start gap-2">
+          <ChatMessage.Bubble>
+            {message.controlLabel ? (
+              <p className="mb-1 text-xs font-medium text-muted">
+                {message.controlLabel}
+              </p>
+            ) : null}
+            <ChatMessage.Content>{message.body}</ChatMessage.Content>
+          </ChatMessage.Bubble>
+          {canFork ? (
+            <Tooltip delay={0}>
+              <Tooltip.Trigger className="inline-flex">
+                <Button
+                  isIconOnly
+                  aria-label="Fork from message"
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => onForkMessage?.(message)}
+                >
+                  <GitBranch className="size-4" />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>Fork from message</Tooltip.Content>
+            </Tooltip>
           ) : null}
-          <ChatMessage.Content>{message.body}</ChatMessage.Content>
-        </ChatMessage.Bubble>
+        </div>
       </ChatMessage.User>
     );
   }
@@ -589,6 +627,7 @@ function liveMessagesFromRuntimeModel(
       id: message.messageId,
       role: message.role,
       body,
+      ...(message.piEntryId ? { piEntryId: message.piEntryId } : {}),
       ...(message.controlLabel ? { controlLabel: message.controlLabel } : {}),
       ...(isStreaming ? { isStreaming: true } : {}),
     });
@@ -785,6 +824,7 @@ function liveMessagesFromProjection(
               ? "assistant"
               : "assistant",
         body: event.body,
+        ...(event.piEntryId ? { piEntryId: event.piEntryId } : {}),
         controlLabel:
           event.kind === "control" ||
           event.kind === "status" ||
@@ -1058,6 +1098,64 @@ function isRuntimeUnavailableProjection(projection: SessionProjection | null) {
   return Boolean(projection?.stale);
 }
 
+function sessionStatusFromPersistedProjection(
+  status: PersistedSessionProjection["status"],
+): SessionProjection["status"] {
+  switch (status) {
+    case "archived":
+      return "archived";
+    case "running":
+    case "failed":
+    case "completed":
+      return status;
+    case "idle":
+    default:
+      return "waiting";
+  }
+}
+
+function checkoutFromPersistedProjection(
+  checkout: PersistedSessionProjection["checkout"],
+) {
+  if (typeof checkout !== "object" || checkout === null) {
+    return null;
+  }
+
+  return checkout as ExecutionCheckout;
+}
+
+function sessionProjectionFromPersistedProjection(
+  record: PersistedSessionProjection,
+): SessionProjection {
+  const projection = createSessionProjection({
+    id: record.sessionId,
+    projectId: record.projectId,
+    initialPrompt: record.initialPrompt ?? "Untitled Session",
+    createdAt: record.updatedAt,
+  });
+  const sessionFileMissing = Boolean(record.sessionFileMissing || !record.sessionFile);
+
+  return {
+    ...projection,
+    cwd: record.cwd,
+    status: sessionStatusFromPersistedProjection(record.status),
+    creationStage: "accepted",
+    checkout: checkoutFromPersistedProjection(record.checkout),
+    runtimeId: record.runtimeId,
+    piSessionId: record.piSessionId,
+    sessionFile: record.sessionFile ?? null,
+    summary: defaultRuntimeSummary(record.summary),
+    stale: sessionFileMissing,
+    staleReason: sessionFileMissing
+      ? "Session file is missing. Start a new PiGUI Session to continue from this Project."
+      : null,
+    archivedAt:
+      record.archivedAt ??
+      (record.status === "archived" ? record.updatedAt : null),
+    updatedAt: record.updatedAt,
+  };
+}
+
 const SESSION_DRAFT_SUGGESTED_PROMPTS = [
   {
     Icon: LayoutAlignLeft,
@@ -1087,6 +1185,14 @@ const SESSION_DRAFT_SUGGESTED_PROMPTS = [
 
 const projectPickerPlaceholder = "Select Project";
 const projectPickerPlaceholderKey = "__project-picker-placeholder__";
+
+function createSessionId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `session-${crypto.randomUUID()}`;
+  }
+
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function projectPickerKeyToProjectId(key: Key | null) {
   if (key === null || key === projectPickerPlaceholderKey) {
@@ -1169,22 +1275,91 @@ function ProjectPicker({
   );
 }
 
+const checkoutModeLabels: Record<SessionDraftCheckoutMode, string> = {
+  local: "Local checkout",
+  worktree: "Managed worktree",
+};
+
+function checkoutModeToExecutionMode(
+  checkoutMode: SessionDraftCheckoutMode,
+): CreateSessionFromDraftInput["executionMode"] {
+  return checkoutMode === "worktree" ? "background" : "foreground";
+}
+
+function CheckoutStrategyPicker({
+  selectedCheckoutMode,
+  onCheckoutModeChange,
+}: {
+  selectedCheckoutMode: SessionDraftCheckoutMode;
+  onCheckoutModeChange: (checkoutMode: SessionDraftCheckoutMode) => void;
+}) {
+  return (
+    <div className="max-w-full" data-testid="checkout-strategy-picker">
+      <InlineSelect
+        aria-label="Checkout strategy"
+        value={selectedCheckoutMode}
+        onChange={(key) => {
+          onCheckoutModeChange(String(key) === "worktree" ? "worktree" : "local");
+        }}
+      >
+        <InlineSelect.Trigger
+          aria-label="Checkout strategy"
+          className="inline-flex min-h-8 w-fit max-w-full min-w-0 items-center gap-2 rounded-xl border border-transparent bg-surface-secondary px-2.5 py-1.5 text-sm text-muted transition-colors hover:text-foreground"
+          data-testid="checkout-strategy-trigger"
+        >
+          {selectedCheckoutMode === "worktree" ? (
+            <GitBranch aria-hidden="true" className="size-4 shrink-0 text-muted" />
+          ) : (
+            <FolderClosed aria-hidden="true" className="size-4 shrink-0 text-muted" />
+          )}
+          <span className="min-w-0 truncate">
+            {checkoutModeLabels[selectedCheckoutMode]}
+          </span>
+          <InlineSelect.Indicator className="size-4 shrink-0 text-muted" />
+        </InlineSelect.Trigger>
+        <InlineSelect.Popover
+          className="w-[min(18rem,calc(100vw-2rem))]"
+          placement="bottom start"
+        >
+          <ListBox aria-label="Checkout strategies">
+            <ListBox.Item id="local" textValue={checkoutModeLabels.local}>
+              <FolderClosed aria-hidden="true" className="size-4 shrink-0 text-muted" />
+              <span className="min-w-0 truncate">{checkoutModeLabels.local}</span>
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+            <ListBox.Item id="worktree" textValue={checkoutModeLabels.worktree}>
+              <GitBranch aria-hidden="true" className="size-4 shrink-0 text-muted" />
+              <span className="min-w-0 truncate">{checkoutModeLabels.worktree}</span>
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          </ListBox>
+        </InlineSelect.Popover>
+      </InlineSelect>
+    </div>
+  );
+}
+
 function SessionDraftComposer({
   draft,
   projects,
   creationProjection,
+  recommendedCheckoutMode,
   onDraftChange,
+  onDraftCheckoutModeChange,
   onDraftTargetChange,
   onDraftSubmit,
 }: {
   draft: SessionDraft;
   projects: ProjectRegistryEntry[];
   creationProjection: SessionProjection | null;
+  recommendedCheckoutMode: SessionDraftCheckoutMode;
   onDraftChange: (prompt: string) => void;
+  onDraftCheckoutModeChange: (checkoutMode: SessionDraftCheckoutMode) => void;
   onDraftTargetChange: (projectId: string | null) => void;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
 }) {
   const [targetError, setTargetError] = useState(false);
+  const selectedCheckoutMode = draft.checkoutMode ?? recommendedCheckoutMode;
   const applySuggestedPrompt = (prompt: string) => {
     setTargetError(false);
     onDraftChange(prompt);
@@ -1201,7 +1376,11 @@ function SessionDraftComposer({
       return;
     }
 
-    onDraftSubmit({ projectId: draft.projectId, prompt: draft.prompt });
+    onDraftSubmit({
+      projectId: draft.projectId,
+      prompt: draft.prompt,
+      checkoutMode: selectedCheckoutMode,
+    });
   };
 
   return (
@@ -1241,7 +1420,7 @@ function SessionDraftComposer({
             </PromptInput.Shell>
           </PromptInput>
           <div
-            className="flex w-full justify-start"
+            className="flex w-full flex-wrap justify-start gap-2"
             data-testid="session-draft-project-picker"
           >
             <ProjectPicker
@@ -1251,6 +1430,10 @@ function SessionDraftComposer({
                 setTargetError(false);
                 onDraftTargetChange(projectId);
               }}
+            />
+            <CheckoutStrategyPicker
+              selectedCheckoutMode={selectedCheckoutMode}
+              onCheckoutModeChange={onDraftCheckoutModeChange}
             />
           </div>
           {targetError ? (
@@ -1636,6 +1819,12 @@ function messageFromError(error: unknown) {
     : "Pi could not stop the active run.";
 }
 
+function runtimeResumeErrorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Pi could not resume the session runtime.";
+}
+
 async function restoreProjectionRuntimeState(input: {
   bridge: PiRuntimeBridge;
   projection: SessionProjection;
@@ -1679,7 +1868,9 @@ function LiveSessionColumn({
   showDraft,
   onDraftSubmit,
   sessionCreator,
+  checkoutManager,
   getRuntimeBridge,
+  recommendedCheckoutMode,
   sessionProjection,
   clockNowMs,
   onProjectionChange,
@@ -1690,7 +1881,9 @@ function LiveSessionColumn({
   showDraft: boolean;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
   sessionCreator: SessionCreator;
+  checkoutManager: ExecutionCheckoutManager;
   getRuntimeBridge: () => PiRuntimeBridge;
+  recommendedCheckoutMode: SessionDraftCheckoutMode;
   sessionProjection?: SessionProjection | null;
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
@@ -1721,6 +1914,9 @@ function LiveSessionColumn({
     useState<SessionProjection | null>(null);
   const [stoppingRun, setStoppingRun] = useState(false);
   const [liveClockNowMs, setLiveClockNowMs] = useState(() => Date.now());
+  const resumeAttemptedKeysRef = useRef(new Set<string>());
+  const resumeFailedKeysRef = useRef(new Set<string>());
+  const [resumeRetryNonce, setResumeRetryNonce] = useState(0);
 
   useEffect(
     () =>
@@ -1769,8 +1965,104 @@ function LiveSessionColumn({
     showDraft,
   ]);
 
+  const resumeKeyForProjection = (
+    projection: SessionProjection,
+    retryNonce: number,
+  ) =>
+    projection.piSessionId && projection.sessionFile
+      ? `${projection.id}\u0000${projection.piSessionId}\u0000${projection.sessionFile}\u0000${retryNonce}`
+      : null;
+
+  useEffect(() => {
+    if (
+      showDraft ||
+      !sessionProjection?.piSessionId ||
+      !sessionProjection.sessionFile
+    ) {
+      return;
+    }
+
+    const bridge = getRuntimeBridge();
+
+    if (!bridge.resumeSession) {
+      return;
+    }
+
+    const resumeKey = resumeKeyForProjection(
+      sessionProjection,
+      resumeRetryNonce,
+    );
+
+    if (!resumeKey || resumeFailedKeysRef.current.has(resumeKey)) {
+      return;
+    }
+
+    if (resumeAttemptedKeysRef.current.has(resumeKey)) {
+      return;
+    }
+
+    resumeAttemptedKeysRef.current.add(resumeKey);
+    let cancelled = false;
+
+    void bridge
+      .resumeSession({
+        sessionId: sessionProjection.id,
+        projectId: sessionProjection.projectId,
+        piSessionId: sessionProjection.piSessionId,
+        cwd:
+          sessionProjection.checkout?.runtimeCwd ??
+          sessionProjection.cwd ??
+          workspace.checkout.runtimeCwd,
+        sessionFile: sessionProjection.sessionFile,
+        checkout: sessionProjection.checkout,
+      })
+      .then((state) => {
+        if (cancelled) {
+          return;
+        }
+
+        resumeFailedKeysRef.current.delete(resumeKey);
+        commitInteractionProjection(
+          applySessionProjectionEvent(sessionProjection, {
+            type: "runtime-state-resynced",
+            state,
+          }),
+        );
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        resumeAttemptedKeysRef.current.delete(resumeKey);
+        resumeFailedKeysRef.current.add(resumeKey);
+        commitInteractionProjection(
+          applySessionProjectionEvent(sessionProjection, {
+            type: "projection-marked-stale",
+            reason: runtimeResumeErrorMessage(error),
+            occurredAt: new Date().toISOString(),
+          }),
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    getRuntimeBridge,
+    resumeRetryNonce,
+    sessionProjection,
+    showDraft,
+    workspace.checkout.runtimeCwd,
+  ]);
+
   const handleDraftChange = (prompt: string) => {
     setSessionDraft(saveSessionDraft(sessionDraft?.projectId ?? null, prompt));
+  };
+  const handleDraftCheckoutModeChange = (
+    checkoutMode: SessionDraftCheckoutMode,
+  ) => {
+    setSessionDraft(setSessionDraftCheckoutMode(checkoutMode));
   };
   const handleDraftTargetChange = (targetProjectId: string | null) => {
     setSessionDraft(setSessionDraftTarget(targetProjectId));
@@ -1800,6 +2092,7 @@ function LiveSessionColumn({
         repoRoot: targetRepoRoot,
         projectRoot: targetProjectRoot,
       },
+      executionMode: checkoutModeToExecutionMode(event.checkoutMode),
       onProjectionChange: (projection) => {
         setCreationProjection(projection);
         onProjectionChange?.(projection);
@@ -1820,6 +2113,25 @@ function LiveSessionColumn({
   };
   const liveProjection =
     interactionProjection ?? creationProjection ?? sessionProjection ?? null;
+  const canRetryRuntimeResume = Boolean(
+    liveProjection?.piSessionId &&
+      liveProjection.sessionFile &&
+      getRuntimeBridge().resumeSession,
+  );
+  const handleRetryRuntimeResume = () => {
+    if (!liveProjection) {
+      return;
+    }
+
+    const resumeKey = resumeKeyForProjection(liveProjection, resumeRetryNonce);
+
+    if (resumeKey) {
+      resumeAttemptedKeysRef.current.delete(resumeKey);
+      resumeFailedKeysRef.current.delete(resumeKey);
+    }
+
+    setResumeRetryNonce((currentNonce) => currentNonce + 1);
+  };
   const shouldTickLiveClock =
     clockNowMs === undefined &&
     Boolean(liveProjection && isSessionProjectionActive(liveProjection));
@@ -1868,7 +2180,7 @@ function LiveSessionColumn({
   };
   const readOnlyProjection = isReadOnlyProjection(liveProjection);
   const runtimeUnavailableProjection =
-    isRuntimeUnavailableProjection(liveProjection);
+    isRuntimeUnavailableProjection(liveProjection) ? liveProjection : null;
   const queueMode =
     Boolean(liveProjection?.piSessionId) &&
     Boolean(liveProjection && isSessionProjectionActive(liveProjection)) &&
@@ -1990,6 +2302,115 @@ function LiveSessionColumn({
       setStoppingRun(false);
     }
   };
+  const handleForkMessage = async (message: LiveMessage) => {
+    if (
+      !message.piEntryId ||
+      !liveProjection?.piSessionId ||
+      !liveProjection.sessionFile
+    ) {
+      return;
+    }
+
+    const bridge = getRuntimeBridge();
+
+    if (!bridge.forkSession) {
+      return;
+    }
+
+    const targetProject =
+      projects.find((candidate) => candidate.id === liveProjection.projectId) ??
+      projects.find((candidate) => candidate.id === projectId) ??
+      fallbackProject;
+    const forkSessionId = createSessionId();
+    const now = () => new Date().toISOString();
+    const targetProjectRoot = usingRegistryProjects
+      ? targetProject.path
+      : workspace.projectRoot;
+    const targetRepoRoot = usingRegistryProjects ? undefined : workspace.repoRoot;
+    let forkProjection = createSessionProjection({
+      id: forkSessionId,
+      projectId: targetProject.id,
+      initialPrompt: message.body,
+      createdAt: now(),
+    });
+    const commitForkProjection = (nextProjection: SessionProjection) => {
+      forkProjection = nextProjection;
+      commitInteractionProjection(nextProjection);
+    };
+
+    if (message.body.trim()) {
+      saveFollowUpDraft(forkSessionId, message.body);
+    }
+    commitForkProjection(forkProjection);
+
+    try {
+      const checkout = await checkoutManager.prepareCheckout({
+        sessionId: forkSessionId,
+        strategy: "background-managed",
+        project: {
+          id: targetProject.id,
+          repoRoot: targetRepoRoot,
+          projectRoot: targetProjectRoot,
+        },
+        now,
+      });
+
+      commitForkProjection(
+        applySessionProjectionEvent(forkProjection, {
+          type: "checkout-selected",
+          stage: "preparing checkout",
+          checkout,
+          occurredAt: now(),
+        }),
+      );
+
+      const fork = await bridge.forkSession({
+        sessionId: forkSessionId,
+        projectId: targetProject.id,
+        sourcePiSessionId: liveProjection.piSessionId,
+        sourceSessionFile: liveProjection.sessionFile,
+        piEntryId: message.piEntryId,
+        cwd: checkout.runtimeCwd,
+        checkout,
+      });
+      const selectedText = fork.selectedText ?? message.body;
+
+      if (selectedText.trim()) {
+        saveFollowUpDraft(forkSessionId, selectedText);
+      }
+
+      forkProjection = applySessionProjectionEvent(forkProjection, {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: fork.state.runtimeId,
+        piSessionId: fork.state.piSessionId,
+        summary: fork.state.summary,
+        occurredAt: now(),
+      });
+      forkProjection = applySessionProjectionEvent(forkProjection, {
+        type: "runtime-state-resynced",
+        state: fork.state,
+      });
+      commitForkProjection({
+        ...forkProjection,
+        initialPrompt: selectedText,
+        creationStage: "accepted",
+      });
+    } catch (error) {
+      commitForkProjection(
+        applySessionProjectionEvent(forkProjection, {
+          type: "creation-failed",
+          stage:
+            error instanceof PiRuntimeBridgeError &&
+            error.stage === "forking session"
+              ? "starting runtime"
+              : "preparing checkout",
+          message: messageFromError(error),
+          occurredAt: now(),
+        }),
+      );
+    }
+  };
 
   return (
     <main
@@ -2001,7 +2422,9 @@ function LiveSessionColumn({
           draft={sessionDraft}
           projects={projects}
           creationProjection={creationProjection}
+          recommendedCheckoutMode={recommendedCheckoutMode}
           onDraftChange={handleDraftChange}
+          onDraftCheckoutModeChange={handleDraftCheckoutModeChange}
           onDraftTargetChange={handleDraftTargetChange}
           onDraftSubmit={(event) => void handleDraftSubmit(event)}
         />
@@ -2009,10 +2432,19 @@ function LiveSessionColumn({
         <>
           {runtimeUnavailableProjection ? (
             <div
-              className="border-b border-border bg-surface px-4 py-2 text-sm text-muted"
+              className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2 text-sm text-muted"
               data-testid="runtime-fallback-banner"
             >
-              Runtime unavailable. Showing read-only session data.
+              <span>
+                Runtime unavailable.{" "}
+                {runtimeUnavailableProjection.staleReason ??
+                  "Showing read-only session data."}
+              </span>
+              {canRetryRuntimeResume ? (
+                <Button size="sm" variant="outline" onPress={handleRetryRuntimeResume}>
+                  Retry
+                </Button>
+              ) : null}
             </div>
           ) : null}
           <ChatConversation
@@ -2025,6 +2457,13 @@ function LiveSessionColumn({
                 <LiveChatMessage
                   key={message.id}
                   message={message}
+                  onForkMessage={
+                    liveProjection?.sessionFile &&
+                    liveProjection.piSessionId &&
+                    getRuntimeBridge().forkSession
+                      ? (forkMessage) => void handleForkMessage(forkMessage)
+                      : undefined
+                  }
                   timeline={timelineForMessage(message)}
                 />
               ))}
@@ -2098,7 +2537,7 @@ export function AgentWorkspaceSessionsView({
     }),
   );
   const activeCheckoutManager = checkoutManager ?? defaultCheckoutManager;
-  const shouldCreateBackgroundSession =
+  const shouldRecommendManagedCheckout =
     hasActiveSession ??
     Boolean(sessionProjection && isSessionProjectionActive(sessionProjection));
   const defaultSessionCreator: SessionCreator = (input: SessionCreatorInput) =>
@@ -2106,9 +2545,9 @@ export function AgentWorkspaceSessionsView({
       ...input,
       bridge: getActiveRuntimeBridge(),
       checkoutManager: activeCheckoutManager,
-      executionMode: shouldCreateBackgroundSession
-        ? "background"
-        : "foreground",
+      executionMode:
+        input.executionMode ??
+        (shouldRecommendManagedCheckout ? "background" : "foreground"),
       projections: defaultProjectionStore,
     });
 
@@ -2125,7 +2564,11 @@ export function AgentWorkspaceSessionsView({
             workspace={workspace}
             onDraftSubmit={onDraftSubmit}
             sessionCreator={sessionCreator ?? defaultSessionCreator}
+            checkoutManager={activeCheckoutManager}
             getRuntimeBridge={getActiveRuntimeBridge}
+            recommendedCheckoutMode={
+              shouldRecommendManagedCheckout ? "worktree" : "local"
+            }
             sessionProjection={sessionProjection}
             clockNowMs={clockNowMs}
             onProjectionChange={onProjectionChange}
@@ -2171,6 +2614,40 @@ export function AgentWorkspaceSessionsPage() {
       ),
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void listSessionProjections()
+      .then((records) => {
+        if (cancelled || records.length === 0) {
+          return;
+        }
+
+        const persistedProjections = records.map(
+          sessionProjectionFromPersistedProjection,
+        );
+        const nextSelectedSessionId =
+          getSessionProjectionListItems(persistedProjections)[0]?.id ?? null;
+
+        setSessionProjections(persistedProjections);
+        setSelectedSessionId((currentSessionId) =>
+          currentSessionId &&
+          persistedProjections.some(
+            (projection) => projection.id === currentSessionId,
+          )
+            ? currentSessionId
+            : nextSelectedSessionId,
+        );
+      })
+      .catch(() => {
+        // Browser fallback and older backends keep the built-in development list.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleProjectionChange = (nextProjection: SessionProjection) => {
     setSelectedSessionId(nextProjection.id);

@@ -64,9 +64,9 @@ _Avoid_: Resume button, reattach-only recovery, PiGUI-rebuilt LLM context, plain
 从已有 Session 的某条 user message 边界分叉出新 Session 的动作。Fork 只复制对话上下文（root 到 fork 点的线性路径），永远产生一个带独立 identity、独立 Execution Checkout、出现在 Session 列表中的新 Session，并保留指回源 Session 的谱系；被选中的 user message 原文预填进新 Session 的 composer 供改写。Fork 不承诺磁盘状态回到 fork 点：Git Project 下新 Session 强制使用新的 managed worktree，非 Git Project 复用前台目录并提示可能存在源 Session 的文件改动。树内分支（同一 Session 内移动 leaf 形成非线性历史）不在产品边界内。
 _Avoid_: In-session branch, tree navigation, disk snapshot, filesystem time travel, checkout copy
 
-**Session Import**:
-用户显式把一条在 PiGUI 之外产生的 Pi session（如 Pi CLI/TUI 会话）导入 PiGUI 的动作，导入时补建 Session Projection 并进入 Session 列表。PiGUI 不自动扫描 Pi 的 session 目录生成列表行；未导入的外部 session 不出现在任何列表中。导入 session 的历史时间线保真度低于 PiGUI 原生 Session，其具体呈现另行设计。
-_Avoid_: Auto-discovery, session directory scan, background sync, full-fidelity replay
+**Session Creation Boundary**:
+PiGUI 的 Session 列表只包含从 PiGUI 中创建的 Session。PiGUI 不自动扫描 Pi 的 session 目录，也不支持把 PiGUI 之外产生的 Pi CLI/TUI session 手动导入或补建 Session Projection。需要在 PiGUI 继续外部工作时，用户在目标 Project 内新建 PiGUI Session；这与 Codex 的本地 thread 边界一致，避免把缺少 journal/checkout/status 的外部记录伪装成 PiGUI 原生 Session。
+_Avoid_: Session Import, auto-discovery, session directory scan, background sync, projection backfill for external sessions
 
 **Session Status**:
 Session Projection 使用的内部收敛状态集合：`creating`、`running`、`waiting`、`failed`、`completed`、`archived`。Draft 不属于 Session Status。UI 不直接暴露完整内部集合；Session 列表首版只用 spinner/shimmer 这类动态图标表达 active run。失败和完成都作为 Live Chat 中的新结果/消息呈现，不在列表里做状态区分。

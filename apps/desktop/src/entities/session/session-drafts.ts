@@ -1,6 +1,9 @@
+export type SessionDraftCheckoutMode = "local" | "worktree";
+
 export type SessionDraft = {
   projectId: string | null;
   prompt: string;
+  checkoutMode?: SessionDraftCheckoutMode;
   updatedAt: string;
 };
 
@@ -24,12 +27,17 @@ function getStorage() {
 }
 
 function isSessionDraft(value: unknown): value is SessionDraft {
+  const checkoutMode = (value as { checkoutMode?: unknown } | null)?.checkoutMode;
+
   return (
     typeof value === "object" &&
     value !== null &&
     ((value as { projectId?: unknown }).projectId === null ||
       typeof (value as { projectId?: unknown }).projectId === "string") &&
     typeof (value as { prompt?: unknown }).prompt === "string" &&
+    (checkoutMode === undefined ||
+      checkoutMode === "local" ||
+      checkoutMode === "worktree") &&
     typeof (value as { updatedAt?: unknown }).updatedAt === "string"
   );
 }
@@ -126,6 +134,7 @@ export function ensureSessionDraft(projectId: string | null = null) {
   const draft: SessionDraft = {
     projectId,
     prompt: existingDraft?.prompt ?? "",
+    checkoutMode: existingDraft?.checkoutMode,
     updatedAt: nowIso(),
   };
 
@@ -136,9 +145,11 @@ export function ensureSessionDraft(projectId: string | null = null) {
 }
 
 export function saveSessionDraft(projectId: string | null, prompt: string) {
+  const existingDraft = getSessionDraft();
   const draft: SessionDraft = {
     projectId,
     prompt,
+    checkoutMode: existingDraft?.checkoutMode,
     updatedAt: nowIso(),
   };
 
@@ -153,11 +164,27 @@ export function setSessionDraftTarget(projectId: string | null) {
   const draft: SessionDraft = {
     projectId,
     prompt: existingDraft?.prompt ?? "",
+    checkoutMode: existingDraft?.checkoutMode,
     updatedAt: nowIso(),
   };
 
   writeDraft(draft);
   emitDraftsChanged(projectId);
+
+  return draft;
+}
+
+export function setSessionDraftCheckoutMode(checkoutMode: SessionDraftCheckoutMode) {
+  const existingDraft = getSessionDraft();
+  const draft: SessionDraft = {
+    projectId: existingDraft?.projectId ?? null,
+    prompt: existingDraft?.prompt ?? "",
+    checkoutMode,
+    updatedAt: nowIso(),
+  };
+
+  writeDraft(draft);
+  emitDraftsChanged(draft.projectId);
 
   return draft;
 }

@@ -195,6 +195,175 @@ describe("Pi SDK driver", () => {
     }
   });
 
+  it("waits for the SDK user boundary before stamping Pi entry ids", async () => {
+    let resolveBoundary:
+      | ((boundary: { piEntryId?: string }) => void)
+      | undefined;
+    let resolvePrompt: (() => void) | undefined;
+    const runtime = {
+      piSessionId: "pi-sdk-session-1",
+      sendPrompt: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvePrompt = resolve;
+          }),
+      ),
+      waitForNextUserMessageBoundary: vi.fn(
+        () =>
+          new Promise<{ piEntryId?: string }>((resolve) => {
+            resolveBoundary = resolve;
+          }),
+      ),
+    };
+    const driver = createPiSdkDriver({
+      runtimeFactory: async () => runtime,
+    });
+
+    await driver.createSession({
+      sessionId: "session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    const response = driver.sendPrompt({
+      piSessionId: "pi-sdk-session-1",
+      prompt: "Build through SDK",
+    });
+
+    try {
+      await expect(
+        Promise.race([
+          response,
+          new Promise((resolve) => {
+            setTimeout(() => resolve("pending"), 0);
+          }),
+        ]),
+      ).resolves.toBe("pending");
+
+      resolveBoundary?.({ piEntryId: "pi-entry-user-1" });
+
+      await expect(response).resolves.toMatchObject({
+        payload: {
+          kind: "message",
+          role: "user",
+          body: "Build through SDK",
+          piEntryId: "pi-entry-user-1",
+        },
+      });
+    } finally {
+      resolvePrompt?.();
+      await response.catch(() => undefined);
+    }
+  });
+
+  it("matches consecutive prompts to consecutive SDK user boundaries", async () => {
+    const boundaryResolvers: Array<
+      (boundary: { piEntryId?: string }) => void
+    > = [];
+    const runtime = {
+      piSessionId: "pi-sdk-session-1",
+      sendPrompt: vi.fn(async () => {}),
+      waitForNextUserMessageBoundary: vi.fn(
+        () =>
+          new Promise<{ piEntryId?: string }>((resolve) => {
+            boundaryResolvers.push(resolve);
+          }),
+      ),
+    };
+    const driver = createPiSdkDriver({
+      runtimeFactory: async () => runtime,
+    });
+
+    await driver.createSession({
+      sessionId: "session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    const first = driver.sendPrompt({
+      piSessionId: "pi-sdk-session-1",
+      prompt: "First prompt",
+    });
+
+    boundaryResolvers.shift()?.({ piEntryId: "pi-entry-user-1" });
+
+    await expect(first).resolves.toMatchObject({
+      payload: {
+        body: "First prompt",
+        messageId: "pi-sdk:pi-sdk-session-1:user:0",
+        piEntryId: "pi-entry-user-1",
+      },
+    });
+
+    const second = driver.sendPrompt({
+      piSessionId: "pi-sdk-session-1",
+      prompt: "Second prompt",
+    });
+
+    boundaryResolvers.shift()?.({ piEntryId: "pi-entry-user-2" });
+
+    await expect(second).resolves.toMatchObject({
+      payload: {
+        body: "Second prompt",
+        messageId: "pi-sdk:pi-sdk-session-1:user:1",
+        piEntryId: "pi-entry-user-2",
+      },
+    });
+  });
+
+  it("forks an SDK runtime and keeps the forked session addressable", async () => {
+    const sendPrompt = vi.fn(async () => {});
+    const runtimeForker = vi.fn(async () => ({
+      selectedText: "Revise this branch",
+      runtime: {
+        piSessionId: "pi-session-forked",
+        runtimeId: "pi-sdk:session-forked",
+        cwd: "/Users/void/code/opensource/Pig",
+        sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+        sendPrompt,
+      },
+    }));
+    const driver = createPiSdkDriver({
+      now: () => "2026-07-03T12:00:00.000Z",
+      runtimeForker,
+    });
+
+    await expect(
+      driver.forkSession({
+        sessionId: "session-forked",
+        projectId: "pig",
+        sourcePiSessionId: "pi-session-source",
+        sourceSessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+        piEntryId: "pi-entry-user-2",
+        cwd: "/Users/void/code/opensource/Pig",
+      }),
+    ).resolves.toEqual({
+      selectedText: "Revise this branch",
+      snapshot: expect.objectContaining({
+        sessionId: "session-forked",
+        runtimeId: "pi-sdk:session-forked",
+        piSessionId: "pi-session-forked",
+        projectId: "pig",
+        cwd: "/Users/void/code/opensource/Pig",
+        sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+      }),
+    });
+    expect(runtimeForker).toHaveBeenCalledWith({
+      sessionId: "session-forked",
+      projectId: "pig",
+      sourcePiSessionId: "pi-session-source",
+      sourceSessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+      piEntryId: "pi-entry-user-2",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    await driver.sendPrompt({
+      piSessionId: "pi-session-forked",
+      prompt: "Continue fork",
+    });
+    expect(sendPrompt).toHaveBeenCalledWith("Continue fork");
+  });
+
   it("delegates queued message and steering controls to the injected SDK runtime", async () => {
     const queueFollowUp = vi.fn(async (message: string) => ({
       id: "queued-1",

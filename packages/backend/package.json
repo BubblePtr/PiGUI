@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "measure:idle-memory": "bun run scripts/measure-idle-agent-session-memory.ts",
     "spike:pi-sdk": "bun run scripts/spike-pi-sdk-driver.ts"
   },
   "exports": {
