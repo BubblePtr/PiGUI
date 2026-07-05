@@ -32,6 +32,7 @@ export type ExecutionCheckout = {
 export type RuntimeBridgeFailureStage =
   | "starting runtime"
   | "sending prompt"
+  | "forking session"
   | "queuing message"
   | "withdrawing queued message"
   | "steering run"
@@ -71,6 +72,7 @@ export type PiRuntimeEvent = {
   id: string;
   piSessionId: string;
   messageId?: string;
+  piEntryId?: string;
   toolCallId?: string;
   kind:
     | "message"
@@ -118,6 +120,7 @@ export type PiSessionState = {
   runtimeId: string;
   projectId: string;
   cwd: string;
+  sessionFile?: string;
   status: "idle" | "running" | "failed" | "completed";
   events: PiRuntimeEvent[];
   // Journaled boundary events from the Gateway snapshot; absent on bridges
@@ -169,6 +172,30 @@ export type AbortRunInput = {
   piSessionId: string;
 };
 
+export type ResumeSessionInput = {
+  sessionId: string;
+  projectId: string;
+  piSessionId: string;
+  cwd: string;
+  sessionFile: string;
+  checkout: ExecutionCheckout | null;
+};
+
+export type ForkSessionInput = {
+  sessionId: string;
+  projectId: string;
+  sourcePiSessionId: string;
+  sourceSessionFile: string;
+  piEntryId: string;
+  cwd: string;
+  checkout: ExecutionCheckout | null;
+};
+
+export type ForkSessionResult = {
+  state: PiSessionState;
+  selectedText?: string;
+};
+
 // One Agent Runtime Event as delivered to the renderer: the protocol event
 // plus the Gateway envelope ordering metadata the projection keys on.
 export type AgentRuntimeEventEntry = {
@@ -186,6 +213,8 @@ export type PiRuntimeBridge = {
   steerRun(input: SteerRunInput): Promise<PiRuntimeEvent>;
   abortRun(input: AbortRunInput): Promise<PiRuntimeEvent>;
   getSessionState(piSessionId: string): Promise<PiSessionState>;
+  resumeSession?(input: ResumeSessionInput): Promise<PiSessionState>;
+  forkSession?(input: ForkSessionInput): Promise<ForkSessionResult>;
   subscribeToEvents(piSessionId: string, listener: (event: PiRuntimeEvent) => void): () => void;
   // Optional until every bridge speaks the Agent Runtime Event Model; the
   // legacy PiRuntimeEvent stream above remains the compatibility surface.

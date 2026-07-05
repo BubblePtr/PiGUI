@@ -43,3 +43,8 @@ export {
   type PiSdkSessionRuntime,
   type PiSdkSnapshotPatch,
 } from "./pi-sdk-driver";
+
+export {
+  type PersistedSessionProjection,
+  type SessionProjectionStore,
+} from "./session-projection-store";

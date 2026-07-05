@@ -151,6 +151,18 @@ export function createPiRpcProcessDriver(
       return { ...snapshot, events: [...snapshot.events], summary: { ...snapshot.summary! } };
     },
 
+    async resumeSession() {
+      throw new Error(
+        'Pi RPC driver does not support "resume_session": SessionManager is only available through the SDK driver.',
+      );
+    },
+
+    async forkSession() {
+      throw new Error(
+        'Pi RPC driver does not support "fork_session": SessionManager is only available through the SDK driver.',
+      );
+    },
+
     async sendPrompt(input) {
       normalizers.get(input.piSessionId)?.noteRunTrigger("prompt");
 

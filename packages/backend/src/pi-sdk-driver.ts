@@ -5,7 +5,9 @@ import type {
 } from "@pigui/core";
 import type {
   CreateRuntimeSessionInput,
+  ForkRuntimeSessionInput,
   PiRuntimeDriver,
+  ResumeRuntimeSessionInput,
   RuntimeGatewayDriverEvent,
 } from "./runtime-gateway";
 
@@ -15,6 +17,10 @@ export type PiSdkRuntimeEvent = RuntimeGatewayDriverEvent;
 
 export type PiSdkQueuedMessage = RuntimeGatewayQueuedMessage;
 
+export type PiSdkUserMessageBoundary = {
+  piEntryId?: string;
+};
+
 export type PiSdkSnapshotPatch = Partial<
   Pick<RuntimeGatewaySnapshot, "status" | "events" | "summary" | "updatedAt">
 >;
@@ -22,7 +28,9 @@ export type PiSdkSnapshotPatch = Partial<
 export type PiSdkSessionRuntime = {
   piSessionId: string;
   runtimeId?: string;
+  cwd?: string;
   status?: RuntimeGatewaySnapshot["status"];
+  sessionFile?: string;
   summary?: RuntimeGatewaySummary;
   sendPrompt(prompt: string): Promise<void>;
   queueFollowUp?(message: string): Promise<PiSdkQueuedMessage>;
@@ -30,6 +38,8 @@ export type PiSdkSessionRuntime = {
   steerRun?(message: string): Promise<void>;
   stopRun?(): Promise<void>;
   getSnapshot?(): Promise<PiSdkSnapshotPatch>;
+  getLeafId?(): string | null;
+  waitForNextUserMessageBoundary?(): Promise<PiSdkUserMessageBoundary>;
   onEvent?(listener: (event: PiSdkRuntimeEvent) => void): () => void;
   dispose?(): void | Promise<void>;
 };
@@ -38,8 +48,23 @@ export type PiSdkRuntimeFactory = (
   input: CreateRuntimeSessionInput,
 ) => Promise<PiSdkSessionRuntime>;
 
+export type PiSdkRuntimeResumer = (
+  input: ResumeRuntimeSessionInput,
+) => Promise<PiSdkSessionRuntime>;
+
+export type PiSdkRuntimeForkResult = {
+  runtime: PiSdkSessionRuntime;
+  selectedText?: string;
+};
+
+export type PiSdkRuntimeForker = (
+  input: ForkRuntimeSessionInput,
+) => Promise<PiSdkRuntimeForkResult>;
+
 export type PiSdkDriverOptions = {
   runtimeFactory?: PiSdkRuntimeFactory;
+  runtimeResumer?: PiSdkRuntimeResumer;
+  runtimeForker?: PiSdkRuntimeForker;
   now?: () => string;
 };
 
@@ -79,17 +104,22 @@ function cloneSnapshot(snapshot: RuntimeGatewaySnapshot): RuntimeGatewaySnapshot
 }
 
 function snapshotFromRuntime(input: {
-  appSession: CreateRuntimeSessionInput;
+  appSession: CreateRuntimeSessionInput | ResumeRuntimeSessionInput;
   runtime: PiSdkSessionRuntime;
   now: () => string;
 }): RuntimeGatewaySnapshot {
+  const sessionFile =
+    input.runtime.sessionFile ??
+    ("sessionFile" in input.appSession ? input.appSession.sessionFile : undefined);
   const snapshot: RuntimeGatewaySnapshot = {
     sessionId: input.appSession.sessionId,
     runtimeId: input.runtime.runtimeId ?? `pi-sdk:${input.appSession.sessionId}`,
     piSessionId: input.runtime.piSessionId,
     projectId: input.appSession.projectId,
-    cwd: input.appSession.cwd,
+    cwd: input.runtime.cwd ?? input.appSession.cwd,
     status: input.runtime.status ?? "idle",
+    sessionFile,
+    checkout: input.appSession.checkout,
     events: [],
     updatedAt: input.now(),
   };
@@ -147,6 +177,24 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
       listener(event);
     }
   };
+  const rememberRuntime = (
+    input: CreateRuntimeSessionInput | ResumeRuntimeSessionInput,
+    runtime: PiSdkSessionRuntime,
+  ) => {
+    const snapshot = snapshotFromRuntime({ appSession: input, runtime, now });
+
+    runtimes.set(runtime.piSessionId, runtime);
+    snapshots.set(runtime.piSessionId, snapshot);
+    promptCounts.set(runtime.piSessionId, 0);
+    runtime.onEvent?.((event) => {
+      emit({
+        ...event,
+        piSessionId: event.piSessionId ?? runtime.piSessionId,
+      });
+    });
+
+    return snapshot;
+  };
 
   return {
     async createSession(input) {
@@ -155,41 +203,61 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
       }
 
       const runtime = await options.runtimeFactory(input);
-      const snapshot = snapshotFromRuntime({ appSession: input, runtime, now });
-
-      runtimes.set(runtime.piSessionId, runtime);
-      snapshots.set(runtime.piSessionId, snapshot);
-      promptCounts.set(runtime.piSessionId, 0);
-      runtime.onEvent?.((event) => {
-        emit({
-          ...event,
-          piSessionId: event.piSessionId ?? runtime.piSessionId,
-        });
-      });
+      const snapshot = rememberRuntime(input, runtime);
 
       return cloneSnapshot(snapshot);
+    },
+
+    async resumeSession(input) {
+      if (!options.runtimeResumer) {
+        unsupported("resume_session", "no SDK runtime resumer is configured");
+      }
+
+      const runtime = await options.runtimeResumer(input);
+      const snapshot = rememberRuntime(input, runtime);
+
+      return cloneSnapshot(snapshot);
+    },
+
+    async forkSession(input) {
+      if (!options.runtimeForker) {
+        unsupported("fork_session", "no SDK runtime forker is configured");
+      }
+
+      const result = await options.runtimeForker(input);
+      const snapshot = rememberRuntime(input, result.runtime);
+
+      return {
+        snapshot: cloneSnapshot(snapshot),
+        ...(result.selectedText ? { selectedText: result.selectedText } : {}),
+      };
     },
 
     async sendPrompt(input) {
       const runtime = runtimeFor(input.piSessionId, "send_prompt");
       const promptIndex = promptCounts.get(input.piSessionId) ?? 0;
+      const boundaryPromise = runtime.waitForNextUserMessageBoundary?.();
 
       promptCounts.set(input.piSessionId, promptIndex + 1);
-      void (async () => {
-        try {
-          await runtime.sendPrompt(input.prompt);
-        } catch (error) {
-          emit({
-            piSessionId: input.piSessionId,
-            type: "error",
-            payload: {
-              kind: "error",
-              title: "SDK prompt failed",
-              body: errorMessage(error),
-            },
-          });
-        }
-      })();
+      const promptTask = runtime.sendPrompt(input.prompt).catch((error) => {
+        emit({
+          piSessionId: input.piSessionId,
+          type: "error",
+          payload: {
+            kind: "error",
+            title: "SDK prompt failed",
+            body: errorMessage(error),
+          },
+        });
+
+        return null;
+      });
+      const boundary = boundaryPromise
+        ? await Promise.race([
+            boundaryPromise,
+            promptTask.then(() => null),
+          ])
+        : null;
 
       return {
         piSessionId: input.piSessionId,
@@ -200,6 +268,7 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
           body: input.prompt,
           bodyFormat: "full",
           messageId: `pi-sdk:${input.piSessionId}:user:${promptIndex}`,
+          ...(boundary?.piEntryId ? { piEntryId: boundary.piEntryId } : {}),
           phase: "synthetic",
         },
       };

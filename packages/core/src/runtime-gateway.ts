@@ -28,6 +28,7 @@ export type RuntimeGatewayEventInput = {
   piSessionId: string;
   turnId?: string;
   type: string;
+  ts?: string;
   payload: RuntimeGatewayEventPayload;
 };
 
@@ -45,6 +46,8 @@ export type RuntimeGatewaySnapshot = {
   projectId: string;
   cwd: string;
   status: "idle" | "running" | "failed" | "completed";
+  sessionFile?: string;
+  checkout?: unknown;
   events: RuntimeGatewayEventEnvelope[];
   summary?: RuntimeGatewaySummary;
   updatedAt: string;
@@ -87,7 +90,7 @@ export function createRuntimeGatewaySequencer(
       piSessionId: event.piSessionId,
       turnId: event.turnId,
       type: event.type,
-      ts: now(),
+      ts: event.ts ?? now(),
       payload: { ...event.payload },
     };
   };

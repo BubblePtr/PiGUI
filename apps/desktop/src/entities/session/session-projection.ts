@@ -37,11 +37,13 @@ export type SessionProjection = {
   id: string;
   projectId: string;
   initialPrompt: string;
+  cwd: string | null;
   status: SessionStatus;
   creationStage: SessionCreationStage;
   checkout: ExecutionCheckout | null;
   runtimeId: string | null;
   piSessionId: string | null;
+  sessionFile: string | null;
   runtimeEvents: PiRuntimeEvent[];
   // Structured model built from the Agent Runtime Event stream. Once it has
   // seen run events, it owns the Session Status; legacy event kinds only
@@ -173,11 +175,13 @@ export function createSessionProjection(
     id: input.id,
     projectId: input.projectId,
     initialPrompt: input.initialPrompt,
+    cwd: null,
     status: "creating",
     creationStage: "preparing checkout",
     checkout: null,
     runtimeId: null,
     piSessionId: null,
+    sessionFile: null,
     runtimeEvents: [],
     runtimeModel: createSessionRuntimeModel(),
     queuedMessages: [],
@@ -354,6 +358,7 @@ function runtimeModelAfterLegacyEvent(
       title: event.title,
       body: event.body,
       messageId: event.messageId,
+      piEntryId: event.piEntryId,
       timestamp: event.timestamp,
     });
   }
@@ -636,6 +641,8 @@ export function applySessionProjectionEvent(
           sessionStatusFromRuntimeState(event.state),
         runtimeId: event.state.runtimeId,
         piSessionId: event.state.piSessionId,
+        cwd: event.state.cwd,
+        sessionFile: event.state.sessionFile ?? projection.sessionFile,
         runtimeEvents: normalizedRuntimeEvents(event.state.events),
         runtimeModel,
         summary: event.state.summary ? { ...event.state.summary } : projection.summary,

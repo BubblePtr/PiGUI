@@ -127,6 +127,8 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
     }
     case "reveal_project_in_finder":
       return Promise.resolve(undefined as T);
+    case "list_session_projections":
+      return Promise.resolve([] as T);
     case "list_sessions":
       return Promise.resolve(browserSessionSummaryFixture as T);
     case "get_session_detail": {

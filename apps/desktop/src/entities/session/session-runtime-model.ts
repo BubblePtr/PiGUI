@@ -30,6 +30,7 @@ export type SessionRuntimeMessagePart = {
 export type SessionRuntimeMessage = {
   messageId: string;
   role: "user" | "assistant";
+  piEntryId?: string;
   // Absent on Gateway-minted chat entries (user echo, steer control): they
   // are created at command accept, before the Active Run exists. See the
   // design doc §10 open gap on user-message run attribution.
@@ -353,6 +354,7 @@ export type LegacyChatEventInput = {
   title?: string;
   body: string;
   messageId?: string;
+  piEntryId?: string;
   timestamp: string;
 };
 
@@ -376,6 +378,9 @@ export function addLegacyChatEventToModel(
   messages.set(messageId, {
     messageId,
     role: input.role ?? (input.kind === "error" ? "assistant" : "user"),
+    ...(input.piEntryId ?? existing?.piEntryId
+      ? { piEntryId: input.piEntryId ?? existing?.piEntryId }
+      : {}),
     ...(existing?.runId ? { runId: existing.runId } : {}),
     ...(existing?.turnId ? { turnId: existing.turnId } : {}),
     phase: "final",

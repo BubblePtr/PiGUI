@@ -6,7 +6,10 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { RuntimeGatewayEventEnvelope } from "@pigui/core";
+import type {
+  RuntimeGatewayEventEnvelope,
+  RuntimeGatewayEventInput,
+} from "@pigui/core";
 
 // PiGUI's own data lives outside ~/.pi — that directory is Pi's session truth
 // and PiGUI only observes it.
@@ -23,12 +26,151 @@ export type SessionEventJournal = {
   read(piSessionId: string): Promise<RuntimeGatewayEventEnvelope[]>;
 };
 
+export type PreparedSessionEventJournalFork = {
+  eventsBeforeForkPoint: RuntimeGatewayEventEnvelope[];
+  sourceSessionId?: string;
+};
+
 export type FileSessionEventJournalOptions = {
   dataDir: string;
 };
 
 function cloneEnvelope(envelope: RuntimeGatewayEventEnvelope): RuntimeGatewayEventEnvelope {
   return { ...envelope, payload: { ...envelope.payload } };
+}
+
+function isForkPointEvent(
+  envelope: RuntimeGatewayEventEnvelope,
+  piEntryId: string,
+) {
+  return envelope.payload.piEntryId === piEntryId;
+}
+
+export async function prepareSessionEventJournalFork(input: {
+  journal: SessionEventJournal;
+  sourcePiSessionId: string;
+  piEntryId: string;
+}): Promise<PreparedSessionEventJournalFork> {
+  const sourceEvents = await input.journal.read(input.sourcePiSessionId);
+  const eventsBeforeForkPoint: RuntimeGatewayEventEnvelope[] = [];
+  let sourceSessionId: string | undefined;
+
+  for (const sourceEvent of sourceEvents) {
+    sourceSessionId = sourceEvent.sessionId;
+
+    if (isForkPointEvent(sourceEvent, input.piEntryId)) {
+      return {
+        eventsBeforeForkPoint,
+        ...(sourceSessionId ? { sourceSessionId } : {}),
+      };
+    }
+
+    eventsBeforeForkPoint.push(cloneEnvelope(sourceEvent));
+  }
+
+  throw new Error(
+    `Fork point "${input.piEntryId}" was not found in the Session Event Journal.`,
+  );
+}
+
+const IDENTITY_FIELD_NAMES = new Set([
+  "piSessionId",
+  "runtimeId",
+  "runId",
+  "turnId",
+  "messageId",
+  "partId",
+]);
+
+function rewriteIdentityString(
+  value: string,
+  sourcePiSessionId: string,
+  targetPiSessionId: string,
+) {
+  return value.split(sourcePiSessionId).join(targetPiSessionId);
+}
+
+function rewriteIdentityFields(
+  value: unknown,
+  sourcePiSessionId: string,
+  targetPiSessionId: string,
+  fieldName?: string,
+): unknown {
+  if (typeof value === "string") {
+    return fieldName && IDENTITY_FIELD_NAMES.has(fieldName)
+      ? rewriteIdentityString(value, sourcePiSessionId, targetPiSessionId)
+      : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      rewriteIdentityFields(item, sourcePiSessionId, targetPiSessionId),
+    );
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nestedValue]) => [
+      key,
+      rewriteIdentityFields(
+        nestedValue,
+        sourcePiSessionId,
+        targetPiSessionId,
+        key,
+      ),
+    ]),
+  );
+}
+
+export function copiedSessionEventInputsForFork(input: {
+  prepared: PreparedSessionEventJournalFork;
+  sourcePiSessionId: string;
+  targetSessionId: string;
+  targetPiSessionId: string;
+}): RuntimeGatewayEventInput[] {
+  return input.prepared.eventsBeforeForkPoint.map((sourceEvent) => ({
+    sessionId: input.targetSessionId,
+    piSessionId: input.targetPiSessionId,
+    turnId: sourceEvent.turnId
+      ? rewriteIdentityString(
+          sourceEvent.turnId,
+          input.sourcePiSessionId,
+          input.targetPiSessionId,
+        )
+      : undefined,
+    type: sourceEvent.type,
+    ts: sourceEvent.ts,
+    payload: rewriteIdentityFields(
+      sourceEvent.payload,
+      input.sourcePiSessionId,
+      input.targetPiSessionId,
+    ) as Record<string, unknown>,
+  }));
+}
+
+export function forkMarkerEventInput(input: {
+  prepared: PreparedSessionEventJournalFork;
+  sourcePiSessionId: string;
+  targetSessionId: string;
+  targetPiSessionId: string;
+  piEntryId: string;
+}): RuntimeGatewayEventInput {
+  return {
+    sessionId: input.targetSessionId,
+    piSessionId: input.targetPiSessionId,
+    type: "fork",
+    payload: {
+      kind: "fork",
+      sourcePiSessionId: input.sourcePiSessionId,
+      ...(input.prepared.sourceSessionId
+        ? { sourceSessionId: input.prepared.sourceSessionId }
+        : {}),
+      piEntryId: input.piEntryId,
+    },
+  };
 }
 
 export function createInMemorySessionEventJournal(): SessionEventJournal {

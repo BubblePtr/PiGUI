@@ -10,7 +10,11 @@ import { buildConfigInventory } from "./config";
 import { createNodeExecutionCheckoutGitClient } from "./execution-checkout";
 import { createNodePiRpcProcess } from "./pi-rpc";
 import { createPiSdkDriver } from "./pi-sdk-driver";
-import { createPublicPiSdkRuntimeFactory } from "./pi-sdk-runtime-adapter";
+import {
+  createPublicPiSdkRuntimeFactory,
+  createPublicPiSdkRuntimeForker,
+  createPublicPiSdkRuntimeResumer,
+} from "./pi-sdk-runtime-adapter";
 import {
   createRuntimeGatewayService,
   type PiRuntimeDriver,
@@ -21,6 +25,13 @@ import {
   resolveDataDir,
   type SessionEventJournal,
 } from "./session-event-journal";
+import {
+  createFileSessionProjectionStore,
+  repairProjectionSessionFiles,
+  type PiSessionListItem,
+  type PersistedSessionProjection,
+  type SessionProjectionStore,
+} from "./session-projection-store";
 import {
   buildSessionIndexWithCache,
   createSessionIndexCache,
@@ -59,23 +70,44 @@ export type BackendServiceOptions = {
   piRpc?: PiRpcTransport;
   runtimeDriver?: PiRuntimeDriver;
   runtimeJournal?: SessionEventJournal;
+  sessionProjectionStore?: SessionProjectionStore;
+  piSessionListAll?: () => Promise<PiSessionListItem[]>;
 };
 
 export function createBackendService(options: BackendServiceOptions = {}): BackendService {
   const agentDir = options.agentDir ?? resolveAgentDir();
+  const dataDir = options.dataDir ?? resolveDataDir();
   const sessionCache = options.sessionCache ?? createSessionIndexCache();
   const gitClient = options.gitClient ?? createNodeExecutionCheckoutGitClient();
   const piRpc = options.piRpc ?? createNodePiRpcProcess();
+  const sessionProjectionStore =
+    options.sessionProjectionStore ??
+    createFileSessionProjectionStore({
+      dataDir,
+    });
+  const piSessionListAll =
+    options.piSessionListAll ??
+    (async () => {
+      const sessions = await piSdk.SessionManager.listAll();
+
+      return sessions.map((session) => ({
+        id: session.id,
+        path: session.path,
+      }));
+    });
   const runtimeGateway = createRuntimeGatewayService({
     driver:
       options.runtimeDriver ??
       createPiSdkDriver({
         runtimeFactory: createPublicPiSdkRuntimeFactory({ sdk: piSdk }),
+        runtimeForker: createPublicPiSdkRuntimeForker({ sdk: piSdk }),
+        runtimeResumer: createPublicPiSdkRuntimeResumer({ sdk: piSdk }),
       }),
+    projections: sessionProjectionStore,
     journal:
       options.runtimeJournal ??
       createFileSessionEventJournal({
-        dataDir: options.dataDir ?? resolveDataDir(),
+        dataDir,
       }),
   });
   const listeners = new Set<(event: BackendRpcEvent) => void>();
@@ -97,6 +129,8 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             sessionCache,
             gitClient,
             piRpc,
+            sessionProjectionStore,
+            piSessionListAll,
             runtimeGateway,
           }),
         };
@@ -124,6 +158,8 @@ async function dispatchRequest(input: {
   sessionCache: SessionIndexCache;
   gitClient: ExecutionCheckoutGitClient;
   piRpc: PiRpcTransport;
+  sessionProjectionStore: SessionProjectionStore;
+  piSessionListAll: () => Promise<PiSessionListItem[]>;
   runtimeGateway: RuntimeGatewayService;
 }) {
   const params = paramsRecord(input.request.params);
@@ -143,6 +179,11 @@ async function dispatchRequest(input: {
       return buildSessionIndexWithCache(input.agentDir, input.sessionCache);
     case "get_session_detail":
       return loadSessionDetail(input.agentDir, requiredString(params.id, "id"));
+    case "list_session_projections":
+      return listSessionProjections({
+        store: input.sessionProjectionStore,
+        piSessionListAll: input.piSessionListAll,
+      });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
     case "is_git_repository":
@@ -167,9 +208,51 @@ async function dispatchRequest(input: {
   }
 }
 
+async function listSessionProjections(input: {
+  store: SessionProjectionStore;
+  piSessionListAll: () => Promise<PiSessionListItem[]>;
+}) {
+  const projections = await input.store.list();
+
+  const projectionsNeedingRepair = projections.filter(
+    (projection) => !projection.sessionFile && !projection.sessionFileMissing,
+  );
+
+  if (!projectionsNeedingRepair.length) {
+    return projections;
+  }
+
+  const repaired = repairProjectionSessionFiles(
+    projections,
+    await input.piSessionListAll(),
+  );
+
+  await Promise.all(
+    repaired
+      .filter((projection, index) =>
+        projectionChangedForRepair(projections[index], projection),
+      )
+      .map((projection) => input.store.save(projection)),
+  );
+
+  return repaired;
+}
+
+function projectionChangedForRepair(
+  before: PersistedSessionProjection | undefined,
+  after: PersistedSessionProjection,
+) {
+  return (
+    before?.sessionFile !== after.sessionFile ||
+    before?.sessionFileMissing !== after.sessionFileMissing
+  );
+}
+
 function isRuntimeGatewayMethod(method: string) {
   return (
     method === "create_session" ||
+    method === "fork_session" ||
+    method === "resume_session" ||
     method === "send_prompt" ||
     method === "queue_follow_up" ||
     method === "withdraw_queued_message" ||

@@ -18,7 +18,11 @@ import {
   SessionActionsContent,
 } from "@/pages/agent-workspace";
 import { addProjectToRegistry } from "@/entities/project/project-registry";
-import { PiRuntimeBridgeError } from "@/entities/runtime/pi-runtime-bridge";
+import {
+  PiRuntimeBridgeError,
+  type ForkSessionInput,
+  type ForkSessionResult,
+} from "@/entities/runtime/pi-runtime-bridge";
 import { createInMemoryPiRuntimeBridge } from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import { createExecutionCheckoutManager } from "@/entities/checkout/execution-checkout";
 import {
@@ -120,6 +124,7 @@ async function chooseProjectFromPicker(
 describe("AgentWorkspaceSessionsPage", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    delete window.pigui;
     delete (
       window as typeof window & {
         __PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
@@ -254,6 +259,223 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "No Projects" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Project" })).toBeInTheDocument();
     expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
+  });
+
+  it("loads sidebar history from persisted Session Projections in Electron", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "persisted-session-1",
+            runtimeId: "pi-sdk:persisted-session-1",
+            piSessionId: "pi-session-persisted-1",
+            projectId: pigProjectPath,
+            initialPrompt: "Persisted cold session",
+            cwd: pigProjectPath,
+            status: "idle",
+            updatedAt: "2026-07-03T10:00:00.000Z",
+          },
+        ];
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("list_session_projections", undefined);
+    });
+    expect(
+      await screen.findByRole("row", { name: "Persisted cold session" }),
+    ).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith("list_sessions", expect.anything());
+  });
+
+  it("cold-resumes a selected persisted Session through the Runtime Gateway", async () => {
+    const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "persisted-session-1",
+            runtimeId: "pi-sdk:persisted-session-1",
+            piSessionId: "pi-session-persisted-1",
+            projectId: pigProjectPath,
+            initialPrompt: "Persisted cold session",
+            cwd: pigProjectPath,
+            status: "idle",
+            sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-persisted-1.jsonl",
+            checkout: {
+              mode: "foreground-local",
+              root: pigProjectPath,
+              runtimeCwd: pigProjectPath,
+            },
+            updatedAt: "2026-07-03T10:00:00.000Z",
+          },
+        ];
+      }
+
+      if (command === "resume_session") {
+        return {
+          sessionId: "persisted-session-1",
+          runtimeId: "pi-sdk:persisted-session-1",
+          piSessionId: "pi-session-persisted-1",
+          projectId: pigProjectPath,
+          cwd: pigProjectPath,
+          status: "idle",
+          sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-persisted-1.jsonl",
+          events: [
+            {
+              id: "evt-existing-user",
+              seq: 1,
+              sessionId: "persisted-session-1",
+              piSessionId: "pi-session-persisted-1",
+              type: "message_update",
+              ts: "2026-07-03T10:00:01.000Z",
+              payload: {
+                kind: "message",
+                role: "user",
+                body: "Existing history",
+              },
+            },
+          ],
+          updatedAt: "2026-07-03T10:00:01.000Z",
+        };
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("resume_session", {
+        sessionId: "persisted-session-1",
+        projectId: pigProjectPath,
+        piSessionId: "pi-session-persisted-1",
+        cwd: pigProjectPath,
+        sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-persisted-1.jsonl",
+        checkout: {
+          mode: "foreground-local",
+          root: pigProjectPath,
+          runtimeCwd: pigProjectPath,
+        },
+      });
+    });
+    expect(await screen.findByText("Existing history")).toBeInTheDocument();
+  });
+
+  it("shows an unrecoverable persisted Session instead of silently opening an empty chat", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "persisted-session-1",
+            runtimeId: "pi-sdk:persisted-session-1",
+            piSessionId: "pi-session-persisted-1",
+            projectId: pigProjectPath,
+            initialPrompt: "Missing session file",
+            cwd: pigProjectPath,
+            status: "idle",
+            sessionFileMissing: true,
+            updatedAt: "2026-07-03T10:00:00.000Z",
+          },
+        ];
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    expect(await screen.findAllByText("Missing session file")).toHaveLength(2);
+    expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
+      "Session file is missing",
+    );
+    expect(invoke).not.toHaveBeenCalledWith("resume_session", expect.anything());
+  });
+
+  it("allows a failed cold resume to be retried for the same selected Session", async () => {
+    const user = userEvent.setup();
+    let resumeCalls = 0;
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "persisted-session-1",
+            runtimeId: "pi-sdk:persisted-session-1",
+            piSessionId: "pi-session-persisted-1",
+            projectId: pigProjectPath,
+            initialPrompt: "Retry cold resume",
+            cwd: pigProjectPath,
+            status: "idle",
+            sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-persisted-1.jsonl",
+            checkout: {
+              mode: "foreground-local",
+              root: pigProjectPath,
+              runtimeCwd: pigProjectPath,
+            },
+            updatedAt: "2026-07-03T10:00:00.000Z",
+          },
+        ];
+      }
+
+      if (command === "resume_session") {
+        resumeCalls += 1;
+
+        if (resumeCalls === 1) {
+          throw new Error("SessionManager.open failed");
+        }
+
+        return {
+          sessionId: "persisted-session-1",
+          runtimeId: "pi-sdk:persisted-session-1",
+          piSessionId: "pi-session-persisted-1",
+          projectId: pigProjectPath,
+          cwd: pigProjectPath,
+          status: "idle",
+          sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-persisted-1.jsonl",
+          events: [],
+          updatedAt: "2026-07-03T10:00:01.000Z",
+        };
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    expect(await screen.findByTestId("runtime-fallback-banner")).toHaveTextContent(
+      "SessionManager.open failed",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => {
+      expect(
+        invoke.mock.calls.filter(([command]) => command === "resume_session"),
+      ).toHaveLength(2);
+    });
   });
 
   it("uses browser development Project data for plain-browser draft debugging", async () => {
@@ -1503,6 +1725,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
 
     expect(onDraftSubmit).toHaveBeenCalledWith({
+      checkoutMode: "local",
       projectId: "pig-docs",
       prompt: "Summarize the docs ADR",
     });
@@ -1743,7 +1966,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses a managed checkout for default background Session creation when another Session is active", async () => {
+  it("recommends a managed checkout for Session Draft creation when another Session is active", async () => {
     const user = userEvent.setup();
     const projections: Array<ReturnType<typeof createSessionProjection>> = [];
     const createdWorktrees: string[] = [];
@@ -1818,6 +2041,10 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
+    expect(screen.getByTestId("checkout-strategy-trigger")).toHaveTextContent(
+      "Managed worktree",
+    );
+
     await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
 
     const createdProjection = await waitFor(() => {
@@ -1836,6 +2063,248 @@ describe("AgentWorkspaceSessionsPage", () => {
       `${createdProjection?.checkout?.executionCheckoutRoot}/packages/web`,
     );
     expect(createdWorktrees).toHaveLength(1);
+  });
+
+  it("lets users choose a local checkout even when another Session is active", async () => {
+    const user = userEvent.setup();
+    const projections: Array<ReturnType<typeof createSessionProjection>> = [];
+    const createdWorktrees: string[] = [];
+    const checkoutManager = createExecutionCheckoutManager({
+      worktreesRoot: "/tmp/pig-worktrees",
+      gitClient: {
+        async isGitRepository() {
+          return true;
+        },
+        async addDetachedWorktree({ checkoutRoot }) {
+          createdWorktrees.push(checkoutRoot);
+        },
+      },
+    });
+    let activeProjection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "active-session",
+        projectId: "pig-docs",
+        initialPrompt: "Keep the existing Session active",
+        createdAt: "2026-06-27T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-active",
+        piSessionId: "pi-session-active",
+        occurredAt: "2026-06-27T08:00:01.000Z",
+      },
+    );
+
+    activeProjection = applySessionProjectionEvent(activeProjection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-active-user",
+        piSessionId: "pi-session-active",
+        kind: "message",
+        role: "user",
+        body: "Keep the existing Session active",
+        timestamp: "2026-06-27T08:00:02.000Z",
+      },
+    });
+    saveSessionDraft("pig-docs", "Run beside an active Session in place");
+    render(
+      <AgentWorkspaceSessionsView
+        checkoutManager={checkoutManager}
+        projectId="pig-docs"
+        showDraft
+        sessionProjection={activeProjection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/packages/web",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "active-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+        onProjectionChange={(projection) => {
+          projections.push(projection);
+        }}
+      />,
+    );
+
+    await user.click(screen.getByTestId("checkout-strategy-trigger"));
+    await user.click(await screen.findByRole("option", { name: "Local checkout" }));
+    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+
+    const createdProjection = await waitFor(() => {
+      const latest = projections[projections.length - 1];
+
+      expect(latest?.initialPrompt).toBe("Run beside an active Session in place");
+      expect(latest?.checkout?.mode).toBe("foreground-local");
+
+      return latest;
+    });
+
+    expect(createdProjection?.checkout?.executionCheckoutRoot).toBe(
+      "/Users/void/code/opensource/Pig",
+    );
+    expect(createdProjection?.checkout?.runtimeCwd).toBe(
+      "/Users/void/code/opensource/Pig/packages/web",
+    );
+    expect(createdWorktrees).toHaveLength(0);
+  });
+
+  it("forks a user message into a managed worktree and pre-fills the new composer", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-07-03T12:10:00.000Z",
+    });
+    const projections: SessionProjection[] = [];
+    const createdWorktrees: string[] = [];
+    const checkoutManager = createExecutionCheckoutManager({
+      worktreesRoot: "/tmp/pig-worktrees",
+      gitClient: {
+        async isGitRepository() {
+          return true;
+        },
+        async addDetachedWorktree({ checkoutRoot }) {
+          createdWorktrees.push(checkoutRoot);
+        },
+      },
+    });
+    const sourceProjection: SessionProjection = {
+      ...createSessionProjection({
+        id: "source-session",
+        projectId: "pig-docs",
+        initialPrompt: "Earlier user",
+        createdAt: "2026-07-03T12:00:00.000Z",
+      }),
+      status: "completed",
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:source-session",
+      piSessionId: "pi-session-source",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      runtimeEvents: [
+        {
+          id: "evt-source-user",
+          piSessionId: "pi-session-source",
+          kind: "message",
+          role: "user",
+          body: "Revise this branch",
+          messageId: "pi-sdk:pi-session-source:user:1",
+          piEntryId: "pi-entry-user-2",
+          timestamp: "2026-07-03T12:00:01.000Z",
+        },
+      ],
+      updatedAt: "2026-07-03T12:00:01.000Z",
+    };
+
+    const forkSession = vi.fn(
+      async (input: ForkSessionInput): Promise<ForkSessionResult> => ({
+        selectedText: "Revise this branch",
+        state: {
+          piSessionId: "pi-session-forked",
+          runtimeId: `pi-sdk:${input.sessionId}`,
+          projectId: input.projectId,
+          cwd: input.cwd,
+          status: "idle",
+          sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+          events: [
+            {
+              id: "evt-fork-marker",
+              piSessionId: "pi-session-forked",
+              kind: "message",
+              role: "user",
+              body: "Earlier user",
+              piEntryId: "pi-entry-user-1",
+              timestamp: "2026-07-03T12:10:00.000Z",
+            },
+          ],
+          updatedAt: "2026-07-03T12:10:00.000Z",
+        },
+      }),
+    );
+
+    bridge.forkSession = forkSession;
+
+    render(
+      <AgentWorkspaceSessionsView
+        checkoutManager={checkoutManager}
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={sourceProjection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "source-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+        onProjectionChange={(projection) => {
+          projections.push(projection);
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Fork from message" }));
+
+    const forkInput = forkSession.mock.calls[0]?.[0];
+
+    if (!forkInput) {
+      throw new Error("forkSession was not called.");
+    }
+
+    expect(forkInput).toMatchObject({
+      projectId: "pig-docs",
+      sourcePiSessionId: "pi-session-source",
+      sourceSessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+      piEntryId: "pi-entry-user-2",
+      cwd: expect.stringMatching(/^\/tmp\/pig-worktrees\/session-/),
+      checkout: expect.objectContaining({
+        mode: "managed-worktree",
+        runtimeCwd: expect.stringMatching(/^\/tmp\/pig-worktrees\/session-.*\/docs$/),
+      }),
+    });
+    expect(createdWorktrees).toHaveLength(1);
+
+    const forkedProjection = await waitFor(() => {
+      const latest = projections[projections.length - 1];
+
+      expect(latest?.piSessionId).toBe("pi-session-forked");
+      expect(latest?.checkout?.mode).toBe("managed-worktree");
+
+      return latest;
+    });
+
+    expect(getFollowUpDraft(forkedProjection.id)?.message).toBe("Revise this branch");
+    expect(screen.getByPlaceholderText("What do you want to know?")).toHaveValue(
+      "Revise this branch",
+    );
   });
 
   it("keeps draft text visible and shows failure detail when Session Creation fails", async () => {
@@ -2087,6 +2556,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       id: "session-1",
       projectId: "pig-docs",
       initialPrompt: "Create a real Pi RPC-backed session",
+      cwd: "/Users/void/code/opensource/Pig/docs",
       status: "completed" as const,
       creationStage: "accepted" as const,
       checkout: {
@@ -2096,6 +2566,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       },
       runtimeId: "pi-rpc:session-1",
       piSessionId: "pi-session-rpc",
+      sessionFile: null,
       runtimeEvents: [
         {
           id: "runtime-event-user",

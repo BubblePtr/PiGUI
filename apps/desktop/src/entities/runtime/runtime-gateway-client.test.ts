@@ -7,6 +7,206 @@ import {
 } from "@/entities/runtime/runtime-gateway-client";
 
 describe("Runtime Gateway client", () => {
+  it("resumes persisted runtime state through the Gateway", async () => {
+    const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-resumed",
+      runtimeId: "pi-sdk:session-resumed",
+      piSessionId: "pi-session-resumed",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+      events: [
+        {
+          id: "evt-old-user",
+          seq: 7,
+          sessionId: "session-resumed",
+          piSessionId: "pi-session-resumed",
+          type: "message_update",
+          ts: "2026-07-03T11:00:00.000Z",
+          payload: {
+            kind: "message",
+            role: "user",
+            body: "Existing history",
+          },
+        },
+      ],
+      updatedAt: "2026-07-03T12:00:00.000Z",
+    };
+    const invoke: RuntimeGatewayClientOptions["invoke"] = async <T,>(
+      command: string,
+      args?: Record<string, unknown>,
+    ) => {
+      invocations.push({ command, args });
+
+      if (command === "resume_session") {
+        return snapshot as T;
+      }
+
+      throw new Error(`unexpected command ${command}`);
+    };
+    const client = createRuntimeGatewayClient({
+      invoke,
+      onBackendEvent: vi.fn(() => vi.fn()),
+    });
+
+    const state = await client.resumeSession?.({
+      sessionId: "session-resumed",
+      projectId: "pig",
+      piSessionId: "pi-session-resumed",
+      cwd: "/Users/void/code/opensource/Pig",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+
+    expect(invocations).toEqual([
+      {
+        command: "resume_session",
+        args: {
+          sessionId: "session-resumed",
+          projectId: "pig",
+          piSessionId: "pi-session-resumed",
+          cwd: "/Users/void/code/opensource/Pig",
+          sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+          checkout: {
+            mode: "foreground-local",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig",
+          },
+        },
+      },
+    ]);
+    expect(state).toMatchObject({
+      piSessionId: "pi-session-resumed",
+      runtimeId: "pi-sdk:session-resumed",
+      events: [
+        expect.objectContaining({
+          id: "evt-old-user",
+          role: "user",
+          body: "Existing history",
+        }),
+      ],
+    });
+    await expect(client.getSessionState("pi-session-resumed")).resolves.toMatchObject({
+      events: [
+        expect.objectContaining({
+          id: "evt-old-user",
+        }),
+      ],
+    });
+  });
+
+  it("forks runtime state through the Gateway and preserves Pi entry identity", async () => {
+    const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-forked",
+      runtimeId: "pi-sdk:session-forked",
+      piSessionId: "pi-session-forked",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+      status: "idle",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+      events: [
+        {
+          id: "evt-copied-user",
+          seq: 1,
+          sessionId: "session-forked",
+          piSessionId: "pi-session-forked",
+          type: "message_update",
+          ts: "2026-07-03T12:10:00.000Z",
+          payload: {
+            kind: "message",
+            role: "user",
+            body: "Earlier user",
+            messageId: "pi-sdk:pi-session-forked:user:0",
+            piEntryId: "pi-entry-user-1",
+          },
+        },
+      ],
+      updatedAt: "2026-07-03T12:10:00.000Z",
+    };
+    const invoke: RuntimeGatewayClientOptions["invoke"] = async <T,>(
+      command: string,
+      args?: Record<string, unknown>,
+    ) => {
+      invocations.push({ command, args });
+
+      if (command === "fork_session") {
+        return {
+          selectedText: "Revise this branch",
+          snapshot,
+        } as T;
+      }
+
+      if (command === "get_runtime_snapshot") {
+        return snapshot as T;
+      }
+
+      throw new Error(`unexpected command ${command}`);
+    };
+    const client = createRuntimeGatewayClient({
+      invoke,
+      onBackendEvent: vi.fn(() => vi.fn()),
+    });
+
+    const result = await client.forkSession?.({
+      sessionId: "session-forked",
+      projectId: "pig",
+      sourcePiSessionId: "pi-session-source",
+      sourceSessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+      piEntryId: "pi-entry-user-2",
+      cwd: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+      checkout: {
+        mode: "managed-worktree",
+        root: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+        runtimeCwd: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+      },
+    });
+
+    expect(invocations[0]).toEqual({
+      command: "fork_session",
+      args: {
+        sessionId: "session-forked",
+        projectId: "pig",
+        sourcePiSessionId: "pi-session-source",
+        sourceSessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-source.jsonl",
+        piEntryId: "pi-entry-user-2",
+        cwd: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+        checkout: {
+          mode: "managed-worktree",
+          root: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+          runtimeCwd: "/Users/void/code/opensource/Pig/.pig-worktrees/session-forked",
+        },
+      },
+    });
+    expect(result).toMatchObject({
+      selectedText: "Revise this branch",
+      state: {
+        piSessionId: "pi-session-forked",
+        runtimeId: "pi-sdk:session-forked",
+        events: [
+          expect.objectContaining({
+            id: "evt-copied-user",
+            messageId: "pi-sdk:pi-session-forked:user:0",
+            piEntryId: "pi-entry-user-1",
+          }),
+        ],
+      },
+    });
+    await expect(client.getSessionState("pi-session-forked")).resolves.toMatchObject({
+      events: [
+        expect.objectContaining({
+          piEntryId: "pi-entry-user-1",
+        }),
+      ],
+    });
+  });
+
   it("delegates Electron runtime calls to Gateway methods and suppresses command echo events", async () => {
     const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
     const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];

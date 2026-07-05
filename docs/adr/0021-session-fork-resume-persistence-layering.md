@@ -1,6 +1,6 @@
 # Session Fork/Resume 与双轨持久化分层
 
-冷恢复（Resume）与对话分叉（Fork）进入产品边界后，必须先定死两份已经存在的落盘数据的分工：SDK driver 创建 session 时未传 `sessionManager`，Pi 默认已把每个 PiGUI session 持久化为 `~/.pi` 下的树形 jsonl（上下文真相）；切片 6 又建立了 PiGUI 自己的 Session Event Journal（`~/.pigui`，呈现真相）。不定死分工，fork/resume/import/analyze 每个后续能力都会把"该读哪份"重新争论一遍。
+冷恢复（Resume）与对话分叉（Fork）进入产品边界后，必须先定死两份已经存在的落盘数据的分工：SDK driver 创建 session 时未传 `sessionManager`，Pi 默认已把每个 PiGUI session 持久化为 `~/.pi` 下的树形 jsonl（上下文真相）；切片 6 又建立了 PiGUI 自己的 Session Event Journal（`~/.pigui`，呈现真相）。不定死分工，fork/resume/analyze 每个后续能力都会把"该读哪份"重新争论一遍。
 
 ## Decision
 
@@ -21,11 +21,11 @@
 
 **`resume_session` / `fork_session` 为 SDK-only Gateway 命令；RPC driver 冻结**。RPC 与 SDK 事件面同构，但命令面隔进程摸不到 SessionManager（无法注入、无法读 leaf、无法提取分支），新能力只补 unsupported stub + 记 capability 缺口，不追赶。保留 RPC driver 的期权价值：跟随用户本机 pi CLI 版本、SDK 版本回归的逃生通道。正式删除需单独 ADR（推翻 ADR-0018 一部分）。
 
-**Sidebar 历史列表只来自持久化的 Session Projection**。不扫 `~/.pi` 自动混入：外部 session 没有 journal/checkout/status，是幽灵行；与 Project Registry"手动添加、不自动发现"纪律一致；`listAll` 需全文解析所有 jsonl，启动性能不可接受。Pi CLI session 未来通过显式 **Session Import** 进入，导入时补建 projection；导入时间线的保真度问题留待 Import 设计时单独决定。
+**Sidebar 历史列表只来自持久化的 Session Projection，且 Projection 只由 PiGUI 内创建的 Session 产生**。不扫 `~/.pi` 自动混入：外部 session 没有 journal/checkout/status，是幽灵行；与 Project Registry"手动添加、不自动发现"纪律一致；`listAll` 需全文解析所有 jsonl，启动性能不可接受。PiGUI 不提供 Pi CLI/TUI session import；需要在 PiGUI 继续外部工作时，用户在目标 Project 内新建 PiGUI Session，这与 Codex 的本地 thread 边界一致。
 
 ## Consequences
 
-- `CONTEXT.md` 新增 Resume、Fork、Session Import 词条。
+- `CONTEXT.md` 新增 Resume、Fork、Session Creation Boundary 词条。
 - 普通 Session 创建的 checkout 策略改为用户显式选择（LOCAL/WORKTREE dropdown），废除"Project 已有 active session 即自动 worktree"的隐式决定；fork 是唯一强制 worktree 的入口。
 - 全存活策略需数据验证：批量打开历史 Session 的单实例内存实测。
 - 待办与切片见 `.scratch/session-fork-resume/issues.md`。
