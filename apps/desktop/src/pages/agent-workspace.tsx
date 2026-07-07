@@ -2,6 +2,7 @@ import { Button, type Key, ListBox, ScrollShadow, Tooltip } from "@heroui/react"
 import { ChainOfThought } from "@heroui-pro/react/chain-of-thought";
 import { ChatConversation } from "@heroui-pro/react/chat-conversation";
 import { ChatMessage } from "@heroui-pro/react/chat-message";
+import { ChatMessageActions } from "@heroui-pro/react/chat-message-actions";
 import { ChatTool, type ToolPartState } from "@heroui-pro/react/chat-tool";
 import { InlineSelect } from "@heroui-pro/react/inline-select";
 import { Markdown, StreamMarkdown } from "@heroui-pro/react/markdown";
@@ -225,7 +226,7 @@ function LiveChatMessage({
 
     return (
       <ChatMessage.User>
-        <div className="flex items-start gap-2">
+        <div className="flex flex-col items-end gap-1">
           <ChatMessage.Bubble>
             {message.controlLabel ? (
               <p className="mb-1 text-xs font-medium text-muted">
@@ -234,22 +235,24 @@ function LiveChatMessage({
             ) : null}
             <ChatMessage.Content>{message.body}</ChatMessage.Content>
           </ChatMessage.Bubble>
-          {canFork ? (
-            <Tooltip delay={0}>
-              <Tooltip.Trigger className="inline-flex">
-                <Button
-                  isIconOnly
-                  aria-label="Fork from message"
-                  size="sm"
-                  variant="ghost"
-                  onPress={() => onForkMessage?.(message)}
-                >
-                  <GitBranch className="size-4" />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Fork from message</Tooltip.Content>
-            </Tooltip>
-          ) : null}
+          <ChatMessageActions className="shrink-0">
+            <ChatMessageActions.Copy
+              aria-label="Copy"
+              tooltip="Copy"
+              onPress={() => {
+                void navigator.clipboard?.writeText(message.body);
+              }}
+            />
+            {canFork ? (
+              <ChatMessage.Action
+                aria-label="Fork from message"
+                tooltip="Fork from message"
+                onPress={() => onForkMessage?.(message)}
+              >
+                <GitBranch className="size-4" />
+              </ChatMessage.Action>
+            ) : null}
+          </ChatMessageActions>
         </div>
       </ChatMessage.User>
     );
@@ -257,7 +260,6 @@ function LiveChatMessage({
 
   return (
     <ChatMessage.Assistant>
-      <ChatMessage.Avatar alt="Pi agent" fallback="Pi" />
       <ChatMessage.Body>
         {message.controlLabel ? (
           <p className="mb-1 text-xs font-medium text-muted">
@@ -273,6 +275,25 @@ function LiveChatMessage({
         <ChatMessage.Content>
           <AssistantMessageContent message={message} />
         </ChatMessage.Content>
+        {!message.controlLabel ? (
+          <ChatMessageActions>
+            <ChatMessageActions.Copy
+              aria-label="Copy"
+              tooltip="Copy"
+              onPress={() => {
+                void navigator.clipboard?.writeText(message.body);
+              }}
+            />
+            <ChatMessageActions.ThumbsUp
+              aria-label="Good response"
+              tooltip="Good response"
+            />
+            <ChatMessageActions.ThumbsDown
+              aria-label="Bad response"
+              tooltip="Bad response"
+            />
+          </ChatMessageActions>
+        ) : null}
       </ChatMessage.Body>
     </ChatMessage.Assistant>
   );
