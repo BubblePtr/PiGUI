@@ -261,7 +261,17 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-bubble"]')).toHaveLength(1);
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-body"]')).toHaveLength(1);
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-content"]')).toHaveLength(2);
-    expect(liveColumn.querySelectorAll('[data-slot="chat-message-avatar"]')).toHaveLength(1);
+    expect(liveColumn.querySelectorAll('[data-slot="chat-message-avatar"]')).toHaveLength(0);
+    expect(liveColumn.querySelectorAll('[data-slot="chat-message-actions"]')).toHaveLength(2);
+    const userMessage = liveColumn.querySelector(
+      '[data-slot="chat-message-user"]',
+    );
+    const userBubble = userMessage?.querySelector(
+      '[data-slot="chat-message-bubble"]',
+    );
+    const userActions = userMessage?.querySelector(
+      '[data-slot="chat-message-actions"]',
+    );
     const assistantMessage = liveColumn.querySelector(
       '[data-slot="chat-message-assistant"]',
     );
@@ -271,8 +281,32 @@ describe("AgentWorkspaceSessionsPage", () => {
     const assistantContent = assistantMessage?.querySelector(
       '[data-slot="chat-message-content"]',
     );
+    const assistantActions = assistantMessage?.querySelector(
+      '[data-slot="chat-message-actions"]',
+    );
+    expect(userActions).toBeInTheDocument();
+    expect(userActions?.parentElement).toHaveClass(
+      "flex",
+      "flex-col",
+      "items-end",
+      "gap-1",
+    );
+    expect(userBubble?.nextElementSibling).toBe(userActions);
+    expect(
+      within(userMessage as HTMLElement).getByRole("button", { name: "Copy" }),
+    ).toBeInTheDocument();
     expect(assistantTrace).not.toBeInTheDocument();
     expect(assistantContent).toBeInTheDocument();
+    expect(assistantActions).toBeInTheDocument();
+    expect(
+      within(assistantMessage as HTMLElement).getByRole("button", { name: "Copy" }),
+    ).toBeInTheDocument();
+    expect(
+      within(assistantMessage as HTMLElement).getByRole("button", { name: "Good response" }),
+    ).toBeInTheDocument();
+    expect(
+      within(assistantMessage as HTMLElement).getByRole("button", { name: "Bad response" }),
+    ).toBeInTheDocument();
     expect(liveColumn.querySelectorAll('[data-slot="chain-of-thought-step"]')).toHaveLength(0);
     expect(within(liveColumn).queryByText("Project context loaded")).not.toBeInTheDocument();
     expect(promptInput).toBeInTheDocument();
@@ -2369,7 +2403,18 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Fork from message" }));
+    const sourceMessage = (await screen.findByText("Revise this branch")).closest(
+      '[data-slot="chat-message-user"]',
+    );
+    const sourceActions = sourceMessage?.querySelector(
+      '[data-slot="chat-message-actions"]',
+    );
+
+    expect(sourceActions).toBeInTheDocument();
+
+    await user.click(
+      within(sourceActions as HTMLElement).getByRole("button", { name: "Fork from message" }),
+    );
 
     expect(confirm).toHaveBeenCalledWith(
       expect.stringContaining("Fork this message into a new Session?"),
@@ -2507,7 +2552,18 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Fork from message" }));
+    const sourceMessage = (await screen.findByText("Revise this branch")).closest(
+      '[data-slot="chat-message-user"]',
+    );
+    const sourceActions = sourceMessage?.querySelector(
+      '[data-slot="chat-message-actions"]',
+    );
+
+    expect(sourceActions).toBeInTheDocument();
+
+    await user.click(
+      within(sourceActions as HTMLElement).getByRole("button", { name: "Fork from message" }),
+    );
     await Promise.resolve();
 
     expect(confirm).toHaveBeenCalledWith(
