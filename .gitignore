@@ -29,3 +29,5 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 *.swp
+test-results/
+e2e/screenshots/
