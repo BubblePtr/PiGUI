@@ -32,6 +32,13 @@ describe("Electron shell", () => {
     expect(main).toContain("trafficLightPosition: { x: 16, y: 13 }");
   });
 
+  it("uses hash history for the packaged Electron file URL", () => {
+    const renderer = readProjectFile("apps/desktop/src/app/main.tsx");
+
+    expect(renderer).toContain("createHashHistory");
+    expect(renderer).toContain("isElectronRuntime()");
+  });
+
   it("exposes only a typed PiGUI API from preload", () => {
     const preload = readProjectFile("apps/desktop/electron/preload.ts");
 
@@ -80,5 +87,24 @@ describe("Electron shell", () => {
     expect(main).toContain("backendPort = null");
     expect(main).toContain("backendPort?.close()");
     expect(main).toContain("PiGUI backend utility process is not connected.");
+  });
+
+  it("restarts the backend utility process and reports lifecycle state", () => {
+    const main = readProjectFile("apps/desktop/electron/main.ts");
+
+    expect(main).toContain("scheduleBackendRestart");
+    expect(main).toContain("backendRestartBaseDelayMs");
+    expect(main).toContain('lifecycle: "connected"');
+    expect(main).toContain('lifecycle: "disconnected"');
+    expect(main).toContain('app.on("before-quit"');
+    expect(main).toContain("backendProcess?.kill()");
+  });
+
+  it("gates backend process control behind the explicit E2E environment", () => {
+    const main = readProjectFile("apps/desktop/electron/main.ts");
+
+    expect(main).toContain('const e2eKillBackendCommand = "__e2e_kill_backend"');
+    expect(main).toContain('process.env.PIGUI_E2E !== "1"');
+    expect(main).toContain("killBackendForEndToEndTest");
   });
 });

@@ -68,9 +68,14 @@ export type RuntimeGatewaySequencerOptions = {
   idFactory?: () => string;
 };
 
+export type RuntimeGatewaySequencer = {
+  (event: RuntimeGatewayEventInput): RuntimeGatewayEventEnvelope;
+  advanceTo(seq: number): void;
+};
+
 export function createRuntimeGatewaySequencer(
   options: RuntimeGatewaySequencerOptions = {},
-) {
+): RuntimeGatewaySequencer {
   const now = options.now ?? (() => new Date().toISOString());
   const idFactory =
     options.idFactory ??
@@ -80,7 +85,7 @@ export function createRuntimeGatewaySequencer(
         : `evt-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   let seq = 0;
 
-  return (event: RuntimeGatewayEventInput): RuntimeGatewayEventEnvelope => {
+  const nextEvent = (event: RuntimeGatewayEventInput): RuntimeGatewayEventEnvelope => {
     seq += 1;
 
     return {
@@ -94,4 +99,12 @@ export function createRuntimeGatewaySequencer(
       payload: { ...event.payload },
     };
   };
+
+  nextEvent.advanceTo = (nextSeq: number) => {
+    if (Number.isSafeInteger(nextSeq) && nextSeq > seq) {
+      seq = nextSeq;
+    }
+  };
+
+  return nextEvent;
 }

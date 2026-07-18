@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import {
   Outlet,
   RouterProvider,
+  createHashHistory,
   createRootRoute,
   createRoute,
   createRouter,
@@ -12,6 +13,7 @@ import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
 import { SetupPage } from "@/pages/setup";
 import { TraceIndexPage, TraceSessionPage } from "@/pages/trace";
 import { UsagePage } from "@/pages/usage";
+import { isElectronRuntime } from "@/shared/runtime";
 import "./styles.css";
 
 const queryClient = new QueryClient();
@@ -51,6 +53,7 @@ const setupRoute = createRoute({
 });
 
 const router = createRouter({
+  ...(isElectronRuntime() ? { history: createHashHistory() } : {}),
   routeTree: rootRoute.addChildren([
     indexRoute,
     sessionDetailRoute,

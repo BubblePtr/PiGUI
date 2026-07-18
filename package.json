@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --filter @pigui/desktop dev",
     "test": "vitest run",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && bun --filter @pigui/desktop build",
     "preview": "bun --filter @pigui/desktop preview"
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@hyperse/eslint-config-hyperse": "^1.7.3",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.1.12",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

@@ -11,7 +11,10 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AppFrame } from "@/app/app-shell";
+import {
+  AppFrame,
+  defaultSidebarProjectSessionProjections,
+} from "@/app/app-shell";
 import { addProjectToRegistry, getProjectRegistry } from "@/entities/project/project-registry";
 import { saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
@@ -38,7 +41,11 @@ function renderAppFrame(
 
   const rootRoute = createRootRoute({
     component: () => (
-      <AppFrame sidebar={<div>Route sidebar</div>} toolbarActions={toolbarActions}>
+      <AppFrame
+        sidebar={<div>Route sidebar</div>}
+        sessionProjections={defaultSidebarProjectSessionProjections}
+        toolbarActions={toolbarActions}
+      >
         <div>Main content</div>
       </AppFrame>
     ),

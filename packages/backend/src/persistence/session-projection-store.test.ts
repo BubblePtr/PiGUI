@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   createFileSessionProjectionStore,
   createInMemorySessionProjectionStore,
+  mergeSessionProjection,
   projectionFromRuntimeSnapshot,
   repairProjectionSessionFiles,
 } from "./session-projection-store";
@@ -84,5 +85,28 @@ describe("session projection store", () => {
         sessionFileMissing: true,
       },
     ]);
+  });
+
+  it("keeps a failed event result until a later run actually starts", () => {
+    const failed = {
+      ...projectionFromRuntimeSnapshot(snapshot),
+      status: "failed" as const,
+      updatedAt: "2026-07-18T12:00:00.000Z",
+    };
+
+    expect(
+      mergeSessionProjection(failed, {
+        ...failed,
+        status: "completed",
+        updatedAt: "2026-07-18T12:00:01.000Z",
+      }),
+    ).toMatchObject({ status: "failed" });
+    expect(
+      mergeSessionProjection(failed, {
+        ...failed,
+        status: "running",
+        updatedAt: "2026-07-18T12:05:00.000Z",
+      }),
+    ).toMatchObject({ status: "running" });
   });
 });
