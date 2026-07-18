@@ -2,29 +2,39 @@
 
 [English](README.md) | 简体中文
 
-> [Pi Agent](https://pi.dev) 的 GUI 控制平面——让 CLI 的运行时不再是黑盒。
+> [Pi Agent](https://pi.dev) 缺失的那块 GUI。
 
-PiGUI 是面向 Pi 编码智能体的桌面控制平面：它创建、启动、观察和管理 Pi agent 工作空间，并把每次会话重放为一条可读的时间线，附带真实的成本与 token 数据。Pi 始终是唯一的运行时并拥有会话真相；PiGUI 通过稳定的 Runtime Gateway API 驱动它，后端 driver 可按隔离与部署需求选用 Pi SDK 或 Pi RPC 子进程。
+Pi 有一个像 VS Code 一样的扩展体系，却没有一块屏幕。PiGUI 就是那块屏幕：一个桌面应用，把 Pi 运行时和插件生态产出的一切——会话、trace、成本、工具调用，未来还有插件面板和动态工作流——变成可视、可操作的界面，并叠加终端永远给不了的能力。
 
-一次会话结束后，PiGUI 让你在几秒内回答终端隐藏的三个问题：
+## 愿景
+
+PiGUI 由三层构成：
+
+1. **可视化（Visualize）**——给 Pi 生态里的每种能力一张脸。带成本与 token 真相的会话 trace 时间线只是第一种可视化类型，不是产品本体；插件提供的面板和动态工作流视图是下一步。
+2. **操作（Operate）**——底层的 agent 工作空间控制平面：跨 Project 和 git worktree 创建、驱动、steer、fork 和恢复 Pi 会话。Pi 始终是唯一运行时并拥有会话真相；PiGUI 通过稳定的 Runtime Gateway API 观察和驾驭它。
+3. **增强（Augment）**——终端承载不了的 GUI 原生能力，与 Codex 桌面应用同一思路：带 DOM 批注模式的内嵌浏览器、替代终端模拟器的结构化操作面。
+
+今天，PiGUI 已经能让你在几秒内回答终端隐藏的三个问题：
 
 - **这次花了多少钱？**
 - **哪一步最贵？**
 - **Pi 当时到底在想什么？**
 
+### Roadmap 主题
+
+- **插件 surface**——让 Pi 扩展声明自己的可视化面板的协议，走同一条事件流水线路由。下方架构中的 `surface` 路由就是预留的接缝；Extension-UI 的 gateway 协议是 [ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md) 中已记录的 capability 缺口。
+- **内嵌浏览器批注**——预览页面并批注 DOM 元素，把精确的 UI 反馈喂回给 Pi。这是选择 Electron 外壳的承重理由（[ADR-0013](docs/adr/0013-electron-shell-and-relocatable-backend.md)）。
+- **动态工作流可视化**——当 Pi 执行多步骤或多 agent 工作流时，渲染为实时可检视的视图，而不是交错的日志。
+
 ## 状态
 
-🛠️ **开发进行中。** Electron 外壳、Runtime Gateway API、RPC 进程 driver、Pi SDK driver spike，以及 agent 工作空间基础（会话、运行控制、runtime 投影）均已落地；用量与配置界面开发中。
+🛠️ **开发进行中。** Electron 外壳、Runtime Gateway API、双 driver，以及 agent 工作空间基础（会话、运行控制、fork/resume、runtime 投影）均已落地；用量与配置界面开发中。完整的终端模拟器和文件树被有意推迟。
 
 产品最初是一个被动的会话重放工具，现已演进为面向 Pi 的 **Agent 工作空间控制平面**（见 [`docs/adr/0001`](docs/adr/0001-agent-workspace-control-plane.md)）。活的权威来源是领域词汇表和 ADR：
 
 - **词汇表：** [`CONTEXT.md`](CONTEXT.md)
 - **决策记录：** [`docs/adr/`](docs/adr/)
 - **功能 PRD：** [`.scratch/<feature>/PRD.md`](.scratch/)（时点性的规划记录）
-
-## 范围
-
-PiGUI 把 Pi 的运行时组织为桌面控制平面：在 **Project** 下创建并驱动 **Session**，把每条 **Session Trace** 重放为带成本与 token 真相的可读时间线，并查看跨会话的**用量**与**配置**。带 DOM 标注的内嵌浏览器在规划中（这是选择 Electron 外壳的承重理由）。完整的终端模拟器和文件树被有意推迟。
 
 ## 技术栈
 
@@ -55,6 +65,7 @@ flowchart LR
 
 - **Pi session jsonl**（`~/.pi`）是*上下文真相*：冷恢复时 Pi 自己从中重建 LLM 上下文——PiGUI 永不自行拼装 LLM 上下文。
 - **Session Event Journal**（`~/.pigui`）是*呈现真相*：UI 时间线、run/turn identity 和控制事件只来自对它的回放。
+- 每个事件都带 `surface` 标记（`chat | trace | status | composer | hidden`），路由到它所属的可视化面——今天是封闭集合，明天就是插件声明自有面板的预留扩展点。
 
 ### 代码在哪里
 
