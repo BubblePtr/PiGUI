@@ -1,59 +1,40 @@
-# PiGUI E2E Tests
+# PiGUI E2E 测试
 
-Playwright-based end-to-end tests that launch the real Electron desktop app
-and verify behavior through the UI.
+Playwright 启动真实 Electron 桌面应用，通过 UI 和持久化文件验证 M1/M2 基础契约。
 
-## Prerequisites
+## 运行
 
 ```bash
-# Build the Electron app first
+# 先构建 Electron main、preload、renderer 和 backend
 bun run build
 
-# Install Playwright browsers (Chromium is bundled with Electron, so this is for the test runner)
-npx playwright install chromium
+# 运行全部 Electron E2E
+bun run test:e2e
+
+# 仅运行当前 smoke 文件
+bun run test:e2e -- e2e/smoke/m1-fixture-free.spec.ts
 ```
 
-## Running
+当前 smoke 不调用真实 LLM。每条测试都会创建独立的 Electron user data、PiGUI data 和 Project 目录，并在结束后清理，避免读取开发者机器上的 localStorage 或 `~/.pigui`。
 
-```bash
-# All E2E tests
-npx playwright test --config e2e/playwright.config.ts
+## 覆盖范围
 
-# Specific test
-npx playwright test --config e2e/playwright.config.ts e2e/smoke/m1-fixture-free.spec.ts
+- Electron 真空态不显示 browser development fixture
+- 真实 Project Registry 数据可进入 Session draft
+- Archive UI 会调用 backend、持久化 `archived` 状态并变为只读
+- test-only kill command 会真实终止 backend utility process；测试随后验证 disconnected/connected generation 和 Projection 重新加载
 
-# Headed mode (see the window)
-npx playwright test --config e2e/playwright.config.ts --headed
+backend kill command 仅在 `PIGUI_E2E=1` 时启用，生产运行不可调用。
 
-# Debug mode
-npx playwright test --config e2e/playwright.config.ts --debug
-```
+## 目录
 
-## Test Architecture
-
-```
+```text
 e2e/
-  playwright.config.ts     # Playwright config
+  playwright.config.ts
   fixtures/
-    electron-app.ts        # Launch helpers + fixture detection
+    electron-app.ts
   smoke/
-    m1-fixture-free.spec.ts  # M1/M2 smoke tests
-  screenshots/             # Auto-saved screenshots
+    m1-fixture-free.spec.ts
 ```
 
-## Layers
-
-| Layer | Framework | Scope |
-|-------|-----------|-------|
-| E2E | Playwright + Electron | Real desktop app, full stack |
-| Integration | Vitest + jsdom | Component + backend integration |
-| Unit | Vitest | Pure function / module tests |
-
-## Pi Runtime Mocking
-
-E2E tests should NOT call a real LLM. Two strategies:
-
-1. **FakePiRuntime** (in-memory) — for fast smoke tests
-2. **Pi SDK Spy** — records RPC calls for contract verification
-
-Both are triggered by environment variables the backend reads at startup.
+失败截图和 trace 写入 `test-results/`，该目录不进入 Git。

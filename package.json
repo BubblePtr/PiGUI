@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --filter @pigui/desktop dev",
     "test": "vitest run",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && bun --filter @pigui/desktop build",
     "preview": "bun --filter @pigui/desktop preview"
@@ -76,7 +77,6 @@
   "trustedDependencies": [
     "heroui-pro",
     "@heroui-pro/react",
-    "electron",
-    "heroui-native-pro"
+    "electron"
   ]
 }

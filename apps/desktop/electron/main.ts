@@ -27,6 +27,7 @@ let appQuitting = false;
 const pendingRequests = new Map<string, PendingRequest>();
 const backendRestartBaseDelayMs = 250;
 const backendRestartMaxDelayMs = 5_000;
+const e2eKillBackendCommand = "__e2e_kill_backend";
 
 function rendererUrl() {
   return process.env.ELECTRON_RENDERER_URL;
@@ -187,6 +188,7 @@ function sendBackendLifecycleEvent(input: {
       payload: {
         kind: connected ? "status" : "error",
         lifecycle: input.lifecycle,
+        generation: input.generation,
         title: input.title,
         body: input.body,
       },
@@ -241,9 +243,29 @@ function revealProjectInFinder(args?: Record<string, unknown>) {
   shell.showItemInFolder(path);
 }
 
+function killBackendForEndToEndTest() {
+  if (process.env.PIGUI_E2E !== "1") {
+    throw new Error("The PiGUI E2E backend control is disabled.");
+  }
+
+  if (!backendProcess) {
+    throw new Error("PiGUI backend utility process is not running.");
+  }
+
+  const generation = backendGeneration;
+
+  backendProcess.kill();
+
+  return { generation };
+}
+
 ipcMain.handle(
   "pigui:invoke",
   (_event, input: { command: string; args?: Record<string, unknown> }) => {
+    if (input.command === e2eKillBackendCommand) {
+      return killBackendForEndToEndTest();
+    }
+
     if (input.command === "select_project_directory") {
       return selectProjectDirectory();
     }
