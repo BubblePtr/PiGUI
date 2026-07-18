@@ -7,7 +7,7 @@ import {
   measureIdleAgentSessionMemory,
   selectIdleMemorySessionSamples,
   type IdleMemorySessionInfo,
-} from "../src/session-memory-measurement";
+} from "../src/drivers/session-memory-measurement";
 
 const mib = 1024 * 1024;
 

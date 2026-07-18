@@ -2,7 +2,7 @@
 // agent-runtime-event-normalizer; this module only wires the SDK subscription
 // into the normalizer and maps SDK session commands to runtime semantics.
 
-import { createAgentRuntimeEventNormalizer } from "./agent-runtime-event-normalizer";
+import { createAgentRuntimeEventNormalizer } from "../gateway/agent-runtime-event-normalizer";
 import type {
   PiSdkRuntimeFactory,
   PiSdkRuntimeForker,
@@ -14,7 +14,7 @@ import type {
   CreateRuntimeSessionInput,
   ForkRuntimeSessionInput,
   ResumeRuntimeSessionInput,
-} from "./runtime-gateway";
+} from "../gateway/runtime-gateway";
 
 export type PublicPiSdkAgentSession = {
   sessionId: string;

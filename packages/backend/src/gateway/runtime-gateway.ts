@@ -13,13 +13,13 @@ import {
   prepareSessionEventJournalFork,
   type PreparedSessionEventJournalFork,
   type SessionEventJournal,
-} from "./session-event-journal";
+} from "../persistence/session-event-journal";
 import {
   mergeSessionProjection,
   projectionFromRuntimeSnapshot,
   type SessionProjectionStore,
   type PersistedSessionProjection,
-} from "./session-projection-store";
+} from "../persistence/session-projection-store";
 
 export type RuntimeGatewayDriverEvent = Omit<RuntimeGatewayEventInput, "sessionId"> & {
   sessionId?: string;

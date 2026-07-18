@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackendService } from "./service";
-import { createInMemorySessionEventJournal } from "./session-event-journal";
-import { createInMemorySessionProjectionStore } from "./session-projection-store";
+import { createInMemorySessionEventJournal } from "./persistence/session-event-journal";
+import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
 
 const createAgentSession = vi.hoisted(() => vi.fn());

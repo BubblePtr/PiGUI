@@ -1,6 +1,6 @@
 import * as sdk from "@earendil-works/pi-coding-agent";
-import { createPublicPiSdkRuntimeFactory } from "../src/pi-sdk-runtime-adapter";
-import { runPiSdkDriverSpike, type PiSdkSpikeReport } from "../src/pi-sdk-spike";
+import { createPublicPiSdkRuntimeFactory } from "../src/drivers/pi-sdk-runtime-adapter";
+import { runPiSdkDriverSpike, type PiSdkSpikeReport } from "../src/drivers/pi-sdk-spike";
 
 function payloadString(value: unknown) {
   return typeof value === "string" ? value : "";
