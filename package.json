@@ -25,6 +25,7 @@
     "@internationalized/date": "^3.12.1",
     "@internationalized/number": "^3.6.7",
     "@number-flow/react": "^0.6.0",
+    "@pierre/diffs": "1.2.12",
     "@react-aria/utils": "^3.34.1",
     "@react-stately/utils": "^3.12.1",
     "@tanstack/react-query": "^5.85.5",

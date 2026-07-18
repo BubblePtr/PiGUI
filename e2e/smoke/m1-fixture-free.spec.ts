@@ -160,3 +160,32 @@ test.describe("M2: Reliable lifecycle", () => {
     }
   });
 });
+
+test.describe("M3: Real diff action surface", () => {
+  test("renders Git changes from the Session checkout", async () => {
+    const testApp = await launchPiGUI({ seedGitChanges: true });
+
+    try {
+      await openSession(
+        testApp.window,
+        testApp.project!,
+        testApp.projection!,
+      );
+      await testApp.window.getByLabel("Session actions").click();
+
+      await expect(testApp.window.getByText("src/app.ts").first()).toBeVisible();
+      await expect(
+        testApp.window.getByText("src/new-feature.ts").first(),
+      ).toBeVisible();
+      await expect(testApp.window.getByText("+2").first()).toBeVisible();
+      await expect(testApp.window.getByText("-1").first()).toBeVisible();
+      await expect(
+        testApp.window.getByText('export const state = "after";', {
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await testApp.close();
+    }
+  });
+});

@@ -8,6 +8,10 @@ import type {
 import * as piSdk from "@earendil-works/pi-coding-agent";
 import { buildConfigInventory } from "./workspace/config";
 import { createNodeExecutionCheckoutGitClient } from "./workspace/execution-checkout";
+import {
+  createNodeSessionChangesReader,
+  type SessionChangesReader,
+} from "./workspace/session-changes";
 import { createNodePiRpcProcess } from "./drivers/pi-rpc";
 import { createPiSdkDriver } from "./drivers/pi-sdk-driver";
 import {
@@ -71,6 +75,7 @@ export type BackendServiceOptions = {
   runtimeDriver?: PiRuntimeDriver;
   runtimeJournal?: SessionEventJournal;
   sessionProjectionStore?: SessionProjectionStore;
+  sessionChangesReader?: SessionChangesReader;
   piSessionListAll?: () => Promise<PiSessionListItem[]>;
 };
 
@@ -85,6 +90,8 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
     createFileSessionProjectionStore({
       dataDir,
     });
+  const sessionChangesReader =
+    options.sessionChangesReader ?? createNodeSessionChangesReader();
   const piSessionListAll =
     options.piSessionListAll ??
     (async () => {
@@ -130,6 +137,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             gitClient,
             piRpc,
             sessionProjectionStore,
+            sessionChangesReader,
             piSessionListAll,
             runtimeGateway,
           }),
@@ -159,6 +167,7 @@ async function dispatchRequest(input: {
   gitClient: ExecutionCheckoutGitClient;
   piRpc: PiRpcTransport;
   sessionProjectionStore: SessionProjectionStore;
+  sessionChangesReader: SessionChangesReader;
   piSessionListAll: () => Promise<PiSessionListItem[]>;
   runtimeGateway: RuntimeGatewayService;
 }) {
@@ -184,6 +193,12 @@ async function dispatchRequest(input: {
         store: input.sessionProjectionStore,
         piSessionListAll: input.piSessionListAll,
       });
+    case "get_session_changes":
+      return getSessionChanges({
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        store: input.sessionProjectionStore,
+        reader: input.sessionChangesReader,
+      });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
     case "is_git_repository":
@@ -206,6 +221,34 @@ async function dispatchRequest(input: {
     default:
       throw new Error(`Unknown backend RPC method "${input.request.method}".`);
   }
+}
+
+async function getSessionChanges(input: {
+  sessionId: string;
+  store: SessionProjectionStore;
+  reader: SessionChangesReader;
+}) {
+  const projection = await input.store.get(input.sessionId);
+
+  if (!projection) {
+    throw new Error(`Session projection "${input.sessionId}" was not found.`);
+  }
+
+  const checkout = requiredRecord(projection.checkout, "Session checkout");
+  const root =
+    optionalString(checkout.executionCheckoutRoot) ??
+    optionalString(checkout.root);
+  const diffRoot = optionalString(checkout.diffRoot) ?? root;
+
+  if (!root || !diffRoot) {
+    throw new Error("Session checkout does not include a readable diff root.");
+  }
+
+  return input.reader.read({
+    sessionId: input.sessionId,
+    checkoutRoot: root,
+    diffRoot,
+  });
 }
 
 async function listSessionProjections(input: {
@@ -281,6 +324,10 @@ function requiredString(value: unknown, name: string) {
   }
 
   return value;
+}
+
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -136,6 +136,67 @@ describe("backend service", () => {
     });
   });
 
+  it("resolves Session diff roots from the persisted projection", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const read = vi.fn(async (input) => ({
+      sessionId: input.sessionId,
+      state: "clean" as const,
+      checkoutRoot: input.checkoutRoot,
+      repositoryRoot: input.checkoutRoot,
+      generatedAt: "2026-07-19T00:00:00.000Z",
+      files: [],
+      totals: {
+        files: 0,
+        additions: 0,
+        deletions: 0,
+        binaryFiles: 0,
+        conflictedFiles: 0,
+      },
+      truncated: false,
+      omittedFileCount: 0,
+    }));
+
+    await projections.save({
+      sessionId: "session-changes",
+      runtimeId: "runtime-changes",
+      piSessionId: "pi-changes",
+      projectId: "project-1",
+      cwd: "/checkout/project",
+      status: "completed",
+      checkout: {
+        root: "/source/repo",
+        executionCheckoutRoot: "/checkout",
+        diffRoot: "/checkout/project",
+      },
+      updatedAt: "2026-07-19T00:00:00.000Z",
+    });
+
+    const service = createBackendService({
+      sessionProjectionStore: projections,
+      sessionChangesReader: { read },
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-changes",
+        method: "get_session_changes",
+        params: {
+          sessionId: "session-changes",
+          checkoutRoot: "/renderer/cannot/override/this",
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-changes",
+      result: expect.objectContaining({ state: "clean" }),
+    });
+    expect(read).toHaveBeenCalledWith({
+      sessionId: "session-changes",
+      checkoutRoot: "/checkout",
+      diffRoot: "/checkout/project",
+    });
+  });
+
   it("journals boundary events to the data dir and serves them from the runtime snapshot", async () => {
     const sdkSession = createFakeSdkAgentSession();
     createAgentSession.mockResolvedValue({ session: sdkSession.session });
