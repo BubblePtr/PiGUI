@@ -53,6 +53,7 @@ import {
 import {
   browserDevelopmentProjectId,
   getProjectRegistryWithBrowserDevelopmentFallback,
+  shouldUseBrowserDevelopmentData,
 } from "@/shared/browser-development-data";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { revealProjectInFinder, selectProjectDirectory } from "@/shared/runtime";
@@ -893,8 +894,10 @@ export function AppFrame({
   const sidebarAnimatingRef = useRef(false);
   const sidebarOpenRef = useRef(sidebarOpen);
   const sidebarAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [localSessionProjections, setLocalSessionProjections] = useState(
-    defaultSidebarProjectSessionProjections,
+  const [localSessionProjections] = useState(() =>
+    shouldUseBrowserDevelopmentData()
+      ? defaultSidebarProjectSessionProjections
+      : [],
   );
   const [projects, setProjects] = useState(() => getVisibleProjectRegistry());
   const [expandedProjects, setExpandedProjects] = useState(() =>
@@ -906,7 +909,13 @@ export function AppFrame({
     [effectiveSessionProjections],
   );
   const [localSelectedSessionId, setLocalSelectedSessionId] = useState<string | null>(
-    () => getSessionProjectionListItems(defaultSidebarProjectSessionProjections)[0]?.id ?? null,
+    () =>
+      getSessionProjectionListItems(
+        sessionProjections ??
+          (shouldUseBrowserDevelopmentData()
+            ? defaultSidebarProjectSessionProjections
+            : []),
+      )[0]?.id ?? null,
   );
   const effectiveSelectedSessionId =
     selectedSessionId === undefined ? localSelectedSessionId : selectedSessionId;

@@ -27,7 +27,9 @@ import {
 import {
   getBrowserDevelopmentSessionDraft,
   getProjectRegistryWithBrowserDevelopmentFallback,
+  shouldUseBrowserDevelopmentData,
 } from "@/shared/browser-development-data";
+import { onBackendEvent } from "@/shared/runtime";
 import {
   createExecutionCheckoutManager,
   type ExecutionCheckoutManager,
@@ -81,6 +83,7 @@ import {
   type SessionProjection,
 } from "@/entities/session/session-projection";
 import {
+  archiveSessionProjection,
   formatCost,
   formatTokens,
   listSessionProjections,
@@ -116,7 +119,7 @@ type AgentWorkspaceFixture = {
   name: string;
   projectRoot: string;
   repoRoot: string;
-  selectedSessionId: string;
+  selectedSessionId: string | null;
   liveMessages: LiveMessage[];
   runTimeline: RunTimelineItem[];
   checkout: {
@@ -134,6 +137,9 @@ type AgentWorkspaceFixture = {
 type SessionActionsContentProps = {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
+  archiveError?: string | null;
+  isArchiving?: boolean;
+  onArchive?: () => void;
 };
 
 type RestorablePiRuntimeBridge = PiRuntimeBridge & {
@@ -201,6 +207,28 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     totalTokens: 18_420,
   },
 };
+
+function workspaceFromProject(project: ProjectRegistryEntry): AgentWorkspaceFixture {
+  return {
+    id: project.id,
+    name: project.displayName,
+    projectRoot: project.path,
+    repoRoot: project.path,
+    selectedSessionId: null,
+    liveMessages: [],
+    runTimeline: [],
+    checkout: {
+      mode: "Foreground local checkout",
+      root: project.path,
+      runtimeCwd: project.path,
+    },
+    summary: {
+      model: "Unknown",
+      totalCostUsd: 0,
+      totalTokens: 0,
+    },
+  };
+}
 
 const modelFirstResponseWatchdogMs = 15_000;
 const contactingModelPlaceholder = "Pi is contacting the model...";
@@ -1737,6 +1765,9 @@ function checkoutModeLabel(mode: string) {
 export function SessionActionsContent({
   workspace,
   projection,
+  archiveError,
+  isArchiving = false,
+  onArchive,
 }: SessionActionsContentProps) {
   const checkout = projection?.checkout
     ? {
@@ -1777,9 +1808,11 @@ export function SessionActionsContent({
         provider: null,
         ...workspace.summary,
       };
-  const archiveAllowed = projection
-    ? canArchiveSessionProjection(projection)
-    : true;
+  const archiveAllowed = Boolean(
+    projection &&
+      !isSessionProjectionArchived(projection) &&
+      canArchiveSessionProjection(projection),
+  );
   const hasGitRepository = Boolean(checkout.repoRoot);
 
   return (
@@ -1930,14 +1963,30 @@ export function SessionActionsContent({
       <section>
         <h3 className="text-sm font-semibold text-foreground">Archive</h3>
         <div className="mt-3">
-          <Button isDisabled={!archiveAllowed} size="sm" variant="outline">
+          <Button
+            isDisabled={!archiveAllowed || isArchiving}
+            isPending={isArchiving}
+            size="sm"
+            variant="outline"
+            onPress={onArchive}
+          >
             <Archive className="size-4" />
             Archive Session
           </Button>
         </div>
-        {!archiveAllowed ? (
+        {!archiveAllowed && projection && !isSessionProjectionArchived(projection) ? (
           <p className="mt-2 text-sm leading-6 text-muted">
             Active runs cannot be archived.
+          </p>
+        ) : null}
+        {projection && isSessionProjectionArchived(projection) ? (
+          <p className="mt-2 text-sm leading-6 text-muted">
+            This Session is archived.
+          </p>
+        ) : null}
+        {archiveError ? (
+          <p className="mt-2 text-sm leading-6 text-danger" role="alert">
+            {archiveError}
           </p>
         ) : null}
       </section>
@@ -1948,9 +1997,15 @@ export function SessionActionsContent({
 function SessionActionsSheet({
   workspace,
   projection,
+  archiveError,
+  isArchiving,
+  onArchive,
 }: {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
+  archiveError?: string | null;
+  isArchiving?: boolean;
+  onArchive?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -1995,8 +2050,11 @@ function SessionActionsSheet({
               <Sheet.Body>
                 <ScrollShadow className="max-h-[calc(100vh-10rem)] overflow-y-auto">
                   <SessionActionsContent
+                    archiveError={archiveError}
+                    isArchiving={isArchiving}
                     workspace={workspace}
                     projection={projection}
+                    onArchive={onArchive}
                   />
                 </ScrollShadow>
               </Sheet.Body>
@@ -2076,11 +2134,25 @@ async function restoreProjectionRuntimeState(input: {
 export function SessionToolbarActions({
   workspace,
   projection,
+  archiveError,
+  isArchiving,
+  onArchive,
 }: {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
+  archiveError?: string | null;
+  isArchiving?: boolean;
+  onArchive?: () => void;
 }) {
-  return <SessionActionsSheet workspace={workspace} projection={projection} />;
+  return (
+    <SessionActionsSheet
+      archiveError={archiveError}
+      isArchiving={isArchiving}
+      workspace={workspace}
+      projection={projection}
+      onArchive={onArchive}
+    />
+  );
 }
 
 function LiveSessionColumn({
@@ -2096,6 +2168,7 @@ function LiveSessionColumn({
   clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
+  runtimeGeneration,
 }: {
   workspace: AgentWorkspaceFixture;
   projectId: string;
@@ -2109,6 +2182,7 @@ function LiveSessionColumn({
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
+  runtimeGeneration: number;
 }) {
   const [registryProjects, setRegistryProjects] = useState(() =>
     getVisibleProjectRegistry(),
@@ -2191,7 +2265,7 @@ function LiveSessionColumn({
     retryNonce: number,
   ) =>
     projection.piSessionId && projection.sessionFile
-      ? `${projection.id}\u0000${projection.piSessionId}\u0000${projection.sessionFile}\u0000${retryNonce}`
+      ? `${projection.id}\u0000${projection.piSessionId}\u0000${projection.sessionFile}\u0000${runtimeGeneration}\u0000${retryNonce}`
       : null;
 
   useEffect(() => {
@@ -2271,6 +2345,7 @@ function LiveSessionColumn({
     };
   }, [
     getRuntimeBridge,
+    runtimeGeneration,
     resumeRetryNonce,
     sessionProjection,
     showDraft,
@@ -2737,6 +2812,7 @@ export function AgentWorkspaceSessionsView({
   clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
+  runtimeGeneration = 0,
 }: {
   projectId?: string;
   showDraft?: boolean;
@@ -2750,6 +2826,7 @@ export function AgentWorkspaceSessionsView({
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
+  runtimeGeneration?: number;
 }) {
   const [getDefaultRuntimeBridge] = useState(() => {
     let bridge: PiRuntimeBridge | null = null;
@@ -2808,6 +2885,7 @@ export function AgentWorkspaceSessionsView({
             clockNowMs={clockNowMs}
             onProjectionChange={onProjectionChange}
             onLatestMessageRendered={onLatestMessageRendered}
+            runtimeGeneration={runtimeGeneration}
           />
         </div>
       </div>
@@ -2824,22 +2902,31 @@ export function AgentWorkspaceSessionsPage() {
       return search.view === "draft";
     },
   });
-  const workspace = fixtureWorkspace;
+  const [browserDevelopmentData] = useState(() =>
+    shouldUseBrowserDevelopmentData(),
+  );
   const [registryProjects, setRegistryProjects] = useState(() =>
     getVisibleProjectRegistry(),
   );
   const [runtimeBridge] = useState(() => createDefaultPiRuntimeBridge());
+  const initialSessionProjections = browserDevelopmentData
+    ? defaultSidebarProjectSessionProjections
+    : [];
   const [sessionProjections, setSessionProjections] = useState(
-    defaultSidebarProjectSessionProjections,
+    initialSessionProjections,
   );
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    () =>
-      getSessionProjectionListItems(defaultSidebarProjectSessionProjections)[0]
-        ?.id ?? null,
+    () => firstSessionIdForProject(initialSessionProjections, projectId),
   );
+  const [backendGeneration, setBackendGeneration] = useState(0);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
+  const workspace = project ? workspaceFromProject(project) : null;
   const selectedSessionProjection =
     sessionProjections.find(
-      (projection) => projection.id === selectedSessionId,
+      (projection) =>
+        projection.id === selectedSessionId && projection.projectId === projectId,
     ) ?? null;
 
   useEffect(
@@ -2850,39 +2937,64 @@ export function AgentWorkspaceSessionsPage() {
     [],
   );
 
+  useEffect(
+    () =>
+      onBackendEvent((event) => {
+        if (
+          event.event.sessionId === "__backend__" &&
+          event.event.payload.lifecycle === "connected"
+        ) {
+          setBackendGeneration((generation) => generation + 1);
+        }
+      }),
+    [],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
     void listSessionProjections()
       .then((records) => {
-        if (cancelled || records.length === 0) {
+        if (cancelled || (browserDevelopmentData && records.length === 0)) {
           return;
         }
 
         const persistedProjections = records.map(
           sessionProjectionFromPersistedProjection,
         );
-        const nextSelectedSessionId =
-          getSessionProjectionListItems(persistedProjections)[0]?.id ?? null;
+        const nextSelectedSessionId = firstSessionIdForProject(
+          persistedProjections,
+          projectId,
+        );
 
         setSessionProjections(persistedProjections);
         setSelectedSessionId((currentSessionId) =>
           currentSessionId &&
           persistedProjections.some(
-            (projection) => projection.id === currentSessionId,
+            (projection) =>
+              projection.id === currentSessionId &&
+              projection.projectId === projectId &&
+              !isSessionProjectionArchived(projection),
           )
             ? currentSessionId
             : nextSelectedSessionId,
         );
       })
       .catch(() => {
-        // Browser fallback and older backends keep the built-in development list.
+        if (!cancelled && !browserDevelopmentData) {
+          setSessionProjections([]);
+          setSelectedSessionId(null);
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [backendGeneration, browserDevelopmentData, projectId]);
+
+  useEffect(() => {
+    setArchiveError(null);
+  }, [selectedSessionId]);
 
   const handleProjectionChange = (nextProjection: SessionProjection) => {
     setSelectedSessionId(nextProjection.id);
@@ -2912,6 +3024,32 @@ export function AgentWorkspaceSessionsPage() {
       ),
     );
   };
+  const handleArchiveSession = async () => {
+    if (!selectedSessionProjection || isArchiving) {
+      return;
+    }
+
+    setIsArchiving(true);
+    setArchiveError(null);
+
+    try {
+      const archived = sessionProjectionFromPersistedProjection(
+        await archiveSessionProjection(selectedSessionProjection.id),
+      );
+
+      setSessionProjections((projections) =>
+        projections.map((projection) =>
+          projection.id === archived.id ? archived : projection,
+        ),
+      );
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error ? error.message : "PiGUI could not archive the Session.",
+      );
+    } finally {
+      setIsArchiving(false);
+    }
+  };
 
   if (registryProjects.length === 0) {
     return (
@@ -2933,28 +3071,63 @@ export function AgentWorkspaceSessionsPage() {
     );
   }
 
+  if (!workspace) {
+    return (
+      <AppFrame
+        sessionProjections={sessionProjections}
+        selectedSessionId={null}
+        onSelectedSessionIdChange={setSelectedSessionId}
+      >
+        <section
+          className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center px-6 text-center"
+          data-testid="project-not-found-state"
+        >
+          <h2 className="text-lg font-semibold text-foreground">Project not found</h2>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
+            Choose an existing Project from the sidebar.
+          </p>
+        </section>
+      </AppFrame>
+    );
+  }
+
   return (
     <AppFrame
       sessionProjections={sessionProjections}
       selectedSessionId={selectedSessionId}
       onSelectedSessionIdChange={setSelectedSessionId}
-      toolbarActions={
+      toolbarActions={selectedSessionProjection ? (
         <SessionToolbarActions
+          archiveError={archiveError}
+          isArchiving={isArchiving}
           workspace={workspace}
           projection={selectedSessionProjection}
+          onArchive={() => void handleArchiveSession()}
         />
-      }
+      ) : undefined}
     >
       <AgentWorkspaceSessionsView
         projectId={projectId}
         showDraft={showDraft}
         workspace={workspace}
         runtimeBridge={runtimeBridge}
+        runtimeGeneration={backendGeneration}
         sessionProjection={selectedSessionProjection}
         hasActiveSession={sessionProjections.some(isSessionProjectionActive)}
         onProjectionChange={handleProjectionChange}
         onLatestMessageRendered={handleLatestMessageRendered}
       />
     </AppFrame>
+  );
+}
+
+function firstSessionIdForProject(
+  projections: SessionProjection[],
+  projectId: string,
+) {
+  return (
+    getSessionProjectionListItems(
+      projections.filter((projection) => projection.projectId === projectId),
+    )[0]?.id ?? null
   );
 }

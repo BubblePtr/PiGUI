@@ -18,8 +18,15 @@ type PendingRequest = {
 
 let mainWindow: BrowserWindow | null = null;
 let backendPort: MessagePortMain | null = null;
+let backendProcess: ReturnType<typeof utilityProcess.fork> | null = null;
+let backendRestartTimer: ReturnType<typeof setTimeout> | null = null;
 let backendRequestCounter = 0;
+let backendGeneration = 0;
+let backendRestartAttempt = 0;
+let appQuitting = false;
 const pendingRequests = new Map<string, PendingRequest>();
+const backendRestartBaseDelayMs = 250;
+const backendRestartMaxDelayMs = 5_000;
 
 function rendererUrl() {
   return process.env.ELECTRON_RENDERER_URL;
@@ -63,20 +70,28 @@ function createMainWindow() {
 }
 
 function createBackendBridge() {
+  backendGeneration += 1;
+  const generation = backendGeneration;
   const backend = utilityProcess.fork(backendPath(), [], {
     stdio: "pipe",
   });
   const { port1, port2 } = new MessageChannelMain();
 
+  backendProcess = backend;
   backendPort = port1;
   backend.postMessage({ type: "connect" }, [port2]);
-  backendPort.on("message", ({ data }) => {
+  port1.on("message", ({ data }) => {
+    if (generation !== backendGeneration) {
+      return;
+    }
+
     if (isBackendRpcEvent(data)) {
       mainWindow?.webContents.send("pigui:backend-event", data);
       return;
     }
 
     if (isBackendRpcResponse(data)) {
+      backendRestartAttempt = 0;
       const pending = pendingRequests.get(data.id);
       if (!pending) {
         return;
@@ -90,33 +105,93 @@ function createBackendBridge() {
       }
     }
   });
-  backendPort.start();
+  port1.start();
+  sendBackendLifecycleEvent({
+    generation,
+    lifecycle: "connected",
+    title: "Backend connected",
+    body: "PiGUI backend utility process is connected.",
+  });
   backend.on("exit", (code) => {
+    if (generation !== backendGeneration) {
+      return;
+    }
+
     const error = new Error(`PiGUI backend utility process exited with code ${code}.`);
 
-    backendPort?.close();
+    backendProcess = null;
+    port1.close();
     backendPort = null;
     for (const pending of pendingRequests.values()) {
       pending.reject(error);
     }
     pendingRequests.clear();
-    mainWindow?.webContents.send("pigui:backend-event", {
-      type: "event",
-      event: {
-        id: "backend-exit",
-        seq: 0,
-        sessionId: "__backend__",
-        piSessionId: "__backend__",
-        type: "error",
-        ts: new Date().toISOString(),
-        payload: {
-          kind: "error",
-          title: "Backend exited",
-          body: error.message,
-        },
-      },
-    } satisfies BackendRpcEvent);
+    sendBackendLifecycleEvent({
+      generation,
+      lifecycle: "disconnected",
+      title: "Backend exited",
+      body: error.message,
+    });
+    scheduleBackendRestart();
   });
+}
+
+function startBackendBridge() {
+  try {
+    createBackendBridge();
+  } catch (error) {
+    sendBackendLifecycleEvent({
+      generation: backendGeneration,
+      lifecycle: "disconnected",
+      title: "Backend start failed",
+      body: error instanceof Error ? error.message : String(error),
+    });
+    scheduleBackendRestart();
+  }
+}
+
+function scheduleBackendRestart() {
+  if (appQuitting || backendRestartTimer) {
+    return;
+  }
+
+  const delay = Math.min(
+    backendRestartBaseDelayMs * 2 ** backendRestartAttempt,
+    backendRestartMaxDelayMs,
+  );
+
+  backendRestartAttempt += 1;
+  backendRestartTimer = setTimeout(() => {
+    backendRestartTimer = null;
+    startBackendBridge();
+  }, delay);
+}
+
+function sendBackendLifecycleEvent(input: {
+  generation: number;
+  lifecycle: "connected" | "disconnected";
+  title: string;
+  body: string;
+}) {
+  const connected = input.lifecycle === "connected";
+
+  mainWindow?.webContents.send("pigui:backend-event", {
+    type: "event",
+    event: {
+      id: `backend-${input.lifecycle}-${input.generation}`,
+      seq: 0,
+      sessionId: "__backend__",
+      piSessionId: "__backend__",
+      type: connected ? "status" : "error",
+      ts: new Date().toISOString(),
+      payload: {
+        kind: connected ? "status" : "error",
+        lifecycle: input.lifecycle,
+        title: input.title,
+        body: input.body,
+      },
+    },
+  } satisfies BackendRpcEvent);
 }
 
 function invokeBackend(command: string, args?: Record<string, unknown>) {
@@ -182,7 +257,7 @@ ipcMain.handle(
 );
 
 app.whenReady().then(() => {
-  createBackendBridge();
+  startBackendBridge();
   createMainWindow();
 
   app.on("activate", () => {
@@ -196,6 +271,20 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  appQuitting = true;
+
+  if (backendRestartTimer) {
+    clearTimeout(backendRestartTimer);
+    backendRestartTimer = null;
+  }
+
+  backendPort?.close();
+  backendPort = null;
+  backendProcess?.kill();
+  backendProcess = null;
 });
 
 function isBackendRpcEvent(value: unknown): value is BackendRpcEvent {

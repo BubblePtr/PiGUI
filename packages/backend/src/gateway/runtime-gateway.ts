@@ -110,10 +110,12 @@ export function createRuntimeGatewayService(
 ): RuntimeGatewayService {
   const listeners = new Set<(event: RuntimeGatewayBackendEvent) => void>();
   const sessionIdsByPiSessionId = new Map<string, string>();
+  const now = options.now ?? (() => new Date().toISOString());
   const nextEvent = createRuntimeGatewaySequencer({
-    now: options.now,
+    now,
     idFactory: options.idFactory,
   });
+  const projectionWrites = createRuntimeEventProjectionWriter(options.projections);
 
   const emit = (event: RuntimeGatewayDriverEvent) => {
     const sessionId =
@@ -128,6 +130,7 @@ export function createRuntimeGatewayService(
       piSessionId: event.piSessionId,
       turnId: event.turnId,
       type: event.type,
+      ts: event.ts,
       payload: event.payload,
     });
     const backendEvent: RuntimeGatewayBackendEvent = {
@@ -138,6 +141,8 @@ export function createRuntimeGatewayService(
     if (options.journal && shouldJournalRuntimeEvent(envelope.payload)) {
       options.journal.append(envelope);
     }
+
+    projectionWrites.enqueue(envelope);
 
     for (const listener of listeners) {
       listener(backendEvent);
@@ -160,22 +165,32 @@ export function createRuntimeGatewayService(
   return {
     async handleRequest(request) {
       try {
+        const result = await dispatchRuntimeGatewayRequest({
+          request,
+          driver: options.driver,
+          journal: options.journal,
+          projections: options.projections,
+          emit,
+          appendJournalEvent,
+          now,
+          advanceEventSequence(events) {
+            nextEvent.advanceTo(
+              events.reduce((highestSeq, event) => Math.max(highestSeq, event.seq), 0),
+            );
+          },
+          rememberSession(snapshot) {
+            sessionIdsByPiSessionId.set(snapshot.piSessionId, snapshot.sessionId);
+          },
+          resolveSessionId(piSessionId) {
+            return sessionIdsByPiSessionId.get(piSessionId) ?? null;
+          },
+        });
+
+        await projectionWrites.flush();
+
         return {
           id: request.id,
-          result: await dispatchRuntimeGatewayRequest({
-            request,
-            driver: options.driver,
-            journal: options.journal,
-            projections: options.projections,
-            emit,
-            appendJournalEvent,
-            rememberSession(snapshot) {
-              sessionIdsByPiSessionId.set(snapshot.piSessionId, snapshot.sessionId);
-            },
-            resolveSessionId(piSessionId) {
-              return sessionIdsByPiSessionId.get(piSessionId) ?? null;
-            },
-          }),
+          result,
         };
       } catch (error) {
         return {
@@ -202,6 +217,8 @@ async function dispatchRuntimeGatewayRequest(input: {
   projections?: SessionProjectionStore;
   emit: (event: RuntimeGatewayDriverEvent) => RuntimeGatewayEventEnvelope | null;
   appendJournalEvent: (event: RuntimeGatewayEventInput) => RuntimeGatewayEventEnvelope;
+  now: () => string;
+  advanceEventSequence: (events: RuntimeGatewayEventEnvelope[]) => void;
   rememberSession: (snapshot: RuntimeGatewaySnapshot) => void;
   resolveSessionId: (piSessionId: string) => string | null;
 }) {
@@ -225,15 +242,19 @@ async function dispatchRuntimeGatewayRequest(input: {
       return snapshot;
     }
     case "resume_session": {
+      const piSessionId = requiredString(params.piSessionId, "piSessionId");
+      const journaled = (await input.journal?.read(piSessionId)) ?? [];
+
+      input.advanceEventSequence(journaled);
+
       const snapshot = await input.driver.resumeSession({
         sessionId: requiredString(params.sessionId, "sessionId"),
         projectId: requiredString(params.projectId, "projectId"),
-        piSessionId: requiredString(params.piSessionId, "piSessionId"),
+        piSessionId,
         sessionFile: requiredString(params.sessionFile, "sessionFile"),
         cwd: requiredString(params.cwd, "cwd"),
         checkout: params.checkout,
       });
-      const journaled = (await input.journal?.read(snapshot.piSessionId)) ?? [];
       const snapshotWithEvents = journaled.length
         ? { ...snapshot, events: journaled }
         : snapshot;
@@ -330,10 +351,19 @@ async function dispatchRuntimeGatewayRequest(input: {
           piSessionId: requiredString(params.piSessionId, "piSessionId"),
         }),
       );
+    case "archive_session":
+      return archiveSessionProjection({
+        store: input.projections,
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        archivedAt: input.now(),
+      });
     case "get_runtime_snapshot": {
       const piSessionId = requiredString(params.piSessionId, "piSessionId");
-      const snapshot = await input.driver.getSnapshot(piSessionId);
       const journaled = (await input.journal?.read(piSessionId)) ?? [];
+
+      input.advanceEventSequence(journaled);
+
+      const snapshot = await input.driver.getSnapshot(piSessionId);
       const snapshotWithEvents = journaled.length
         ? { ...snapshot, events: journaled }
         : snapshot;
@@ -350,6 +380,179 @@ async function dispatchRuntimeGatewayRequest(input: {
     default:
       throw new Error(`Unknown Runtime Gateway method "${input.request.method}".`);
   }
+}
+
+function createRuntimeEventProjectionWriter(store?: SessionProjectionStore) {
+  const pendingWrites = new Map<string, Promise<void>>();
+
+  const enqueue = (event: RuntimeGatewayEventEnvelope) => {
+    if (!store || !projectionPatchFromRuntimeEvent(event)) {
+      return;
+    }
+
+    const previousWrite = pendingWrites.get(event.sessionId) ?? Promise.resolve();
+    const write = previousWrite
+      .then(async () => {
+        const current = await store.get(event.sessionId);
+
+        if (!current) {
+          return;
+        }
+
+        const next = projectionAfterRuntimeEvent(current, event);
+
+        if (next !== current) {
+          await store.save(next);
+        }
+      })
+      .catch((error) => {
+        console.error(
+          `PiGUI failed to persist Session Projection "${event.sessionId}":`,
+          error,
+        );
+      });
+
+    pendingWrites.set(event.sessionId, write);
+    void write.finally(() => {
+      if (pendingWrites.get(event.sessionId) === write) {
+        pendingWrites.delete(event.sessionId);
+      }
+    });
+  };
+
+  return {
+    enqueue,
+    async flush() {
+      await Promise.all([...pendingWrites.values()]);
+    },
+  };
+}
+
+function projectionPatchFromRuntimeEvent(event: RuntimeGatewayEventEnvelope) {
+  const payload = event.payload;
+
+  if (payload.type === "run") {
+    if (payload.phase === "start") {
+      return { status: "running" as const };
+    }
+
+    if (payload.phase === "end") {
+      return {
+        status: payload.outcome === "failed" ? ("failed" as const) : ("completed" as const),
+      };
+    }
+  }
+
+  if (payload.type === "error") {
+    return { status: "failed" as const };
+  }
+
+  if (payload.type === "usage") {
+    return { summary: runtimeSummaryPatch(payload.summary) };
+  }
+
+  if (payload.kind === "error") {
+    return { status: "failed" as const };
+  }
+
+  if (payload.kind === "status") {
+    return { status: "completed" as const };
+  }
+
+  if (payload.kind === "message" || payload.kind === "control") {
+    return {
+      status: "running" as const,
+      summary: runtimeSummaryPatch(payload.summary),
+    };
+  }
+
+  return null;
+}
+
+function projectionAfterRuntimeEvent(
+  current: PersistedSessionProjection,
+  event: RuntimeGatewayEventEnvelope,
+) {
+  const patch = projectionPatchFromRuntimeEvent(event);
+
+  if (!patch) {
+    return current;
+  }
+
+  return mergeSessionProjection(current, {
+    ...current,
+    ...patch,
+    summary: patch.summary
+      ? {
+          provider: patch.summary.provider ?? current.summary?.provider ?? null,
+          model: patch.summary.model ?? current.summary?.model ?? null,
+          totalTokens: patch.summary.totalTokens ?? current.summary?.totalTokens ?? 0,
+          totalCostUsd:
+            patch.summary.totalCostUsd ?? current.summary?.totalCostUsd ?? 0,
+        }
+      : current.summary,
+    updatedAt: event.ts,
+  });
+}
+
+function runtimeSummaryPatch(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    provider:
+      typeof value.provider === "string" || value.provider === null
+        ? value.provider
+        : undefined,
+    model:
+      typeof value.model === "string" || value.model === null
+        ? value.model
+        : undefined,
+    totalTokens:
+      typeof value.totalTokens === "number" && Number.isFinite(value.totalTokens)
+        ? value.totalTokens
+        : undefined,
+    totalCostUsd:
+      typeof value.totalCostUsd === "number" && Number.isFinite(value.totalCostUsd)
+        ? value.totalCostUsd
+        : undefined,
+  };
+}
+
+async function archiveSessionProjection(input: {
+  store?: SessionProjectionStore;
+  sessionId: string;
+  archivedAt: string;
+}) {
+  if (!input.store) {
+    throw new Error("Session Projection persistence is unavailable.");
+  }
+
+  const projection = await input.store.get(input.sessionId);
+
+  if (!projection) {
+    throw new Error(`Session "${input.sessionId}" was not found.`);
+  }
+
+  if (projection.status === "running") {
+    throw new Error("Cannot archive an active Session.");
+  }
+
+  if (projection.status === "archived") {
+    return projection;
+  }
+
+  const archived: PersistedSessionProjection = {
+    ...projection,
+    status: "archived",
+    archivedAt: input.archivedAt,
+    updatedAt: input.archivedAt,
+  };
+
+  await input.store.save(archived);
+
+  return archived;
 }
 
 async function getProjectionBySessionId(input: {

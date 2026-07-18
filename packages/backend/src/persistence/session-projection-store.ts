@@ -91,8 +91,9 @@ function shouldPreserveTerminalStatus(
   next: PersistedSessionProjection,
 ) {
   return (
-    (current.status === "completed" || current.status === "failed") &&
-    next.status === "idle"
+    ((current.status === "completed" || current.status === "failed") &&
+      next.status === "idle") ||
+    (current.status === "failed" && next.status === "completed")
   );
 }
 

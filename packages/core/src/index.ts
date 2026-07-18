@@ -58,5 +58,6 @@ export {
   type RuntimeGatewaySummary,
   type RuntimeGatewaySnapshot,
   type RuntimeGatewayQueuedMessage,
+  type RuntimeGatewaySequencer,
   type RuntimeGatewaySequencerOptions,
 } from "./runtime-gateway";

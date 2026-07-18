@@ -81,4 +81,15 @@ describe("Electron shell", () => {
     expect(main).toContain("backendPort?.close()");
     expect(main).toContain("PiGUI backend utility process is not connected.");
   });
+
+  it("restarts the backend utility process and reports lifecycle state", () => {
+    const main = readProjectFile("apps/desktop/electron/main.ts");
+
+    expect(main).toContain("scheduleBackendRestart");
+    expect(main).toContain("backendRestartBaseDelayMs");
+    expect(main).toContain('lifecycle: "connected"');
+    expect(main).toContain('lifecycle: "disconnected"');
+    expect(main).toContain('app.on("before-quit"');
+    expect(main).toContain("backendProcess?.kill()");
+  });
 });

@@ -12,6 +12,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { BackendRpcEvent } from "@pigui/backend";
 import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
@@ -101,7 +102,15 @@ function renderProjectSessions(
     addProjectToRegistry(pigProjectPath, {
       now: () => "2026-06-30T08:00:00.000Z",
     });
+    if (!window.pigui) {
+      window.__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ = true;
+    }
   }
+
+  const routePath = path.replace(
+    "/projects/pig/sessions",
+    `/projects/${encodeURIComponent(pigProjectPath)}/sessions`,
+  );
 
   const rootRoute = createRootRoute({
     component: () => <Outlet />,
@@ -112,7 +121,7 @@ function renderProjectSessions(
     component: AgentWorkspaceSessionsPage,
   });
   const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [path] }),
+    history: createMemoryHistory({ initialEntries: [routePath] }),
     routeTree: rootRoute.addChildren([sessionsRoute]),
   });
 
@@ -350,6 +359,34 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
   });
 
+  it("renders an Electron Project with zero Sessions without fixture data", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [];
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    const { container } = renderProjectSessions();
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("list_session_projections", undefined);
+    });
+    expect(await screen.findByTestId("project-sessions-view")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Session actions" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
+    expect(screen.queryByText("Usage evidence review")).not.toBeInTheDocument();
+    expect(screen.queryByText("Create the Agent Workspace entry shape for this Project.")).not.toBeInTheDocument();
+    expect(container.innerHTML).not.toContain("session-control-plane-shell");
+    expect(container.innerHTML).not.toContain("session-usage-review");
+  });
+
   it("loads sidebar history from persisted Session Projections in Electron", async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === "list_session_projections") {
@@ -384,6 +421,136 @@ describe("AgentWorkspaceSessionsPage", () => {
       await screen.findByRole("row", { name: "Persisted cold session" }),
     ).toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalledWith("list_sessions", expect.anything());
+  });
+
+  it("archives a persisted Session through the backend and removes it from the sidebar", async () => {
+    const user = userEvent.setup();
+    const persisted = {
+      sessionId: "persisted-session-1",
+      runtimeId: "pi-sdk:persisted-session-1",
+      piSessionId: "pi-session-persisted-1",
+      projectId: pigProjectPath,
+      initialPrompt: "Archive this session",
+      cwd: pigProjectPath,
+      status: "completed",
+      updatedAt: "2026-07-18T12:00:00.000Z",
+    };
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [persisted];
+      }
+
+      if (command === "archive_session") {
+        return {
+          ...persisted,
+          status: "archived",
+          archivedAt: "2026-07-18T12:05:00.000Z",
+          updatedAt: "2026-07-18T12:05:00.000Z",
+        };
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    expect(await screen.findByRole("row", { name: "Archive this session" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Session actions" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog", { name: "Session actions" })).getByRole(
+        "button",
+        { name: "Archive Session" },
+      ),
+    );
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("archive_session", {
+        sessionId: "persisted-session-1",
+      });
+    });
+    expect(screen.queryByRole("row", { name: "Archive this session" })).not.toBeInTheDocument();
+  });
+
+  it("reloads projections and resumes the selected Session after backend recovery", async () => {
+    const backendListeners: Array<(event: BackendRpcEvent) => void> = [];
+    const persisted = {
+      sessionId: "persisted-session-1",
+      runtimeId: "pi-sdk:persisted-session-1",
+      piSessionId: "pi-session-persisted-1",
+      projectId: pigProjectPath,
+      initialPrompt: "Recover this session",
+      cwd: pigProjectPath,
+      status: "idle",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-persisted-1.jsonl",
+      checkout: {
+        mode: "foreground-local",
+        root: pigProjectPath,
+        runtimeCwd: pigProjectPath,
+      },
+      updatedAt: "2026-07-18T12:00:00.000Z",
+    };
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [persisted];
+      }
+
+      if (command === "resume_session") {
+        return {
+          ...persisted,
+          events: [],
+        };
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn((listener) => {
+        backendListeners.push(listener);
+        return vi.fn();
+      }),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    await waitFor(() => {
+      expect(
+        invoke.mock.calls.filter(([command]) => command === "resume_session"),
+      ).toHaveLength(1);
+    });
+
+    backendListeners[0]?.({
+      type: "event",
+      event: {
+        id: "backend-connected-2",
+        seq: 0,
+        sessionId: "__backend__",
+        piSessionId: "__backend__",
+        type: "status",
+        ts: "2026-07-18T12:01:00.000Z",
+        payload: {
+          kind: "status",
+          lifecycle: "connected",
+          title: "Backend connected",
+          body: "PiGUI backend utility process is connected.",
+        },
+      },
+    });
+
+    await waitFor(() => {
+      expect(
+        invoke.mock.calls.filter(([command]) => command === "list_session_projections"),
+      ).toHaveLength(2);
+      expect(
+        invoke.mock.calls.filter(([command]) => command === "resume_session"),
+      ).toHaveLength(2);
+    });
   });
 
   it("cold-resumes a selected persisted Session through the Runtime Gateway", async () => {

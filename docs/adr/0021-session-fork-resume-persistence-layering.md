@@ -23,6 +23,10 @@
 
 **Sidebar 历史列表只来自持久化的 Session Projection，且 Projection 只由 PiGUI 内创建的 Session 产生**。不扫 `~/.pi` 自动混入：外部 session 没有 journal/checkout/status，是幽灵行；与 Project Registry"手动添加、不自动发现"纪律一致；`listAll` 需全文解析所有 jsonl，启动性能不可接受。PiGUI 不提供 Pi CLI/TUI session import；需要在 PiGUI 继续外部工作时，用户在目标 Project 内新建 PiGUI Session，这与 Codex 的本地 thread 边界一致。
 
+**Projection 必须随运行边界事件持续落盘，而不是只在 create/resume/get snapshot 时刷新**。Gateway 按 Session 串行写入状态、usage summary 与 `updatedAt`：prompt/steer/run-start 进入 running，run-end 进入 completed/failed，usage 合并累计摘要。Archive 也是 Gateway 持久化命令，active Session 必须拒绝归档；已归档状态不能被迟到事件或 snapshot 覆盖。
+
+**Journal replay 后的新事件序号必须续接历史最大 seq**。Gateway 在 resume/get snapshot 前先读取 journal 并推进 sequencer，再连接 driver；否则 backend 重启后的新事件会从 1 重新开始，被 renderer 的 replay 去重水位当成旧事件丢弃。
+
 ## Consequences
 
 - `CONTEXT.md` 新增 Resume、Fork、Session Creation Boundary 词条。

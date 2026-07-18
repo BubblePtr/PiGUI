@@ -258,6 +258,7 @@ function isRuntimeGatewayMethod(method: string) {
     method === "withdraw_queued_message" ||
     method === "steer_run" ||
     method === "stop_run" ||
+    method === "archive_session" ||
     method === "get_runtime_snapshot"
   );
 }

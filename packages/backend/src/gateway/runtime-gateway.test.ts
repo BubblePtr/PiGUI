@@ -374,7 +374,7 @@ describe("Runtime Gateway service", () => {
         piSessionId: "pi-session-1",
         projectId: "pig",
         cwd: "/repo",
-        status: "idle",
+        status: "running",
         sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-1.jsonl",
       }),
     ]);
@@ -418,6 +418,121 @@ describe("Runtime Gateway service", () => {
         initialPrompt: "Persisted title",
       }),
     ]);
+  });
+
+  it("persists runtime status and usage as driver events arrive", async () => {
+    const driver = createFakeRuntimeDriver();
+    const projections = createInMemorySessionProjectionStore();
+    const service = createRuntimeGatewayService({
+      driver,
+      projections,
+      now: () => "2026-07-18T12:00:00.000Z",
+    });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+    });
+    await service.handleRequest({
+      id: "req-prompt",
+      method: "send_prompt",
+      params: { piSessionId: "pi-session-1", prompt: "Persist live state" },
+    });
+
+    await vi.waitFor(async () => {
+      await expect(projections.get("app-session-1")).resolves.toMatchObject({
+        status: "running",
+        updatedAt: "2026-07-18T12:00:00.000Z",
+      });
+    });
+
+    driver.emitDriverEvent(
+      agentEvent("pi-session-1", {
+        type: "usage",
+        runId: "run-1",
+        summary: {
+          provider: "openai",
+          model: "gpt-5-codex",
+          totalTokens: 128,
+          totalCostUsd: 0.0042,
+        },
+        surface: "hidden",
+      }),
+    );
+    driver.emitDriverEvent(
+      agentEvent("pi-session-1", {
+        type: "run",
+        runId: "run-1",
+        phase: "end",
+        trigger: "prompt",
+        outcome: "completed",
+        surface: "hidden",
+      }),
+    );
+
+    await vi.waitFor(async () => {
+      await expect(projections.get("app-session-1")).resolves.toMatchObject({
+        status: "completed",
+        summary: {
+          provider: "openai",
+          model: "gpt-5-codex",
+          totalTokens: 128,
+          totalCostUsd: 0.0042,
+        },
+      });
+    });
+  });
+
+  it("archives inactive Sessions and rejects active ones", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      projections,
+      now: () => "2026-07-18T12:00:00.000Z",
+    });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+    });
+    await service.handleRequest({
+      id: "req-prompt",
+      method: "send_prompt",
+      params: { piSessionId: "pi-session-1", prompt: "Run first" },
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-archive-active",
+        method: "archive_session",
+        params: { sessionId: "app-session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-archive-active",
+      error: "Cannot archive an active Session.",
+    });
+
+    await projections.save({
+      ...(await projections.get("app-session-1"))!,
+      status: "completed",
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-archive",
+        method: "archive_session",
+        params: { sessionId: "app-session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-archive",
+      result: expect.objectContaining({
+        sessionId: "app-session-1",
+        status: "archived",
+        archivedAt: "2026-07-18T12:00:00.000Z",
+      }),
+    });
   });
 
   it("resumes persisted SDK sessions and restores the gateway session mapping", async () => {
@@ -505,6 +620,63 @@ describe("Runtime Gateway service", () => {
         sessionId: "app-session-resumed",
         piSessionId: "pi-session-resumed",
         type: "message_update",
+      }),
+    });
+  });
+
+  it("continues event sequencing after replaying a persisted journal", async () => {
+    const journal = createInMemorySessionEventJournal();
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      journal,
+      now: () => "2026-07-18T12:00:00.000Z",
+      idFactory: () => "evt-after-restart",
+    });
+
+    journal.append({
+      id: "evt-before-restart",
+      seq: 41,
+      sessionId: "app-session-resumed",
+      piSessionId: "pi-session-resumed",
+      type: "run",
+      ts: "2026-07-18T11:59:00.000Z",
+      payload: {
+        type: "run",
+        runId: "run-before-restart",
+        phase: "end",
+        trigger: "prompt",
+        outcome: "completed",
+        surface: "hidden",
+        origin: "sdk",
+      },
+    });
+
+    await service.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId: "app-session-resumed",
+        projectId: "pig",
+        piSessionId: "pi-session-resumed",
+        sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+        cwd: "/repo",
+      },
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-prompt-after-restart",
+        method: "send_prompt",
+        params: {
+          piSessionId: "pi-session-resumed",
+          prompt: "Continue after restart",
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-prompt-after-restart",
+      result: expect.objectContaining({
+        id: "evt-after-restart",
+        seq: 42,
       }),
     });
   });

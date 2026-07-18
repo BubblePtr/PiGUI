@@ -241,6 +241,40 @@ describe("backend service", () => {
       .split("\n");
 
     expect(journalLines).toHaveLength(snapshot.events.length);
+
+    await expect(
+      service.handleRequest({
+        id: "req-projections",
+        method: "list_session_projections",
+      }),
+    ).resolves.toEqual({
+      id: "req-projections",
+      result: [
+        expect.objectContaining({
+          sessionId: "session-1",
+          status: "completed",
+          summary: expect.objectContaining({
+            totalTokens: 42,
+            totalCostUsd: 0.001,
+          }),
+        }),
+      ],
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-archive",
+        method: "archive_session",
+        params: { sessionId: "session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-archive",
+      result: expect.objectContaining({
+        sessionId: "session-1",
+        status: "archived",
+        archivedAt: expect.any(String),
+      }),
+    });
   });
 
   it("uses the SDK driver for Runtime Gateway by default while retaining raw RPC commands", async () => {

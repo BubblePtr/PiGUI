@@ -13,6 +13,10 @@ export async function listSessionProjections() {
   return invoke<PersistedSessionProjection[]>("list_session_projections");
 }
 
+export async function archiveSessionProjection(sessionId: string) {
+  return invoke<PersistedSessionProjection>("archive_session", { sessionId });
+}
+
 export function formatTimestamp(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",

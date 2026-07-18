@@ -51,4 +51,22 @@ describe("Runtime Gateway contract", () => {
       type: "tool_execution_update",
     });
   });
+
+  it("continues after a replayed journal sequence", () => {
+    const nextEvent = createRuntimeGatewaySequencer({
+      now: () => "2026-07-18T12:00:00.000Z",
+      idFactory: () => "evt-after-replay",
+    });
+
+    nextEvent.advanceTo(41);
+
+    expect(
+      nextEvent({
+        sessionId: "app-session-1",
+        piSessionId: "pi-session-1",
+        type: "run",
+        payload: { type: "run", phase: "start" },
+      }),
+    ).toMatchObject({ seq: 42 });
+  });
 });
