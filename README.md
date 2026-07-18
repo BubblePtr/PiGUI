@@ -1,5 +1,7 @@
 # PiGUI
 
+English | [简体中文](README.zh-CN.md)
+
 > A GUI control plane for [Pi Agent](https://pi.dev) — making the CLI's runtime no longer a black box.
 
 PiGUI is a desktop control plane for the Pi coding agent: it creates, starts, observes, and manages Pi agent workspaces, and replays each session as a legible timeline with cost and token truth. Pi remains the only runtime and owns session truth; PiGUI drives it through a stable Runtime Gateway API whose backend driver can use the Pi SDK or a Pi RPC subprocess depending on isolation and deployment needs.
