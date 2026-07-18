@@ -2,29 +2,39 @@
 
 English | [简体中文](README.zh-CN.md)
 
-> A GUI control plane for [Pi Agent](https://pi.dev) — making the CLI's runtime no longer a black box.
+> The missing GUI for [Pi Agent](https://pi.dev).
 
-PiGUI is a desktop control plane for the Pi coding agent: it creates, starts, observes, and manages Pi agent workspaces, and replays each session as a legible timeline with cost and token truth. Pi remains the only runtime and owns session truth; PiGUI drives it through a stable Runtime Gateway API whose backend driver can use the Pi SDK or a Pi RPC subprocess depending on isolation and deployment needs.
+Pi has a VS Code-like extension system — but no screen. PiGUI is that screen: a desktop app that turns everything Pi's runtime and plugin ecosystem produces — sessions, traces, costs, tool calls, and eventually plugin panels and dynamic workflows — into a visual, operable interface, layered with abilities a terminal can never offer.
 
-After a session, PiGUI lets you answer — in seconds — the three questions the terminal hides:
+## Vision
+
+PiGUI is built as three layers:
+
+1. **Visualize** — give every capability in Pi's ecosystem a face. Session traces — legible timelines with cost and token truth — are the first visualization type, not the product. Plugin-provided panels and dynamic workflow views come next.
+2. **Operate** — the agent-workspace control plane underneath: create, drive, steer, fork, and resume Pi sessions across projects and git worktrees. Pi remains the only runtime and owns session truth; PiGUI observes and steers it through a stable Runtime Gateway API.
+3. **Augment** — GUI-native abilities the terminal can't host, in the spirit of Codex's desktop app: an embedded browser with a DOM-annotation mode, and structured action surfaces in place of a terminal emulator.
+
+Already today, PiGUI answers in seconds the three questions the terminal hides:
 
 - **How much did this cost?**
 - **Which step was expensive?**
 - **What was Pi actually thinking?**
 
+### Roadmap themes
+
+- **Plugin surfaces** — a protocol for Pi extensions to declare their own visualization panels, routed through the same event pipeline. The `surface` routing in the architecture below is the designed seam; the Extension-UI gateway protocol is a tracked capability gap in [ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md).
+- **Embedded browser annotation** — preview pages and annotate DOM elements to feed precise UI feedback back to Pi. This is the load-bearing reason for the Electron shell ([ADR-0013](docs/adr/0013-electron-shell-and-relocatable-backend.md)).
+- **Dynamic workflow visualization** — when Pi runs multi-step or multi-agent workflows, render them as live, inspectable views instead of interleaved logs.
+
 ## Status
 
-🛠️ **Under active development.** The Electron shell, the Runtime Gateway API, the RPC process driver, the Pi SDK driver spike, and the agent-workspace foundation (sessions, run controls, runtime projections) have landed; usage and config surfaces are in flight.
+🛠️ **Under active development.** The Electron shell, the Runtime Gateway API, the drivers, and the agent-workspace foundation (sessions, run controls, fork/resume, runtime projections) have landed; usage and config surfaces are in flight. A full terminal emulator and file tree are deliberately deferred.
 
 The product began as a passive session-replay tool and has since evolved into an **Agent Workspace Control Plane** for Pi (see [`docs/adr/0001`](docs/adr/0001-agent-workspace-control-plane.md)). The living source of truth is the domain glossary and the ADRs:
 
 - **Glossary:** [`CONTEXT.md`](CONTEXT.md)
 - **Decisions:** [`docs/adr/`](docs/adr/)
 - **Feature PRDs:** [`.scratch/<feature>/PRD.md`](.scratch/) (point-in-time planning records)
-
-## Scope
-
-PiGUI organizes Pi's runtime into a desktop control plane: create and drive **Sessions** under a **Project**, replay each **Session Trace** as a legible timeline with cost and token truth, and view cross-session **usage** and **config**. An embedded browser with DOM annotation is planned (the load-bearing reason for the Electron shell). A full terminal emulator and file tree are deliberately deferred.
 
 ## Stack
 
@@ -55,6 +65,7 @@ flowchart LR
 
 - **Pi session jsonl** (`~/.pi`) is *context truth*: on cold resume, Pi rebuilds the LLM context from it itself — PiGUI never assembles LLM context.
 - **Session Event Journal** (`~/.pigui`) is *presentation truth*: the UI timeline, run/turn identity, and control events only come from replaying it.
+- Every event carries a `surface` stamp (`chat | trace | status | composer | hidden`) that routes it to its visualization — today a closed set, and the designed extension point for plugin-declared panels tomorrow.
 
 ### Where things live
 
