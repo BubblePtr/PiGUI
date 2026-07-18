@@ -25,12 +25,12 @@ export {
   type RuntimeGatewayBackendEvent,
   type RuntimeGatewayService,
   type RuntimeGatewayServiceOptions,
-} from "./runtime-gateway";
+} from "./gateway/runtime-gateway";
 
 export {
   createPiRpcProcessDriver,
   type PiRpcProcessDriverOptions,
-} from "./pi-rpc-driver";
+} from "./drivers/pi-rpc-driver";
 
 export {
   PiSdkDriverUnsupportedError,
@@ -42,9 +42,9 @@ export {
   type PiSdkRuntimeFactory,
   type PiSdkSessionRuntime,
   type PiSdkSnapshotPatch,
-} from "./pi-sdk-driver";
+} from "./drivers/pi-sdk-driver";
 
 export {
   type PersistedSessionProjection,
   type SessionProjectionStore,
-} from "./session-projection-store";
+} from "./persistence/session-projection-store";

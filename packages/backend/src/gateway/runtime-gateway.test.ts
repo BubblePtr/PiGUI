@@ -4,8 +4,8 @@ import {
   type PiRuntimeDriver,
   type RuntimeGatewayDriverEvent,
 } from "./runtime-gateway";
-import { createInMemorySessionEventJournal } from "./session-event-journal";
-import { createInMemorySessionProjectionStore } from "./session-projection-store";
+import { createInMemorySessionEventJournal } from "../persistence/session-event-journal";
+import { createInMemorySessionProjectionStore } from "../persistence/session-projection-store";
 
 function createFakeRuntimeDriver(): PiRuntimeDriver & {
   emitDriverEvent(event: RuntimeGatewayDriverEvent): void;

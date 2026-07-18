@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runPiSdkDriverSpike } from "./pi-sdk-spike";
 import type { PiSdkRuntimeFactory } from "./pi-sdk-driver";
-import type { RuntimeGatewayDriverEvent } from "./runtime-gateway";
+import type { RuntimeGatewayDriverEvent } from "../gateway/runtime-gateway";
 
 describe("Pi SDK spike runner", () => {
   it("refuses to run true SDK work without explicit opt-in", async () => {

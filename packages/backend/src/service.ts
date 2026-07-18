@@ -6,39 +6,39 @@ import type {
   RuntimeGatewayEventEnvelope,
 } from "@pigui/core";
 import * as piSdk from "@earendil-works/pi-coding-agent";
-import { buildConfigInventory } from "./config";
-import { createNodeExecutionCheckoutGitClient } from "./execution-checkout";
-import { createNodePiRpcProcess } from "./pi-rpc";
-import { createPiSdkDriver } from "./pi-sdk-driver";
+import { buildConfigInventory } from "./workspace/config";
+import { createNodeExecutionCheckoutGitClient } from "./workspace/execution-checkout";
+import { createNodePiRpcProcess } from "./drivers/pi-rpc";
+import { createPiSdkDriver } from "./drivers/pi-sdk-driver";
 import {
   createPublicPiSdkRuntimeFactory,
   createPublicPiSdkRuntimeForker,
   createPublicPiSdkRuntimeResumer,
-} from "./pi-sdk-runtime-adapter";
+} from "./drivers/pi-sdk-runtime-adapter";
 import {
   createRuntimeGatewayService,
   type PiRuntimeDriver,
   type RuntimeGatewayService,
-} from "./runtime-gateway";
+} from "./gateway/runtime-gateway";
 import {
   createFileSessionEventJournal,
   resolveDataDir,
   type SessionEventJournal,
-} from "./session-event-journal";
+} from "./persistence/session-event-journal";
 import {
   createFileSessionProjectionStore,
   repairProjectionSessionFiles,
   type PiSessionListItem,
   type PersistedSessionProjection,
   type SessionProjectionStore,
-} from "./session-projection-store";
+} from "./persistence/session-projection-store";
 import {
   buildSessionIndexWithCache,
   createSessionIndexCache,
   loadSessionDetail,
   resolveAgentDir,
   type SessionIndexCache,
-} from "./sessions";
+} from "./workspace/sessions";
 
 export type BackendRpcRequest = {
   id: string;

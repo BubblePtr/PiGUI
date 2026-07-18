@@ -9,7 +9,7 @@ import type {
   PiRuntimeDriver,
   ResumeRuntimeSessionInput,
   RuntimeGatewayDriverEvent,
-} from "./runtime-gateway";
+} from "../gateway/runtime-gateway";
 
 export type PiSdkPackageModule = typeof import("@earendil-works/pi-coding-agent");
 

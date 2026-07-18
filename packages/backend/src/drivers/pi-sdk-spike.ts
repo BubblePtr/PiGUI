@@ -1,8 +1,8 @@
 import type {
   RuntimeGatewayBackendEvent,
   RuntimeGatewayServiceOptions,
-} from "./runtime-gateway";
-import { createRuntimeGatewayService } from "./runtime-gateway";
+} from "../gateway/runtime-gateway";
+import { createRuntimeGatewayService } from "../gateway/runtime-gateway";
 import {
   createPiSdkDriver,
   type PiSdkRuntimeFactory,

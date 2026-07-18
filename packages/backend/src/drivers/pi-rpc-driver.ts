@@ -7,11 +7,11 @@ import type {
 import {
   createAgentRuntimeEventNormalizer,
   type AgentRuntimeEventNormalizer,
-} from "./agent-runtime-event-normalizer";
+} from "../gateway/agent-runtime-event-normalizer";
 import type {
   PiRuntimeDriver,
   RuntimeGatewayDriverEvent,
-} from "./runtime-gateway";
+} from "../gateway/runtime-gateway";
 
 export type PiRpcProcessDriverOptions = {
   transport: PiRpcTransport;
