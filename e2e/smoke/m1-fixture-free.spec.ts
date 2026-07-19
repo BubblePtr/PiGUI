@@ -245,9 +245,12 @@ test.describe("M3: Real diff action surface", () => {
       const resizeHandle = testApp.window.getByLabel("Resize Session changes");
       const handleBox = await resizeHandle.boundingBox();
       const initialAsideBox = await changesAside.boundingBox();
+      const viewportHeight = await testApp.window.evaluate(() => window.innerHeight);
 
       expect(handleBox).not.toBeNull();
       expect(initialAsideBox).not.toBeNull();
+      expect(handleBox!.y).toBeLessThanOrEqual(1);
+      expect(handleBox!.height).toBeGreaterThanOrEqual(viewportHeight - 1);
       await testApp.window.mouse.move(
         handleBox!.x + handleBox!.width / 2,
         handleBox!.y + handleBox!.height / 2,

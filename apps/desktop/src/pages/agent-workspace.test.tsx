@@ -423,7 +423,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
     expect(aside).not.toHaveClass("border-l");
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
-    expect(screen.getByLabelText("Resize Session changes")).toBeInTheDocument();
+    expect(screen.getByLabelText("Resize Session changes")).toHaveClass("-mt-16");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
 

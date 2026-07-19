@@ -3367,9 +3367,10 @@ export function AgentWorkspaceSessionsView({
                   {liveSession}
                 </div>
               </Resizable.Panel>
+              {/* Cover the 40px titlebar and 24px workspace inset without moving panel content. */}
               <Resizable.Handle
                 aria-label="Resize Session changes"
-                className="mx-2"
+                className="-mt-16 mx-2"
               />
               <Resizable.Panel
                 defaultSize={resizableSizes.changesDefaultSize}
