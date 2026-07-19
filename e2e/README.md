@@ -1,6 +1,6 @@
 # PiGUI E2E 测试
 
-Playwright 启动真实 Electron 桌面应用，通过 UI 和持久化文件验证 M1/M2 基础契约。
+Playwright 启动真实 Electron 桌面应用，通过 UI 和持久化文件验证关键产品流程。
 
 ## 运行
 
@@ -23,6 +23,7 @@ bun run test:e2e -- e2e/smoke/m1-fixture-free.spec.ts
 - 真实 Project Registry 数据可进入 Session draft
 - Archive UI 会调用 backend、持久化 `archived` 状态并变为只读
 - test-only kill command 会真实终止 backend utility process；测试随后验证 disconnected/connected generation 和 Projection 重新加载
+- M4 Model / Thinking 使用真实 Pi SDK runtime 和隔离的 Pi session/auth fixture，验证 capability-driven 切换、slider、持久化和 backend restart 恢复；不发送 LLM 请求
 
 backend kill command 仅在 `PIGUI_E2E=1` 时启用，生产运行不可调用。
 

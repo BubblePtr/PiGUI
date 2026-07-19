@@ -6,6 +6,7 @@ import { createBackendService } from "./service";
 import { createInMemorySessionEventJournal } from "./persistence/session-event-journal";
 import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
+import type { PiRuntimeDriver } from "./gateway/runtime-gateway";
 
 const createAgentSession = vi.hoisted(() => vi.fn());
 const sessionManagerOpen = vi.hoisted(() => vi.fn());
@@ -94,6 +95,83 @@ describe("backend service", () => {
     await Promise.all(
       tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
     );
+  });
+
+  it("routes model configuration through the Runtime Gateway", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const configureModel = vi.fn(async () => ({
+      models: [
+        {
+          provider: "anthropic",
+          modelId: "claude-haiku-4",
+          name: "Claude Haiku 4",
+          thinkingLevels: ["off" as const, "low" as const],
+        },
+      ],
+      selected: {
+        provider: "anthropic",
+        modelId: "claude-haiku-4",
+        thinkingLevel: "low" as const,
+      },
+    }));
+    const runtimeDriver = {
+      configureModel,
+      onEvent: vi.fn(() => () => {}),
+    } as unknown as PiRuntimeDriver;
+
+    await projections.save({
+      sessionId: "session-controls",
+      runtimeId: "runtime-controls",
+      piSessionId: "pi-session-controls",
+      projectId: "project-1",
+      cwd: process.cwd(),
+      status: "idle",
+      updatedAt: "2026-07-19T00:00:00.000Z",
+    });
+
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      runtimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      sessionProjectionStore: projections,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-configure-model",
+        method: "configure_model",
+        params: {
+          sessionId: "session-controls",
+          piSessionId: "pi-session-controls",
+          provider: "anthropic",
+          modelId: "claude-haiku-4",
+          thinkingLevel: "low",
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-configure-model",
+      result: expect.objectContaining({
+        selected: {
+          provider: "anthropic",
+          modelId: "claude-haiku-4",
+          thinkingLevel: "low",
+        },
+      }),
+    });
+    expect(configureModel).toHaveBeenCalledWith({
+      piSessionId: "pi-session-controls",
+      provider: "anthropic",
+      modelId: "claude-haiku-4",
+      thinkingLevel: "low",
+    });
+    await expect(projections.get("session-controls")).resolves.toMatchObject({
+      modelSelection: {
+        provider: "anthropic",
+        modelId: "claude-haiku-4",
+        thinkingLevel: "low",
+      },
+    });
   });
 
   it("handles query commands through request/response envelopes", async () => {

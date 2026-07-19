@@ -295,3 +295,77 @@ test.describe("M3: Real diff action surface", () => {
     }
   });
 });
+
+test.describe("M4: Model and Thinking controls", () => {
+  test("switches a capability-driven model pair and restores it after backend restart", async () => {
+    const testApp = await launchPiGUI({ seedModelControls: true });
+
+    try {
+      await openSession(
+        testApp.window,
+        testApp.project!,
+        testApp.projection!,
+      );
+
+      const trigger = testApp.window.getByTestId("model-thinking-trigger");
+
+      await expect(trigger).toHaveText(/GPT-5-Codex · High/);
+      await trigger.click();
+      const dialog = testApp.window.getByRole("dialog");
+      const slider = dialog.getByRole("slider", { name: "Thinking level" });
+
+      await slider.press("ArrowLeft");
+      await expect(trigger).toHaveText(/GPT-5-Codex · Medium/);
+      await testApp.window.getByText("GPT-4.1", { exact: true }).click();
+      await expect(trigger).toHaveText(/GPT-4.1 · Off/);
+      await expect(slider).toBeDisabled();
+      await expect(dialog.getByText("Medium", { exact: true })).toHaveCount(0);
+      await expect
+        .poll(async () => (await testApp.readProjection())?.modelSelection)
+        .toEqual({
+          provider: "openai",
+          modelId: "gpt-4.1",
+          thinkingLevel: "off",
+        });
+
+      await testApp.window.evaluate(() => {
+        window.__piguiE2EBackendLifecycle = [];
+        window.pigui!.onBackendEvent((event) => {
+          if (event.event.sessionId !== "__backend__") {
+            return;
+          }
+
+          window.__piguiE2EBackendLifecycle!.push({
+            generation: Number(event.event.payload.generation),
+            lifecycle: String(event.event.payload.lifecycle),
+          });
+        });
+      });
+      const killedGeneration = await testApp.window.evaluate(() =>
+        window.pigui!.invoke<{ generation: number }>("__e2e_kill_backend"),
+      );
+
+      await expect
+        .poll(
+          () =>
+            testApp.window.evaluate(
+              () => window.__piguiE2EBackendLifecycle ?? [],
+            ),
+          { timeout: 15_000 },
+        )
+        .toEqual([
+          {
+            generation: killedGeneration.generation,
+            lifecycle: "disconnected",
+          },
+          {
+            generation: killedGeneration.generation + 1,
+            lifecycle: "connected",
+          },
+        ]);
+      await expect(trigger).toHaveText(/GPT-4.1 · Off/);
+    } finally {
+      await testApp.close();
+    }
+  });
+});
