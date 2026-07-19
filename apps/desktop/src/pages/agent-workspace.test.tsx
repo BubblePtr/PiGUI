@@ -421,6 +421,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const splitView = aside.closest('[data-slot="resizable"]');
 
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
+    expect(aside).not.toHaveClass("border-l");
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     expect(screen.getByLabelText("Resize Session changes")).toBeInTheDocument();
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);

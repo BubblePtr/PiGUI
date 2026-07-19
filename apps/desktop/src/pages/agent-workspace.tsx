@@ -2399,7 +2399,7 @@ function SessionChangesAside({
   return (
     <aside
       aria-labelledby="session-changes-heading"
-      className="flex h-full min-h-0 min-w-0 flex-col border-l border-border bg-background"
+      className="flex h-full min-h-0 min-w-0 flex-col bg-background"
       data-testid="session-changes-aside"
     >
       <header className="flex min-h-12 shrink-0 items-center justify-between gap-3 px-4">
