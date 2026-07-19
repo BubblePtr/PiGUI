@@ -9,7 +9,13 @@ export type {
   PiRpcTransportStartInput,
   PiRpcTransport,
 } from "@pigui/core";
-import type { AgentRuntimeEvent } from "@pigui/core";
+import type {
+  AgentRuntimeEvent,
+  RuntimeModelControls,
+  RuntimeModelSelection,
+} from "@pigui/core";
+
+export type { RuntimeModelControls, RuntimeModelSelection } from "@pigui/core";
 
 export type ExecutionCheckout = {
   mode: "foreground-local" | "managed-worktree";
@@ -36,7 +42,8 @@ export type RuntimeBridgeFailureStage =
   | "queuing message"
   | "withdrawing queued message"
   | "steering run"
-  | "stopping run";
+  | "stopping run"
+  | "configuring model";
 
 export type PiRuntimeBridgeErrorDetail = {
   stage: RuntimeBridgeFailureStage;
@@ -127,6 +134,7 @@ export type PiSessionState = {
   // that don't speak the Agent Runtime Event Model.
   replay?: SessionReplayEntry[];
   summary?: PiRuntimeSummary;
+  modelControls?: RuntimeModelControls;
   updatedAt: string;
 };
 
@@ -172,6 +180,11 @@ export type AbortRunInput = {
   piSessionId: string;
 };
 
+export type ConfigureModelInput = RuntimeModelSelection & {
+  sessionId: string;
+  piSessionId: string;
+};
+
 export type ResumeSessionInput = {
   sessionId: string;
   projectId: string;
@@ -212,6 +225,7 @@ export type PiRuntimeBridge = {
   withdrawQueuedMessage(input: WithdrawQueuedMessageInput): Promise<PiQueuedMessage>;
   steerRun(input: SteerRunInput): Promise<PiRuntimeEvent>;
   abortRun(input: AbortRunInput): Promise<PiRuntimeEvent>;
+  configureModel?(input: ConfigureModelInput): Promise<RuntimeModelControls>;
   getSessionState(piSessionId: string): Promise<PiSessionState>;
   resumeSession?(input: ResumeSessionInput): Promise<PiSessionState>;
   forkSession?(input: ForkSessionInput): Promise<ForkSessionResult>;
@@ -252,5 +266,16 @@ export function cloneSessionState(state: PiSessionState): PiSessionState {
     events: state.events.map((event) => ({ ...event })),
     ...(state.replay ? { replay: state.replay.map(cloneReplayEntry) } : {}),
     summary: state.summary ? { ...state.summary } : undefined,
+    modelControls: state.modelControls
+      ? {
+          models: state.modelControls.models.map((model) => ({
+            ...model,
+            thinkingLevels: [...model.thinkingLevels],
+          })),
+          selected: state.modelControls.selected
+            ? { ...state.modelControls.selected }
+            : null,
+        }
+      : undefined,
   };
 }

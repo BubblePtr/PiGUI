@@ -133,6 +133,23 @@ function createFakeRuntimeDriver(): PiRuntimeDriver & {
         },
       };
     },
+    async configureModel(input) {
+      return {
+        models: [
+          {
+            provider: input.provider,
+            modelId: input.modelId,
+            name: "Claude Sonnet 4",
+            thinkingLevels: ["off", "low", "medium", "high"],
+          },
+        ],
+        selected: {
+          provider: input.provider,
+          modelId: input.modelId,
+          thinkingLevel: input.thinkingLevel,
+        },
+      };
+    },
     async getSnapshot(piSessionId) {
       return {
         sessionId: "app-session-1",
@@ -418,6 +435,79 @@ describe("Runtime Gateway service", () => {
         initialPrompt: "Persisted title",
       }),
     ]);
+  });
+
+  it("persists one validated model pair and restores it on a cold resume", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const firstService = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      projections,
+      now: () => "2026-07-19T10:00:00.000Z",
+    });
+
+    await firstService.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+    });
+    await expect(
+      firstService.handleRequest({
+        id: "req-configure",
+        method: "configure_model",
+        params: {
+          sessionId: "app-session-1",
+          piSessionId: "pi-session-1",
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          thinkingLevel: "high",
+        },
+      }),
+    ).resolves.toMatchObject({
+      id: "req-configure",
+      result: {
+        selected: {
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          thinkingLevel: "high",
+        },
+      },
+    });
+    await expect(projections.get("app-session-1")).resolves.toMatchObject({
+      modelSelection: {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      },
+    });
+
+    const restartDriver = createFakeRuntimeDriver();
+    const resumeSession = vi.spyOn(restartDriver, "resumeSession");
+    const restartedService = createRuntimeGatewayService({
+      driver: restartDriver,
+      projections,
+    });
+
+    await restartedService.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId: "app-session-1",
+        projectId: "pig",
+        piSessionId: "pi-session-1",
+        sessionFile: "/sessions/pi-session-1.jsonl",
+        cwd: "/repo",
+      },
+    });
+
+    expect(resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelSelection: {
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          thinkingLevel: "high",
+        },
+      }),
+    );
   });
 
   it("persists runtime status and usage as driver events arrive", async () => {

@@ -4,6 +4,12 @@
 
 import { createAgentRuntimeEventNormalizer } from "../gateway/agent-runtime-event-normalizer";
 import type {
+  RuntimeModelCapability,
+  RuntimeModelControls,
+  RuntimeModelSelection,
+  RuntimeThinkingLevel,
+} from "@pigui/core";
+import type {
   PiSdkRuntimeFactory,
   PiSdkRuntimeForker,
   PiSdkRuntimeResumer,
@@ -16,12 +22,26 @@ import type {
   ResumeRuntimeSessionInput,
 } from "../gateway/runtime-gateway";
 
+export type PublicPiSdkModel = {
+  id: string;
+  name: string;
+  provider: string;
+  reasoning: boolean;
+  thinkingLevelMap?: Partial<Record<RuntimeThinkingLevel, string | null>>;
+};
+
+export type PublicPiSdkModelRegistry = {
+  getAvailable(): PublicPiSdkModel[];
+  find(provider: string, modelId: string): PublicPiSdkModel | undefined;
+};
+
 export type PublicPiSdkAgentSession = {
   sessionId: string;
   isStreaming: boolean;
   messages: readonly unknown[];
   model?: unknown;
   thinkingLevel?: unknown;
+  modelRegistry?: PublicPiSdkModelRegistry;
   agent?: {
     state?: {
       errorMessage?: string;
@@ -235,6 +255,115 @@ function modelId(model: unknown) {
   return maybeString(model.id) ?? maybeString(model.name);
 }
 
+const thinkingLevelOrder: RuntimeThinkingLevel[] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
+function isThinkingLevel(value: unknown): value is RuntimeThinkingLevel {
+  return thinkingLevelOrder.includes(value as RuntimeThinkingLevel);
+}
+
+function thinkingLevelsForModel(model: PublicPiSdkModel): RuntimeThinkingLevel[] {
+  if (!model.reasoning) {
+    return ["off"];
+  }
+
+  return thinkingLevelOrder.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+
+    if (mapped === null) {
+      return false;
+    }
+
+    return level !== "xhigh" || mapped !== undefined;
+  });
+}
+
+function capabilityFromModel(model: PublicPiSdkModel): RuntimeModelCapability {
+  return {
+    provider: model.provider,
+    modelId: model.id,
+    name: model.name,
+    thinkingLevels: thinkingLevelsForModel(model),
+  };
+}
+
+function modelControlsFromSession(
+  session: PublicPiSdkAgentSession,
+): RuntimeModelControls | undefined {
+  const availableModels = session.modelRegistry?.getAvailable() ?? [];
+  const currentProvider = modelProvider(session.model);
+  const currentModelId = modelId(session.model);
+
+  if (!availableModels.length && (!currentProvider || !currentModelId)) {
+    return undefined;
+  }
+
+  return {
+    models: availableModels.map(capabilityFromModel),
+    selected:
+      currentProvider &&
+      currentModelId &&
+      isThinkingLevel(session.thinkingLevel)
+        ? {
+            provider: currentProvider,
+            modelId: currentModelId,
+            thinkingLevel: session.thinkingLevel,
+          }
+        : null,
+  };
+}
+
+async function configureSessionModel(
+  session: PublicPiSdkAgentSession,
+  selection: RuntimeModelSelection,
+): Promise<RuntimeModelControls> {
+  if (session.isStreaming) {
+    throw new Error("Model and Thinking cannot change while a run is active.");
+  }
+
+  const model = session.modelRegistry?.find(selection.provider, selection.modelId);
+
+  if (
+    !model ||
+    !session.modelRegistry?.getAvailable().some(
+      (available) =>
+        available.provider === selection.provider &&
+        available.id === selection.modelId,
+    )
+  ) {
+    throw new Error(
+      `Model "${selection.provider}/${selection.modelId}" is unavailable.`,
+    );
+  }
+
+  if (!thinkingLevelsForModel(model).includes(selection.thinkingLevel)) {
+    throw new Error(
+      `Thinking level "${selection.thinkingLevel}" is unavailable for "${selection.provider}/${selection.modelId}".`,
+    );
+  }
+
+  if (!session.setModel || !session.setThinkingLevel) {
+    throw new Error("Pi SDK model controls are unavailable.");
+  }
+
+  await session.setModel(model);
+  session.setThinkingLevel(selection.thinkingLevel);
+
+  const controls = modelControlsFromSession(session);
+
+  if (!controls?.selected) {
+    throw new Error("Pi SDK did not expose the selected model configuration.");
+  }
+
+  return controls;
+}
+
 function summaryFromSession(session: PublicPiSdkAgentSession) {
   const stats = session.getSessionStats?.();
   const summary = {
@@ -307,6 +436,10 @@ export function createPublicPiSdkRuntimeResumer(
       cwd: sessionManager.getCwd?.() || input.cwd,
       sessionManager,
     });
+
+    if (input.modelSelection) {
+      await configureSessionModel(session, input.modelSelection);
+    }
 
     return createPublicPiSdkRuntime({
       input,
@@ -408,6 +541,7 @@ function createPublicPiSdkRuntime(context: {
       cwd: session.sessionManager?.getCwd?.() ?? context.input.cwd,
       status: session.isStreaming ? "running" : "idle",
       sessionFile: session.sessionManager?.getSessionFile?.(),
+      modelControls: modelControlsFromSession(session),
       getLeafId() {
         return session.sessionManager?.getLeafId?.() ?? null;
       },
@@ -435,8 +569,12 @@ function createPublicPiSdkRuntime(context: {
         return {
           status: statusFromSession({ session, promptCompleted, stopped }),
           summary: summaryFromSession(session),
+          modelControls: modelControlsFromSession(session),
           updatedAt: now(),
         };
+      },
+      async configureModel(selection) {
+        return configureSessionModel(session, selection);
       },
       onEvent(listener) {
         return session.subscribe((event) => {

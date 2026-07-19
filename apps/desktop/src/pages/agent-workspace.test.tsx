@@ -3368,6 +3368,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         totalTokens: 1280,
         totalCostUsd: 0.012345,
       },
+      modelControls: null,
       stale: false,
       staleReason: null,
       failure: null,
@@ -3450,6 +3451,100 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
     expect(screen.getByTestId("full-chat-composer")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+  });
+
+  it("uses one composer control for the model list and capability-driven Thinking slider", async () => {
+    const user = userEvent.setup();
+    const models = [
+      {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        name: "Claude Sonnet 4",
+        thinkingLevels: ["off" as const, "low" as const, "medium" as const, "high" as const],
+      },
+      {
+        provider: "anthropic",
+        modelId: "claude-haiku-4",
+        name: "Claude Haiku 4",
+        thinkingLevels: ["off" as const, "low" as const],
+      },
+    ];
+    const configureModel = vi.fn(async (selection) => ({
+      models,
+      selected: { ...selection },
+    }));
+    const bridge = {
+      ...createInMemoryPiRuntimeBridge(),
+      configureModel,
+    };
+    const projection = {
+      ...createSessionProjection({
+        id: "session-model-controls",
+        projectId: "pig-docs",
+        initialPrompt: "Configure the next run",
+        createdAt: "2026-07-19T10:00:00.000Z",
+      }),
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "completed" as const,
+      creationStage: "accepted" as const,
+      runtimeId: "pi-sdk:session-model-controls",
+      piSessionId: "pi-session-model-controls",
+      modelControls: {
+        models,
+        selected: {
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          thinkingLevel: "high" as const,
+        },
+      },
+    };
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: projection.id,
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "claude-sonnet-4",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const trigger = screen.getByTestId("model-thinking-trigger");
+
+    expect(trigger).toHaveTextContent("Claude Sonnet 4 · High");
+    await user.click(trigger);
+    expect(await screen.findByRole("slider", { name: "Thinking level" })).toBeInTheDocument();
+    expect(screen.getByText("Medium")).toBeInTheDocument();
+    await user.click(screen.getByText("Claude Haiku 4"));
+
+    await waitFor(() => {
+      expect(configureModel).toHaveBeenCalledWith({
+        sessionId: "session-model-controls",
+        piSessionId: "pi-session-model-controls",
+        provider: "anthropic",
+        modelId: "claude-haiku-4",
+        thinkingLevel: "low",
+      });
+    });
+    expect(trigger).toHaveTextContent("Claude Haiku 4 · Low");
+    expect(screen.queryByText("Medium")).not.toBeInTheDocument();
   });
 
   it("renders one assistant bubble for read-only streaming updates with the same message identity", () => {

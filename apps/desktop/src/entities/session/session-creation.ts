@@ -199,6 +199,7 @@ export async function createSessionFromDraft(
         runtimeId: runtime.runtimeId,
         piSessionId: piState.piSessionId,
         summary: piState.summary,
+        modelControls: piState.modelControls,
         occurredAt: now(),
       }),
     );

@@ -1,6 +1,10 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { RuntimeGatewaySnapshot, RuntimeGatewaySummary } from "@pigui/core";
+import type {
+  RuntimeGatewaySnapshot,
+  RuntimeGatewaySummary,
+  RuntimeModelSelection,
+} from "@pigui/core";
 
 export type PersistedSessionProjection = {
   sessionId: string;
@@ -14,6 +18,7 @@ export type PersistedSessionProjection = {
   sessionFileMissing?: boolean;
   checkout?: unknown;
   summary?: RuntimeGatewaySummary;
+  modelSelection?: RuntimeModelSelection;
   archivedAt?: string;
   updatedAt: string;
 };
@@ -44,6 +49,9 @@ function cloneProjection(
   return {
     ...projection,
     summary: projection.summary ? { ...projection.summary } : undefined,
+    modelSelection: projection.modelSelection
+      ? { ...projection.modelSelection }
+      : undefined,
   };
 }
 
@@ -82,6 +90,9 @@ export function projectionFromRuntimeSnapshot(
     sessionFile: snapshot.sessionFile,
     checkout: snapshot.checkout,
     summary: snapshot.summary ? { ...snapshot.summary } : undefined,
+    modelSelection: snapshot.modelControls?.selected
+      ? { ...snapshot.modelControls.selected }
+      : undefined,
     updatedAt: snapshot.updatedAt,
   };
 }
@@ -117,6 +128,7 @@ export function mergeSessionProjection(
     sessionFile: next.sessionFile ?? current.sessionFile,
     checkout: next.checkout ?? current.checkout,
     summary: next.summary ?? current.summary,
+    modelSelection: next.modelSelection ?? current.modelSelection,
     archivedAt: current.archivedAt ?? next.archivedAt,
   };
 

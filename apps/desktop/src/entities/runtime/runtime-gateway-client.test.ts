@@ -101,6 +101,102 @@ describe("Runtime Gateway client", () => {
     });
   });
 
+  it("configures the selected model pair and updates local runtime state", async () => {
+    const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const controls = {
+      models: [
+        {
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          name: "Claude Sonnet 4",
+          thinkingLevels: ["off" as const, "high" as const],
+        },
+      ],
+      selected: {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high" as const,
+      },
+    };
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-controls",
+      runtimeId: "pi-sdk:session-controls",
+      piSessionId: "pi-session-controls",
+      projectId: "pig",
+      cwd: "/repo",
+      status: "idle",
+      events: [],
+      modelControls: {
+        ...controls,
+        selected: { ...controls.selected, thinkingLevel: "off" },
+      },
+      updatedAt: "2026-07-19T10:00:00.000Z",
+    };
+    const invoke: RuntimeGatewayClientOptions["invoke"] = async <T,>(
+      command: string,
+      args?: Record<string, unknown>,
+    ) => {
+      invocations.push({ command, args });
+
+      if (command === "resume_session") {
+        return snapshot as T;
+      }
+
+      if (command === "get_runtime_snapshot") {
+        return {
+          ...snapshot,
+          modelControls: controls,
+        } as T;
+      }
+
+      if (command === "configure_model") {
+        return controls as T;
+      }
+
+      throw new Error(`unexpected command ${command}`);
+    };
+    const client = createRuntimeGatewayClient({
+      invoke,
+      onBackendEvent: vi.fn(() => vi.fn()),
+      now: () => "2026-07-19T10:01:00.000Z",
+    });
+
+    await client.resumeSession?.({
+      sessionId: "session-controls",
+      projectId: "pig",
+      piSessionId: "pi-session-controls",
+      cwd: "/repo",
+      sessionFile: "/sessions/pi-session-controls.jsonl",
+      checkout: null,
+    });
+    await expect(
+      client.configureModel?.({
+        sessionId: "session-controls",
+        piSessionId: "pi-session-controls",
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      }),
+    ).resolves.toEqual(controls);
+    await expect(client.getSessionState("pi-session-controls")).resolves.toMatchObject({
+      modelControls: controls,
+      summary: {
+        provider: "anthropic",
+        model: "claude-sonnet-4",
+      },
+    });
+    expect(invocations).toContainEqual({
+      command: "configure_model",
+      args: {
+        sessionId: "session-controls",
+        piSessionId: "pi-session-controls",
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      },
+    });
+  });
+
   it("forks runtime state through the Gateway and preserves Pi entry identity", async () => {
     const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
     const snapshot: RuntimeGatewaySnapshot = {

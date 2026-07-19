@@ -131,6 +131,27 @@ function createSidebarProjection({
       ...projection.summary,
       ...summary,
     },
+    modelControls: {
+      models: [
+        {
+          provider: "openai",
+          modelId: "gpt-5-codex",
+          name: "GPT-5 Codex",
+          thinkingLevels: ["off", "low", "medium", "high"],
+        },
+        {
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          name: "Claude Sonnet 4",
+          thinkingLevels: ["off", "low", "medium", "high"],
+        },
+      ],
+      selected: {
+        provider: "openai",
+        modelId: "gpt-5-codex",
+        thinkingLevel: "high",
+      },
+    },
     updatedAt,
   };
 }
