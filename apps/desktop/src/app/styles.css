@@ -13,6 +13,13 @@
   --font-varela-round: "Varela Round", sans-serif;
   --font-inter: "Inter", sans-serif;
   --font-sans: var(--font-varela-round);
+  --pigui-data-blue: #1677e8;
+  --pigui-data-orange: #ff6a2a;
+  --pigui-data-orange-strong: #f04c0c;
+  --pigui-data-amber: #f5b83d;
+  --pigui-data-peach: #ffe0d3;
+  --pigui-data-coral: #ffad8d;
+  --pigui-data-slate: #b7bec8;
   --pigui-sidebar-item-radius: var(--radius);
   --pigui-sidebar-content-padding-x: 0.5rem;
   --pigui-sidebar-group-gap: 0.25rem;
@@ -343,7 +350,6 @@ body {
 .pigui-header-chrome__title {
   position: relative;
   z-index: 1;
-  transition: transform 200ms cubic-bezier(.2, .8, .2, 1);
   will-change: transform;
 }
 

@@ -37,6 +37,25 @@ export type DailyTokenUsage = {
   totalTokens: number;
 };
 
+export type DailyProjectTokens = {
+  project: string;
+  tokens: number;
+};
+
+export type DailyTokensByProject = DailyTokenUsage & {
+  projects: DailyProjectTokens[];
+};
+
+export type UsageTrendPreset = "30d" | "12w" | "12m";
+
+export type TokenUsageBucket = {
+  key: string;
+  startDate: string;
+  endDate: string;
+  totalTokens: number;
+  projects: DailyProjectTokens[];
+};
+
 export type AnnualTokenUsageDay = DailyTokenUsage & {
   weekIndex: number;
   weekdayIndex: number;
@@ -237,6 +256,122 @@ export function aggregateDailyTokens(sessions: SessionSummary[]): DailyTokenUsag
     date,
     totalTokens: totals.get(date) ?? 0,
   }));
+}
+
+export function aggregateDailyTokensByProject(
+  sessions: SessionSummary[],
+): DailyTokensByProject[] {
+  const totals = new Map<string, Map<string, number>>();
+
+  for (const session of sessions) {
+    const day = toUtcDay(session.timestamp);
+    const projectTotals = totals.get(day) ?? new Map<string, number>();
+    projectTotals.set(
+      session.project,
+      (projectTotals.get(session.project) ?? 0) + session.totalTokens,
+    );
+    totals.set(day, projectTotals);
+  }
+
+  return dayRange(sessions).map((date) => {
+    const projects = Array.from(totals.get(date)?.entries() ?? [])
+      .map(([project, tokens]) => ({ project, tokens }))
+      .sort(
+        (left, right) => right.tokens - left.tokens || left.project.localeCompare(right.project),
+      );
+
+    return {
+      date,
+      totalTokens: projects.reduce((sum, project) => sum + project.tokens, 0),
+      projects,
+    };
+  });
+}
+
+function tokenTrendRanges(
+  latestDate: string,
+  preset: UsageTrendPreset,
+): Array<Pick<TokenUsageBucket, "key" | "startDate" | "endDate">> {
+  const latest = utcDateFromDay(latestDate);
+
+  if (preset === "30d") {
+    return Array.from({ length: 30 }, (_, index) => {
+      const date = toUtcDateOnly(addUtcDays(latest, index - 29));
+      return { key: date, startDate: date, endDate: date };
+    });
+  }
+
+  if (preset === "12w") {
+    const firstWeekStart = addUtcDays(latest, -(12 * 7 - 1));
+    return Array.from({ length: 12 }, (_, index) => {
+      const start = addUtcDays(firstWeekStart, index * 7);
+      const end = addUtcDays(start, 6);
+      const startDate = toUtcDateOnly(start);
+
+      return {
+        key: startDate,
+        startDate,
+        endDate: toUtcDateOnly(end),
+      };
+    });
+  }
+
+  const firstMonth = new Date(
+    Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth() - 11, 1),
+  );
+
+  return Array.from({ length: 12 }, (_, index) => {
+    const start = addUtcMonths(firstMonth, index);
+    const monthEnd = new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0),
+    );
+    const end = monthEnd > latest ? latest : monthEnd;
+    const startDate = toUtcDateOnly(start);
+
+    return {
+      key: startDate.slice(0, 7),
+      startDate,
+      endDate: toUtcDateOnly(end),
+    };
+  });
+}
+
+export function bucketTokenUsageByProject(
+  days: DailyTokensByProject[],
+  preset: UsageTrendPreset,
+): TokenUsageBucket[] {
+  const latestDate = latestTokenDate(days);
+  if (latestDate === undefined) {
+    return [];
+  }
+
+  return tokenTrendRanges(latestDate, preset).map((range) => {
+    const projectTotals = new Map<string, number>();
+
+    for (const day of days) {
+      if (day.date < range.startDate || day.date > range.endDate) {
+        continue;
+      }
+      for (const project of day.projects) {
+        projectTotals.set(
+          project.project,
+          (projectTotals.get(project.project) ?? 0) + project.tokens,
+        );
+      }
+    }
+
+    const projects = Array.from(projectTotals.entries())
+      .map(([project, tokens]) => ({ project, tokens }))
+      .sort(
+        (left, right) => right.tokens - left.tokens || left.project.localeCompare(right.project),
+      );
+
+    return {
+      ...range,
+      totalTokens: projects.reduce((sum, project) => sum + project.tokens, 0),
+      projects,
+    };
+  });
 }
 
 function buildTokenHeatmapForRange(

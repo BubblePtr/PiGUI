@@ -3,9 +3,11 @@ import {
   aggregateCostByModel,
   aggregateDailyCostByProject,
   aggregateDailyTokens,
+  aggregateDailyTokensByProject,
   buildAnnualTokenHeatmap,
   buildTrailingAnnualTokenHeatmap,
   bucketCostByProject,
+  bucketTokenUsageByProject,
   aggregateModelDistribution,
   aggregateSkillCounts,
   aggregateToolCounts,
@@ -85,6 +87,120 @@ describe("aggregateDailyTokens", () => {
       { date: "2026-01-02", totalTokens: 0 },
       { date: "2026-01-03", totalTokens: 500 },
     ]);
+  });
+});
+
+describe("aggregateDailyTokensByProject", () => {
+  it("groups tokens by UTC day and project, filling sparse days", () => {
+    const sessions = [
+      session("a", "2026-01-01T23:00:00.000Z", "alpha", 0.25, 100),
+      session("b", "2026-01-03T01:00:00.000Z", "beta", 0.5, 200),
+      session("c", "2026-01-03T12:00:00.000Z", "alpha", 0.75, 300),
+    ];
+
+    expect(aggregateDailyTokensByProject(sessions)).toEqual([
+      {
+        date: "2026-01-01",
+        totalTokens: 100,
+        projects: [{ project: "alpha", tokens: 100 }],
+      },
+      {
+        date: "2026-01-02",
+        totalTokens: 0,
+        projects: [],
+      },
+      {
+        date: "2026-01-03",
+        totalTokens: 500,
+        projects: [
+          { project: "alpha", tokens: 300 },
+          { project: "beta", tokens: 200 },
+        ],
+      },
+    ]);
+  });
+});
+
+describe("bucketTokenUsageByProject", () => {
+  const days = [
+    {
+      date: "2026-03-20",
+      totalTokens: 100,
+      projects: [{ project: "alpha", tokens: 100 }],
+    },
+    {
+      date: "2026-03-21",
+      totalTokens: 0,
+      projects: [],
+    },
+    {
+      date: "2026-03-22",
+      totalTokens: 500,
+      projects: [
+        { project: "alpha", tokens: 300 },
+        { project: "beta", tokens: 200 },
+      ],
+    },
+  ];
+
+  it("keeps the 30-day trend at exactly 30 daily buckets", () => {
+    const buckets = bucketTokenUsageByProject(days, "30d");
+
+    expect(buckets).toHaveLength(30);
+    expect(buckets[0]).toMatchObject({
+      key: "2026-02-21",
+      startDate: "2026-02-21",
+      endDate: "2026-02-21",
+      totalTokens: 0,
+    });
+    expect(buckets[buckets.length - 1]).toEqual({
+      key: "2026-03-22",
+      startDate: "2026-03-22",
+      endDate: "2026-03-22",
+      totalTokens: 500,
+      projects: [
+        { project: "alpha", tokens: 300 },
+        { project: "beta", tokens: 200 },
+      ],
+    });
+  });
+
+  it("keeps weekly and monthly trends at 12 aggregated buckets", () => {
+    const weeks = bucketTokenUsageByProject(days, "12w");
+    const months = bucketTokenUsageByProject(days, "12m");
+
+    expect(weeks).toHaveLength(12);
+    expect(weeks[0]).toMatchObject({
+      startDate: "2025-12-29",
+      endDate: "2026-01-04",
+    });
+    expect(weeks[weeks.length - 1]).toEqual({
+      key: "2026-03-16",
+      startDate: "2026-03-16",
+      endDate: "2026-03-22",
+      totalTokens: 600,
+      projects: [
+        { project: "alpha", tokens: 400 },
+        { project: "beta", tokens: 200 },
+      ],
+    });
+
+    expect(months).toHaveLength(12);
+    expect(months[0]).toMatchObject({
+      key: "2025-04",
+      startDate: "2025-04-01",
+      endDate: "2025-04-30",
+    });
+    expect(months[months.length - 1]).toEqual({
+      key: "2026-03",
+      startDate: "2026-03-01",
+      endDate: "2026-03-22",
+      totalTokens: 600,
+      projects: [
+        { project: "alpha", tokens: 400 },
+        { project: "beta", tokens: 200 },
+      ],
+    });
   });
 });
 

@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SessionSummary } from "@/entities/session/sessions";
 import {
-  CostTrendChart,
-  CostTrendSection,
+  ModelMixCard,
   TokenHeatmap,
+  UsageTrendChart,
+  UsageTrendSection,
   UsageSecondLayer,
   UsageSummaryPanel,
 } from "@/pages/usage";
@@ -50,17 +51,17 @@ describe("UsageSecondLayer", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Cost by model" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Model distribution" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Tool calls" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Skill usage" })).toBeInTheDocument();
-    expect(screen.getAllByText("gpt-5-codex").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("gpt-5-mini").length).toBeGreaterThan(0);
     expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("run_command")).toBeInTheDocument();
     expect(screen.queryByText("long_tail_tool")).not.toBeInTheDocument();
     expect(screen.getByText("review")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="segment"]')).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(2);
+    expect(screen.getAllByTestId("rank-card-content")).toHaveLength(2);
+    expect(
+      screen.getAllByTestId("rank-card-content").every((content) => content.classList.contains("p-5")),
+    ).toBe(true);
   });
 
   it("renders an empty skill state for sparse skill usage", () => {
@@ -70,78 +71,107 @@ describe("UsageSecondLayer", () => {
   });
 });
 
-describe("CostTrendChart", () => {
-  it("renders monthly cost trends without horizontal scrolling by default", () => {
+describe("UsageTrendChart", () => {
+  it("renders a stable set of project token buckets with a fixed bar width", () => {
     const { container } = render(
-      <CostTrendChart
+      <UsageTrendChart
         days={[
           {
             date: "2026-03-20",
-            totalCostUsd: 1,
-            projects: [{ project: "alpha", costUsd: 1 }],
+            totalTokens: 100,
+            projects: [{ project: "alpha", tokens: 100 }],
           },
           {
             date: "2026-03-21",
-            totalCostUsd: 0,
+            totalTokens: 0,
             projects: [],
           },
           {
-            date: "2026-04-01",
-            totalCostUsd: 2,
-            projects: [{ project: "alpha", costUsd: 2 }],
+            date: "2026-03-22",
+            totalTokens: 200,
+            projects: [{ project: "alpha", tokens: 200 }],
           },
         ]}
-        granularity="month"
         projects={["alpha"]}
+        preset="30d"
       />,
     );
 
-    const card = container.querySelector('[data-slot="card"]');
-    const viewport = screen.getByTestId("cost-trend-chart-viewport");
+    const viewport = screen.getByTestId("usage-trend-chart-viewport");
     const chart = container.querySelector<HTMLElement>('[data-slot="bar-chart"]');
 
-    expect(card).not.toHaveClass("overflow-x-auto");
-    expect(viewport).toHaveAttribute("data-granularity", "month");
-    expect(viewport).toHaveAttribute("data-scrollable", "false");
-    expect(chart).toHaveAttribute("aria-label", "Monthly cost by project chart");
+    expect(viewport).toHaveAttribute("data-preset", "30d");
+    expect(viewport).toHaveAttribute("data-bucket-count", "30");
+    expect(viewport).toHaveAttribute("data-bar-size", "14");
+    expect(chart).toHaveAttribute("aria-label", "Token usage trend by project chart");
     expect(viewport).toContainElement(chart);
-    expect(container.innerHTML).not.toContain("--pigui-color-");
-  });
-
-  it("uses HeroUI Pro chart tokens instead of Pig color variables", () => {
-    const source = readFileSync(join(process.cwd(), "apps/desktop/src/pages/usage.tsx"), "utf8");
-
-    expect(source).toContain("const chartColorCount = 5;");
-    expect(source).toContain("var(--chart-${(index % chartColorCount) + 1})");
-    expect(source).toContain("var(--surface-tertiary)");
-    expect(source).not.toContain("--pigui-color-");
   });
 });
 
-describe("CostTrendSection", () => {
-  it("offers useful time grains and defaults to month", () => {
+describe("UsageTrendSection", () => {
+  it("offers stable trend presets and defaults to 30 daily buckets", async () => {
+    const user = userEvent.setup();
+
     render(
-      <CostTrendSection
+      <UsageTrendSection
         days={[
           {
             date: "2026-03-20",
-            totalCostUsd: 1,
-            projects: [{ project: "alpha", costUsd: 1 }],
+            totalTokens: 100,
+            projects: [{ project: "alpha", tokens: 100 }],
           },
         ]}
         projects={["alpha"]}
       />,
     );
 
-    expect(screen.getByText("Day")).toBeInTheDocument();
-    expect(screen.getByText("Week")).toBeInTheDocument();
-    expect(screen.getByText("Month")).toBeInTheDocument();
-    expect(screen.getByText("Year")).toBeInTheDocument();
-    expect(screen.getByText("Cumulative")).toBeInTheDocument();
-    expect(screen.getByTestId("cost-trend-chart-viewport")).toHaveAttribute(
-      "data-granularity",
-      "month",
+    expect(screen.getByRole("heading", { name: "Usage trend" })).toBeInTheDocument();
+    expect(screen.getByText("30D")).toBeInTheDocument();
+    expect(screen.getByText("12W")).toBeInTheDocument();
+    expect(screen.getByText("12M")).toBeInTheDocument();
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
+    expect(screen.getByTestId("usage-trend-chart-viewport")).toHaveAttribute(
+      "data-preset",
+      "30d",
     );
+    expect(screen.getByTestId("usage-trend-card-content")).toHaveClass("p-5");
+
+    await user.click(screen.getByText("12W"));
+
+    expect(screen.getByTestId("usage-trend-chart-viewport")).toHaveAttribute(
+      "data-preset",
+      "12w",
+    );
+    expect(screen.getByTestId("usage-trend-chart-viewport")).toHaveAttribute(
+      "data-bucket-count",
+      "12",
+    );
+  });
+});
+
+describe("ModelMixCard", () => {
+  it("renders a colorful token distribution with model cost context", () => {
+    const { container } = render(
+      <ModelMixCard
+        sessions={[
+          session({
+            modelBreakdown: [
+              { model: "gpt-5-codex", costUsd: 0.8, tokens: 800 },
+              { model: "gpt-5-mini", costUsd: 0.2, tokens: 200 },
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Model mix" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Model token distribution" })).toBeInTheDocument();
+    expect(screen.getByText("gpt-5-codex")).toBeInTheDocument();
+    expect(screen.getByText("gpt-5-mini")).toBeInTheDocument();
+    expect(screen.getByText("80%")).toBeInTheDocument();
+    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(container.innerHTML).toContain("--pigui-data-orange");
+    expect(screen.getByTestId("model-mix-card-content")).toHaveClass("p-5");
   });
 });
 
@@ -159,24 +189,36 @@ describe("TokenHeatmap", () => {
     const grid = screen.getByTestId("token-heatmap-grid");
     const calendar = screen.getByTestId("token-heatmap-calendar");
     const firstCell = container.querySelector("[data-token-day]");
+    const monthHeader = grid.previousElementSibling;
+    const layout = screen.getByTestId("token-heatmap-layout");
+    const summary = screen.getByTestId("token-heatmap-summary");
+    const legendDots = summary.querySelectorAll("[aria-hidden].size-3");
 
     expect(screen.getByRole("heading", { name: "Token activity" })).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="tabs"]')).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Daily" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByRole("tab", { name: "Weekly" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Cumulative" })).toBeInTheDocument();
-    expect(calendar).toHaveClass("min-w-[48rem]", "lg:min-w-0");
+    expect(container.querySelector('[data-slot="tabs"]')).not.toBeInTheDocument();
+    expect(screen.queryByText("Weekly")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cumulative")).not.toBeInTheDocument();
+    expect(screen.getByTestId("token-heatmap-card-content")).toHaveClass("p-5");
+    expect(layout).toHaveClass("xl:grid-cols-[max-content_minmax(7rem,1fr)]");
+    expect(layout).toContainElement(calendar);
+    expect(layout).toContainElement(summary);
+    expect(summary).toHaveClass("xl:border-l", "xl:border-t-0");
+    expect(calendar).toHaveClass("w-max");
+    expect(calendar).not.toHaveClass("w-full");
     expect(grid).toHaveAttribute("data-year", "2026");
-    expect(grid).toHaveAttribute("data-mode", "daily");
+    expect(grid).not.toHaveAttribute("data-mode");
     expect(grid).toHaveAttribute("data-day-count", "365");
     expect(grid).toHaveStyle({
-      gridTemplateColumns: "repeat(53, minmax(0, 1fr))",
+      gridTemplateColumns: "repeat(53, 0.75rem)",
     });
+    expect(monthHeader).toHaveStyle({
+      gridTemplateColumns: "repeat(53, 0.75rem)",
+    });
+    expect(grid).toHaveClass("gap-0.5");
+    expect(monthHeader).toHaveClass("gap-0.5");
     expect(container.querySelectorAll("[data-token-day]")).toHaveLength(365);
-    expect(firstCell).toHaveClass("aspect-square", "rounded-full");
+    expect(firstCell).toHaveClass("size-3", "justify-self-center", "rounded-full");
+    expect(firstCell).not.toHaveClass("border", "border-border");
     expect(firstCell).not.toHaveClass("rounded-[4px]");
     expect(firstCell).toHaveStyle({ backgroundColor: "var(--surface-secondary)" });
     expect(firstCell).toHaveAttribute("data-tokens", "0");
@@ -187,7 +229,7 @@ describe("TokenHeatmap", () => {
       "100",
     );
     expect(container.querySelector('[data-date="2026-03-20"]')).toHaveStyle({
-      backgroundColor: "var(--chart-2)",
+      backgroundColor: "var(--pigui-data-coral)",
     });
     expect(container.innerHTML).not.toContain("--pigui-color-");
     expect(container.querySelector('[data-date="2026-06-30"]')).toHaveAttribute(
@@ -200,48 +242,25 @@ describe("TokenHeatmap", () => {
     });
     expect(container.querySelector('[data-month-label="Jun"]')).toBeInTheDocument();
     expect(container.querySelector("[data-weekday-label]")).not.toBeInTheDocument();
-    expect(screen.queryByText("Less")).not.toBeInTheDocument();
-  });
-
-  it("switches token activity aggregation modes", async () => {
-    const user = userEvent.setup();
-    const { container } = render(
-      <TokenHeatmap
-        days={[
-          { date: "2026-01-01", totalTokens: 100 },
-          { date: "2026-01-02", totalTokens: 300 },
-        ]}
-      />,
-    );
-
-    const janOne = () => container.querySelector('[data-date="2026-01-01"]');
-    const janThree = () => container.querySelector('[data-date="2026-01-03"]');
-    const grid = () => screen.getByTestId("token-heatmap-grid");
-
-    expect(grid()).toHaveAttribute("data-mode", "daily");
-    expect(janOne()).toHaveAttribute("data-activity-value", "100");
-    expect(janThree()).toHaveAttribute("data-activity-value", "0");
-
-    await user.click(screen.getByRole("tab", { name: "Weekly" }));
-
-    expect(grid()).toHaveAttribute("data-mode", "weekly");
-    expect(janOne()).toHaveAttribute("data-activity-value", "400");
-    expect(janThree()).toHaveAttribute("data-activity-value", "400");
-
-    await user.click(screen.getByRole("tab", { name: "Cumulative" }));
-
-    expect(grid()).toHaveAttribute("data-mode", "cumulative");
-    expect(janOne()).toHaveAttribute("data-activity-value", "100");
-    expect(janThree()).toHaveAttribute("data-activity-value", "400");
+    expect(screen.getByText("Less")).toBeInTheDocument();
+    expect(screen.getByText("More")).toBeInTheDocument();
+    expect(legendDots).toHaveLength(5);
+    expect(Array.from(legendDots).every((dot) => !dot.classList.contains("border"))).toBe(true);
+    expect(screen.getByLabelText("2 active days")).toBeInTheDocument();
+    expect(screen.getByLabelText("250 peak day")).toBeInTheDocument();
   });
 });
 
 describe("UsageSummaryPanel", () => {
-  it("labels the route as a first-level Usage surface", () => {
+  it("starts with KPI cards instead of repeating the current route", () => {
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/pages/usage.tsx"), "utf8");
 
-    expect(source).toContain(">Usage</div>");
+    expect(source).not.toContain(">Usage</div>");
     expect(source).not.toContain("Analyze / Usage");
+    expect(source).not.toContain("Cost and token trends");
+    expect(source).not.toContain("Cost is shown as API list price");
+    expect(source).toContain("max-w-5xl");
+    expect(source).not.toContain("max-w-6xl");
   });
 
   it("keeps summary KPI cards visually aligned without repeated pricing copy", () => {
@@ -249,7 +268,15 @@ describe("UsageSummaryPanel", () => {
       <UsageSummaryPanel sessions={[session()]} isFetching={false} onRefresh={() => {}} />,
     );
 
+    const summary = screen.getByTestId("usage-summary");
+
+    expect(summary).not.toHaveAttribute("data-slot", "card");
+    expect(summary.closest('[data-slot="card"]')).toBeNull();
     expect(container.querySelector('[data-slot="kpi-footer"]')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-slot="kpi"]')).toHaveLength(4);
+    expect(screen.getByText("Sessions")).toBeInTheDocument();
+    expect(screen.queryByText("Usage summary")).not.toBeInTheDocument();
+    expect(screen.queryByText("All sessions")).not.toBeInTheDocument();
     expect(screen.queryByText("API list price")).not.toBeInTheDocument();
   });
 
