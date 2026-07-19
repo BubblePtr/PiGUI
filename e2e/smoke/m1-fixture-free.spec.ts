@@ -246,11 +246,29 @@ test.describe("M3: Real diff action surface", () => {
       const handleBox = await resizeHandle.boundingBox();
       const initialAsideBox = await changesAside.boundingBox();
       const viewportHeight = await testApp.window.evaluate(() => window.innerHeight);
+      const visibleHandleBounds = await resizeHandle.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        let top = bounds.top;
+        let bottom = bounds.bottom;
+
+        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+          const overflowY = window.getComputedStyle(parent).overflowY;
+
+          if (["auto", "clip", "hidden", "scroll"].includes(overflowY)) {
+            const parentBounds = parent.getBoundingClientRect();
+
+            top = Math.max(top, parentBounds.top);
+            bottom = Math.min(bottom, parentBounds.bottom);
+          }
+        }
+
+        return { bottom, top };
+      });
 
       expect(handleBox).not.toBeNull();
       expect(initialAsideBox).not.toBeNull();
-      expect(handleBox!.y).toBeLessThanOrEqual(1);
-      expect(handleBox!.height).toBeGreaterThanOrEqual(viewportHeight - 1);
+      expect(visibleHandleBounds.top).toBeLessThanOrEqual(1);
+      expect(visibleHandleBounds.bottom).toBeGreaterThanOrEqual(viewportHeight - 1);
       await testApp.window.mouse.move(
         handleBox!.x + handleBox!.width / 2,
         handleBox!.y + handleBox!.height / 2,

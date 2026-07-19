@@ -3345,7 +3345,7 @@ export function AgentWorkspaceSessionsView({
 
   return (
     <article
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6 pb-0 pt-6"
+      className="-mt-10 flex h-[calc(100%+2.5rem)] min-h-0 min-w-0 flex-col overflow-hidden px-6 pb-0"
       data-testid="project-sessions-view"
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[96rem] flex-col gap-4">
@@ -3361,16 +3361,15 @@ export function AgentWorkspaceSessionsView({
                 minSize={resizableSizes.workspaceMinSize}
               >
                 <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden"
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
                   data-testid="session-workspace-main-pane"
                 >
                   {liveSession}
                 </div>
               </Resizable.Panel>
-              {/* Cover the 40px titlebar and 24px workspace inset without moving panel content. */}
               <Resizable.Handle
                 aria-label="Resize Session changes"
-                className="-mt-16 mx-2"
+                className="mx-2"
               />
               <Resizable.Panel
                 defaultSize={resizableSizes.changesDefaultSize}
@@ -3378,7 +3377,7 @@ export function AgentWorkspaceSessionsView({
                 minSize={resizableSizes.changesMinSize}
               >
                 <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden"
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
                   data-testid="session-workspace-aside-pane"
                 >
                   {aside}
@@ -3386,7 +3385,7 @@ export function AgentWorkspaceSessionsView({
               </Resizable.Panel>
             </Resizable>
           ) : (
-            liveSession
+            <div className="h-full min-h-0 pt-16">{liveSession}</div>
           )}
         </div>
       </div>

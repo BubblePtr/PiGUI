@@ -260,8 +260,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(liveColumn).queryByRole("heading", { name: "Run timeline" })).not.toBeInTheDocument();
     expect(within(liveColumn).queryByRole("button", { name: "Session actions" })).not.toBeInTheDocument();
     expect(liveColumn).toHaveClass("h-full");
-    expect(sessionsView).toHaveClass("pt-6", "pb-0");
-    expect(sessionsView).not.toHaveClass("py-6");
+    expect(sessionsView).toHaveClass("-mt-10", "h-[calc(100%+2.5rem)]", "pb-0");
+    expect(sessionsView).not.toHaveClass("pt-6", "py-6");
     const sessionActionsButton = within(navbarActions).getByRole("button", {
       name: "Session actions",
     });
@@ -423,7 +423,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
     expect(aside).not.toHaveClass("border-l");
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
-    expect(screen.getByLabelText("Resize Session changes")).toHaveClass("-mt-16");
+    expect(screen.getByLabelText("Resize Session changes")).toHaveClass("mx-2");
+    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-16");
+    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-16");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
 
