@@ -2,6 +2,8 @@ import type {
   RuntimeGatewayQueuedMessage,
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
+  RuntimeModelControls,
+  RuntimeModelSelection,
 } from "@pigui/core";
 import type {
   CreateRuntimeSessionInput,
@@ -22,7 +24,10 @@ export type PiSdkUserMessageBoundary = {
 };
 
 export type PiSdkSnapshotPatch = Partial<
-  Pick<RuntimeGatewaySnapshot, "status" | "events" | "summary" | "updatedAt">
+  Pick<
+    RuntimeGatewaySnapshot,
+    "status" | "events" | "summary" | "modelControls" | "updatedAt"
+  >
 >;
 
 export type PiSdkSessionRuntime = {
@@ -32,11 +37,13 @@ export type PiSdkSessionRuntime = {
   status?: RuntimeGatewaySnapshot["status"];
   sessionFile?: string;
   summary?: RuntimeGatewaySummary;
+  modelControls?: RuntimeModelControls;
   sendPrompt(prompt: string): Promise<void>;
   queueFollowUp?(message: string): Promise<PiSdkQueuedMessage>;
   withdrawQueuedMessage?(queuedMessageId: string): Promise<PiSdkQueuedMessage>;
   steerRun?(message: string): Promise<void>;
   stopRun?(): Promise<void>;
+  configureModel?(selection: RuntimeModelSelection): Promise<RuntimeModelControls>;
   getSnapshot?(): Promise<PiSdkSnapshotPatch>;
   getLeafId?(): string | null;
   waitForNextUserMessageBoundary?(): Promise<PiSdkUserMessageBoundary>;
@@ -90,6 +97,16 @@ function cloneSummary(summary: RuntimeGatewaySummary): RuntimeGatewaySummary {
   return { ...summary };
 }
 
+function cloneModelControls(controls: RuntimeModelControls): RuntimeModelControls {
+  return {
+    models: controls.models.map((model) => ({
+      ...model,
+      thinkingLevels: [...model.thinkingLevels],
+    })),
+    selected: controls.selected ? { ...controls.selected } : null,
+  };
+}
+
 function cloneSnapshot(snapshot: RuntimeGatewaySnapshot): RuntimeGatewaySnapshot {
   const cloned: RuntimeGatewaySnapshot = {
     ...snapshot,
@@ -98,6 +115,10 @@ function cloneSnapshot(snapshot: RuntimeGatewaySnapshot): RuntimeGatewaySnapshot
 
   if (snapshot.summary) {
     cloned.summary = cloneSummary(snapshot.summary);
+  }
+
+  if (snapshot.modelControls) {
+    cloned.modelControls = cloneModelControls(snapshot.modelControls);
   }
 
   return cloned;
@@ -128,6 +149,11 @@ function snapshotFromRuntime(input: {
     snapshot.summary = cloneSummary(input.runtime.summary);
   }
 
+
+  if (input.runtime.modelControls) {
+    snapshot.modelControls = cloneModelControls(input.runtime.modelControls);
+  }
+
   return snapshot;
 }
 
@@ -147,6 +173,10 @@ function mergeSnapshotPatch(
 
   if (patch.summary) {
     merged.summary = cloneSummary(patch.summary);
+  }
+
+  if (patch.modelControls) {
+    merged.modelControls = cloneModelControls(patch.modelControls);
   }
 
   if (patch.updatedAt) {
@@ -336,6 +366,54 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
           body: "Pi stopped the active run.",
         },
       };
+    },
+
+    async configureModel(input) {
+      const runtime = runtimeFor(input.piSessionId, "configure_model");
+      const snapshot = snapshots.get(input.piSessionId);
+
+      if (!snapshot) {
+        throw new Error(`Pi SDK snapshot "${input.piSessionId}" was not found.`);
+      }
+
+      const livePatch = await runtime.getSnapshot?.();
+
+      if ((livePatch?.status ?? snapshot.status) === "running") {
+        throw new Error("Model and Thinking cannot change while a run is active.");
+      }
+
+      if (!runtime.configureModel) {
+        unsupported("configure_model", "the injected SDK runtime has no model adapter");
+      }
+
+      const modelControls = await runtime.configureModel({
+        provider: input.provider,
+        modelId: input.modelId,
+        thinkingLevel: input.thinkingLevel,
+      });
+      const selected = modelControls.selected;
+      const baseSnapshot = mergeSnapshotPatch(snapshot, livePatch ?? {});
+      const nextSnapshot: RuntimeGatewaySnapshot = {
+        ...baseSnapshot,
+        modelControls: cloneModelControls(modelControls),
+        summary: selected
+          ? {
+              ...(baseSnapshot.summary ?? {
+                provider: null,
+                model: null,
+                totalTokens: 0,
+                totalCostUsd: 0,
+              }),
+              provider: selected.provider,
+              model: selected.modelId,
+            }
+          : baseSnapshot.summary,
+        updatedAt: now(),
+      };
+
+      snapshots.set(input.piSessionId, nextSnapshot);
+
+      return cloneModelControls(modelControls);
     },
 
     async getSnapshot(piSessionId) {

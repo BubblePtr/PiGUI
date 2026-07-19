@@ -276,6 +276,12 @@ export function createPiRpcProcessDriver(
       };
     },
 
+    async configureModel() {
+      throw new Error(
+        'Pi RPC driver does not support "configure_model": capability discovery is only available through the SDK driver.',
+      );
+    },
+
     async getSnapshot(piSessionId) {
       const snapshot = snapshots.get(piSessionId);
 

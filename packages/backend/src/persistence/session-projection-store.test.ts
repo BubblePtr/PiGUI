@@ -34,7 +34,37 @@ describe("session projection store", () => {
       sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-1.jsonl",
       checkout: undefined,
       summary: undefined,
+      modelSelection: undefined,
       updatedAt: "2026-07-03T10:00:00.000Z",
+    });
+  });
+
+  it("persists only the selected model pair from runtime capabilities", () => {
+    expect(
+      projectionFromRuntimeSnapshot({
+        ...snapshot,
+        modelControls: {
+          models: [
+            {
+              provider: "anthropic",
+              modelId: "claude-sonnet-4",
+              name: "Claude Sonnet 4",
+              thinkingLevels: ["off", "high"],
+            },
+          ],
+          selected: {
+            provider: "anthropic",
+            modelId: "claude-sonnet-4",
+            thinkingLevel: "high",
+          },
+        },
+      }),
+    ).toMatchObject({
+      modelSelection: {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      },
     });
   });
 

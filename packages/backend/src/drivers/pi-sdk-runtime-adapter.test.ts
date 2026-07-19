@@ -676,4 +676,173 @@ describe("Pi SDK public runtime adapter", () => {
     });
   });
 
+  it("derives per-model Thinking capabilities and applies a validated pair", async () => {
+    const models = [
+      {
+        provider: "anthropic",
+        id: "claude-sonnet-4",
+        name: "Claude Sonnet 4",
+        reasoning: true,
+        thinkingLevelMap: { minimal: null, xhigh: "max" },
+      },
+      {
+        provider: "openai",
+        id: "gpt-4.1",
+        name: "GPT-4.1",
+        reasoning: false,
+      },
+    ];
+    let currentModel = models[0];
+    let currentThinkingLevel = "high";
+    const setModel = vi.fn(async (model: unknown) => {
+      currentModel = model as (typeof models)[number];
+    });
+    const setThinkingLevel = vi.fn((level: unknown) => {
+      currentThinkingLevel = String(level);
+    });
+    const session = {
+      sessionId: "sdk-session-controls",
+      isStreaming: false,
+      messages: [],
+      get model() {
+        return currentModel;
+      },
+      get thinkingLevel() {
+        return currentThinkingLevel;
+      },
+      modelRegistry: {
+        getAvailable: () => models,
+        find: (provider: string, modelId: string) =>
+          models.find(
+            (model) => model.provider === provider && model.id === modelId,
+          ),
+      },
+      setModel,
+      setThinkingLevel,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtime = await createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+    })({
+      sessionId: "app-session-controls",
+      projectId: "pig",
+      cwd: "/repo",
+    });
+
+    expect(runtime.modelControls).toEqual({
+      models: [
+        {
+          provider: "anthropic",
+          modelId: "claude-sonnet-4",
+          name: "Claude Sonnet 4",
+          thinkingLevels: ["off", "low", "medium", "high", "xhigh"],
+        },
+        {
+          provider: "openai",
+          modelId: "gpt-4.1",
+          name: "GPT-4.1",
+          thinkingLevels: ["off"],
+        },
+      ],
+      selected: {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      },
+    });
+
+    await expect(
+      runtime.configureModel?.({
+        provider: "openai",
+        modelId: "gpt-4.1",
+        thinkingLevel: "off",
+      }),
+    ).resolves.toMatchObject({
+      selected: {
+        provider: "openai",
+        modelId: "gpt-4.1",
+        thinkingLevel: "off",
+      },
+    });
+    await expect(
+      runtime.configureModel?.({
+        provider: "openai",
+        modelId: "gpt-4.1",
+        thinkingLevel: "high",
+      }),
+    ).rejects.toThrow(
+      'Thinking level "high" is unavailable for "openai/gpt-4.1".',
+    );
+    expect(setModel).toHaveBeenCalledTimes(1);
+    expect(setThinkingLevel).toHaveBeenCalledWith("off");
+  });
+
+  it("restores the persisted model pair before exposing a resumed runtime", async () => {
+    const models = [
+      {
+        provider: "anthropic",
+        id: "claude-sonnet-4",
+        name: "Claude Sonnet 4",
+        reasoning: true,
+      },
+    ];
+    let currentThinkingLevel = "off";
+    const setModel = vi.fn(async () => {});
+    const setThinkingLevel = vi.fn((level: unknown) => {
+      currentThinkingLevel = String(level);
+    });
+    const sessionManager = {
+      getCwd: () => "/repo",
+      getSessionFile: () => "/sessions/pi-session-restored.jsonl",
+    };
+    const session = {
+      sessionId: "pi-session-restored",
+      isStreaming: false,
+      messages: [],
+      model: models[0],
+      get thinkingLevel() {
+        return currentThinkingLevel;
+      },
+      modelRegistry: {
+        getAvailable: () => models,
+        find: () => models[0],
+      },
+      setModel,
+      setThinkingLevel,
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtime = await createPublicPiSdkRuntimeResumer({
+      sdk: {
+        createAgentSession: vi.fn(async () => ({ session })),
+        SessionManager: { open: () => sessionManager },
+      },
+    })({
+      sessionId: "app-session-restored",
+      projectId: "pig",
+      piSessionId: "pi-session-restored",
+      cwd: "/repo",
+      sessionFile: "/sessions/pi-session-restored.jsonl",
+      modelSelection: {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      },
+    });
+
+    expect(setModel).toHaveBeenCalledWith(models[0]);
+    expect(setThinkingLevel).toHaveBeenCalledWith("high");
+    expect(runtime.modelControls?.selected).toEqual({
+      provider: "anthropic",
+      modelId: "claude-sonnet-4",
+      thinkingLevel: "high",
+    });
+  });
+
 });

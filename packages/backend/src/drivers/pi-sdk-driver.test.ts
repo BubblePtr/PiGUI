@@ -496,4 +496,79 @@ describe("Pi SDK driver", () => {
       }),
     ).rejects.toBeInstanceOf(PiSdkDriverUnsupportedError);
   });
+
+  it("configures one model pair while idle and rejects changes during a run", async () => {
+    let status: "idle" | "running" = "idle";
+    let exposeLiveSnapshot = true;
+    const configureModel = vi.fn(async (selection) => ({
+      models: [
+        {
+          provider: selection.provider,
+          modelId: selection.modelId,
+          name: "Claude Sonnet 4",
+          thinkingLevels: ["off" as const, "high" as const],
+        },
+      ],
+      selected: { ...selection },
+    }));
+    const driver = createPiSdkDriver({
+      runtimeFactory: async () => ({
+        piSessionId: "pi-sdk-session-controls",
+        sendPrompt: async () => {},
+        configureModel,
+        getSnapshot: async () =>
+          exposeLiveSnapshot
+            ? {
+                status,
+                summary: {
+                  provider: "openai",
+                  model: "gpt-5-codex",
+                  totalTokens: 4_200,
+                  totalCostUsd: 0.04,
+                },
+              }
+            : { status },
+      }),
+    });
+
+    await driver.createSession({
+      sessionId: "session-controls",
+      projectId: "pig",
+      cwd: "/repo",
+    });
+    await expect(
+      driver.configureModel?.({
+        piSessionId: "pi-sdk-session-controls",
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      }),
+    ).resolves.toMatchObject({
+      selected: {
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "high",
+      },
+    });
+    exposeLiveSnapshot = false;
+    await expect(driver.getSnapshot("pi-sdk-session-controls")).resolves.toMatchObject({
+      summary: {
+        provider: "anthropic",
+        model: "claude-sonnet-4",
+        totalTokens: 4_200,
+        totalCostUsd: 0.04,
+      },
+    });
+
+    status = "running";
+    await expect(
+      driver.configureModel?.({
+        piSessionId: "pi-sdk-session-controls",
+        provider: "anthropic",
+        modelId: "claude-sonnet-4",
+        thinkingLevel: "off",
+      }),
+    ).rejects.toThrow("Model and Thinking cannot change while a run is active.");
+    expect(configureModel).toHaveBeenCalledTimes(1);
+  });
 });

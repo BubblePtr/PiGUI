@@ -1,4 +1,12 @@
-import { Button, type Key, ListBox, ScrollShadow, Tooltip } from "@heroui/react";
+import {
+  Button,
+  type Key,
+  ListBox,
+  Popover,
+  ScrollShadow,
+  Slider,
+  Tooltip,
+} from "@heroui/react";
 import { ChainOfThought } from "@heroui-pro/react/chain-of-thought";
 import { ChatConversation } from "@heroui-pro/react/chat-conversation";
 import { ChatMessage } from "@heroui-pro/react/chat-message";
@@ -21,6 +29,7 @@ import {
   Archive,
   Box,
   Cancel,
+  ChevronDown,
   Computer,
   FileDiff,
   FolderClosed,
@@ -53,6 +62,8 @@ import {
   type ExecutionCheckout,
   type PiRuntimeBridge,
   type PiSessionState,
+  type RuntimeModelControls,
+  type RuntimeModelSelection,
 } from "@/entities/runtime/pi-runtime-bridge";
 import type {
   SessionRuntimeMessage,
@@ -495,6 +506,238 @@ function QueuedMessageList({
   );
 }
 
+const thinkingLevelLabels: Record<
+  RuntimeModelSelection["thinkingLevel"],
+  string
+> = {
+  off: "Off",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "X-High",
+};
+
+const thinkingLevelOrder: RuntimeModelSelection["thinkingLevel"][] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
+function modelControlKey(provider: string, modelId: string) {
+  return `${provider}\u0000${modelId}`;
+}
+
+function nearestThinkingLevel(
+  current: RuntimeModelSelection["thinkingLevel"],
+  available: RuntimeModelSelection["thinkingLevel"][],
+) {
+  const currentIndex = thinkingLevelOrder.indexOf(current);
+
+  return available.reduce((nearest, candidate) => {
+    const nearestDistance = Math.abs(
+      thinkingLevelOrder.indexOf(nearest) - currentIndex,
+    );
+    const candidateDistance = Math.abs(
+      thinkingLevelOrder.indexOf(candidate) - currentIndex,
+    );
+
+    return candidateDistance < nearestDistance ? candidate : nearest;
+  }, available[0] ?? "off");
+}
+
+function ModelThinkingControl({
+  controls,
+  isLocked,
+  onChange,
+}: {
+  controls: RuntimeModelControls;
+  isLocked: boolean;
+  onChange: (selection: RuntimeModelSelection) => Promise<void> | void;
+}) {
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const selected = controls.selected;
+
+  if (!selected) {
+    return null;
+  }
+
+  const selectedModel = controls.models.find(
+    (model) =>
+      model.provider === selected.provider && model.modelId === selected.modelId,
+  );
+  const thinkingLevels = selectedModel?.thinkingLevels ?? [
+    selected.thinkingLevel,
+  ];
+  const sliderValue = Math.max(
+    0,
+    thinkingLevels.indexOf(selected.thinkingLevel),
+  );
+  const submitSelection = async (selection: RuntimeModelSelection) => {
+    if (isLocked || isPending) {
+      return;
+    }
+
+    setIsPending(true);
+
+    try {
+      await onChange(selection);
+      setError(null);
+    } catch (changeError) {
+      setError(
+        changeError instanceof Error
+          ? changeError.message
+          : "Model configuration failed.",
+      );
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <Popover>
+      <Button
+        aria-label="Model and Thinking"
+        className="min-w-0 max-w-[19rem] gap-1.5 px-2 text-muted"
+        data-testid="model-thinking-trigger"
+        isDisabled={!controls.models.length}
+        size="sm"
+        variant="ghost"
+      >
+        <span className="truncate">
+          {selectedModel?.name ?? selected.modelId} · {thinkingLevelLabels[selected.thinkingLevel]}
+        </span>
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
+      </Button>
+      <Popover.Content
+        className="w-[18rem] max-w-[calc(100vw-2rem)]"
+        data-testid="model-thinking-popover"
+        placement="top start"
+      >
+        <Popover.Dialog className="flex flex-col gap-5 p-4">
+          <div className="flex flex-col gap-3">
+            <Popover.Heading className="text-sm font-medium text-foreground">
+              Model
+            </Popover.Heading>
+            <ListBox
+              aria-label="Model"
+              className="pigui-compact-menu-surface -mx-1 max-h-56 overflow-y-auto"
+              data-testid="model-thinking-model-list"
+              selectedKeys={new Set([
+                modelControlKey(selected.provider, selected.modelId),
+              ])}
+              selectionMode="single"
+              onSelectionChange={(keys) => {
+                if (keys === "all") {
+                  return;
+                }
+
+                const key = [...keys][0];
+                const model = controls.models.find(
+                  (candidate) =>
+                    modelControlKey(candidate.provider, candidate.modelId) === key,
+                );
+
+                if (!model) {
+                  return;
+                }
+
+                void submitSelection({
+                  provider: model.provider,
+                  modelId: model.modelId,
+                  thinkingLevel: nearestThinkingLevel(
+                    selected.thinkingLevel,
+                    model.thinkingLevels,
+                  ),
+                });
+              }}
+            >
+              {controls.models.map((model) => (
+                <ListBox.Item
+                  className="pigui-compact-menu-item grid grid-cols-[minmax(0,1fr)_1rem] items-center text-sm"
+                  id={modelControlKey(model.provider, model.modelId)}
+                  isDisabled={isLocked || isPending}
+                  key={modelControlKey(model.provider, model.modelId)}
+                  textValue={`${model.name} ${model.provider}`}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-foreground">
+                      {model.name}
+                    </span>
+                    <span className="block truncate text-xs text-muted">
+                      {model.provider}
+                    </span>
+                  </span>
+                  <ListBox.ItemIndicator className="text-foreground" />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-foreground">Thinking</span>
+              <span className="text-xs text-muted">
+                {thinkingLevelLabels[selected.thinkingLevel]}
+              </span>
+            </div>
+            <Slider
+              aria-label="Thinking level"
+              isDisabled={isLocked || isPending || thinkingLevels.length < 2}
+              maxValue={Math.max(0, thinkingLevels.length - 1)}
+              minValue={0}
+              step={1}
+              value={sliderValue}
+              onChangeEnd={(value) => {
+                const index = Array.isArray(value) ? value[0] : value;
+                const thinkingLevel = thinkingLevels[index];
+
+                if (!thinkingLevel || thinkingLevel === selected.thinkingLevel) {
+                  return;
+                }
+
+                void submitSelection({
+                  provider: selected.provider,
+                  modelId: selected.modelId,
+                  thinkingLevel,
+                });
+              }}
+            >
+              <Slider.Track>
+                <Slider.Fill />
+                <Slider.Thumb />
+              </Slider.Track>
+              <Slider.Marks
+                className="grid gap-1 pt-2 text-center text-[0.6875rem] text-muted"
+                style={{
+                  gridTemplateColumns: `repeat(${thinkingLevels.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {thinkingLevels.map((level) => (
+                  <span className="truncate" key={level}>
+                    {thinkingLevelLabels[level]}
+                  </span>
+                ))}
+              </Slider.Marks>
+            </Slider>
+            {isLocked ? (
+              <span className="text-xs text-muted">Locked while running</span>
+            ) : null}
+            {error ? (
+              <span className="text-xs text-danger" role="status">
+                {error}
+              </span>
+            ) : null}
+          </div>
+        </Popover.Dialog>
+      </Popover.Content>
+    </Popover>
+  );
+}
+
 function FullChatComposer({
   queueMode = false,
   isStoppingRun = false,
@@ -504,6 +747,7 @@ function FullChatComposer({
   onWithdrawQueuedMessage,
   onStopRun,
   onSteerSubmit,
+  onModelConfigChange,
 }: {
   queueMode?: boolean;
   isStoppingRun?: boolean;
@@ -513,6 +757,7 @@ function FullChatComposer({
   onWithdrawQueuedMessage?: (queuedMessageId: string) => Promise<void> | void;
   onStopRun?: () => Promise<void> | void;
   onSteerSubmit?: (message: string) => Promise<void> | void;
+  onModelConfigChange?: (selection: RuntimeModelSelection) => Promise<void> | void;
 }) {
   const sessionId = projection?.id ?? null;
   const [draft, setDraft] = useState(() =>
@@ -627,6 +872,15 @@ function FullChatComposer({
             <PromptInput.TextArea placeholder="What do you want to know?" />
           </PromptInput.Content>
           <PromptInput.Toolbar>
+            <PromptInput.ToolbarStart>
+              {projection?.modelControls && onModelConfigChange ? (
+                <ModelThinkingControl
+                  controls={projection.modelControls}
+                  isLocked={queueMode}
+                  onChange={onModelConfigChange}
+                />
+              ) : null}
+            </PromptInput.ToolbarStart>
             <PromptInput.ToolbarEnd>
               {queueMode ? (
                 <Button
@@ -1362,6 +1616,12 @@ function sessionProjectionFromPersistedProjection(
     piSessionId: record.piSessionId,
     sessionFile: record.sessionFile ?? null,
     summary: defaultRuntimeSummary(record.summary),
+    modelControls: record.modelSelection
+      ? {
+          models: [],
+          selected: { ...record.modelSelection },
+        }
+      : null,
     stale: sessionFileMissing,
     staleReason: sessionFileMissing
       ? "Session file is missing. Start a new PiGUI Session to continue from this Project."
@@ -2979,6 +3239,33 @@ function LiveSessionColumn({
       }),
     );
   };
+  const handleModelConfigChange = async (
+    selection: RuntimeModelSelection,
+  ) => {
+    if (!liveProjection?.piSessionId || queueMode) {
+      return;
+    }
+
+    const bridge = getRuntimeBridge();
+
+    if (!bridge.configureModel) {
+      throw new Error("Runtime model controls are unavailable.");
+    }
+
+    const modelControls = await bridge.configureModel({
+      sessionId: liveProjection.id,
+      piSessionId: liveProjection.piSessionId,
+      ...selection,
+    });
+
+    commitInteractionProjection(
+      applySessionProjectionEvent(liveProjection, {
+        type: "model-controls-changed",
+        modelControls,
+        occurredAt: new Date().toISOString(),
+      }),
+    );
+  };
   const handleWithdrawQueuedMessage = async (queuedMessageId: string) => {
     if (!liveProjection?.piSessionId) {
       return;
@@ -3153,6 +3440,7 @@ function LiveSessionColumn({
         runtimeId: fork.state.runtimeId,
         piSessionId: fork.state.piSessionId,
         summary: fork.state.summary,
+        modelControls: fork.state.modelControls,
         occurredAt: now(),
       });
       forkProjection = applySessionProjectionEvent(forkProjection, {
@@ -3249,6 +3537,7 @@ function LiveSessionColumn({
               onWithdrawQueuedMessage={handleWithdrawQueuedMessage}
               onStopRun={handleStopRun}
               onSteerSubmit={handleSteerSubmit}
+              onModelConfigChange={handleModelConfigChange}
             />
           )}
         </>

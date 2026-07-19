@@ -27,7 +27,13 @@ export type E2ESessionProjection = {
   initialPrompt: string;
   cwd: string;
   status: "completed" | "archived";
-  sessionFileMissing: true;
+  sessionFile?: string;
+  sessionFileMissing?: true;
+  modelSelection?: {
+    provider: string;
+    modelId: string;
+    thinkingLevel: "off" | "low" | "medium" | "high";
+  };
   archivedAt?: string;
   updatedAt: string;
   checkout: {
@@ -61,6 +67,7 @@ type LaunchPiGUIOptions = {
   seedProject?: boolean;
   seedSession?: boolean;
   seedGitChanges?: boolean;
+  seedModelControls?: boolean;
 };
 
 async function git(cwd: string, ...args: string[]) {
@@ -116,6 +123,30 @@ async function writeJson(pathname: string, value: unknown) {
   await writeFile(pathname, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+async function seedPiRuntimeFixture(input: {
+  agentDirectory: string;
+  projectDirectory: string;
+  sessionFile: string;
+}) {
+  await mkdir(path.dirname(input.sessionFile), { recursive: true });
+  await Promise.all([
+    writeJson(path.join(input.agentDirectory, "auth.json"), {
+      openai: { type: "api_key", key: "pigui-e2e-placeholder" },
+    }),
+    writeFile(
+      input.sessionFile,
+      `${JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "e2e-pi-session",
+        timestamp: "2026-07-19T00:00:00.000Z",
+        cwd: input.projectDirectory,
+      })}\n`,
+      "utf8",
+    ),
+  ]);
+}
+
 export async function launchPiGUI(
   options: LaunchPiGUIOptions = {},
 ): Promise<PiGUITestApplication> {
@@ -124,8 +155,16 @@ export async function launchPiGUI(
   const dataDirectory = path.join(testRoot, "data");
   const agentDirectory = path.join(testRoot, "agent");
   const projectDirectory = path.join(testRoot, "project");
+  const piSessionFile = path.join(
+    agentDirectory,
+    "sessions",
+    "e2e-pi-session.jsonl",
+  );
   const shouldSeedProject =
-    options.seedProject || options.seedSession || options.seedGitChanges;
+    options.seedProject ||
+    options.seedSession ||
+    options.seedGitChanges ||
+    options.seedModelControls;
   const project: E2EProject | null = shouldSeedProject
     ? {
         id: projectDirectory,
@@ -135,16 +174,28 @@ export async function launchPiGUI(
       }
     : null;
   const projection: E2ESessionProjection | null =
-    (options.seedSession || options.seedGitChanges) && project
+    (options.seedSession || options.seedGitChanges || options.seedModelControls) &&
+    project
     ? {
         sessionId: "e2e-session",
         runtimeId: "e2e-runtime",
         piSessionId: "e2e-pi-session",
         projectId: project.id,
-        initialPrompt: "E2E lifecycle session",
+        initialPrompt: options.seedModelControls
+          ? "E2E model controls session"
+          : "E2E lifecycle session",
         cwd: project.path,
         status: "completed",
-        sessionFileMissing: true,
+        ...(options.seedModelControls
+          ? {
+              sessionFile: piSessionFile,
+              modelSelection: {
+                provider: "openai",
+                modelId: "gpt-5-codex",
+                thinkingLevel: "high" as const,
+              },
+            }
+          : { sessionFileMissing: true as const }),
         checkout: {
           mode: "foreground-local",
           root: project.path,
@@ -172,6 +223,14 @@ export async function launchPiGUI(
 
   if (options.seedGitChanges) {
     await seedChangedGitRepository(projectDirectory);
+  }
+
+  if (options.seedModelControls) {
+    await seedPiRuntimeFixture({
+      agentDirectory,
+      projectDirectory,
+      sessionFile: piSessionFile,
+    });
   }
 
   if (projection) {

@@ -3,6 +3,7 @@ import type {
   RuntimeGatewayQueuedMessage,
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
+  RuntimeModelControls,
 } from "@pigui/core";
 import type { BackendRpcEvent } from "@pigui/backend";
 import {
@@ -378,6 +379,19 @@ function stateFromSnapshot(snapshot: RuntimeGatewaySnapshot): PiSessionState {
     status: snapshot.status,
     events,
     ...(replay.length ? { replay } : {}),
+    ...(snapshot.modelControls
+      ? {
+          modelControls: {
+            models: snapshot.modelControls.models.map((model) => ({
+              ...model,
+              thinkingLevels: [...model.thinkingLevels],
+            })),
+            selected: snapshot.modelControls.selected
+              ? { ...snapshot.modelControls.selected }
+              : null,
+          },
+        }
+      : {}),
     updatedAt: snapshot.updatedAt,
   };
   const summary = runtimeSummaryFromGateway(snapshot.summary);
@@ -793,6 +807,49 @@ export function createRuntimeGatewayClient(
       } catch (error) {
         throw new PiRuntimeBridgeError({
           stage: "stopping run",
+          message: errorMessage(error),
+        });
+      }
+    },
+
+    async configureModel(input) {
+      try {
+        const controls = await invoke<RuntimeModelControls>("configure_model", {
+          sessionId: input.sessionId,
+          piSessionId: input.piSessionId,
+          provider: input.provider,
+          modelId: input.modelId,
+          thinkingLevel: input.thinkingLevel,
+        });
+        const state = states.get(input.piSessionId);
+
+        if (state) {
+          state.modelControls = {
+            models: controls.models.map((model) => ({
+              ...model,
+              thinkingLevels: [...model.thinkingLevels],
+            })),
+            selected: controls.selected ? { ...controls.selected } : null,
+          };
+          state.summary = defaultRuntimeSummary({
+            ...(state.summary ?? defaultRuntimeSummary()),
+            provider: controls.selected?.provider ?? null,
+            model: controls.selected?.modelId ?? null,
+          });
+          state.updatedAt = now();
+          rememberState(state);
+        }
+
+        return {
+          models: controls.models.map((model) => ({
+            ...model,
+            thinkingLevels: [...model.thinkingLevels],
+          })),
+          selected: controls.selected ? { ...controls.selected } : null,
+        };
+      } catch (error) {
+        throw new PiRuntimeBridgeError({
+          stage: "configuring model",
           message: errorMessage(error),
         });
       }

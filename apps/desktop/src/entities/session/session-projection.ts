@@ -4,6 +4,7 @@ import type {
   PiRuntimeEvent,
   PiRuntimeSummary,
   PiSessionState,
+  RuntimeModelControls,
 } from "@/entities/runtime/pi-runtime-bridge";
 import {
   addLegacyChatEventToModel,
@@ -51,6 +52,7 @@ export type SessionProjection = {
   runtimeModel: SessionRuntimeModel;
   queuedMessages: PiQueuedMessage[];
   summary: PiRuntimeSummary;
+  modelControls: RuntimeModelControls | null;
   stale: boolean;
   staleReason: string | null;
   failure: SessionCreationFailure | null;
@@ -85,6 +87,7 @@ export type SessionProjectionEvent =
       runtimeId: string;
       piSessionId: string;
       summary?: PiRuntimeSummary;
+      modelControls?: RuntimeModelControls;
       occurredAt: string;
     }
   | {
@@ -148,6 +151,11 @@ export type SessionProjectionEvent =
       state: PiSessionState;
     }
   | {
+      type: "model-controls-changed";
+      modelControls: RuntimeModelControls;
+      occurredAt: string;
+    }
+  | {
       type: "creation-failed";
       stage: SessionCreationFailureStage;
       message: string;
@@ -191,6 +199,7 @@ export function createSessionProjection(
       totalTokens: 0,
       totalCostUsd: 0,
     },
+    modelControls: null,
     stale: false,
     staleReason: null,
     failure: null,
@@ -464,6 +473,17 @@ export function applySessionProjectionEvent(
         runtimeId: event.runtimeId,
         piSessionId: event.piSessionId,
         summary: event.summary ? { ...event.summary } : projection.summary,
+        modelControls: event.modelControls
+          ? {
+              models: event.modelControls.models.map((model) => ({
+                ...model,
+                thinkingLevels: [...model.thinkingLevels],
+              })),
+              selected: event.modelControls.selected
+                ? { ...event.modelControls.selected }
+                : null,
+            }
+          : projection.modelControls,
         updatedAt: event.occurredAt,
       };
     case "runtime-event-received":
@@ -646,11 +666,43 @@ export function applySessionProjectionEvent(
         runtimeEvents: normalizedRuntimeEvents(event.state.events),
         runtimeModel,
         summary: event.state.summary ? { ...event.state.summary } : projection.summary,
+        modelControls: event.state.modelControls
+          ? {
+              models: event.state.modelControls.models.map((model) => ({
+                ...model,
+                thinkingLevels: [...model.thinkingLevels],
+              })),
+              selected: event.state.modelControls.selected
+                ? { ...event.state.modelControls.selected }
+                : null,
+            }
+          : projection.modelControls,
         stale: false,
         staleReason: null,
         updatedAt: event.state.updatedAt,
       };
     }
+    case "model-controls-changed":
+      return {
+        ...projection,
+        modelControls: {
+          models: event.modelControls.models.map((model) => ({
+            ...model,
+            thinkingLevels: [...model.thinkingLevels],
+          })),
+          selected: event.modelControls.selected
+            ? { ...event.modelControls.selected }
+            : null,
+        },
+        summary: event.modelControls.selected
+          ? {
+              ...projection.summary,
+              provider: event.modelControls.selected.provider,
+              model: event.modelControls.selected.modelId,
+            }
+          : projection.summary,
+        updatedAt: event.occurredAt,
+      };
     case "creation-failed":
       return {
         ...projection,

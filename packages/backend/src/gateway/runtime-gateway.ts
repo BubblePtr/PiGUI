@@ -5,6 +5,8 @@ import type {
   RuntimeGatewayRequest,
   RuntimeGatewayResponse,
   RuntimeGatewaySnapshot,
+  RuntimeModelControls,
+  RuntimeModelSelection,
 } from "@pigui/core";
 import { createRuntimeGatewaySequencer, shouldJournalRuntimeEvent } from "@pigui/core";
 import {
@@ -35,6 +37,7 @@ export type CreateRuntimeSessionInput = {
 export type ResumeRuntimeSessionInput = CreateRuntimeSessionInput & {
   piSessionId: string;
   sessionFile: string;
+  modelSelection?: RuntimeModelSelection;
 };
 
 export type ForkRuntimeSessionInput = CreateRuntimeSessionInput & {
@@ -72,6 +75,10 @@ export type StopRunInput = {
   piSessionId: string;
 };
 
+export type ConfigureRuntimeModelInput = RuntimeModelSelection & {
+  piSessionId: string;
+};
+
 export type PiRuntimeDriver = {
   createSession(input: CreateRuntimeSessionInput): Promise<RuntimeGatewaySnapshot>;
   resumeSession(input: ResumeRuntimeSessionInput): Promise<RuntimeGatewaySnapshot>;
@@ -81,6 +88,7 @@ export type PiRuntimeDriver = {
   withdrawQueuedMessage(input: WithdrawQueuedMessageInput): Promise<RuntimeGatewayQueuedMessage>;
   steerRun(input: SteerRunInput): Promise<RuntimeGatewayDriverEvent>;
   stopRun(input: StopRunInput): Promise<RuntimeGatewayDriverEvent>;
+  configureModel?(input: ConfigureRuntimeModelInput): Promise<RuntimeModelControls>;
   getSnapshot(piSessionId: string): Promise<RuntimeGatewaySnapshot>;
   onEvent(listener: (event: RuntimeGatewayDriverEvent) => void): () => void;
 };
@@ -242,18 +250,21 @@ async function dispatchRuntimeGatewayRequest(input: {
       return snapshot;
     }
     case "resume_session": {
+      const sessionId = requiredString(params.sessionId, "sessionId");
       const piSessionId = requiredString(params.piSessionId, "piSessionId");
       const journaled = (await input.journal?.read(piSessionId)) ?? [];
+      const persistedProjection = await input.projections?.get(sessionId);
 
       input.advanceEventSequence(journaled);
 
       const snapshot = await input.driver.resumeSession({
-        sessionId: requiredString(params.sessionId, "sessionId"),
+        sessionId,
         projectId: requiredString(params.projectId, "projectId"),
         piSessionId,
         sessionFile: requiredString(params.sessionFile, "sessionFile"),
         cwd: requiredString(params.cwd, "cwd"),
         checkout: params.checkout,
+        modelSelection: persistedProjection?.modelSelection,
       });
       const snapshotWithEvents = journaled.length
         ? { ...snapshot, events: journaled }
@@ -351,6 +362,51 @@ async function dispatchRuntimeGatewayRequest(input: {
           piSessionId: requiredString(params.piSessionId, "piSessionId"),
         }),
       );
+    case "configure_model": {
+      if (!input.driver.configureModel) {
+        throw new Error('Runtime driver does not support "configure_model".');
+      }
+
+      const sessionId = requiredString(params.sessionId, "sessionId");
+      const piSessionId = requiredString(params.piSessionId, "piSessionId");
+      const mappedSessionId = input.resolveSessionId(piSessionId);
+      const persistedProjection = await input.projections?.get(sessionId);
+
+      if (mappedSessionId && mappedSessionId !== sessionId) {
+        throw new Error(
+          `Pi session "${piSessionId}" does not belong to Session "${sessionId}".`,
+        );
+      }
+
+      if (input.projections && !persistedProjection) {
+        throw new Error(`Session "${sessionId}" was not found.`);
+      }
+
+      if (
+        persistedProjection &&
+        persistedProjection.piSessionId !== piSessionId
+      ) {
+        throw new Error(
+          `Pi session "${piSessionId}" does not belong to Session "${sessionId}".`,
+        );
+      }
+
+      const controls = await input.driver.configureModel({
+        piSessionId,
+        provider: requiredString(params.provider, "provider"),
+        modelId: requiredString(params.modelId, "modelId"),
+        thinkingLevel: requiredThinkingLevel(params.thinkingLevel),
+      });
+
+      await persistModelSelection({
+        store: input.projections,
+        sessionId,
+        selection: controls.selected,
+        updatedAt: input.now(),
+      });
+
+      return controls;
+    }
     case "archive_session":
       return archiveSessionProjection({
         store: input.projections,
@@ -592,6 +648,29 @@ async function saveSnapshotProjection(input: {
   });
 }
 
+async function persistModelSelection(input: {
+  store?: SessionProjectionStore;
+  sessionId: string;
+  selection: RuntimeModelSelection | null;
+  updatedAt: string;
+}) {
+  if (!input.store) {
+    return;
+  }
+
+  const current = await input.store.get(input.sessionId);
+
+  if (!current) {
+    throw new Error(`Session "${input.sessionId}" was not found.`);
+  }
+
+  await input.store.save({
+    ...current,
+    ...(input.selection ? { modelSelection: { ...input.selection } } : {}),
+    updatedAt: input.updatedAt,
+  });
+}
+
 async function prepareForkJournal(input: {
   journal?: SessionEventJournal;
   sourcePiSessionId: string;
@@ -678,6 +757,21 @@ function requiredString(value: unknown, name: string) {
   }
 
   return value;
+}
+
+function requiredThinkingLevel(value: unknown) {
+  if (
+    value === "off" ||
+    value === "minimal" ||
+    value === "low" ||
+    value === "medium" ||
+    value === "high" ||
+    value === "xhigh"
+  ) {
+    return value;
+  }
+
+  throw new Error("thinkingLevel is invalid");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -39,6 +39,32 @@ export type RuntimeGatewaySummary = {
   totalCostUsd: number;
 };
 
+export type RuntimeThinkingLevel =
+  | "off"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
+
+export type RuntimeModelCapability = {
+  provider: string;
+  modelId: string;
+  name: string;
+  thinkingLevels: RuntimeThinkingLevel[];
+};
+
+export type RuntimeModelSelection = {
+  provider: string;
+  modelId: string;
+  thinkingLevel: RuntimeThinkingLevel;
+};
+
+export type RuntimeModelControls = {
+  models: RuntimeModelCapability[];
+  selected: RuntimeModelSelection | null;
+};
+
 export type RuntimeGatewaySnapshot = {
   sessionId: string;
   runtimeId: string;
@@ -50,6 +76,7 @@ export type RuntimeGatewaySnapshot = {
   checkout?: unknown;
   events: RuntimeGatewayEventEnvelope[];
   summary?: RuntimeGatewaySummary;
+  modelControls?: RuntimeModelControls;
   updatedAt: string;
 };
 
