@@ -37,6 +37,7 @@ async function openSession(
 
   await expect(session).toBeVisible();
   await session.click();
+  await expect(window.getByLabel("Session changes")).toBeVisible();
   await expect(window.getByLabel("Session actions")).toBeVisible();
 }
 
@@ -159,6 +160,7 @@ test.describe("M2: Reliable lifecycle", () => {
       await testApp.close();
     }
   });
+
 });
 
 test.describe("M3: Real diff action surface", () => {
@@ -171,7 +173,12 @@ test.describe("M3: Real diff action surface", () => {
         testApp.project!,
         testApp.projection!,
       );
-      await testApp.window.getByLabel("Session actions").click();
+      await testApp.window.getByLabel("Session changes").click();
+
+      await expect(
+        testApp.window.getByRole("dialog", { name: "Changes" }),
+      ).toBeVisible();
+      await expect(testApp.window.getByTestId("session-changes-aside")).toHaveCount(0);
 
       await expect(testApp.window.getByText("src/app.ts").first()).toBeVisible();
       await expect(
@@ -184,6 +191,84 @@ test.describe("M3: Real diff action surface", () => {
           exact: true,
         }),
       ).toBeVisible({ timeout: 15_000 });
+
+      await testApp.resizeWindow(640, 780);
+
+      const narrowSheetBox = await testApp.window
+        .locator('[data-slot="sheet-content"]')
+        .boundingBox();
+      const narrowViewport = await testApp.window.evaluate(() => ({
+        height: window.innerHeight,
+        width: window.innerWidth,
+      }));
+
+      expect(narrowSheetBox).not.toBeNull();
+      expect(narrowSheetBox!.x).toBeLessThanOrEqual(1);
+      expect(narrowSheetBox!.width).toBeGreaterThanOrEqual(
+        narrowViewport.width - 1,
+      );
+      expect(narrowSheetBox!.height).toBeGreaterThanOrEqual(
+        narrowViewport.height - 1,
+      );
+    } finally {
+      await testApp.close();
+    }
+  });
+
+  test("docks Changes beside Chat in a wide Electron window", async () => {
+    const testApp = await launchPiGUI({ seedGitChanges: true });
+
+    try {
+      await testApp.resizeWindow(1440, 900);
+      await openSession(
+        testApp.window,
+        testApp.project!,
+        testApp.projection!,
+      );
+      await testApp.window.getByLabel("Session changes").click();
+
+      const changesAside = testApp.window.getByTestId("session-changes-aside");
+
+      await expect(changesAside).toBeVisible();
+      await expect(testApp.window.getByLabel("Live Chat messages")).toBeVisible();
+      await expect(testApp.window.getByLabel("Resize Session changes")).toBeVisible();
+      await expect(
+        testApp.window.getByRole("dialog", { name: "Changes" }),
+      ).toHaveCount(0);
+      await expect(changesAside.getByText("src/app.ts").first()).toBeVisible();
+      await expect(
+        changesAside.getByText('export const state = "after";', {
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 15_000 });
+
+      const resizeHandle = testApp.window.getByLabel("Resize Session changes");
+      const handleBox = await resizeHandle.boundingBox();
+      const initialAsideBox = await changesAside.boundingBox();
+
+      expect(handleBox).not.toBeNull();
+      expect(initialAsideBox).not.toBeNull();
+      await testApp.window.mouse.move(
+        handleBox!.x + handleBox!.width / 2,
+        handleBox!.y + handleBox!.height / 2,
+      );
+      await testApp.window.mouse.down();
+      await testApp.window.mouse.move(
+        handleBox!.x + handleBox!.width / 2 - 80,
+        handleBox!.y + handleBox!.height / 2,
+        { steps: 5 },
+      );
+      await testApp.window.mouse.up();
+      await expect
+        .poll(async () => (await changesAside.boundingBox())?.width ?? 0)
+        .toBeGreaterThan(initialAsideBox!.width + 40);
+
+      const chatBox = await testApp.window.getByTestId("live-session-column").boundingBox();
+      const asideBox = await changesAside.boundingBox();
+
+      expect(chatBox).not.toBeNull();
+      expect(asideBox).not.toBeNull();
+      expect(asideBox!.x).toBeGreaterThanOrEqual(chatBox!.x + chatBox!.width);
     } finally {
       await testApp.close();
     }
