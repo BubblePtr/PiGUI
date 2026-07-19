@@ -8,6 +8,7 @@ import { InlineSelect } from "@heroui-pro/react/inline-select";
 import { Markdown, StreamMarkdown } from "@heroui-pro/react/markdown";
 import { PromptInput } from "@heroui-pro/react/prompt-input";
 import { PromptSuggestion } from "@heroui-pro/react/prompt-suggestion";
+import { Resizable } from "@heroui-pro/react/resizable";
 import { Segment } from "@heroui-pro/react/segment";
 import { Sheet } from "@heroui-pro/react/sheet";
 import { TextShimmer } from "@heroui-pro/react/text-shimmer";
@@ -19,7 +20,9 @@ import {
   Activity,
   Archive,
   Box,
+  Cancel,
   Computer,
+  FileDiff,
   FolderClosed,
   GitBranch,
   LayoutAlignLeft,
@@ -144,8 +147,51 @@ type SessionActionsContentProps = {
   archiveError?: string | null;
   isArchiving?: boolean;
   onArchive?: () => void;
+};
+
+type SessionChangesPanelProps = {
+  sessionId: string | null;
+  stale: boolean;
   loadChanges?: typeof getSessionChanges;
 };
+
+const sessionChangesDockMediaQuery = "(min-width: 1280px)";
+
+function useDockedSessionChangesLayout() {
+  const [isDocked, setIsDocked] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return true;
+    }
+
+    return window.matchMedia(sessionChangesDockMediaQuery).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(sessionChangesDockMediaQuery);
+    const handleChange = () => setIsDocked(mediaQuery.matches);
+
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  return isDocked;
+}
+
+export function getSessionChangesResizableSizes() {
+  return {
+    changesDefaultSize: 54,
+    changesMaxSize: 64,
+    changesMinSize: 42,
+    workspaceDefaultSize: 46,
+    workspaceMinSize: 36,
+  };
+}
 
 const SessionDiffViewer = lazy(
   () => import("@/entities/session/session-diff-viewer"),
@@ -1789,15 +1835,11 @@ function changeStageLabel(file: SessionChangedFile) {
   return "Working tree";
 }
 
-function SessionChangesPanel({
+export function SessionChangesPanel({
   sessionId,
   stale,
-  loadChanges,
-}: {
-  sessionId: string | null;
-  stale: boolean;
-  loadChanges: typeof getSessionChanges;
-}) {
+  loadChanges = getSessionChanges,
+}: SessionChangesPanelProps) {
   const [changes, setChanges] = useState<SessionChanges | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(sessionId));
@@ -2056,7 +2098,6 @@ export function SessionActionsContent({
   archiveError,
   isArchiving = false,
   onArchive,
-  loadChanges = getSessionChanges,
 }: SessionActionsContentProps) {
   const checkout = projection?.checkout
     ? {
@@ -2116,12 +2157,6 @@ export function SessionActionsContent({
           </p>
         </section>
       ) : null}
-
-      <SessionChangesPanel
-        loadChanges={loadChanges}
-        sessionId={projection?.id ?? null}
-        stale={projection?.stale ?? false}
-      />
 
       <section>
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -2282,6 +2317,124 @@ export function SessionActionsContent({
   );
 }
 
+function SessionChangesTrigger({
+  isOpen,
+  onOpenChange,
+}: {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+}) {
+  return (
+    <Tooltip delay={0}>
+      <Tooltip.Trigger className="inline-flex">
+        <Button
+          isIconOnly
+          aria-label="Session changes"
+          aria-pressed={isOpen}
+          size="sm"
+          variant="ghost"
+          onPress={() => onOpenChange(!isOpen)}
+        >
+          <FileDiff className="size-4" />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{isOpen ? "Close changes" : "Open changes"}</Tooltip.Content>
+    </Tooltip>
+  );
+}
+
+function SessionChangesSheet({
+  isOpen,
+  projection,
+  onOpenChange,
+}: {
+  isOpen: boolean;
+  projection?: SessionProjection | null;
+  onOpenChange: (isOpen: boolean) => void;
+}) {
+  return (
+    <Sheet isOpen={isOpen} placement="right" onOpenChange={onOpenChange}>
+      <Sheet.Backdrop>
+        <Sheet.Content
+          className="w-full max-w-none rounded-none md:w-[min(80rem,92vw)] md:rounded-l-lg"
+          style={
+            isOpen
+              ? {
+                  animation: "none",
+                  transform: "translate3d(0, 0, 0)",
+                }
+              : undefined
+          }
+        >
+          <Sheet.Dialog className="rounded-none md:rounded-l-lg">
+            <Sheet.CloseTrigger />
+            <Sheet.Header>
+              <Sheet.Heading>Changes</Sheet.Heading>
+              <p className="mt-1 text-sm text-muted">
+                Review the working tree for this Session checkout.
+              </p>
+            </Sheet.Header>
+            <Sheet.Body>
+              <ScrollShadow className="max-h-[calc(100vh-10rem)] overflow-y-auto">
+                <SessionChangesPanel
+                  sessionId={projection?.id ?? null}
+                  stale={projection?.stale ?? false}
+                />
+              </ScrollShadow>
+            </Sheet.Body>
+          </Sheet.Dialog>
+        </Sheet.Content>
+      </Sheet.Backdrop>
+    </Sheet>
+  );
+}
+
+function SessionChangesAside({
+  projection,
+  onClose,
+}: {
+  projection?: SessionProjection | null;
+  onClose: () => void;
+}) {
+  return (
+    <aside
+      aria-labelledby="session-changes-heading"
+      className="flex h-full min-h-0 min-w-0 flex-col bg-background"
+      data-testid="session-changes-aside"
+    >
+      <header className="flex min-h-12 shrink-0 items-center justify-between gap-3 px-4">
+        <h2
+          className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground"
+          id="session-changes-heading"
+        >
+          <FileDiff className="size-4 shrink-0 text-muted" />
+          <span className="truncate">Changes</span>
+        </h2>
+        <Tooltip delay={0}>
+          <Tooltip.Trigger className="inline-flex">
+            <Button
+              isIconOnly
+              aria-label="Close Session changes"
+              size="sm"
+              variant="ghost"
+              onPress={onClose}
+            >
+              <Cancel className="size-4" />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Close changes</Tooltip.Content>
+        </Tooltip>
+      </header>
+      <ScrollShadow className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <SessionChangesPanel
+          sessionId={projection?.id ?? null}
+          stale={projection?.stale ?? false}
+        />
+      </ScrollShadow>
+    </aside>
+  );
+}
+
 function SessionActionsSheet({
   workspace,
   projection,
@@ -2332,7 +2485,7 @@ function SessionActionsSheet({
               <Sheet.Header>
                 <Sheet.Heading>Session actions</Sheet.Heading>
                 <p className="mt-1 text-sm text-muted">
-                  Explicit checkout, diff, model, and cost context.
+                  Checkout, model, cost, and lifecycle context.
                 </p>
               </Sheet.Header>
               <Sheet.Body>
@@ -2423,23 +2576,40 @@ export function SessionToolbarActions({
   workspace,
   projection,
   archiveError,
+  changesOpen = false,
+  dockChanges = false,
   isArchiving,
   onArchive,
+  onChangesOpenChange = () => {},
 }: {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
   archiveError?: string | null;
+  changesOpen?: boolean;
+  dockChanges?: boolean;
   isArchiving?: boolean;
   onArchive?: () => void;
+  onChangesOpenChange?: (isOpen: boolean) => void;
 }) {
   return (
-    <SessionActionsSheet
-      archiveError={archiveError}
-      isArchiving={isArchiving}
-      workspace={workspace}
-      projection={projection}
-      onArchive={onArchive}
-    />
+    <>
+      <SessionChangesTrigger
+        isOpen={changesOpen}
+        onOpenChange={onChangesOpenChange}
+      />
+      <SessionActionsSheet
+        archiveError={archiveError}
+        isArchiving={isArchiving}
+        workspace={workspace}
+        projection={projection}
+        onArchive={onArchive}
+      />
+      <SessionChangesSheet
+        isOpen={changesOpen && !dockChanges}
+        projection={projection}
+        onOpenChange={onChangesOpenChange}
+      />
+    </>
   );
 }
 
@@ -3091,6 +3261,7 @@ export function AgentWorkspaceSessionsView({
   projectId = fixtureWorkspace.id,
   showDraft = false,
   workspace = fixtureWorkspace,
+  aside,
   onDraftSubmit = () => {},
   sessionCreator,
   checkoutManager,
@@ -3105,6 +3276,7 @@ export function AgentWorkspaceSessionsView({
   projectId?: string;
   showDraft?: boolean;
   workspace?: AgentWorkspaceFixture;
+  aside?: ReactNode;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
   sessionCreator?: SessionCreator;
   checkoutManager?: ExecutionCheckoutManager;
@@ -3150,31 +3322,71 @@ export function AgentWorkspaceSessionsView({
         (shouldRecommendManagedCheckout ? "background" : "foreground"),
       projections: defaultProjectionStore,
     });
+  const liveSession = (
+    <LiveSessionColumn
+      projectId={projectId}
+      showDraft={showDraft}
+      workspace={workspace}
+      onDraftSubmit={onDraftSubmit}
+      sessionCreator={sessionCreator ?? defaultSessionCreator}
+      checkoutManager={activeCheckoutManager}
+      getRuntimeBridge={getActiveRuntimeBridge}
+      recommendedCheckoutMode={
+        shouldRecommendManagedCheckout ? "worktree" : "local"
+      }
+      sessionProjection={sessionProjection}
+      clockNowMs={clockNowMs}
+      onProjectionChange={onProjectionChange}
+      onLatestMessageRendered={onLatestMessageRendered}
+      runtimeGeneration={runtimeGeneration}
+    />
+  );
+  const resizableSizes = getSessionChangesResizableSizes();
 
   return (
     <article
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6 pb-0 pt-6"
+      className="-mt-10 flex h-[calc(100%+2.5rem)] min-h-0 min-w-0 flex-col overflow-hidden px-6 pb-0"
       data-testid="project-sessions-view"
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[96rem] flex-col gap-4">
         <div className="min-h-0 flex-1">
-          <LiveSessionColumn
-            projectId={projectId}
-            showDraft={showDraft}
-            workspace={workspace}
-            onDraftSubmit={onDraftSubmit}
-            sessionCreator={sessionCreator ?? defaultSessionCreator}
-            checkoutManager={activeCheckoutManager}
-            getRuntimeBridge={getActiveRuntimeBridge}
-            recommendedCheckoutMode={
-              shouldRecommendManagedCheckout ? "worktree" : "local"
-            }
-            sessionProjection={sessionProjection}
-            clockNowMs={clockNowMs}
-            onProjectionChange={onProjectionChange}
-            onLatestMessageRendered={onLatestMessageRendered}
-            runtimeGeneration={runtimeGeneration}
-          />
+          {aside ? (
+            <Resizable
+              className="h-full min-h-0 w-full"
+              data-testid="session-workspace-split-view"
+              orientation="horizontal"
+            >
+              <Resizable.Panel
+                defaultSize={resizableSizes.workspaceDefaultSize}
+                minSize={resizableSizes.workspaceMinSize}
+              >
+                <div
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
+                  data-testid="session-workspace-main-pane"
+                >
+                  {liveSession}
+                </div>
+              </Resizable.Panel>
+              <Resizable.Handle
+                aria-label="Resize Session changes"
+                className="mx-2"
+              />
+              <Resizable.Panel
+                defaultSize={resizableSizes.changesDefaultSize}
+                maxSize={resizableSizes.changesMaxSize}
+                minSize={resizableSizes.changesMinSize}
+              >
+                <div
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
+                  data-testid="session-workspace-aside-pane"
+                >
+                  {aside}
+                </div>
+              </Resizable.Panel>
+            </Resizable>
+          ) : (
+            <div className="h-full min-h-0 pt-16">{liveSession}</div>
+          )}
         </div>
       </div>
     </article>
@@ -3209,6 +3421,8 @@ export function AgentWorkspaceSessionsPage() {
   const [backendGeneration, setBackendGeneration] = useState(0);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [changesOpen, setChangesOpen] = useState(false);
+  const dockChanges = useDockedSessionChangesLayout();
   const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
   const workspace = project ? workspaceFromProject(project) : null;
   const selectedSessionProjection =
@@ -3283,6 +3497,12 @@ export function AgentWorkspaceSessionsPage() {
   useEffect(() => {
     setArchiveError(null);
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionProjection) {
+      setChangesOpen(false);
+    }
+  }, [selectedSessionProjection?.id]);
 
   const handleProjectionChange = (nextProjection: SessionProjection) => {
     setSelectedSessionId(nextProjection.id);
@@ -3387,14 +3607,25 @@ export function AgentWorkspaceSessionsPage() {
       toolbarActions={selectedSessionProjection ? (
         <SessionToolbarActions
           archiveError={archiveError}
+          changesOpen={changesOpen}
+          dockChanges={dockChanges}
           isArchiving={isArchiving}
           workspace={workspace}
           projection={selectedSessionProjection}
           onArchive={() => void handleArchiveSession()}
+          onChangesOpenChange={setChangesOpen}
         />
       ) : undefined}
     >
       <AgentWorkspaceSessionsView
+        aside={
+          dockChanges && changesOpen ? (
+            <SessionChangesAside
+              projection={selectedSessionProjection}
+              onClose={() => setChangesOpen(false)}
+            />
+          ) : undefined
+        }
         projectId={projectId}
         showDraft={showDraft}
         workspace={workspace}

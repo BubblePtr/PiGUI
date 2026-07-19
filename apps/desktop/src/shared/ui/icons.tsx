@@ -7,6 +7,7 @@ import {
   BarChartIcon,
   BotIcon,
   BoxIcon,
+  Cancel01Icon,
   ChatAddIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -14,6 +15,7 @@ import {
   CommandIcon,
   ComputerIcon,
   Delete02Icon,
+  FileDiffIcon,
   Folder01Icon,
   Folder02Icon,
   FolderOpenIcon,
@@ -59,12 +61,14 @@ export const ArrowLeft = iconComponent(ArrowLeftIcon);
 export const BarChart3 = iconComponent(BarChartIcon);
 export const Bot = iconComponent(RobotIcon);
 export const Box = iconComponent(BoxIcon);
+export const Cancel = iconComponent(Cancel01Icon);
 export const ChatAdd = iconComponent(ChatAddIcon);
 export const ChevronDown = iconComponent(ChevronDownIcon);
 export const ChevronRight = iconComponent(ChevronRightIcon);
 export const Circle = iconComponent(CircleIcon);
 export const Command = iconComponent(CommandIcon);
 export const Computer = iconComponent(ComputerIcon);
+export const FileDiff = iconComponent(FileDiffIcon);
 export const FolderClosed = iconComponent(Folder01Icon);
 export const FolderOpen = iconComponent(FolderOpenIcon);
 export const FolderOpenState = iconComponent(Folder02Icon);

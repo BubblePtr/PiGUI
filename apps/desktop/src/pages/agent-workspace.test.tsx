@@ -18,6 +18,8 @@ import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
   SessionActionsContent,
+  SessionChangesPanel,
+  getSessionChangesResizableSizes,
 } from "@/pages/agent-workspace";
 import { addProjectToRegistry } from "@/entities/project/project-registry";
 import {
@@ -194,8 +196,26 @@ function getListboxByAriaLabel(ariaLabel: string) {
   return listbox;
 }
 
+function setDockedSessionChangesLayout(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: vi.fn((query: string): MediaQueryList => ({
+      matches: query === "(min-width: 1280px)" ? matches : false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })),
+  });
+}
+
 describe("AgentWorkspaceSessionsPage", () => {
   beforeEach(() => {
+    setDockedSessionChangesLayout(false);
     window.localStorage.clear();
     delete window.pigui;
     delete (
@@ -240,10 +260,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(liveColumn).queryByRole("heading", { name: "Run timeline" })).not.toBeInTheDocument();
     expect(within(liveColumn).queryByRole("button", { name: "Session actions" })).not.toBeInTheDocument();
     expect(liveColumn).toHaveClass("h-full");
-    expect(sessionsView).toHaveClass("pt-6", "pb-0");
-    expect(sessionsView).not.toHaveClass("py-6");
+    expect(sessionsView).toHaveClass("-mt-10", "h-[calc(100%+2.5rem)]", "pb-0");
+    expect(sessionsView).not.toHaveClass("pt-6", "py-6");
     const sessionActionsButton = within(navbarActions).getByRole("button", {
       name: "Session actions",
+    });
+    const sessionChangesButton = within(navbarActions).getByRole("button", {
+      name: "Session changes",
     });
     const chatConversation = liveColumn.querySelector('[data-slot="chat-conversation"]');
     const promptInput = liveColumn.querySelector('[data-slot="prompt-input"]');
@@ -261,6 +284,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       .closest('[data-slot="sidebar-menu-label"]');
 
     expect(sessionActionsButton).toBeInTheDocument();
+    expect(sessionChangesButton).toHaveAttribute("aria-pressed", "false");
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
       "data-window-drag-region",
     );
@@ -343,6 +367,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
     expect(within(navbarActions).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Session actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
 
     await user.click(sessionActionsButton);
 
@@ -353,10 +378,76 @@ describe("AgentWorkspaceSessionsPage", () => {
       animation: "none",
       transform: "translate3d(0, 0, 0)",
     });
-    expect(within(actionDialog).getByText("Diff summary")).toBeInTheDocument();
+    expect(within(actionDialog).queryByText("Diff summary")).not.toBeInTheDocument();
     expect(within(actionDialog).getByText("Checkout")).toBeInTheDocument();
     expect(within(actionDialog).getByText("gpt-5-codex")).toBeInTheDocument();
     expect(within(actionDialog).getByText("$0.042137")).toBeInTheDocument();
+  });
+
+  it("opens Session changes in a Sheet below the docked breakpoint", async () => {
+    const user = userEvent.setup();
+
+    renderProjectSessions();
+
+    const changesButton = await screen.findByRole("button", {
+      name: "Session changes",
+    });
+
+    await user.click(changesButton);
+
+    const changesDialog = await screen.findByRole("dialog", { name: "Changes" });
+    const sheetContent = changesDialog.closest('[data-slot="sheet-content"]');
+
+    expect(within(changesDialog).getByText("Diff summary")).toBeInTheDocument();
+    expect(sheetContent).toHaveClass("w-full", "max-w-none", "rounded-none");
+    expect(screen.queryByTestId("session-changes-aside")).not.toBeInTheDocument();
+    expect(changesButton).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("docks Session changes beside Chat on wide Workspaces", async () => {
+    const user = userEvent.setup();
+    setDockedSessionChangesLayout(true);
+
+    renderProjectSessions();
+
+    await user.click(await screen.findByRole("button", { name: "Session changes" }));
+
+    const aside = await screen.findByRole("complementary", {
+      name: "Changes",
+    });
+    const splitView = aside.closest('[data-slot="resizable"]');
+
+    expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
+    expect(aside).not.toHaveClass("border-l");
+    expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
+    expect(screen.getByLabelText("Resize Session changes")).toHaveClass("mx-2");
+    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-16");
+    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-16");
+    expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
+    expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
+
+    await user.click(within(aside).getByRole("button", { name: "Close Session changes" }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("session-changes-aside")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Session changes" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("keeps bounded percentage sizes for the docked Changes pane", () => {
+    expect(getSessionChangesResizableSizes()).toEqual({
+      changesDefaultSize: 54,
+      changesMaxSize: 64,
+      changesMinSize: 42,
+      workspaceDefaultSize: 46,
+      workspaceMinSize: 36,
+    });
   });
 
   it("shows an empty Workspace state until a Project is added manually", async () => {
@@ -4287,25 +4378,6 @@ describe("AgentWorkspaceSessionsPage", () => {
 });
 
 describe("Session changes action surface", () => {
-  const workspace = {
-    id: "pigui",
-    name: "PiGUI",
-    projectRoot: "/work/PiGUI",
-    repoRoot: "/work/PiGUI",
-    selectedSessionId: "session-changes",
-    liveMessages: [],
-    runTimeline: [],
-    checkout: {
-      mode: "Foreground local checkout",
-      root: "/work/PiGUI",
-      runtimeCwd: "/work/PiGUI",
-    },
-    summary: {
-      model: "gpt-5-codex",
-      totalCostUsd: 0,
-      totalTokens: 0,
-    },
-  };
   const projection = applySessionProjectionEvent(
     createSessionProjection({
       id: "session-changes",
@@ -4378,10 +4450,10 @@ describe("Session changes action surface", () => {
     const loadChanges = vi.fn(async () => changes());
 
     render(
-      <SessionActionsContent
+      <SessionChangesPanel
         loadChanges={loadChanges}
-        projection={projection}
-        workspace={workspace}
+        sessionId={projection.id}
+        stale={projection.stale}
       />,
     );
 
@@ -4420,10 +4492,10 @@ describe("Session changes action surface", () => {
       }),
     );
     const view = render(
-      <SessionActionsContent
+      <SessionChangesPanel
         loadChanges={clean}
-        projection={projection}
-        workspace={workspace}
+        sessionId={projection.id}
+        stale={projection.stale}
       />,
     );
 
@@ -4432,12 +4504,12 @@ describe("Session changes action surface", () => {
     ).toBeInTheDocument();
 
     view.rerender(
-      <SessionActionsContent
+      <SessionChangesPanel
         loadChanges={async () =>
           changes({ state: "non-git", files: [], repositoryRoot: null })
         }
-        projection={{ ...projection, id: "session-non-git" }}
-        workspace={workspace}
+        sessionId="session-non-git"
+        stale={false}
       />,
     );
     expect(
@@ -4465,10 +4537,10 @@ describe("Session changes action surface", () => {
       );
 
     render(
-      <SessionActionsContent
+      <SessionChangesPanel
         loadChanges={loadChanges}
-        projection={projection}
-        workspace={workspace}
+        sessionId={projection.id}
+        stale={projection.stale}
       />,
     );
 

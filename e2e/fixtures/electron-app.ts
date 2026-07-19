@@ -52,6 +52,7 @@ export type PiGUITestApplication = {
   project: E2EProject | null;
   projection: E2ESessionProjection | null;
   readProjection(): Promise<E2ESessionProjection | null>;
+  resizeWindow(width: number, height: number): Promise<void>;
   writeProjection(projection: E2ESessionProjection): Promise<void>;
   close(): Promise<void>;
 };
@@ -224,6 +225,23 @@ export async function launchPiGUI(
           "utf8",
         ),
       ) as E2ESessionProjection;
+    },
+    async resizeWindow(width, height) {
+      await app.evaluate(
+        ({ BrowserWindow }, dimensions) => {
+          BrowserWindow.getAllWindows()[0]?.setSize(
+            dimensions.width,
+            dimensions.height,
+          );
+        },
+        { width, height },
+      );
+      await window.waitForFunction(
+        (dimensions) =>
+          window.innerWidth >= dimensions.width - 32 &&
+          window.innerHeight >= dimensions.height - 64,
+        { width, height },
+      );
     },
     async writeProjection(nextProjection) {
       await writeJson(
