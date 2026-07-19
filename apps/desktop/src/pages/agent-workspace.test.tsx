@@ -3530,6 +3530,13 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(trigger).toHaveTextContent("Claude Sonnet 4 · High");
     await user.click(trigger);
+    const popover = await screen.findByTestId("model-thinking-popover");
+    const modelList = screen.getByTestId("model-thinking-model-list");
+
+    expect(popover).toHaveClass("w-[18rem]");
+    expect(screen.getByRole("dialog")).toHaveClass("gap-5", "p-4");
+    expect(modelList).toHaveClass("pigui-compact-menu-surface");
+    expect(modelList).not.toHaveClass("border", "border-border");
     expect(await screen.findByRole("slider", { name: "Thinking level" })).toBeInTheDocument();
     expect(screen.getByText("Medium")).toBeInTheDocument();
     await user.click(screen.getByText("Claude Haiku 4"));

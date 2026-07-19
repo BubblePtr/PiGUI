@@ -614,17 +614,19 @@ function ModelThinkingControl({
         <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
       </Button>
       <Popover.Content
-        className="w-[22rem] max-w-[calc(100vw-2rem)]"
+        className="w-[18rem] max-w-[calc(100vw-2rem)]"
+        data-testid="model-thinking-popover"
         placement="top start"
       >
-        <Popover.Dialog className="flex flex-col gap-4 p-3">
-          <div className="flex flex-col gap-2">
+        <Popover.Dialog className="flex flex-col gap-5 p-4">
+          <div className="flex flex-col gap-3">
             <Popover.Heading className="text-sm font-medium text-foreground">
               Model
             </Popover.Heading>
             <ListBox
               aria-label="Model"
-              className="max-h-56 overflow-y-auto rounded-md border border-border p-1"
+              className="pigui-compact-menu-surface -mx-1 max-h-56 overflow-y-auto"
+              data-testid="model-thinking-model-list"
               selectedKeys={new Set([
                 modelControlKey(selected.provider, selected.modelId),
               ])}
@@ -656,7 +658,7 @@ function ModelThinkingControl({
             >
               {controls.models.map((model) => (
                 <ListBox.Item
-                  className="grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-2 rounded px-2 py-2 text-sm"
+                  className="pigui-compact-menu-item grid grid-cols-[minmax(0,1fr)_1rem] items-center text-sm"
                   id={modelControlKey(model.provider, model.modelId)}
                   isDisabled={isLocked || isPending}
                   key={modelControlKey(model.provider, model.modelId)}
@@ -675,7 +677,7 @@ function ModelThinkingControl({
               ))}
             </ListBox>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-foreground">Thinking</span>
               <span className="text-xs text-muted">
@@ -709,7 +711,7 @@ function ModelThinkingControl({
                 <Slider.Thumb />
               </Slider.Track>
               <Slider.Marks
-                className="grid gap-1 pt-1 text-center text-[0.6875rem] text-muted"
+                className="grid gap-1 pt-2 text-center text-[0.6875rem] text-muted"
                 style={{
                   gridTemplateColumns: `repeat(${thinkingLevels.length}, minmax(0, 1fr))`,
                 }}
