@@ -1,6 +1,6 @@
 import { invoke } from "@/shared/runtime";
 import type { PersistedSessionProjection } from "@pigui/backend";
-import type { SessionSummary } from "@pigui/core";
+import type { SessionChanges, SessionSummary } from "@pigui/core";
 
 export type { SessionSummary, ModelUsage, NamedCount, Title } from "@pigui/core";
 export type { PersistedSessionProjection } from "@pigui/backend";
@@ -15,6 +15,10 @@ export async function listSessionProjections() {
 
 export async function archiveSessionProjection(sessionId: string) {
   return invoke<PersistedSessionProjection>("archive_session", { sessionId });
+}
+
+export async function getSessionChanges(sessionId: string) {
+  return invoke<SessionChanges>("get_session_changes", { sessionId });
 }
 
 export function formatTimestamp(value: string) {

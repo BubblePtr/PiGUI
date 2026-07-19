@@ -48,3 +48,9 @@ export {
   type PersistedSessionProjection,
   type SessionProjectionStore,
 } from "./persistence/session-projection-store";
+
+export {
+  createNodeSessionChangesReader,
+  type ReadSessionChangesInput,
+  type SessionChangesReader,
+} from "./workspace/session-changes";

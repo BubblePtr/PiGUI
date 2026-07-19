@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BackendRpcEvent } from "@pigui/backend";
+import type { SessionChanges } from "@pigui/core";
 import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
@@ -87,6 +88,14 @@ vi.mock("@heroui-pro/react/chat-tool", () => ({
           ) : null}
         </>
       ) : null}
+    </div>
+  ),
+}));
+
+vi.mock("@/entities/session/session-diff-viewer", () => ({
+  default: ({ patch, style }: { patch: string; style: string }) => (
+    <div data-testid="session-diff-viewer" data-style={style}>
+      {patch}
     </div>
   ),
 }));
@@ -4274,5 +4283,206 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(screen.getByText("No Git repository")).toBeInTheDocument();
     expect(screen.getByText("Git-only actions are unavailable for this Project.")).toBeInTheDocument();
+  });
+});
+
+describe("Session changes action surface", () => {
+  const workspace = {
+    id: "pigui",
+    name: "PiGUI",
+    projectRoot: "/work/PiGUI",
+    repoRoot: "/work/PiGUI",
+    selectedSessionId: "session-changes",
+    liveMessages: [],
+    runTimeline: [],
+    checkout: {
+      mode: "Foreground local checkout",
+      root: "/work/PiGUI",
+      runtimeCwd: "/work/PiGUI",
+    },
+    summary: {
+      model: "gpt-5-codex",
+      totalCostUsd: 0,
+      totalTokens: 0,
+    },
+  };
+  const projection = applySessionProjectionEvent(
+    createSessionProjection({
+      id: "session-changes",
+      projectId: "pigui",
+      initialPrompt: "Review the diff",
+      createdAt: "2026-07-19T00:00:00.000Z",
+    }),
+    {
+      type: "checkout-selected",
+      stage: "preparing checkout",
+      checkout: {
+        mode: "foreground-local",
+        root: "/work/PiGUI",
+        repoRoot: "/work/PiGUI",
+        projectRoot: "/work/PiGUI",
+        projectRelativePath: ".",
+        executionCheckoutRoot: "/work/PiGUI",
+        diffRoot: "/work/PiGUI",
+        runtimeCwd: "/work/PiGUI",
+      },
+      occurredAt: "2026-07-19T00:00:00.000Z",
+    },
+  );
+
+  function changes(overrides: Partial<SessionChanges> = {}): SessionChanges {
+    return {
+      sessionId: "session-changes",
+      state: "ready",
+      checkoutRoot: "/work/PiGUI",
+      repositoryRoot: "/work/PiGUI",
+      generatedAt: "2026-07-19T00:01:00.000Z",
+      files: [
+        {
+          path: "src/app.ts",
+          kind: "modified",
+          staged: false,
+          unstaged: true,
+          additions: 2,
+          deletions: 1,
+          binary: false,
+          patch: "diff --git a/src/app.ts b/src/app.ts\n@@ -1 +1 @@\n-old\n+new\n",
+          patchTruncated: false,
+        },
+        {
+          path: "assets/logo.png",
+          kind: "modified",
+          staged: false,
+          unstaged: true,
+          additions: null,
+          deletions: null,
+          binary: true,
+          patchTruncated: false,
+        },
+      ],
+      totals: {
+        files: 2,
+        additions: 2,
+        deletions: 1,
+        binaryFiles: 1,
+        conflictedFiles: 0,
+      },
+      truncated: false,
+      omittedFileCount: 0,
+      ...overrides,
+    };
+  }
+
+  it("loads real changes, switches files, and changes the diff layout", async () => {
+    const user = userEvent.setup();
+    const loadChanges = vi.fn(async () => changes());
+
+    render(
+      <SessionActionsContent
+        loadChanges={loadChanges}
+        projection={projection}
+        workspace={workspace}
+      />,
+    );
+
+    expect(await screen.findAllByText("src/app.ts")).toHaveLength(2);
+    expect(screen.getByText("2 files ·", { exact: false })).toBeInTheDocument();
+    expect(await screen.findByTestId("session-diff-viewer")).toHaveAttribute(
+      "data-style",
+      "unified",
+    );
+
+    await user.click(screen.getByText("Split"));
+    expect(screen.getByTestId("session-diff-viewer")).toHaveAttribute(
+      "data-style",
+      "split",
+    );
+
+    await user.click(screen.getByText("assets/logo.png"));
+    expect(
+      screen.getByText("Binary file changed. A textual diff is not available."),
+    ).toBeInTheDocument();
+    expect(loadChanges).toHaveBeenCalledWith("session-changes");
+  });
+
+  it("shows clean and non-Git states without treating them as failures", async () => {
+    const clean = vi.fn(async () =>
+      changes({
+        state: "clean",
+        files: [],
+        totals: {
+          files: 0,
+          additions: 0,
+          deletions: 0,
+          binaryFiles: 0,
+          conflictedFiles: 0,
+        },
+      }),
+    );
+    const view = render(
+      <SessionActionsContent
+        loadChanges={clean}
+        projection={projection}
+        workspace={workspace}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Working tree clean. No staged, unstaged, or untracked changes."),
+    ).toBeInTheDocument();
+
+    view.rerender(
+      <SessionActionsContent
+        loadChanges={async () =>
+          changes({ state: "non-git", files: [], repositoryRoot: null })
+        }
+        projection={{ ...projection, id: "session-non-git" }}
+        workspace={workspace}
+      />,
+    );
+    expect(
+      await screen.findByText("This Session checkout is not a Git repository."),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes load errors, retry, and bounded-review warnings", async () => {
+    const user = userEvent.setup();
+    const loadChanges = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Git is temporarily unavailable"))
+      .mockResolvedValueOnce(
+        changes({
+          truncated: true,
+          omittedFileCount: 3,
+          files: [
+            {
+              ...changes().files[0]!,
+              patch: undefined,
+              patchTruncated: true,
+            },
+          ],
+        }),
+      );
+
+    render(
+      <SessionActionsContent
+        loadChanges={loadChanges}
+        projection={projection}
+        workspace={workspace}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Git is temporarily unavailable",
+    );
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(
+      await screen.findByText(
+        "This patch exceeds the review limit and was omitted. Open the checkout for the full diff.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Review is bounded. 3 additional files were omitted."),
+    ).toBeInTheDocument();
   });
 });

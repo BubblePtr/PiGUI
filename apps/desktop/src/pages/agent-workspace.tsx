@@ -8,10 +8,12 @@ import { InlineSelect } from "@heroui-pro/react/inline-select";
 import { Markdown, StreamMarkdown } from "@heroui-pro/react/markdown";
 import { PromptInput } from "@heroui-pro/react/prompt-input";
 import { PromptSuggestion } from "@heroui-pro/react/prompt-suggestion";
+import { Segment } from "@heroui-pro/react/segment";
 import { Sheet } from "@heroui-pro/react/sheet";
 import { TextShimmer } from "@heroui-pro/react/text-shimmer";
 import { useParams, useRouterState } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
+import type { SessionChangedFile, SessionChanges } from "@pigui/core";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
 import {
   Activity,
@@ -22,6 +24,7 @@ import {
   GitBranch,
   LayoutAlignLeft,
   ListTree,
+  RefreshCw,
   Sparkles,
 } from "@/shared/ui/icons";
 import {
@@ -86,6 +89,7 @@ import {
   archiveSessionProjection,
   formatCost,
   formatTokens,
+  getSessionChanges,
   listSessionProjections,
   type PersistedSessionProjection,
 } from "@/entities/session/sessions";
@@ -140,7 +144,12 @@ type SessionActionsContentProps = {
   archiveError?: string | null;
   isArchiving?: boolean;
   onArchive?: () => void;
+  loadChanges?: typeof getSessionChanges;
 };
+
+const SessionDiffViewer = lazy(
+  () => import("@/entities/session/session-diff-viewer"),
+);
 
 type RestorablePiRuntimeBridge = PiRuntimeBridge & {
   restoreSessionState(state: PiSessionState): Promise<PiSessionState>;
@@ -1762,12 +1771,292 @@ function checkoutModeLabel(mode: string) {
   return mode;
 }
 
+function changeKindLabel(kind: SessionChangedFile["kind"]) {
+  switch (kind) {
+    case "type-changed":
+      return "Type changed";
+    case "conflicted":
+      return "Conflict";
+    default:
+      return `${kind[0]?.toUpperCase()}${kind.slice(1)}`;
+  }
+}
+
+function changeStageLabel(file: SessionChangedFile) {
+  if (file.kind === "untracked") return "Working tree";
+  if (file.staged && file.unstaged) return "Staged + unstaged";
+  if (file.staged) return "Staged";
+  return "Working tree";
+}
+
+function SessionChangesPanel({
+  sessionId,
+  stale,
+  loadChanges,
+}: {
+  sessionId: string | null;
+  stale: boolean;
+  loadChanges: typeof getSessionChanges;
+}) {
+  const [changes, setChanges] = useState<SessionChanges | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(Boolean(sessionId));
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [diffStyle, setDiffStyle] = useState<"unified" | "split">("unified");
+
+  useEffect(() => {
+    if (!sessionId) {
+      setChanges(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    void loadChanges(sessionId)
+      .then((nextChanges) => {
+        if (cancelled) return;
+        setChanges(nextChanges);
+        setSelectedPath((current) =>
+          nextChanges.files.some((file) => file.path === current)
+            ? current
+            : (nextChanges.files[0]?.path ?? null),
+        );
+      })
+      .catch((loadError) => {
+        if (cancelled) return;
+        setChanges(null);
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Session changes could not be loaded.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadChanges, refreshKey, sessionId]);
+
+  const selectedFile =
+    changes?.files.find((file) => file.path === selectedPath) ?? null;
+
+  return (
+    <section aria-labelledby="session-diff-heading">
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3
+            className="text-sm font-semibold text-foreground"
+            id="session-diff-heading"
+          >
+            Diff summary
+          </h3>
+          {changes?.state === "ready" ? (
+            <p className="mt-1 text-xs text-muted">
+              {changes.totals.files} files ·{" "}
+              <span className="text-success">
+                +{changes.totals.additions}
+              </span>{" "}
+              ·{" "}
+              <span className="text-danger">
+                -{changes.totals.deletions}
+              </span>
+            </p>
+          ) : null}
+        </div>
+        {sessionId ? (
+          <Tooltip delay={0}>
+            <Tooltip.Trigger className="inline-flex">
+              <Button
+                isIconOnly
+                aria-label="Refresh Session changes"
+                isDisabled={loading}
+                size="sm"
+                variant="ghost"
+                onPress={() => setRefreshKey((value) => value + 1)}
+              >
+                <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Refresh changes</Tooltip.Content>
+          </Tooltip>
+        ) : null}
+      </div>
+
+      {stale ? (
+        <p className="mt-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+          Runtime state is stale. This diff is fresh, but the Session status may be outdated.
+        </p>
+      ) : null}
+
+      {!sessionId ? (
+        <p className="mt-2 text-sm leading-6 text-muted">
+          No changes are attached to this Session.
+        </p>
+      ) : loading && !changes ? (
+        <div className="mt-3 grid gap-2" aria-label="Loading Session changes">
+          <div className="h-8 animate-pulse rounded-md bg-default/40" />
+          <div className="h-24 animate-pulse rounded-md bg-default/30" />
+        </div>
+      ) : error ? (
+        <div
+          className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-3 py-3"
+          role="alert"
+        >
+          <p className="text-sm text-danger">{error}</p>
+          <Button
+            className="mt-3"
+            size="sm"
+            variant="secondary"
+            onPress={() => setRefreshKey((value) => value + 1)}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : changes?.state === "non-git" ? (
+        <p className="mt-3 rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+          This Session checkout is not a Git repository.
+        </p>
+      ) : changes?.state === "clean" || !changes?.files.length ? (
+        <p className="mt-3 rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+          Working tree clean. No staged, unstaged, or untracked changes.
+        </p>
+      ) : (
+        <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-[14rem_minmax(0,1fr)]">
+          <div className="min-w-0 rounded-md border border-default/70 bg-surface p-1.5">
+            <div className="max-h-[34rem] space-y-1 overflow-y-auto">
+              {changes.files.map((file) => (
+                <button
+                  key={`${file.previousPath ?? ""}:${file.path}`}
+                  aria-pressed={file.path === selectedPath}
+                  className={`w-full min-w-0 rounded px-2 py-2 text-left transition-colors ${
+                    file.path === selectedPath
+                      ? "bg-default/70 text-foreground"
+                      : "text-muted hover:bg-default/40 hover:text-foreground"
+                  }`}
+                  type="button"
+                  onClick={() => setSelectedPath(file.path)}
+                >
+                  <span
+                    className="block truncate text-sm font-medium"
+                    title={file.path}
+                  >
+                    {file.path}
+                  </span>
+                  <span className="mt-1 flex items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate" title={changeStageLabel(file)}>
+                      {changeKindLabel(file.kind)} · {changeStageLabel(file)}
+                    </span>
+                    {file.kind === "conflicted" ? (
+                      <span className="shrink-0">Resolve</span>
+                    ) : file.binary ? (
+                      <span>Binary</span>
+                    ) : (
+                      <span className="shrink-0">
+                        <span className="text-success">
+                          +{file.additions ?? 0}
+                        </span>{" "}
+                        <span className="text-danger">
+                          -{file.deletions ?? 0}
+                        </span>
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="mb-2 flex min-h-8 items-center justify-between gap-3">
+              <p
+                className="min-w-0 truncate text-sm font-medium text-foreground"
+                title={selectedFile?.path}
+              >
+                {selectedFile?.path}
+              </p>
+              <Segment
+                aria-label="Diff layout"
+                selectedKey={diffStyle}
+                size="sm"
+                onSelectionChange={(key) =>
+                  setDiffStyle(key === "split" ? "split" : "unified")
+                }
+              >
+                <Segment.Item id="unified">
+                  <Segment.Separator />
+                  Unified
+                </Segment.Item>
+                <Segment.Item id="split">
+                  <Segment.Separator />
+                  Split
+                </Segment.Item>
+              </Segment>
+            </div>
+
+            {selectedFile?.kind === "conflicted" ? (
+              <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                This file has unresolved merge conflicts. Resolve it in the
+                checkout before reviewing a normal patch.
+              </p>
+            ) : selectedFile?.binary ? (
+              <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+                Binary file changed. A textual diff is not available.
+              </p>
+            ) : selectedFile?.patchTruncated ? (
+              <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                This patch exceeds the review limit and was omitted. Open the
+                checkout for the full diff.
+              </p>
+            ) : selectedFile?.patch ? (
+              <Suspense
+                fallback={
+                  <div
+                    className="h-40 animate-pulse rounded-md bg-default/30"
+                    aria-label="Loading diff renderer"
+                  />
+                }
+              >
+                <SessionDiffViewer
+                  cacheKey={`${changes.sessionId}:${changes.generatedAt}:${selectedFile.path}`}
+                  patch={selectedFile.patch}
+                  style={diffStyle}
+                />
+              </Suspense>
+            ) : (
+              <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+                No textual patch is available for this file.
+              </p>
+            )}
+          </div>
+
+          {changes.truncated ? (
+            <p className="md:col-span-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+              Review is bounded. {changes.omittedFileCount > 0
+                ? `${changes.omittedFileCount} additional files were omitted.`
+                : "One or more oversized patches were omitted."}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function SessionActionsContent({
   workspace,
   projection,
   archiveError,
   isArchiving = false,
   onArchive,
+  loadChanges = getSessionChanges,
 }: SessionActionsContentProps) {
   const checkout = projection?.checkout
     ? {
@@ -1828,12 +2117,11 @@ export function SessionActionsContent({
         </section>
       ) : null}
 
-      <section>
-        <h3 className="text-sm font-semibold text-foreground">Diff summary</h3>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          No changes are attached to this Session.
-        </p>
-      </section>
+      <SessionChangesPanel
+        loadChanges={loadChanges}
+        sessionId={projection?.id ?? null}
+        stale={projection?.stale ?? false}
+      />
 
       <section>
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -2029,7 +2317,7 @@ function SessionActionsSheet({
       <Sheet isOpen={open} placement="right" onOpenChange={setOpen}>
         <Sheet.Backdrop>
           <Sheet.Content
-            className="w-full md:w-[28rem]"
+            className="w-full md:w-[min(80rem,92vw)]"
             style={
               open
                 ? {

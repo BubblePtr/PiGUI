@@ -32,6 +32,13 @@ export type {
 
 export type { ExecutionCheckoutGitClient } from "./checkout";
 
+export type {
+  SessionChanges,
+  SessionChangesState,
+  SessionChangedFile,
+  SessionChangedFileKind,
+} from "./session-changes";
+
 export {
   surfaceForMessagePart,
   shouldJournalRuntimeEvent,

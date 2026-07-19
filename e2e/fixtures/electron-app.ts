@@ -1,13 +1,16 @@
 import { _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
 const repositoryRoot = path.resolve(currentDirectory, "..", "..");
 const projectRegistryStorageKey = "pigui.projectRegistry.v1";
+const execFileAsync = promisify(execFile);
 
 export type E2EProject = {
   id: string;
@@ -27,6 +30,20 @@ export type E2ESessionProjection = {
   sessionFileMissing: true;
   archivedAt?: string;
   updatedAt: string;
+  checkout: {
+    mode: "foreground-local";
+    root: string;
+    repoRoot: string;
+    projectRoot: string;
+    projectRelativePath: ".";
+    executionCheckoutRoot: string;
+    diffRoot: string;
+    runtimeCwd: string;
+    sessionBound: false;
+    disposable: false;
+    cleanupCandidate: false;
+    permanent: true;
+  };
 };
 
 export type PiGUITestApplication = {
@@ -42,7 +59,40 @@ export type PiGUITestApplication = {
 type LaunchPiGUIOptions = {
   seedProject?: boolean;
   seedSession?: boolean;
+  seedGitChanges?: boolean;
 };
+
+async function git(cwd: string, ...args: string[]) {
+  await execFileAsync("git", args, {
+    cwd,
+    env: { ...process.env, LC_ALL: "C" },
+  });
+}
+
+async function seedChangedGitRepository(projectDirectory: string) {
+  const sourceDirectory = path.join(projectDirectory, "src");
+  await mkdir(sourceDirectory, { recursive: true });
+  await git(projectDirectory, "init");
+  await git(projectDirectory, "config", "user.name", "PiGUI E2E");
+  await git(projectDirectory, "config", "user.email", "pigui-e2e@example.test");
+  await writeFile(
+    path.join(sourceDirectory, "app.ts"),
+    'export const state = "before";\n',
+    "utf8",
+  );
+  await git(projectDirectory, "add", ".");
+  await git(projectDirectory, "commit", "-m", "E2E baseline");
+  await writeFile(
+    path.join(sourceDirectory, "app.ts"),
+    'export const state = "after";\n',
+    "utf8",
+  );
+  await writeFile(
+    path.join(sourceDirectory, "new-feature.ts"),
+    "export const enabled = true;\n",
+    "utf8",
+  );
+}
 
 function stringEnvironment() {
   return Object.fromEntries(
@@ -73,7 +123,8 @@ export async function launchPiGUI(
   const dataDirectory = path.join(testRoot, "data");
   const agentDirectory = path.join(testRoot, "agent");
   const projectDirectory = path.join(testRoot, "project");
-  const shouldSeedProject = options.seedProject || options.seedSession;
+  const shouldSeedProject =
+    options.seedProject || options.seedSession || options.seedGitChanges;
   const project: E2EProject | null = shouldSeedProject
     ? {
         id: projectDirectory,
@@ -82,7 +133,8 @@ export async function launchPiGUI(
         addedAt: "2026-07-19T00:00:00.000Z",
       }
     : null;
-  const projection: E2ESessionProjection | null = options.seedSession && project
+  const projection: E2ESessionProjection | null =
+    (options.seedSession || options.seedGitChanges) && project
     ? {
         sessionId: "e2e-session",
         runtimeId: "e2e-runtime",
@@ -92,6 +144,20 @@ export async function launchPiGUI(
         cwd: project.path,
         status: "completed",
         sessionFileMissing: true,
+        checkout: {
+          mode: "foreground-local",
+          root: project.path,
+          repoRoot: project.path,
+          projectRoot: project.path,
+          projectRelativePath: ".",
+          executionCheckoutRoot: project.path,
+          diffRoot: project.path,
+          runtimeCwd: project.path,
+          sessionBound: false,
+          disposable: false,
+          cleanupCandidate: false,
+          permanent: true,
+        },
         updatedAt: "2026-07-19T00:01:00.000Z",
       }
     : null;
@@ -102,6 +168,10 @@ export async function launchPiGUI(
     mkdir(agentDirectory, { recursive: true }),
     mkdir(projectDirectory, { recursive: true }),
   ]);
+
+  if (options.seedGitChanges) {
+    await seedChangedGitRepository(projectDirectory);
+  }
 
   if (projection) {
     await writeJson(
