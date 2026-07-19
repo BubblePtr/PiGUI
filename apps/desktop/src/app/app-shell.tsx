@@ -26,6 +26,7 @@ import {
   type CSSProperties,
   type Key,
   type ReactNode,
+  type RefObject,
 } from "react";
 import {
   addProjectToRegistry,
@@ -778,39 +779,36 @@ function SidebarToggleIcon({ sidebarOpen }: { sidebarOpen: boolean }) {
 }
 
 function HeaderChrome({
+  chromeRef,
   title,
   toolbarActions,
   sidebarOpen,
   mainLeft,
 }: {
+  chromeRef: RefObject<HTMLDivElement | null>;
   title: string;
   toolbarActions?: ReactNode;
   sidebarOpen: boolean;
   mainLeft: string;
 }) {
-  const titleX = sidebarOpen
-    ? mainLeft
-    : chromeSafeLeft;
   const chromeStyle = {
     "--pigui-chrome-safe-left": chromeSafeLeft,
     "--pigui-header-height": titlebarHeight,
     "--pigui-main-left": mainLeft,
-    "--pigui-title-x": titleX,
     "--pigui-traffic-width": trafficWidth,
     height: titlebarHeight,
   } as CSSProperties;
   const titleTrackStyle = {
-    "--pigui-main-left": mainLeft,
-    "--pigui-title-x": titleX,
     left: "var(--pigui-chrome-safe-left)",
   } as CSSProperties;
   const titleStyle = {
-    "--pigui-title-x": titleX,
-    transform: `translateX(calc(${titleX} - var(--pigui-chrome-safe-left)))`,
+    transform:
+      "translateX(calc(max(var(--pigui-main-left), var(--pigui-chrome-safe-left)) - var(--pigui-chrome-safe-left)))",
   } as CSSProperties;
 
   return (
     <div
+      ref={chromeRef}
       className="pigui-header-chrome"
       data-sidebar={sidebarOpen ? "open" : "closed"}
       data-testid="header-chrome"
@@ -891,6 +889,7 @@ export function AppFrame({
   const [sidebarAnimating, setSidebarAnimating] = useState(false);
   const [measuredSidebarWidth, setMeasuredSidebarWidth] = useState(sidebarDefaultSize);
   const layoutRef = useRef<HTMLDivElement | null>(null);
+  const headerChromeRef = useRef<HTMLDivElement | null>(null);
   const sidebarAnimatingRef = useRef(false);
   const sidebarOpenRef = useRef(sidebarOpen);
   const sidebarAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -920,7 +919,7 @@ export function AppFrame({
   const effectiveSelectedSessionId =
     selectedSessionId === undefined ? localSelectedSessionId : selectedSessionId;
   const updateSelectedSessionId = onSelectedSessionIdChange ?? setLocalSelectedSessionId;
-  const headerMainLeft = sidebarOpen ? measuredSidebarWidth : "0px";
+  const headerMainLeft = measuredSidebarWidth;
   const handleSidebarOpenChange = (open: boolean) => {
     if (sidebarAnimationTimeoutRef.current) {
       clearTimeout(sidebarAnimationTimeoutRef.current);
@@ -1006,11 +1005,24 @@ export function AppFrame({
     const updateSidebarWidth = () => {
       const width = sidebarPanel.getBoundingClientRect().width;
 
-      if (width <= 0 || sidebarAnimatingRef.current || !sidebarOpenRef.current) {
+      if (!Number.isFinite(width) || width < 0) {
         return;
       }
 
-      setMeasuredSidebarWidth(`${Math.round(width)}px`);
+      if (width === 0 && sidebarOpenRef.current && !sidebarAnimatingRef.current) {
+        return;
+      }
+
+      const currentWidth = `${Math.round(width)}px`;
+
+      // Keep the fixed header on the sidebar's live geometry so their motion cannot diverge.
+      headerChromeRef.current?.style.setProperty("--pigui-main-left", currentWidth);
+
+      if (width === 0 || sidebarAnimatingRef.current || !sidebarOpenRef.current) {
+        return;
+      }
+
+      setMeasuredSidebarWidth(currentWidth);
     };
 
     updateSidebarWidth();
@@ -1187,6 +1199,7 @@ export function AppFrame({
       onSidebarOpenChange={handleSidebarOpenChange}
     >
       <HeaderChrome
+        chromeRef={headerChromeRef}
         mainLeft={headerMainLeft}
         sidebarOpen={sidebarOpen}
         title={activeTab}

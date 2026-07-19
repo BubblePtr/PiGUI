@@ -703,12 +703,10 @@ describe("AppFrame", () => {
     expect(headerChrome).toHaveStyle({ height: "40px" });
     expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 13 }");
     expect(13).toBe((headerHeight - 14) / 2);
-    expect(titleTrack).toHaveStyle({ "--pigui-main-left": "260px" });
-    expect(titleTrack).toHaveStyle({ "--pigui-title-x": "260px" });
     expect(titleTrack).toHaveStyle({ left: "var(--pigui-chrome-safe-left)" });
     expect(title).toHaveStyle({
-      "--pigui-title-x": "260px",
-      transform: "translateX(calc(260px - var(--pigui-chrome-safe-left)))",
+      transform:
+        "translateX(calc(max(var(--pigui-main-left), var(--pigui-chrome-safe-left)) - var(--pigui-chrome-safe-left)))",
     });
     expect(trigger).toHaveStyle({ width: "28px", height: "28px" });
     expect(screen.getByTestId("header-chrome-left")).toHaveClass("pigui-header-chrome__left");
@@ -810,12 +808,10 @@ describe("AppFrame", () => {
 
     expect(container.querySelector('[data-testid="collapsed-traffic-space"]')).not.toBeInTheDocument();
     expect(headerChrome).toHaveStyle({ "--pigui-main-left": "260px" });
-    expect(titleTrack).toHaveStyle({ "--pigui-main-left": "260px" });
-    expect(titleTrack).toHaveStyle({ "--pigui-title-x": "260px" });
     expect(titleTrack).toHaveStyle({ left: "var(--pigui-chrome-safe-left)" });
     expect(title).toHaveStyle({
-      "--pigui-title-x": "260px",
-      transform: "translateX(calc(260px - var(--pigui-chrome-safe-left)))",
+      transform:
+        "translateX(calc(max(var(--pigui-main-left), var(--pigui-chrome-safe-left)) - var(--pigui-chrome-safe-left)))",
     });
 
     await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
@@ -829,20 +825,17 @@ describe("AppFrame", () => {
     const dragRegions = container.querySelectorAll("[data-window-drag-region]");
 
     expect(collapsedTrigger).toBe(fixedTrigger);
-    expect(headerChrome).toHaveStyle({ "--pigui-main-left": "0px" });
-    expect(titleTrack).toHaveStyle({ "--pigui-main-left": "0px" });
     expect(titleTrack).toHaveStyle({ left: "var(--pigui-chrome-safe-left)" });
-    expect(titleTrack).toHaveStyle({ "--pigui-title-x": "132px" });
     expect(title).toHaveStyle({
-      "--pigui-title-x": "132px",
-      transform: "translateX(calc(132px - var(--pigui-chrome-safe-left)))",
+      transform:
+        "translateX(calc(max(var(--pigui-main-left), var(--pigui-chrome-safe-left)) - var(--pigui-chrome-safe-left)))",
     });
     expect(styles).not.toContain("collapsed-traffic-space");
     expect(styles).not.toContain("left: max(var(--pigui-main-left)");
     expect(styles).not.toContain("padding-left 200ms cubic-bezier(.2, .8, .2, 1)");
     expect(styles).not.toContain("padding-left: calc(var(--pigui-title-safe-offset)");
     expect(styles).not.toContain("transition: left 200ms cubic-bezier(.2, .8, .2, 1);");
-    expect(styles).toContain("transform 200ms cubic-bezier(.2, .8, .2, 1)");
+    expect(styles).not.toContain("transform 200ms cubic-bezier(.2, .8, .2, 1)");
     expect(styles).toContain(".pigui-header-chrome__left {\n  position: absolute;");
     expect(styles).toContain("z-index: 1;");
     expect(styles).toContain(".pigui-header-chrome__title-track {\n  position: absolute;");
@@ -851,7 +844,7 @@ describe("AppFrame", () => {
     expect(dragRegions).toHaveLength(3);
   });
 
-  it("does not use transient collapsed resize widths for the title expand target", async () => {
+  it("drives the fixed title from the sidebar's observed animation width", async () => {
     const originalResizeObserver = globalThis.ResizeObserver;
     const resizeObservers: Array<{ trigger: () => void }> = [];
 
@@ -884,6 +877,7 @@ describe("AppFrame", () => {
       const sidebarPanel = container.querySelector<HTMLElement>(
         '[data-testid="app-layout-sidebar"][data-panel]',
       );
+      const headerChrome = screen.getByTestId("header-chrome");
       const title = screen.getByTestId("header-chrome-title");
 
       expect(sidebarPanel).toBeInTheDocument();
@@ -909,29 +903,36 @@ describe("AppFrame", () => {
         resizeObservers.forEach((observer) => observer.trigger());
       });
 
+      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "224px" });
       expect(title).toHaveStyle({
-        "--pigui-title-x": "224px",
-        transform: "translateX(calc(224px - var(--pigui-chrome-safe-left)))",
+        transform:
+          "translateX(calc(max(var(--pigui-main-left), var(--pigui-chrome-safe-left)) - var(--pigui-chrome-safe-left)))",
       });
 
       await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-      expect(title).toHaveStyle({
-        "--pigui-title-x": "132px",
-        transform: "translateX(calc(132px - var(--pigui-chrome-safe-left)))",
-      });
-
-      measuredWidth = 12;
+      measuredWidth = 160;
       await act(async () => {
         resizeObservers.forEach((observer) => observer.trigger());
       });
 
+      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "160px" });
+
+      measuredWidth = 80;
+      await act(async () => {
+        resizeObservers.forEach((observer) => observer.trigger());
+      });
+
+      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "80px" });
+
       await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
 
-      expect(title).toHaveStyle({
-        "--pigui-title-x": "224px",
-        transform: "translateX(calc(224px - var(--pigui-chrome-safe-left)))",
+      measuredWidth = 176;
+      await act(async () => {
+        resizeObservers.forEach((observer) => observer.trigger());
       });
+
+      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "176px" });
     } finally {
       Object.defineProperty(globalThis, "ResizeObserver", {
         configurable: true,

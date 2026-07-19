@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import type {
   SessionDetail,
   SessionContentPart,
@@ -855,6 +855,16 @@ function sortedNamedCounts(counts: Map<string, number>): NamedCount[] {
 }
 
 function deriveProjectName(cwd: string) {
+  const checkoutName = basename(cwd);
+  const projectRoot = dirname(cwd);
+
+  if (
+    checkoutName.startsWith("session-") &&
+    basename(dirname(projectRoot)) === ".pig-worktrees"
+  ) {
+    return basename(projectRoot);
+  }
+
   return basename(cwd) || cwd;
 }
 

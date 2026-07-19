@@ -47,6 +47,22 @@ describe("backend session parser", () => {
     ]);
   });
 
+  it("attributes managed worktree sessions to their original project", async () => {
+    const agentDir = await tempAgentDir();
+
+    await writeSession(
+      agentDir,
+      "managed-worktree",
+      "2026-06-29T15-01-27-454Z_managed-session.jsonl",
+      `{"type":"session","version":3,"id":"session-64372af7-2bf3-4238-9cbb-6d41ad451fed","timestamp":"2026-06-29T15:01:27.454Z","cwd":"/Users/void/code/opensource/.pig-worktrees/Pig/session-64372af7-2bf3-4238-9cbb-6d41ad451fed"}`,
+    );
+
+    const sessions = await buildSessionIndex(agentDir);
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].project).toBe("Pig");
+  });
+
   it("reconstructs detail turn order and merges tool results into assistant turns", async () => {
     const jsonl = await readFile(
       join(
