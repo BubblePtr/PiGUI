@@ -14,6 +14,8 @@ directories:
 files:
   - out/**/*
   - package.json
+  # Main, preload, and renderer dependencies are bundled by electron-vite.
+  - "!node_modules/**/*"
 
 artifactName: ${productName}-${version}-${arch}.${ext}
 

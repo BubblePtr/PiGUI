@@ -50,6 +50,31 @@ APPLE_KEYCHAIN_PROFILE="pigui-notary" bun run dist:mac
 
 只有 profile 存在自定义钥匙串时才额外设置 `APPLE_KEYCHAIN`。凭据只应存在于本机钥匙串或 CI secret store 中。
 
+### S3 上传超时
+
+如果默认流程在上传阶段报 `abortedUpload` 或 `deadlineExceeded`，可以保留已签名的 `.app`，改用 `notarytool` 的非加速上传。先不要把公证 profile 注入 electron-builder，避免它重复提交：
+
+```bash
+env -u APPLE_KEYCHAIN_PROFILE -u APPLE_KEYCHAIN bun run package:mac
+
+NOTARY_ARCHIVE="dist/PiGUI-notary-$(date +%Y%m%d%H%M%S).zip"
+ditto -c -k --keepParent dist/mac-arm64/PiGUI.app "$NOTARY_ARCHIVE"
+xcrun notarytool submit "$NOTARY_ARCHIVE" \
+  --keychain-profile "pigui-notary" \
+  --wait \
+  --no-s3-acceleration
+xcrun stapler staple dist/mac-arm64/PiGUI.app
+
+./node_modules/.bin/electron-builder \
+  --config electron-builder.yml \
+  --prepackaged dist/mac-arm64/PiGUI.app \
+  --mac dmg \
+  --arm64 \
+  -c.mac.notarize=false
+```
+
+这个 fallback 只改变上传路径，不降低签名、公证或 Gatekeeper 验收要求。
+
 发布前执行：
 
 ```bash
@@ -57,6 +82,7 @@ bun run dist:mac
 codesign --verify --deep --strict --verbose=2 dist/mac-arm64/PiGUI.app
 xcrun stapler validate dist/mac-arm64/PiGUI.app
 spctl --assess --type execute --verbose=2 dist/mac-arm64/PiGUI.app
+hdiutil verify dist/PiGUI-*-arm64.dmg
 bun run test:e2e:packaged
 ```
 
