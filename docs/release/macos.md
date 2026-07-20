@@ -26,13 +26,29 @@ codesign --verify --deep --strict --verbose=2 dist/mac-arm64/PiGUI.app
 
 ## DMG 与公证
 
-`bun run dist:mac` 会强制签名，并在提供 Apple 公证凭据时自动调用 `notarytool`。推荐使用 App Store Connect API key，在构建进程中提供：
+`bun run dist:mac` 会强制签名，并在提供 Apple 公证凭据时自动调用 `notarytool`。自动化环境推荐使用 App Store Connect Team API key（Developer role），在构建进程中提供：
 
 - `APPLE_API_KEY`：本机 `.p8` 文件路径
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER`
 
-也可以使用已由 `notarytool store-credentials` 写入本机钥匙串的 profile，并提供 `APPLE_KEYCHAIN` 与 `APPLE_KEYCHAIN_PROFILE`。凭据只应存在于本机钥匙串或 CI secret store 中。
+个人 API key 不能用于 `notarytool`。本地开发推荐先把 Team API key 写入钥匙串：
+
+```bash
+xcrun notarytool store-credentials "pigui-notary" \
+  --key "/absolute/path/AuthKey_KEYID.p8" \
+  --key-id "KEY_ID" \
+  --issuer "ISSUER_ID"
+xcrun notarytool history --keychain-profile "pigui-notary"
+```
+
+使用默认钥匙串时，构建只需提供 profile 名：
+
+```bash
+APPLE_KEYCHAIN_PROFILE="pigui-notary" bun run dist:mac
+```
+
+只有 profile 存在自定义钥匙串时才额外设置 `APPLE_KEYCHAIN`。凭据只应存在于本机钥匙串或 CI secret store 中。
 
 发布前执行：
 
