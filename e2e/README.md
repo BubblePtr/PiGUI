@@ -11,11 +11,17 @@ bun run build
 # 运行全部 Electron E2E
 bun run test:e2e
 
+# 从已生成的 arm64 `.app` 运行同一套 E2E
+bun run package:mac:unsigned
+bun run test:e2e:packaged
+
 # 仅运行当前 smoke 文件
 bun run test:e2e -- e2e/smoke/m1-fixture-free.spec.ts
 ```
 
 当前 smoke 不调用真实 LLM。每条测试都会创建独立的 Electron user data、PiGUI data 和 Project 目录，并在结束后清理，避免读取开发者机器上的 localStorage 或 `~/.pigui`。
+
+`test:e2e:packaged` 不使用源码入口，而是直接启动 `dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI`，用于发现 ASAR、运行时资产和 utility process 路径只在安装包中出现的问题。
 
 ## 覆盖范围
 

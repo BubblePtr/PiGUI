@@ -11,8 +11,12 @@
     "dev": "bun --filter @pigui/desktop dev",
     "test": "vitest run",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "test:e2e:packaged": "PIGUI_E2E_EXECUTABLE=dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI playwright test --config e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && bun --filter @pigui/desktop build",
+    "package:mac:unsigned": "bun run build && electron-builder --config electron-builder.yml --mac dir --arm64 -c.forceCodeSigning=false -c.mac.identity=null",
+    "package:mac": "bun run build && electron-builder --config electron-builder.yml --mac dir --arm64",
+    "dist:mac": "bun run build && electron-builder --config electron-builder.yml --mac dmg --arm64",
     "preview": "bun --filter @pigui/desktop preview"
   },
   "dependencies": {
@@ -68,6 +72,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.1",
     "electron": "^42.5.0",
+    "electron-builder": "26.15.3",
     "electron-vite": "^5.0.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.12",
