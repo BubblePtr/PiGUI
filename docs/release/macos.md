@@ -2,6 +2,16 @@
 
 PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产物的固定标识为 `com.bubbleptr.pigui`，最低支持 macOS 12。
 
+## 重建应用图标
+
+可编辑母版是 `build/icon.svg`。修改后必须用以下命令重建 `build/icon.icns`：
+
+```bash
+bun run build:icon:mac
+```
+
+脚本使用 macOS `sips` 保留 SVG 画布外沿的透明像素，再由 `iconutil` 生成 16px 到 1024px 的完整 iconset。不要用 `qlmanage` 把 SVG 转成 PNG；Quick Look 会把透明外沿铺成不透明白色，最终在 Dock 中显示成白圈。
+
 ## 本地验证
 
 没有发布证书时，可以生成未签名 `.app` 并直接跑完整 packaged-app E2E：
