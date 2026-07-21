@@ -20,6 +20,7 @@ files:
 artifactName: ${productName}-${version}-${arch}.${ext}
 
 mac:
+  icon: build/icon.icns
   category: public.app-category.developer-tools
   target:
     - target: dmg
