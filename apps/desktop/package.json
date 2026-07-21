@@ -2,6 +2,8 @@
   "name": "@pigui/desktop",
   "version": "0.1.0",
   "private": true,
+  "description": "The missing GUI for Pi Agent.",
+  "author": "BubblePtr",
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
@@ -9,7 +11,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview"
   },
-  "dependencies": {
+  "devDependencies": {
     "@pigui/backend": "workspace:*",
     "@pigui/core": "workspace:*"
   }

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="180" y1="110" x2="844" y2="914" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#202327"/>
+      <stop offset="1" stop-color="#101214"/>
+    </linearGradient>
+    <linearGradient id="lowerField" x1="512" y1="690" x2="512" y2="984" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2388F5"/>
+      <stop offset="1" stop-color="#1268CD"/>
+    </linearGradient>
+    <clipPath id="iconShape">
+      <rect x="40" y="40" width="944" height="944" rx="202"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#iconShape)">
+    <rect x="40" y="40" width="944" height="944" fill="url(#background)"/>
+
+    <!-- Official Pi geometry from https://pi.dev/logo.svg, reused unchanged. -->
+    <g transform="translate(12 -66) scale(1.25)" fill="#FFF">
+      <path fill-rule="evenodd" d="
+        M165.29 165.29
+        H517.36
+        V400
+        H400
+        V517.36
+        H282.65
+        V634.72
+        H165.29
+        Z
+        M282.65 282.65
+        V400
+        H400
+        V282.65
+        Z
+      "/>
+      <path d="M517.36 400 H634.72 V634.72 H517.36 Z"/>
+    </g>
+
+    <path d="M40 690Q512 828 984 690V1024H40Z" fill="url(#lowerField)"/>
+    <path d="M40 690Q512 828 984 690" fill="none" stroke="#FFF" stroke-opacity="0.22" stroke-width="3"/>
+
+    <!-- Geometric lettering avoids a runtime or build-time font dependency. -->
+    <g fill="#FFF">
+      <path d="M300 814H398V838H324V894H374V876H350V852H398V918H300Z"/>
+      <path d="M430 814H454V894H500V814H524V918H430Z"/>
+      <path d="M558 814H648V838H615V894H648V918H558V894H591V838H558Z"/>
+    </g>
+  </g>
+
+</svg>

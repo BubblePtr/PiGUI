@@ -1,0 +1,43 @@
+appId: com.bubbleptr.pigui
+productName: PiGUI
+electronVersion: 42.5.0
+asar: true
+compression: normal
+forceCodeSigning: true
+npmRebuild: false
+
+directories:
+  app: apps/desktop
+  output: dist
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  # Main, preload, and renderer dependencies are bundled by electron-vite.
+  - "!node_modules/**/*"
+
+artifactName: ${productName}-${version}-${arch}.${ext}
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+  minimumSystemVersion: "12.0"
+
+dmg:
+  title: ${productName} ${version}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications

@@ -11,6 +11,7 @@ const currentDirectory = path.dirname(currentFile);
 const repositoryRoot = path.resolve(currentDirectory, "..", "..");
 const projectRegistryStorageKey = "pigui.projectRegistry.v1";
 const execFileAsync = promisify(execFile);
+const packagedExecutable = process.env.PIGUI_E2E_EXECUTABLE;
 
 export type E2EProject = {
   id: string;
@@ -241,8 +242,11 @@ export async function launchPiGUI(
   }
 
   const app = await electron.launch({
+    ...(packagedExecutable ? { executablePath: packagedExecutable } : {}),
     args: [
-      path.join(repositoryRoot, "apps/desktop/out/main/main.js"),
+      ...(packagedExecutable
+        ? []
+        : [path.join(repositoryRoot, "apps/desktop/out/main/main.js")]),
       `--user-data-dir=${profileDirectory}`,
     ],
     env: {
