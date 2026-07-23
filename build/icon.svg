@@ -42,7 +42,7 @@
     <path d="M40 690Q512 828 984 690" fill="none" stroke="#FFF" stroke-opacity="0.22" stroke-width="3"/>
 
     <!-- Geometric lettering avoids a runtime or build-time font dependency. -->
-    <g fill="#FFF">
+    <g fill="#FFF" transform="translate(38 0)">
       <path d="M300 814H398V838H324V894H374V876H350V852H398V918H300Z"/>
       <path d="M430 814H454V894H500V814H524V918H430Z"/>
       <path d="M558 814H648V838H615V894H648V918H558V894H591V838H558Z"/>

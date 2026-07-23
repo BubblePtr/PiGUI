@@ -14,6 +14,7 @@
     "test:e2e:packaged": "PIGUI_E2E_EXECUTABLE=dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI playwright test --config e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && bun --filter @pigui/desktop build",
+    "build:icon:mac": "bash scripts/build-macos-icon.sh",
     "package:mac:unsigned": "bun run build && electron-builder --config electron-builder.yml --mac dir --arm64 -c.forceCodeSigning=false -c.mac.identity=null",
     "package:mac": "bun run build && electron-builder --config electron-builder.yml --mac dir --arm64",
     "dist:mac": "bun run build && electron-builder --config electron-builder.yml --mac dmg --arm64",
