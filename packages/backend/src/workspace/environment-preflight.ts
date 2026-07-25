@@ -288,6 +288,18 @@ async function checkGit(
   options: EnvironmentPreflightReaderOptions,
 ): Promise<EnvironmentPreflightCheck> {
   const env = options.env ?? process.env;
+  // E2E-only hook: prove optional Git never blocks Continue without mutating PATH.
+  if (env.PIGUI_E2E === "1" && env.PIGUI_E2E_FORCE_GIT_MISSING === "1") {
+    return {
+      id: "git",
+      severity: "optional",
+      status: "skip",
+      title: "Git",
+      summary: "Not installed — Changes / worktree limited",
+      detail: "Forced missing for E2E (PIGUI_E2E_FORCE_GIT_MISSING=1).",
+    };
+  }
+
   const which = options.whichCommand ?? defaultWhich;
   const runVersion = options.runVersion ?? defaultRunVersion;
   const resolved = await which("git", env);

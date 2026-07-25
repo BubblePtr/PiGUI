@@ -61,6 +61,34 @@ describe("environment preflight", () => {
     expect(report.checks.find((check) => check.id === "git")?.status).toBe("skip");
   });
 
+  it("treats forced E2E git-missing as optional skip without blocking continue", async () => {
+    const { agentDir, dataDir } = await tempRoots();
+    await writeFile(
+      join(agentDir, "auth.json"),
+      JSON.stringify({ openai: { type: "api_key", key: "test-key" } }),
+      "utf8",
+    );
+
+    const reader = createEnvironmentPreflightReader({
+      agentDir,
+      dataDir,
+      env: {
+        ...process.env,
+        PIGUI_E2E: "1",
+        PIGUI_E2E_FORCE_GIT_MISSING: "1",
+      },
+      whichCommand: async (command) => (command === "pi" ? "/bin/pi" : "/usr/bin/git"),
+      runVersion: async () => "ok",
+    });
+
+    const report = await reader.run();
+    expect(report.canContinue).toBe(true);
+    expect(report.checks.find((check) => check.id === "git")).toMatchObject({
+      severity: "optional",
+      status: "skip",
+    });
+  });
+
   it("refuses complete while required checks fail and persists on success", async () => {
     const { agentDir, dataDir } = await tempRoots();
     await writeFile(

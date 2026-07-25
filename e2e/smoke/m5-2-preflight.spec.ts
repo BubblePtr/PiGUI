@@ -46,4 +46,26 @@ test.describe("M5.2: First-run preflight", () => {
       await testApp.close();
     }
   });
+
+  test("keeps Continue enabled when optional Git is missing", async () => {
+    const testApp = await launchPiGUI({
+      requirePreflight: true,
+      seedPreflightAuth: true,
+      forceGitMissing: true,
+    });
+
+    try {
+      await expect(testApp.window.getByText("Before your first session")).toBeVisible();
+      await expect(
+        testApp.window.getByText(/Not installed — Changes \/ worktree limited/i).first(),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(testApp.window.getByRole("button", { name: /Continue →/i })).toBeEnabled();
+      await testApp.window.getByRole("button", { name: /Continue →/i }).click();
+      await expect(testApp.window.getByRole("button", { name: /add project/i })).toBeVisible({
+        timeout: 30_000,
+      });
+    } finally {
+      await testApp.close();
+    }
+  });
 });

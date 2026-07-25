@@ -75,6 +75,8 @@ type LaunchPiGUIOptions = {
    */
   requirePreflight?: boolean;
   seedPreflightAuth?: boolean;
+  /** E2E-only: force optional Git check to report missing (must not block Continue). */
+  forceGitMissing?: boolean;
 };
 
 async function git(cwd: string, ...args: string[]) {
@@ -272,6 +274,7 @@ export async function launchPiGUI(
       PIGUI_DATA_DIR: dataDirectory,
       PIGUI_E2E: "1",
       PI_CODING_AGENT_DIR: agentDirectory,
+      ...(options.forceGitMissing ? { PIGUI_E2E_FORCE_GIT_MISSING: "1" } : {}),
     },
   });
   const window = await app.firstWindow();
