@@ -3,6 +3,7 @@ import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
 import { ListView } from "@heroui-pro/react/list-view";
 import { Segment } from "@heroui-pro/react/segment";
 import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { AppFrame } from "@/app/app-shell";
 import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
@@ -256,6 +257,7 @@ export function SetupPage() {
   }, [inventory.data]);
 
   useRefreshOnWindowFocus(() => inventory.refetch());
+  const navigate = useNavigate();
 
   return (
     <AppFrame>
@@ -269,6 +271,17 @@ export function SetupPage() {
             <p className="mt-2 text-sm text-muted">
               Read-only inventory from PI_CODING_AGENT_DIR, falling back to ~/.pi/agent.
             </p>
+            <div className="mt-4">
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => {
+                  void navigate({ to: "/preflight" });
+                }}
+              >
+                Run environment check
+              </Button>
+            </div>
           </header>
 
           <SetupInventoryControls

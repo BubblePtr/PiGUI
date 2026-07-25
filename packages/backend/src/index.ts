@@ -13,6 +13,13 @@ export {
 } from "./service";
 
 export {
+  createEnvironmentPreflightReader,
+  summarizeChecks,
+  type EnvironmentPreflightReader,
+  type EnvironmentPreflightReaderOptions,
+} from "./workspace/environment-preflight";
+
+export {
   createRuntimeGatewayService,
   type RuntimeGatewayDriverEvent,
   type CreateRuntimeSessionInput,

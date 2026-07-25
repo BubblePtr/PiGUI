@@ -141,6 +141,47 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
     }
     case "get_config_inventory":
       return Promise.resolve(emptyConfigInventory as T);
+    case "run_environment_preflight":
+      return Promise.resolve({
+        checkedAt: new Date().toISOString(),
+        checks: [
+          {
+            id: "pi_runtime",
+            severity: "required",
+            status: "pass",
+            title: "Pi Runtime",
+            summary: "Browser development fixture",
+          },
+          {
+            id: "data_directory",
+            severity: "required",
+            status: "pass",
+            title: "Data directory",
+            summary: "Browser development fixture",
+          },
+          {
+            id: "model_auth",
+            severity: "required",
+            status: "pass",
+            title: "Model auth",
+            summary: "Browser development fixture",
+          },
+          {
+            id: "git",
+            severity: "optional",
+            status: "skip",
+            title: "Git",
+            summary: "Browser development fixture",
+          },
+        ],
+        requiredPassed: true,
+        optionalFailed: false,
+        canContinue: true,
+      } as T);
+    case "get_environment_preflight_status":
+      return Promise.resolve({ completedAt: "2026-07-25T00:00:00.000Z" } as T);
+    case "complete_environment_preflight":
+      return Promise.resolve({ completedAt: new Date().toISOString() } as T);
     default:
       return Promise.reject(
         new Error(`Backend command "${command}" is unavailable outside Electron.`),

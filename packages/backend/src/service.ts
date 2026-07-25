@@ -7,6 +7,10 @@ import type {
 } from "@pigui/core";
 import * as piSdk from "@earendil-works/pi-coding-agent";
 import { buildConfigInventory } from "./workspace/config";
+import {
+  createEnvironmentPreflightReader,
+  type EnvironmentPreflightReader,
+} from "./workspace/environment-preflight";
 import { createNodeExecutionCheckoutGitClient } from "./workspace/execution-checkout";
 import {
   createNodeSessionChangesReader,
@@ -77,6 +81,7 @@ export type BackendServiceOptions = {
   sessionProjectionStore?: SessionProjectionStore;
   sessionChangesReader?: SessionChangesReader;
   piSessionListAll?: () => Promise<PiSessionListItem[]>;
+  environmentPreflight?: EnvironmentPreflightReader;
 };
 
 export function createBackendService(options: BackendServiceOptions = {}): BackendService {
@@ -92,6 +97,12 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
     });
   const sessionChangesReader =
     options.sessionChangesReader ?? createNodeSessionChangesReader();
+  const environmentPreflight =
+    options.environmentPreflight ??
+    createEnvironmentPreflightReader({
+      agentDir,
+      dataDir,
+    });
   const piSessionListAll =
     options.piSessionListAll ??
     (async () => {
@@ -138,6 +149,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             piRpc,
             sessionProjectionStore,
             sessionChangesReader,
+            environmentPreflight,
             piSessionListAll,
             runtimeGateway,
           }),
@@ -168,6 +180,7 @@ async function dispatchRequest(input: {
   piRpc: PiRpcTransport;
   sessionProjectionStore: SessionProjectionStore;
   sessionChangesReader: SessionChangesReader;
+  environmentPreflight: EnvironmentPreflightReader;
   piSessionListAll: () => Promise<PiSessionListItem[]>;
   runtimeGateway: RuntimeGatewayService;
 }) {
@@ -201,6 +214,12 @@ async function dispatchRequest(input: {
       });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
+    case "run_environment_preflight":
+      return input.environmentPreflight.run();
+    case "get_environment_preflight_status":
+      return input.environmentPreflight.getStatus();
+    case "complete_environment_preflight":
+      return input.environmentPreflight.complete();
     case "is_git_repository":
       return input.gitClient.isGitRepository(requiredString(params.repoRoot, "repoRoot"));
     case "add_detached_worktree":

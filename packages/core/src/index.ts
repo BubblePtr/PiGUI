@@ -22,6 +22,16 @@ export type {
   TemplateInfo,
 } from "./config";
 
+export {
+  ENVIRONMENT_PREFLIGHT_DOCS,
+  type EnvironmentPreflightCheckId,
+  type EnvironmentPreflightCheckSeverity,
+  type EnvironmentPreflightCheckStatus,
+  type EnvironmentPreflightCheck,
+  type EnvironmentPreflightReport,
+  type EnvironmentPreflightStatus,
+} from "./environment-preflight";
+
 export type {
   PiRpcCommand,
   PiRpcResponse,
