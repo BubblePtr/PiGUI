@@ -69,6 +69,14 @@ type LaunchPiGUIOptions = {
   seedSession?: boolean;
   seedGitChanges?: boolean;
   seedModelControls?: boolean;
+  /**
+   * When true, leave preflight incomplete so the first-run gate is shown.
+   * Default false: write a completed preflight status so existing E2E stays on main UI.
+   */
+  requirePreflight?: boolean;
+  seedPreflightAuth?: boolean;
+  /** E2E-only: force optional Git check to report missing (must not block Continue). */
+  forceGitMissing?: boolean;
 };
 
 async function git(cwd: string, ...args: string[]) {
@@ -234,6 +242,18 @@ export async function launchPiGUI(
     });
   }
 
+  if (options.seedPreflightAuth || options.seedModelControls) {
+    await writeJson(path.join(agentDirectory, "auth.json"), {
+      openai: { type: "api_key", key: "pigui-e2e-placeholder" },
+    });
+  }
+
+  if (!options.requirePreflight) {
+    await writeJson(path.join(dataDirectory, "preflight-status.json"), {
+      completedAt: "2026-07-25T00:00:00.000Z",
+    });
+  }
+
   if (projection) {
     await writeJson(
       projectionFilePath(dataDirectory, projection.sessionId),
@@ -254,6 +274,7 @@ export async function launchPiGUI(
       PIGUI_DATA_DIR: dataDirectory,
       PIGUI_E2E: "1",
       PI_CODING_AGENT_DIR: agentDirectory,
+      ...(options.forceGitMissing ? { PIGUI_E2E_FORCE_GIT_MISSING: "1" } : {}),
     },
   });
   const window = await app.firstWindow();
