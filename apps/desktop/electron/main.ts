@@ -43,8 +43,10 @@ function backendPath() {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 960,
-    height: 720,
+    width: 1280,
+    height: 840,
+    minWidth: 960,
+    minHeight: 720,
     title: "PiGUI",
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 13 },
