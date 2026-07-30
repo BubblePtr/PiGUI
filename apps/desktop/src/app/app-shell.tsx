@@ -51,6 +51,7 @@ import {
   type SessionProjection,
   type SessionProjectionListItem,
 } from "@/entities/session/session-projection";
+import { formatSessionListTime } from "@/entities/session/sessions";
 import {
   browserDevelopmentProjectId,
   getProjectRegistryWithBrowserDevelopmentFallback,
@@ -67,6 +68,8 @@ type AppFrameProps = {
   sidebar?: ReactNode;
   toolbarActions?: ReactNode;
   sessionProjections?: SessionProjection[];
+  /** False until first successful projection list (or intentional empty after retries). */
+  sessionsHydrated?: boolean;
   selectedSessionId?: string | null;
   onSelectedSessionIdChange?: (sessionId: string | null) => void;
   children: ReactNode;
@@ -415,6 +418,7 @@ function ProjectNavigation({
   projects,
   selectedSessionId,
   sessions,
+  sessionsHydrated,
   expandedProjects,
   onAddProject,
   onToggleProject,
@@ -429,6 +433,7 @@ function ProjectNavigation({
   projects: ProjectRegistryEntry[];
   selectedSessionId: string | null;
   sessions: SessionProjectionListItem[];
+  sessionsHydrated: boolean;
   expandedProjects: Record<string, boolean>;
   onAddProject: (path: string) => void;
   onToggleProject: (projectId: string) => void;
@@ -582,7 +587,7 @@ function ProjectNavigation({
                     <Sidebar.MenuItem
                       id={`${project.id}-empty`}
                       isDisabled
-                      textValue="No chats"
+                      textValue={sessionsHydrated ? "No chats" : "Loading chats"}
                     >
                       <Sidebar.MenuItemContent className="pigui-sidebar-row">
                         <Sidebar.MenuIcon className="pigui-sidebar-row__icon justify-center">
@@ -590,7 +595,7 @@ function ProjectNavigation({
                         </Sidebar.MenuIcon>
                         <Sidebar.MenuLabel className="pigui-sidebar-row__label">
                           <span className="pigui-sidebar-row__label-text">
-                            No chats
+                            {sessionsHydrated ? "No chats" : "Loading chats"}
                           </span>
                         </Sidebar.MenuLabel>
                       </Sidebar.MenuItemContent>
@@ -627,7 +632,7 @@ function ProjectNavigation({
                           </Sidebar.MenuLabel>
                           <Sidebar.MenuChip className="pigui-sidebar-row__chip">
                             <span className="text-muted text-[10px] leading-none">
-                              {session.updatedAt.slice(11, 16)}
+                              {formatSessionListTime(session.updatedAt)}
                             </span>
                           </Sidebar.MenuChip>
                         </Sidebar.MenuItemContent>
@@ -730,6 +735,7 @@ function SidebarPanelContent({
   projects,
   selectedSessionId,
   sessions,
+  sessionsHydrated,
   expandedProjects,
   onAddProject,
   onToggleProject,
@@ -745,6 +751,7 @@ function SidebarPanelContent({
   projects: ProjectRegistryEntry[];
   selectedSessionId: string | null;
   sessions: SessionProjectionListItem[];
+  sessionsHydrated: boolean;
   expandedProjects: Record<string, boolean>;
   onAddProject: (path: string) => void;
   onToggleProject: (projectId: string) => void;
@@ -776,6 +783,7 @@ function SidebarPanelContent({
           projects={projects}
           selectedSessionId={selectedSessionId}
           sessions={sessions}
+          sessionsHydrated={sessionsHydrated}
           expandedProjects={expandedProjects}
           onAddProject={onAddProject}
           onToggleProject={onToggleProject}
@@ -893,6 +901,7 @@ export function AppFrame({
   children,
   toolbarActions,
   sessionProjections,
+  sessionsHydrated = true,
   selectedSessionId,
   onSelectedSessionIdChange,
 }: AppFrameProps) {
@@ -1198,6 +1207,7 @@ export function AppFrame({
             projects={projects}
             selectedSessionId={effectiveSelectedSessionId}
             sessions={sessions}
+            sessionsHydrated={sessionsHydrated}
             expandedProjects={expandedProjects}
             onAddProject={handleAddProject}
             onToggleProject={handleToggleProject}
