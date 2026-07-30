@@ -177,11 +177,21 @@ describe("AppFrame", () => {
     expect(activeRunIndicator).not.toHaveClass("animate-spin");
     expect(activeRunIndicator.querySelector("svg")).toHaveAttribute("viewBox", "0 0 16 16");
     expect(activeRunIndicator.querySelectorAll('[data-slot="dot-matrix-dot"]')).toHaveLength(16);
-    const activeTime = within(projectNavigation).getByText("08:06");
+    const activeTimeLabel = new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+    }).format(new Date("2026-06-26T08:06:00.000Z"));
+    // Fixture timestamps are not "today", so chips use local short date (not UTC HH:mm slice).
+    const activeSessionRow = within(projectNavigation).getByRole("row", {
+      name: /Agent Workspace shell/,
+    });
+    const activeTime = within(activeSessionRow).getByText(activeTimeLabel);
 
     expect(activeTime).toHaveClass("text-muted", "text-[10px]", "leading-none");
     expect(activeTime.closest('[data-slot="sidebar-menu-chip"]')).toBeInTheDocument();
     expect(activeTime.closest('[data-slot="sidebar-menu-actions"]')).toBeNull();
+    // Must not use naive UTC HH:mm from ISO.
+    expect(within(activeSessionRow).queryByText("08:06")).toBeNull();
     const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
     const topRows = within(traceUsageNavigation).getAllByRole("row");
     const globalNewSessionRow = within(traceUsageNavigation).getByRole("row", {

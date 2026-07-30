@@ -35,6 +35,39 @@ export function formatDateLabel(value: string) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
+/** Compact local time for sidebar session chips (never raw UTC slice). */
+export function formatSessionListTime(
+  value: string,
+  now: Date = new Date(),
+): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  if (sameDay) {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  }
+
+  const sameYear = date.getFullYear() === now.getFullYear();
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "2-digit" }),
+  }).format(date);
+}
+
 export function formatCost(value: number) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",

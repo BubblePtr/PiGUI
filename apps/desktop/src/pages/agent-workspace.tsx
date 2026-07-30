@@ -3704,6 +3704,9 @@ export function AgentWorkspaceSessionsPage() {
   const [sessionProjections, setSessionProjections] = useState(
     initialSessionProjections,
   );
+  const [sessionsHydrated, setSessionsHydrated] = useState(
+    () => browserDevelopmentData,
+  );
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     () => firstSessionIdForProject(initialSessionProjections, projectId),
   );
@@ -3742,41 +3745,74 @@ export function AgentWorkspaceSessionsPage() {
   );
 
   useEffect(() => {
-    let cancelled = false;
+    if (browserDevelopmentData) {
+      setSessionsHydrated(true);
+      return;
+    }
 
-    void listSessionProjections()
-      .then((records) => {
-        if (cancelled || (browserDevelopmentData && records.length === 0)) {
+    let cancelled = false;
+    const retryDelaysMs = [0, 150, 300, 600, 1200, 2000, 3000, 4000];
+
+    const applyRecords = (records: Awaited<ReturnType<typeof listSessionProjections>>) => {
+      const persistedProjections = records.map(
+        sessionProjectionFromPersistedProjection,
+      );
+      const nextSelectedSessionId = firstSessionIdForProject(
+        persistedProjections,
+        projectId,
+      );
+
+      setSessionProjections(persistedProjections);
+      setSessionsHydrated(true);
+      setSelectedSessionId((currentSessionId) =>
+        currentSessionId &&
+        persistedProjections.some(
+          (projection) =>
+            projection.id === currentSessionId &&
+            projection.projectId === projectId &&
+            !isSessionProjectionArchived(projection),
+        )
+          ? currentSessionId
+          : nextSelectedSessionId,
+      );
+    };
+
+    void (async () => {
+      for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
+        if (cancelled) {
           return;
         }
 
-        const persistedProjections = records.map(
-          sessionProjectionFromPersistedProjection,
-        );
-        const nextSelectedSessionId = firstSessionIdForProject(
-          persistedProjections,
-          projectId,
-        );
-
-        setSessionProjections(persistedProjections);
-        setSelectedSessionId((currentSessionId) =>
-          currentSessionId &&
-          persistedProjections.some(
-            (projection) =>
-              projection.id === currentSessionId &&
-              projection.projectId === projectId &&
-              !isSessionProjectionArchived(projection),
-          )
-            ? currentSessionId
-            : nextSelectedSessionId,
-        );
-      })
-      .catch(() => {
-        if (!cancelled && !browserDevelopmentData) {
-          setSessionProjections([]);
-          setSelectedSessionId(null);
+        const delayMs = retryDelaysMs[attempt] ?? 0;
+        if (delayMs > 0) {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, delayMs);
+          });
         }
-      });
+
+        if (cancelled) {
+          return;
+        }
+
+        try {
+          const records = await listSessionProjections();
+          if (cancelled) {
+            return;
+          }
+
+          applyRecords(records);
+          return;
+        } catch {
+          // Transient backend/IPC races: keep prior list (if any) and retry.
+          // Do not clear to [] — that produced false "No chats" on cold start.
+        }
+      }
+
+      if (!cancelled) {
+        // Exhausted retries without a successful list: show empty honestly.
+        setSessionsHydrated(true);
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -3852,6 +3888,7 @@ export function AgentWorkspaceSessionsPage() {
     return (
       <AppFrame
         sessionProjections={[]}
+        sessionsHydrated={sessionsHydrated}
         selectedSessionId={null}
         onSelectedSessionIdChange={setSelectedSessionId}
       >
@@ -3872,6 +3909,7 @@ export function AgentWorkspaceSessionsPage() {
     return (
       <AppFrame
         sessionProjections={sessionProjections}
+        sessionsHydrated={sessionsHydrated}
         selectedSessionId={null}
         onSelectedSessionIdChange={setSelectedSessionId}
       >
@@ -3891,6 +3929,7 @@ export function AgentWorkspaceSessionsPage() {
   return (
     <AppFrame
       sessionProjections={sessionProjections}
+      sessionsHydrated={sessionsHydrated}
       selectedSessionId={selectedSessionId}
       onSelectedSessionIdChange={setSelectedSessionId}
       toolbarActions={selectedSessionProjection ? (
