@@ -7,6 +7,7 @@ import type {
   EnvironmentPreflightReport,
   EnvironmentPreflightStatus,
 } from "@pigui/core";
+import { AppFrame } from "@/app/app-shell";
 import { invoke } from "@/shared/runtime";
 
 export const preflightReportQueryKey = ["environment-preflight-report"] as const;
@@ -120,89 +121,91 @@ export function PreflightPage() {
   const checks = useMemo(() => report?.checks ?? [], [report?.checks]);
 
   return (
-    <main className="min-h-screen bg-background px-6 py-10 text-foreground">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-        <header className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-            PiGUI — Environment check
-          </div>
-          <h1 className="text-2xl font-semibold tracking-normal">Before your first session</h1>
-          <p className="text-sm text-muted">
-            Check local prerequisites. Required items must pass. Git is optional and never blocks
-            Continue.
-          </p>
-          {statusQuery.data?.completedAt ? (
-            <p className="text-xs text-muted">
-              Previously completed at {new Date(statusQuery.data.completedAt).toLocaleString()}
+    <AppFrame sessionProjections={[]}>
+      <main className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-10 text-foreground">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+          <header className="space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted">
+              PiGUI — Environment check
+            </div>
+            <h1 className="text-2xl font-semibold tracking-normal">Before your first session</h1>
+            <p className="text-sm text-muted">
+              Check local prerequisites. Required items must pass. Git is optional and never blocks
+              Continue.
             </p>
-          ) : null}
-        </header>
+            {statusQuery.data?.completedAt ? (
+              <p className="text-xs text-muted">
+                Previously completed at {new Date(statusQuery.data.completedAt).toLocaleString()}
+              </p>
+            ) : null}
+          </header>
 
-        <Card>
-          <Card.Content className="flex flex-col gap-3">
-            {reportQuery.isLoading ? (
-              <div className="rounded-md border border-border bg-surface-muted px-4 py-10 text-sm text-muted">
-                Checking environment…
-              </div>
-            ) : reportQuery.isError ? (
-              <div className="rounded-md border border-border bg-surface-muted px-4 py-10 text-sm text-danger">
-                Could not run environment checks.
-              </div>
-            ) : (
-              checks.map((check) => <CheckRow key={check.id} check={check} />)
-            )}
-          </Card.Content>
-        </Card>
+          <Card>
+            <Card.Content className="flex flex-col gap-3">
+              {reportQuery.isLoading ? (
+                <div className="rounded-md border border-border bg-surface-muted px-4 py-10 text-sm text-muted">
+                  Checking environment…
+                </div>
+              ) : reportQuery.isError ? (
+                <div className="rounded-md border border-border bg-surface-muted px-4 py-10 text-sm text-danger">
+                  Could not run environment checks.
+                </div>
+              ) : (
+                checks.map((check) => <CheckRow key={check.id} check={check} />)
+              )}
+            </Card.Content>
+          </Card>
 
-        <p className="text-xs text-muted">
-          Optional items never block. Failed required rows expand with Fix steps. After the first
-          successful Continue, this gate only reappears when you open it from Setup.
-        </p>
+          <p className="text-xs text-muted">
+            Optional items never block. Failed required rows expand with Fix steps. After the first
+            successful Continue, this gate only reappears when you open it from Setup.
+          </p>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            onPress={() => {
-              void reportQuery.refetch();
-            }}
-            isDisabled={reportQuery.isFetching}
-          >
-            Recheck
-          </Button>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Button
               variant="outline"
               onPress={() => {
-                void navigate({ to: "/setup" });
+                void reportQuery.refetch();
               }}
+              isDisabled={reportQuery.isFetching}
             >
-              Open Setup later
+              Recheck
             </Button>
-            <Button
-              variant="primary"
-              isDisabled={!canContinue || completeMutation.isPending}
-              onPress={() => {
-                completeMutation.mutate();
-              }}
-            >
-              {canContinue ? "Continue →" : "Continue (disabled)"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onPress={() => {
+                  void navigate({ to: "/setup" });
+                }}
+              >
+                Open Setup later
+              </Button>
+              <Button
+                variant="primary"
+                isDisabled={!canContinue || completeMutation.isPending}
+                onPress={() => {
+                  completeMutation.mutate();
+                }}
+              >
+                {canContinue ? "Continue →" : "Continue (disabled)"}
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {!canContinue && report ? (
-          <p className="text-xs text-muted">
-            Continue is enabled only when all required checks pass.
-          </p>
-        ) : null}
-        {completeMutation.isError ? (
-          <p className="text-sm text-danger">
-            {completeMutation.error instanceof Error
-              ? completeMutation.error.message
-              : "Could not complete preflight."}
-          </p>
-        ) : null}
-      </div>
-    </main>
+          {!canContinue && report ? (
+            <p className="text-xs text-muted">
+              Continue is enabled only when all required checks pass.
+            </p>
+          ) : null}
+          {completeMutation.isError ? (
+            <p className="text-sm text-danger">
+              {completeMutation.error instanceof Error
+                ? completeMutation.error.message
+                : "Could not complete preflight."}
+            </p>
+          ) : null}
+        </div>
+      </main>
+    </AppFrame>
   );
 }

@@ -404,8 +404,13 @@ function AssistantRunTrace({
     return null;
   }
 
+  // Remount when stream ends so defaultExpanded resets closed (DF-005B).
   return (
-    <ChainOfThought defaultExpanded isStreaming={isStreaming}>
+    <ChainOfThought
+      key={isStreaming ? "streaming" : "settled"}
+      defaultExpanded={Boolean(isStreaming)}
+      isStreaming={isStreaming}
+    >
       <ChainOfThought.Trigger>
         {isStreaming ? "Thinking..." : "Thought for 3s"}
       </ChainOfThought.Trigger>
@@ -573,10 +578,16 @@ function ModelThinkingControl({
   const thinkingLevels = selectedModel?.thinkingLevels ?? [
     selected.thinkingLevel,
   ];
-  const sliderValue = Math.max(
+  const committedSliderValue = Math.max(
     0,
     thinkingLevels.indexOf(selected.thinkingLevel),
   );
+  const [sliderValue, setSliderValue] = useState(committedSliderValue);
+
+  useEffect(() => {
+    setSliderValue(committedSliderValue);
+  }, [committedSliderValue]);
+
   const submitSelection = async (selection: RuntimeModelSelection) => {
     if (isLocked || isPending) {
       return;
@@ -625,7 +636,7 @@ function ModelThinkingControl({
             </Popover.Heading>
             <ListBox
               aria-label="Model"
-              className="pigui-compact-menu-surface -mx-1 max-h-56 overflow-y-auto"
+              className="pigui-compact-menu-surface -mx-1 max-h-56 gap-1.5 overflow-y-auto"
               data-testid="model-thinking-model-list"
               selectedKeys={new Set([
                 modelControlKey(selected.provider, selected.modelId),
@@ -658,7 +669,7 @@ function ModelThinkingControl({
             >
               {controls.models.map((model) => (
                 <ListBox.Item
-                  className="pigui-compact-menu-item grid grid-cols-[minmax(0,1fr)_1rem] items-center text-sm"
+                  className="pigui-compact-menu-item my-0.5 grid grid-cols-[minmax(0,1fr)_1rem] items-center text-sm"
                   id={modelControlKey(model.provider, model.modelId)}
                   isDisabled={isLocked || isPending}
                   key={modelControlKey(model.provider, model.modelId)}
@@ -691,11 +702,16 @@ function ModelThinkingControl({
               minValue={0}
               step={1}
               value={sliderValue}
+              onChange={(value) => {
+                const index = Array.isArray(value) ? value[0] : value;
+                setSliderValue(typeof index === "number" ? index : committedSliderValue);
+              }}
               onChangeEnd={(value) => {
                 const index = Array.isArray(value) ? value[0] : value;
                 const thinkingLevel = thinkingLevels[index];
 
                 if (!thinkingLevel || thinkingLevel === selected.thinkingLevel) {
+                  setSliderValue(committedSliderValue);
                   return;
                 }
 
