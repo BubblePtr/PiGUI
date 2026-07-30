@@ -1031,6 +1031,39 @@ function serializeModelDetail(value: unknown) {
   return JSON.stringify(value);
 }
 
+/**
+ * While a queued follow-up is `processing`, the queue strip hides it and the
+ * runtime may not have emitted a user message yet — bridge that gap so the
+ * second (and later) user turns never disappear from live chat (DF-005A).
+ */
+function appendProcessingQueuedFollowUpsAsUserMessages(
+  projection: SessionProjection,
+  messages: LiveMessage[],
+): LiveMessage[] {
+  const existingUserBodies = new Set(
+    messages.filter((message) => message.role === "user").map((message) => message.body),
+  );
+
+  const processingFollowUps = projection.queuedMessages.filter(
+    (queuedMessage) =>
+      queuedMessage.status === "processing" &&
+      !existingUserBodies.has(queuedMessage.body),
+  );
+
+  if (!processingFollowUps.length) {
+    return messages;
+  }
+
+  return [
+    ...messages,
+    ...processingFollowUps.map((queuedMessage) => ({
+      id: `queued-processing-${queuedMessage.id}`,
+      role: "user" as const,
+      body: queuedMessage.body,
+    })),
+  ];
+}
+
 function liveMessagesFromRuntimeModel(
   projection: SessionProjection,
   clockNowMs = Date.now(),
@@ -1105,18 +1138,18 @@ function liveMessagesFromRuntimeModel(
     (message) => message.role === "user" && message.body === projection.initialPrompt,
   );
 
-  if (hasInitialPromptMessage) {
-    return collapsedMessages;
-  }
+  const withInitial = hasInitialPromptMessage
+    ? collapsedMessages
+    : [
+        {
+          id: `${projection.id}-initial-prompt`,
+          role: "user" as const,
+          body: projection.initialPrompt,
+        },
+        ...collapsedMessages,
+      ];
 
-  return [
-    {
-      id: `${projection.id}-initial-prompt`,
-      role: "user",
-      body: projection.initialPrompt,
-    },
-    ...collapsedMessages,
-  ];
+  return appendProcessingQueuedFollowUpsAsUserMessages(projection, withInitial);
 }
 
 function appendModelRunningPlaceholder(
@@ -1332,18 +1365,18 @@ function liveMessagesFromProjection(
       message.role === "user" && message.body === projection.initialPrompt,
   );
 
-  if (hasInitialPromptEvent) {
-    return messagesWithRunningPlaceholder;
-  }
+  const withInitial = hasInitialPromptEvent
+    ? messagesWithRunningPlaceholder
+    : [
+        {
+          id: `${projection.id}-initial-prompt`,
+          role: "user" as const,
+          body: projection.initialPrompt,
+        },
+        ...messagesWithRunningPlaceholder,
+      ];
 
-  return [
-    {
-      id: `${projection.id}-initial-prompt`,
-      role: "user",
-      body: projection.initialPrompt,
-    },
-    ...messagesWithRunningPlaceholder,
-  ];
+  return appendProcessingQueuedFollowUpsAsUserMessages(projection, withInitial);
 }
 
 function isAssistantAnswerMessage(message: LiveMessage) {
