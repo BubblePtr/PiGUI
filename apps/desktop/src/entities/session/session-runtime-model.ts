@@ -185,6 +185,16 @@ export function applyAgentRuntimeEvent(
       const existing = messages.get(event.messageId);
 
       if (event.phase === "start") {
+        // DF-008: a resumed run may reissue run-1:…:msg-1. Do not wipe a
+        // finalized answer that already lives under that id.
+        if (
+          existing?.phase === "final" &&
+          !existing.abandoned &&
+          existing.parts.some((part) => part.body.trim().length > 0)
+        ) {
+          return { ...model, ...base };
+        }
+
         messages.set(event.messageId, {
           messageId: event.messageId,
           role: event.role,
@@ -195,6 +205,17 @@ export function applyAgentRuntimeEvent(
           updatedAt: timestamp,
         });
       } else {
+        if (
+          existing?.phase === "final" &&
+          !existing.abandoned &&
+          existing.parts.some((part) => part.body.trim().length > 0) &&
+          event.parts &&
+          event.parts.length === 0
+        ) {
+          // Empty end after identity collision — keep the earlier answer.
+          return { ...model, ...base };
+        }
+
         messages.set(event.messageId, {
           messageId: event.messageId,
           role: event.role,
@@ -367,22 +388,35 @@ export function addLegacyChatEventToModel(
   model: SessionRuntimeModel,
   input: LegacyChatEventInput,
 ): SessionRuntimeModel {
-  const messageId = input.messageId ?? input.id;
+  let messageId = input.messageId ?? input.id;
   const controlLabel =
     input.kind === "control" || input.kind === "error"
       ? (input.title ?? (input.kind === "error" ? "Error" : "Control"))
       : undefined;
   const existing = model.messages.get(messageId);
+
+  // DF-008: resume used to reissue user:0 with a new piEntryId. Keep both
+  // turns instead of overwriting the earlier body at the same order slot.
+  if (
+    existing &&
+    (input.role === "user" || existing.role === "user") &&
+    input.piEntryId &&
+    existing.piEntryId !== input.piEntryId
+  ) {
+    messageId = `${messageId}#${input.piEntryId}`;
+  }
+
   const messages = new Map(model.messages);
+  const stored = model.messages.get(messageId);
 
   messages.set(messageId, {
     messageId,
     role: input.role ?? (input.kind === "error" ? "assistant" : "user"),
-    ...(input.piEntryId ?? existing?.piEntryId
-      ? { piEntryId: input.piEntryId ?? existing?.piEntryId }
+    ...(input.piEntryId ?? stored?.piEntryId
+      ? { piEntryId: input.piEntryId ?? stored?.piEntryId }
       : {}),
-    ...(existing?.runId ? { runId: existing.runId } : {}),
-    ...(existing?.turnId ? { turnId: existing.turnId } : {}),
+    ...(stored?.runId ? { runId: stored.runId } : {}),
+    ...(stored?.turnId ? { turnId: stored.turnId } : {}),
     phase: "final",
     ...(controlLabel ? { controlLabel } : {}),
     parts: [

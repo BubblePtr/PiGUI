@@ -256,6 +256,37 @@ describe("Pi SDK driver", () => {
     }
   });
 
+  it("continues synthetic user message ids from seedPromptCount after resume (DF-008)", async () => {
+    const driver = createPiSdkDriver({
+      runtimeResumer: async () => ({
+        piSessionId: "pi-sdk-session-resumed",
+        seedPromptCount: 2,
+        sendPrompt: vi.fn(async () => {}),
+      }),
+    });
+
+    await driver.resumeSession({
+      sessionId: "session-resumed",
+      projectId: "pig",
+      piSessionId: "pi-sdk-session-resumed",
+      cwd: "/Users/void/code/opensource/Pig",
+      sessionFile: "/Users/void/.pi/session.jsonl",
+    });
+
+    await expect(
+      driver.sendPrompt({
+        piSessionId: "pi-sdk-session-resumed",
+        prompt: "Third prompt after resume",
+      }),
+    ).resolves.toMatchObject({
+      payload: {
+        role: "user",
+        body: "Third prompt after resume",
+        messageId: "pi-sdk:pi-sdk-session-resumed:user:2",
+      },
+    });
+  });
+
   it("matches consecutive prompts to consecutive SDK user boundaries", async () => {
     const boundaryResolvers: Array<
       (boundary: { piEntryId?: string }) => void

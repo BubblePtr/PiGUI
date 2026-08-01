@@ -141,6 +141,33 @@ function isUserMessageEndEvent(value: unknown) {
   );
 }
 
+/**
+ * Count prior user prompts in an SDK session transcript.
+ * Used as the high-water mark for both synthetic `user:{n}` ids and Active Run
+ * `run-{n}` sequences after resume/fork (DF-008 / ADR-0020 reattach).
+ */
+export function countSessionUserPrompts(messages: readonly unknown[]): number {
+  let count = 0;
+
+  for (const entry of messages) {
+    if (!isRecord(entry)) {
+      continue;
+    }
+
+    if (entry.role === "user") {
+      count += 1;
+      continue;
+    }
+
+    // Some SessionManager transcripts nest the chat message under `.message`.
+    if (isRecord(entry.message) && entry.message.role === "user") {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
 function maybeString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
@@ -515,11 +542,16 @@ function createPublicPiSdkRuntime(context: {
 }): PiSdkSessionRuntime {
     const { session } = context;
     const now = context.now;
+    // Reattach high-water: prior user prompts already have synthetic ids
+    // user:0..user:n-1 and runs run-1..run-n in the journal/projection.
+    // Seed both counters so the next prompt does not reuse those identities.
+    const priorUserPrompts = countSessionUserPrompts(session.messages ?? []);
     // One normalizer per session: its lifecycle counters are the identity
     // source for runId/turnId/messageId. The driver subscribes exactly once.
     const normalizer = createAgentRuntimeEventNormalizer({
       piSessionId: session.sessionId,
       origin: "sdk",
+      initialRunSeq: priorUserPrompts,
     });
     const pendingUserBoundaries: PiSdkUserMessageBoundary[] = [];
     const userBoundaryWaiters: Array<(boundary: PiSdkUserMessageBoundary) => void> = [];
@@ -542,6 +574,7 @@ function createPublicPiSdkRuntime(context: {
       status: session.isStreaming ? "running" : "idle",
       sessionFile: session.sessionManager?.getSessionFile?.(),
       modelControls: modelControlsFromSession(session),
+      seedPromptCount: priorUserPrompts,
       getLeafId() {
         return session.sessionManager?.getLeafId?.() ?? null;
       },

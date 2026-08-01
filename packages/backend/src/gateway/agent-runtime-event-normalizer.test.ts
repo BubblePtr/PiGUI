@@ -842,6 +842,27 @@ describe("agent runtime event normalizer", () => {
     expect(events).toEqual([]);
   });
 
+  it("continues run identity from initialRunSeq after reattach (DF-008)", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({
+      piSessionId,
+      initialRunSeq: 2,
+    });
+
+    normalizer.noteRunTrigger("prompt");
+    const events = normalizeAll(normalizer, [{ type: "agent_start" }]);
+
+    expect(events).toEqual([
+      {
+        type: "run",
+        runId: "pi-session-1:run-3",
+        phase: "start",
+        trigger: "prompt",
+        surface: "hidden",
+        origin: "sdk",
+      },
+    ]);
+  });
+
   it("surfaces a failed Active Run as a chat error with outcome failed", () => {
     const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
     const failedMessage = {
