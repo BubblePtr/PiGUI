@@ -1318,8 +1318,10 @@ describe("AppFrame", () => {
 
     expect(mainSource).toContain('titleBarStyle: "hidden"');
     expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 13 }");
-    expect(mainSource).toContain("width: 960");
-    expect(mainSource).toContain("height: 720");
+    expect(mainSource).toContain("width: 1280");
+    expect(mainSource).toContain("height: 840");
+    expect(mainSource).toContain("minWidth: 960");
+    expect(mainSource).toContain("minHeight: 720");
   });
 
   it("does not replace macOS titlebar gestures with React window API handlers", () => {

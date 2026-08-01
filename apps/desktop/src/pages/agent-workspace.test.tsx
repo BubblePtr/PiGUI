@@ -22,6 +22,7 @@ import {
   getSessionChangesResizableSizes,
 } from "@/pages/agent-workspace";
 import { addProjectToRegistry } from "@/entities/project/project-registry";
+import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
 import {
   PiRuntimeBridgeError,
   type ForkSessionInput,
@@ -136,7 +137,11 @@ function renderProjectSessions(
     routeTree: rootRoute.addChildren([sessionsRoute]),
   });
 
-  return render(<RouterProvider router={router} />);
+  return render(
+    <SessionProjectionsProvider>
+      <RouterProvider router={router} />
+    </SessionProjectionsProvider>,
+  );
 }
 
 async function chooseProjectFromPicker(

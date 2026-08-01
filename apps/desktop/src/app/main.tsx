@@ -17,6 +17,7 @@ import { SetupPage } from "@/pages/setup";
 import { TraceIndexPage, TraceSessionPage } from "@/pages/trace";
 import { UsagePage } from "@/pages/usage";
 import type { EnvironmentPreflightStatus } from "@pigui/core";
+import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
 import { invoke, isElectronRuntime } from "@/shared/runtime";
 import "./styles.css";
 
@@ -147,7 +148,9 @@ declare module "@tanstack/react-router" {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <SessionProjectionsProvider>
+        <RouterProvider router={router} />
+      </SessionProjectionsProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );
