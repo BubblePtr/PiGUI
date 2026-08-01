@@ -3112,6 +3112,67 @@ function LiveSessionColumn({
   };
   const liveProjection =
     interactionProjection ?? creationProjection ?? sessionProjection ?? null;
+  // Keep a mutable pointer so live event listeners can chain applies without
+  // waiting for React to re-render (and without dropping mid-stream events).
+  const liveProjectionRef = useRef(liveProjection);
+  liveProjectionRef.current = liveProjection;
+
+  const onProjectionChangeRef = useRef(onProjectionChange);
+  onProjectionChangeRef.current = onProjectionChange;
+
+  // DF-009: create path subscribes in sessionCreator, but resume/open of an
+  // existing session only resynced once and never re-subscribed. Follow-ups
+  // still hit the backend/journal while the UI only applied the user echo —
+  // looks like "must start a new chat". Subscribe for any viewed piSessionId.
+  useEffect(() => {
+    const piSessionId = liveProjection?.piSessionId;
+
+    if (showDraft || !piSessionId) {
+      return;
+    }
+
+    const bridge = getRuntimeBridge();
+
+    const applyLiveProjectionEvent = (
+      event: Parameters<typeof applySessionProjectionEvent>[1],
+    ) => {
+      const base = liveProjectionRef.current;
+
+      if (!base || base.piSessionId !== piSessionId) {
+        return;
+      }
+
+      const next = applySessionProjectionEvent(base, event);
+      liveProjectionRef.current = next;
+      setInteractionProjection(next);
+      onProjectionChangeRef.current?.(next);
+    };
+
+    const unsubscribeLegacyEvents = bridge.subscribeToEvents(
+      piSessionId,
+      (event) => {
+        applyLiveProjectionEvent({
+          type: "runtime-event-received",
+          event,
+        });
+      },
+    );
+    const unsubscribeAgentEvents = bridge.subscribeToAgentEvents?.(
+      piSessionId,
+      (entry) => {
+        applyLiveProjectionEvent({
+          type: "agent-event-received",
+          entry,
+        });
+      },
+    );
+
+    return () => {
+      unsubscribeLegacyEvents();
+      unsubscribeAgentEvents?.();
+    };
+  }, [getRuntimeBridge, liveProjection?.piSessionId, showDraft]);
+
   const canRetryRuntimeResume = Boolean(
     liveProjection?.piSessionId &&
       liveProjection.sessionFile &&
@@ -3202,27 +3263,29 @@ function LiveSessionColumn({
     );
   };
   const handlePromptSubmit = async (message: string) => {
-    if (!liveProjection?.piSessionId || readOnlyProjection) {
+    const projection = liveProjectionRef.current ?? liveProjection;
+
+    if (!projection?.piSessionId || readOnlyProjection) {
       return;
     }
 
     await restoreProjectionRuntimeState({
       bridge: getRuntimeBridge(),
-      projection: liveProjection,
+      projection,
       workspace,
     });
 
     const accepted = await getRuntimeBridge().sendInitialPrompt({
-      piSessionId: liveProjection.piSessionId,
+      piSessionId: projection.piSessionId,
       prompt: message,
     });
 
-    commitInteractionProjection(
-      applySessionProjectionEvent(liveProjection, {
-        type: "runtime-event-received",
-        event: accepted.event,
-      }),
-    );
+    const next = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: accepted.event,
+    });
+    liveProjectionRef.current = next;
+    commitInteractionProjection(next);
   };
   const handleModelConfigChange = async (
     selection: RuntimeModelSelection,
