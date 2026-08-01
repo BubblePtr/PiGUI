@@ -222,23 +222,60 @@ export function canArchiveSessionProjection(projection: SessionProjection): bool
   return !isSessionProjectionActive(projection);
 }
 
+function maxIsoTimestamp(left: string | null | undefined, right: string): string {
+  return left && left > right ? left : right;
+}
+
+/**
+ * Sidebar/list time for a session: last chat activity (user/assistant message,
+ * control echo, or run error) — never "last opened" / resume wall clock.
+ * DF-010.
+ */
+export function lastChatActivityAt(
+  projection: SessionProjection,
+  options: {
+    events?: readonly PiRuntimeEvent[];
+  } = {},
+): string {
+  let latest: string | null = null;
+
+  for (const message of projection.runtimeModel.messages.values()) {
+    latest = maxIsoTimestamp(latest, message.updatedAt);
+  }
+
+  for (const error of projection.runtimeModel.errors) {
+    latest = maxIsoTimestamp(latest, error.at);
+  }
+
+  for (const event of options.events ?? projection.runtimeEvents) {
+    if (
+      event.kind === "message" ||
+      event.kind === "error" ||
+      event.kind === "control"
+    ) {
+      latest = maxIsoTimestamp(latest, event.timestamp);
+    }
+  }
+
+  return latest ?? projection.updatedAt;
+}
+
 function activeRunUpdatedAt(projection: SessionProjection): string {
-  return (
-    projection.runtimeEvents[projection.runtimeEvents.length - 1]?.timestamp ??
-    projection.updatedAt
-  );
+  return lastChatActivityAt(projection);
 }
 
 function projectionListSortKey(projection: SessionProjection): [number, string] {
+  const activityAt = lastChatActivityAt(projection);
+
   if (isSessionProjectionActive(projection)) {
-    return [0, activeRunUpdatedAt(projection)];
+    return [0, activityAt];
   }
 
   if (projection.unreadResult) {
-    return [1, projection.updatedAt];
+    return [1, activityAt];
   }
 
-  return [2, projection.updatedAt];
+  return [2, activityAt];
 }
 
 export function getSessionProjectionListItems(
@@ -255,7 +292,7 @@ export function getSessionProjectionListItems(
       active: isSessionProjectionActive(projection),
       unread: projection.unreadResult,
       archived: isSessionProjectionArchived(projection),
-      updatedAt: projection.updatedAt,
+      updatedAt: lastChatActivityAt(projection),
       projection,
     }))
     .sort((left, right) => {
@@ -643,16 +680,18 @@ export function applySessionProjectionEvent(
         archivedAt: event.occurredAt,
       };
     case "projection-marked-stale":
+      // Opening/reconnect health is not chat activity — keep list time stable.
       return {
         ...projection,
         stale: true,
         staleReason: event.reason,
-        updatedAt: event.occurredAt,
       };
     case "runtime-state-resynced": {
       const runtimeModel = runtimeModelFromReplay(projection.runtimeModel, event.state);
-
-      return {
+      const runtimeEvents = normalizedRuntimeEvents(event.state.events);
+      // Resume snapshots stamp updatedAt=now(); list time must stay on last
+      // message, not last open (DF-010).
+      const resyncedProjection: SessionProjection = {
         ...projection,
         // Once the rebuilt model has Active Runs it owns the Session Status;
         // otherwise the bridge-reported state remains the truth.
@@ -663,7 +702,7 @@ export function applySessionProjectionEvent(
         piSessionId: event.state.piSessionId,
         cwd: event.state.cwd,
         sessionFile: event.state.sessionFile ?? projection.sessionFile,
-        runtimeEvents: normalizedRuntimeEvents(event.state.events),
+        runtimeEvents,
         runtimeModel,
         summary: event.state.summary ? { ...event.state.summary } : projection.summary,
         modelControls: event.state.modelControls
@@ -679,10 +718,17 @@ export function applySessionProjectionEvent(
           : projection.modelControls,
         stale: false,
         staleReason: null,
-        updatedAt: event.state.updatedAt,
+      };
+
+      return {
+        ...resyncedProjection,
+        updatedAt: lastChatActivityAt(resyncedProjection, {
+          events: runtimeEvents,
+        }),
       };
     }
     case "model-controls-changed":
+      // Model/thinking changes are not chat messages — do not bump list time.
       return {
         ...projection,
         modelControls: {
@@ -701,7 +747,6 @@ export function applySessionProjectionEvent(
               model: event.modelControls.selected.modelId,
             }
           : projection.summary,
-        updatedAt: event.occurredAt,
       };
     case "creation-failed":
       return {
