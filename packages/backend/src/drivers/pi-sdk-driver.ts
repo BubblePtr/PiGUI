@@ -38,6 +38,12 @@ export type PiSdkSessionRuntime = {
   sessionFile?: string;
   summary?: RuntimeGatewaySummary;
   modelControls?: RuntimeModelControls;
+  /**
+   * Next synthetic user message index after reattach (`user:{n}`).
+   * Resume/fork must seed this from session history so ids do not collide
+   * with journal/projection entries already written (DF-008).
+   */
+  seedPromptCount?: number;
   sendPrompt(prompt: string): Promise<void>;
   queueFollowUp?(message: string): Promise<PiSdkQueuedMessage>;
   withdrawQueuedMessage?(queuedMessageId: string): Promise<PiSdkQueuedMessage>;
@@ -215,7 +221,16 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
 
     runtimes.set(runtime.piSessionId, runtime);
     snapshots.set(runtime.piSessionId, snapshot);
-    promptCounts.set(runtime.piSessionId, 0);
+    // Continue the synthetic user-id counter from session high water (resume/
+    // fork). Resetting to 0 reuses user:0 and overwrites earlier turns in the
+    // runtime model (DF-008 message order corruption).
+    const seed =
+      typeof runtime.seedPromptCount === "number" &&
+      Number.isFinite(runtime.seedPromptCount) &&
+      runtime.seedPromptCount > 0
+        ? Math.floor(runtime.seedPromptCount)
+        : 0;
+    promptCounts.set(runtime.piSessionId, seed);
     runtime.onEvent?.((event) => {
       emit({
         ...event,

@@ -19,6 +19,12 @@ import {
 export type AgentRuntimeEventNormalizerInput = {
   piSessionId: string;
   origin?: AgentEventOrigin;
+  /**
+   * High-water mark for Active Run identity on reattach/resume/fork.
+   * The next `agent_start` becomes `run-{initialRunSeq + 1}`.
+   * ADR-0020: counters must continue after reattach, never reset to 0.
+   */
+  initialRunSeq?: number;
 };
 
 export type AgentRuntimeEventNormalizer = {
@@ -85,7 +91,12 @@ export function createAgentRuntimeEventNormalizer(
   input: AgentRuntimeEventNormalizerInput,
 ): AgentRuntimeEventNormalizer {
   const origin = input.origin ?? "sdk";
-  let runSeq = 0;
+  let runSeq =
+    typeof input.initialRunSeq === "number" &&
+    Number.isFinite(input.initialRunSeq) &&
+    input.initialRunSeq > 0
+      ? Math.floor(input.initialRunSeq)
+      : 0;
   let turnSeq = 0;
   let messageSeq = 0;
   let runId: string | null = null;

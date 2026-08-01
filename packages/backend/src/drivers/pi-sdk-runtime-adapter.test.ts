@@ -109,6 +109,70 @@ describe("Pi SDK public runtime adapter", () => {
     expect(runtime.sessionFile).toBe(
       "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
     );
+    expect(runtime.seedPromptCount).toBe(0);
+  });
+
+  it("seeds prompt/run high-water from prior user messages on resume (DF-008)", async () => {
+    const listeners: Array<(event: unknown) => void> = [];
+    const sessionManager = {
+      getCwd: vi.fn(() => "/Users/void/code/opensource/Pig"),
+      getSessionFile: vi.fn(
+        () => "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+      ),
+    };
+    const session = {
+      sessionId: "pi-session-resumed",
+      isStreaming: false,
+      messages: [
+        { role: "user", content: "first" },
+        { role: "assistant", content: "answer 1" },
+        { role: "user", content: "second" },
+        { role: "assistant", content: "answer 2" },
+      ],
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn((listener: (event: unknown) => void) => {
+        listeners.push(listener);
+        return vi.fn();
+      }),
+    };
+    const runtimeResumer = createPublicPiSdkRuntimeResumer({
+      sdk: {
+        createAgentSession: vi.fn(async () => ({ session })),
+        SessionManager: {
+          open: vi.fn(() => sessionManager),
+        },
+      },
+    });
+
+    const runtime = await runtimeResumer({
+      sessionId: "app-session-resumed",
+      projectId: "pig",
+      piSessionId: "pi-session-resumed",
+      cwd: "/fallback/cwd",
+      sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+    });
+
+    expect(runtime.seedPromptCount).toBe(2);
+
+    const events: Array<{ payload?: { runId?: string } }> = [];
+    runtime.onEvent?.((event) => {
+      events.push(event as { payload?: { runId?: string } });
+    });
+
+    listeners[0]?.({ type: "agent_start" });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          type: "run",
+          runId: "pi-session-resumed:run-3",
+          phase: "start",
+        }),
+      }),
+    ]);
   });
 
   it("exposes the SDK SessionManager leaf id for user message identity", async () => {

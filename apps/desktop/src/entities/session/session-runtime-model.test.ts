@@ -407,6 +407,111 @@ describe("session runtime model", () => {
     expect(remirrored.order).toHaveLength(2);
   });
 
+  it("keeps distinct user turns when synthetic user:0 is reused with a new piEntryId (DF-008)", () => {
+    let model = createSessionRuntimeModel();
+
+    model = addLegacyChatEventToModel(model, {
+      id: "user-1",
+      kind: "message",
+      role: "user",
+      body: "First turn",
+      messageId: "pi-sdk:pi-session-1:user:0",
+      piEntryId: "entry-a",
+      timestamp: "2026-07-30T05:52:27.489Z",
+    });
+    model = addLegacyChatEventToModel(model, {
+      id: "user-3",
+      kind: "message",
+      role: "user",
+      body: "Third turn after resume",
+      messageId: "pi-sdk:pi-session-1:user:0",
+      piEntryId: "entry-c",
+      timestamp: "2026-08-01T10:53:25.679Z",
+    });
+
+    expect(model.messages.get("pi-sdk:pi-session-1:user:0")).toMatchObject({
+      parts: [{ body: "First turn" }],
+      piEntryId: "entry-a",
+    });
+    expect(model.messages.get("pi-sdk:pi-session-1:user:0#entry-c")).toMatchObject({
+      parts: [{ body: "Third turn after resume" }],
+      piEntryId: "entry-c",
+    });
+    expect(model.order.map((entry) => entry.id)).toEqual([
+      "pi-sdk:pi-session-1:user:0",
+      "pi-sdk:pi-session-1:user:0#entry-c",
+    ]);
+  });
+
+  it("does not erase a finalized assistant answer when the same messageId is reused empty (DF-008)", () => {
+    let model = createSessionRuntimeModel();
+    const messageId = `${runId}:turn-1:msg-1`;
+
+    model = applyAgentRuntimeEvent(model, {
+      seq: 1,
+      timestamp: "2026-07-30T05:52:27.761Z",
+      event: {
+        type: "message",
+        runId,
+        turnId: `${runId}:turn-1`,
+        messageId,
+        role: "assistant",
+        phase: "start",
+        surface: "chat",
+        origin: "sdk",
+      },
+    });
+    model = applyAgentRuntimeEvent(model, {
+      seq: 2,
+      timestamp: "2026-07-30T05:52:46.094Z",
+      event: {
+        type: "message",
+        runId,
+        turnId: `${runId}:turn-1`,
+        messageId,
+        role: "assistant",
+        phase: "end",
+        parts: [{ partId: `${messageId}:part-0`, partType: "text", body: "Kakeya answer" }],
+        surface: "chat",
+        origin: "sdk",
+      },
+    });
+    model = applyAgentRuntimeEvent(model, {
+      seq: 3,
+      timestamp: "2026-08-01T10:53:25.832Z",
+      event: {
+        type: "message",
+        runId,
+        turnId: `${runId}:turn-1`,
+        messageId,
+        role: "assistant",
+        phase: "start",
+        surface: "chat",
+        origin: "sdk",
+      },
+    });
+    model = applyAgentRuntimeEvent(model, {
+      seq: 4,
+      timestamp: "2026-08-01T10:53:25.832Z",
+      event: {
+        type: "message",
+        runId,
+        turnId: `${runId}:turn-1`,
+        messageId,
+        role: "assistant",
+        phase: "end",
+        parts: [],
+        surface: "chat",
+        origin: "sdk",
+      },
+    });
+
+    expect(model.messages.get(messageId)).toMatchObject({
+      phase: "final",
+      parts: [{ body: "Kakeya answer" }],
+    });
+  });
+
   it("ignores replayed events at or below the last applied seq", () => {
     let model = createSessionRuntimeModel();
     const runStart = {
