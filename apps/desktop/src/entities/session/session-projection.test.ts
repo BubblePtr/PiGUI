@@ -666,7 +666,8 @@ describe("Session Projection state", () => {
     expect(stale).toMatchObject({
       stale: true,
       staleReason: "runtime event stream disconnected",
-      updatedAt: "2026-06-26T08:00:10.000Z",
+      // Stale is not chat activity — list time stays at last real activity.
+      updatedAt: "2026-06-26T08:00:00.000Z",
     });
     expect(resynced).toMatchObject({
       status: "completed",
@@ -678,8 +679,75 @@ describe("Session Projection state", () => {
         expect.objectContaining({ id: "runtime-event-1" }),
         expect.objectContaining({ id: "runtime-event-2", body: "Live session is ready." }),
       ],
+      // Last message timestamp, not resume wall-clock state.updatedAt alone.
       updatedAt: "2026-06-26T08:00:12.000Z",
     });
+  });
+
+  it("does not treat resume wall-clock as last chat time (DF-010)", () => {
+    const projection = createSessionProjection({
+      id: "session-1",
+      projectId: "pig",
+      initialPrompt: "Old conversation",
+      createdAt: "2026-07-30T05:52:27.000Z",
+    });
+    const withMessages = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "user-1",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "user",
+        body: "Old conversation",
+        timestamp: "2026-07-30T05:52:27.500Z",
+      },
+    });
+    const withAnswer = applySessionProjectionEvent(withMessages, {
+      type: "runtime-event-received",
+      event: {
+        id: "asst-1",
+        piSessionId: "pi-session-1",
+        kind: "message",
+        role: "assistant",
+        body: "Answer from yesterday",
+        timestamp: "2026-07-30T05:53:00.000Z",
+      },
+    });
+    const openedToday = applySessionProjectionEvent(withAnswer, {
+      type: "runtime-state-resynced",
+      state: {
+        piSessionId: "pi-session-1",
+        runtimeId: "runtime-1",
+        projectId: "pig",
+        cwd: "/Users/void/code/opensource/Pig",
+        status: "completed",
+        // Driver stamps "now" on every resume — must not become list time.
+        updatedAt: "2026-08-01T11:19:00.000Z",
+        events: [
+          {
+            id: "user-1",
+            piSessionId: "pi-session-1",
+            kind: "message",
+            role: "user",
+            body: "Old conversation",
+            timestamp: "2026-07-30T05:52:27.500Z",
+          },
+          {
+            id: "asst-1",
+            piSessionId: "pi-session-1",
+            kind: "message",
+            role: "assistant",
+            body: "Answer from yesterday",
+            timestamp: "2026-07-30T05:53:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(openedToday.updatedAt).toBe("2026-07-30T05:53:00.000Z");
+    expect(getSessionProjectionListItems([openedToday])[0]?.updatedAt).toBe(
+      "2026-07-30T05:53:00.000Z",
+    );
   });
 
   it("rebuilds the runtime model statically from the snapshot replay sequence", () => {
