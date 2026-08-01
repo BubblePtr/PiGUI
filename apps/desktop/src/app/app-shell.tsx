@@ -52,6 +52,7 @@ import {
   type SessionProjectionListItem,
 } from "@/entities/session/session-projection";
 import { formatSessionListTime } from "@/entities/session/sessions";
+import { useSessionProjectionsOptional } from "@/entities/session/use-session-projections";
 import {
   browserDevelopmentProjectId,
   getProjectRegistryWithBrowserDevelopmentFallback,
@@ -901,7 +902,7 @@ export function AppFrame({
   children,
   toolbarActions,
   sessionProjections,
-  sessionsHydrated = true,
+  sessionsHydrated,
   selectedSessionId,
   onSelectedSessionIdChange,
 }: AppFrameProps) {
@@ -923,6 +924,7 @@ export function AppFrame({
   const sidebarAnimatingRef = useRef(false);
   const sidebarOpenRef = useRef(sidebarOpen);
   const sidebarAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionProjectionsStore = useSessionProjectionsOptional();
   const [localSessionProjections] = useState(() =>
     shouldUseBrowserDevelopmentData()
       ? defaultSidebarProjectSessionProjections
@@ -932,7 +934,16 @@ export function AppFrame({
   const [expandedProjects, setExpandedProjects] = useState(() =>
     readProjectExpansionState(),
   );
-  const effectiveSessionProjections = sessionProjections ?? localSessionProjections;
+  // Prefer explicit page props; otherwise use app-wide hydrated store (Trace/Usage/Setup).
+  const effectiveSessionProjections =
+    sessionProjections ??
+    sessionProjectionsStore?.sessionProjections ??
+    localSessionProjections;
+  // Without the app-wide store (unit tests / isolated frames), empty means empty.
+  const effectiveSessionsHydrated =
+    sessionsHydrated ??
+    sessionProjectionsStore?.sessionsHydrated ??
+    true;
   const sessions = useMemo(
     () => getSessionProjectionListItems(effectiveSessionProjections),
     [effectiveSessionProjections],
@@ -1013,10 +1024,16 @@ export function AppFrame({
       return;
     }
 
-    updateExpandedProjects((currentExpandedProjects) => ({
-      ...currentExpandedProjects,
-      [selectedProjection.projectId]: true,
-    }));
+    updateExpandedProjects((currentExpandedProjects) => {
+      if (currentExpandedProjects[selectedProjection.projectId] === true) {
+        return currentExpandedProjects;
+      }
+
+      return {
+        ...currentExpandedProjects,
+        [selectedProjection.projectId]: true,
+      };
+    });
   }, [effectiveSelectedSessionId, effectiveSessionProjections]);
 
   useLayoutEffect(() => {
@@ -1207,7 +1224,7 @@ export function AppFrame({
             projects={projects}
             selectedSessionId={effectiveSelectedSessionId}
             sessions={sessions}
-            sessionsHydrated={sessionsHydrated}
+            sessionsHydrated={effectiveSessionsHydrated}
             expandedProjects={expandedProjects}
             onAddProject={handleAddProject}
             onToggleProject={handleToggleProject}

@@ -44,7 +44,6 @@ import {
   getProjectRegistryWithBrowserDevelopmentFallback,
   shouldUseBrowserDevelopmentData,
 } from "@/shared/browser-development-data";
-import { onBackendEvent } from "@/shared/runtime";
 import {
   createExecutionCheckoutManager,
   type ExecutionCheckoutManager,
@@ -58,7 +57,6 @@ import {
 import { createDefaultPiRuntimeBridge } from "@/entities/runtime/pi-runtime-factory";
 import {
   PiRuntimeBridgeError,
-  defaultRuntimeSummary,
   type ExecutionCheckout,
   type PiRuntimeBridge,
   type PiSessionState,
@@ -104,9 +102,11 @@ import {
   formatCost,
   formatTokens,
   getSessionChanges,
-  listSessionProjections,
-  type PersistedSessionProjection,
 } from "@/entities/session/sessions";
+import {
+  sessionProjectionFromPersistedProjection,
+  useSessionProjections,
+} from "@/entities/session/use-session-projections";
 
 type LiveMessage = {
   id: string;
@@ -1616,70 +1616,6 @@ function isReadOnlyProjection(projection: SessionProjection | null) {
 
 function isRuntimeUnavailableProjection(projection: SessionProjection | null) {
   return Boolean(projection?.stale);
-}
-
-function sessionStatusFromPersistedProjection(
-  status: PersistedSessionProjection["status"],
-): SessionProjection["status"] {
-  switch (status) {
-    case "archived":
-      return "archived";
-    case "running":
-    case "failed":
-    case "completed":
-      return status;
-    case "idle":
-    default:
-      return "waiting";
-  }
-}
-
-function checkoutFromPersistedProjection(
-  checkout: PersistedSessionProjection["checkout"],
-) {
-  if (typeof checkout !== "object" || checkout === null) {
-    return null;
-  }
-
-  return checkout as ExecutionCheckout;
-}
-
-function sessionProjectionFromPersistedProjection(
-  record: PersistedSessionProjection,
-): SessionProjection {
-  const projection = createSessionProjection({
-    id: record.sessionId,
-    projectId: record.projectId,
-    initialPrompt: record.initialPrompt ?? "Untitled Session",
-    createdAt: record.updatedAt,
-  });
-  const sessionFileMissing = Boolean(record.sessionFileMissing || !record.sessionFile);
-
-  return {
-    ...projection,
-    cwd: record.cwd,
-    status: sessionStatusFromPersistedProjection(record.status),
-    creationStage: "accepted",
-    checkout: checkoutFromPersistedProjection(record.checkout),
-    runtimeId: record.runtimeId,
-    piSessionId: record.piSessionId,
-    sessionFile: record.sessionFile ?? null,
-    summary: defaultRuntimeSummary(record.summary),
-    modelControls: record.modelSelection
-      ? {
-          models: [],
-          selected: { ...record.modelSelection },
-        }
-      : null,
-    stale: sessionFileMissing,
-    staleReason: sessionFileMissing
-      ? "Session file is missing. Start a new PiGUI Session to continue from this Project."
-      : null,
-    archivedAt:
-      record.archivedAt ??
-      (record.status === "archived" ? record.updatedAt : null),
-    updatedAt: record.updatedAt,
-  };
 }
 
 const SESSION_DRAFT_SUGGESTED_PROMPTS = [
@@ -3747,19 +3683,24 @@ export function AgentWorkspaceSessionsPage() {
     getVisibleProjectRegistry(),
   );
   const [runtimeBridge] = useState(() => createDefaultPiRuntimeBridge());
-  const initialSessionProjections = browserDevelopmentData
-    ? defaultSidebarProjectSessionProjections
-    : [];
-  const [sessionProjections, setSessionProjections] = useState(
-    initialSessionProjections,
-  );
-  const [sessionsHydrated, setSessionsHydrated] = useState(
-    () => browserDevelopmentData,
-  );
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    () => firstSessionIdForProject(initialSessionProjections, projectId),
-  );
-  const [backendGeneration, setBackendGeneration] = useState(0);
+  const {
+    sessionProjections,
+    sessionsHydrated,
+    backendGeneration,
+    setSessionProjections,
+  } = useSessionProjections();
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  // Browser/vitest fixture sessions live in the same app-wide store as Electron hydrate.
+  useEffect(() => {
+    if (!browserDevelopmentData) {
+      return;
+    }
+
+    setSessionProjections((current) =>
+      current.length > 0 ? current : defaultSidebarProjectSessionProjections,
+    );
+  }, [browserDevelopmentData, setSessionProjections]);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [changesOpen, setChangesOpen] = useState(false);
@@ -3780,97 +3721,21 @@ export function AgentWorkspaceSessionsPage() {
     [],
   );
 
-  useEffect(
-    () =>
-      onBackendEvent((event) => {
-        if (
-          event.event.sessionId === "__backend__" &&
-          event.event.payload.lifecycle === "connected"
-        ) {
-          setBackendGeneration((generation) => generation + 1);
-        }
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    if (browserDevelopmentData) {
-      setSessionsHydrated(true);
-      return;
-    }
-
-    let cancelled = false;
-    const retryDelaysMs = [0, 150, 300, 600, 1200, 2000, 3000, 4000];
-
-    const applyRecords = (records: Awaited<ReturnType<typeof listSessionProjections>>) => {
-      const persistedProjections = records.map(
-        sessionProjectionFromPersistedProjection,
-      );
-      const nextSelectedSessionId = firstSessionIdForProject(
-        persistedProjections,
-        projectId,
-      );
-
-      setSessionProjections(persistedProjections);
-      setSessionsHydrated(true);
-      setSelectedSessionId((currentSessionId) =>
-        currentSessionId &&
-        persistedProjections.some(
-          (projection) =>
-            projection.id === currentSessionId &&
-            projection.projectId === projectId &&
-            !isSessionProjectionArchived(projection),
-        )
-          ? currentSessionId
-          : nextSelectedSessionId,
-      );
-    };
-
-    void (async () => {
-      for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
-        if (cancelled) {
-          return;
-        }
-
-        const delayMs = retryDelaysMs[attempt] ?? 0;
-        if (delayMs > 0) {
-          await new Promise((resolve) => {
-            window.setTimeout(resolve, delayMs);
-          });
-        }
-
-        if (cancelled) {
-          return;
-        }
-
-        try {
-          const records = await listSessionProjections();
-          if (cancelled) {
-            return;
-          }
-
-          applyRecords(records);
-          return;
-        } catch {
-          // Transient backend/IPC races: keep prior list (if any) and retry.
-          // Do not clear to [] — that produced false "No chats" on cold start.
-        }
-      }
-
-      if (!cancelled) {
-        // Exhausted retries without a successful list: show empty honestly.
-        setSessionsHydrated(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [backendGeneration, browserDevelopmentData, projectId]);
-
   useEffect(() => {
     setArchiveError(null);
   }, [selectedSessionId]);
+
+  // After hydrate (or when project sessions appear), select the first valid session.
+  useEffect(() => {
+    if (selectedSessionId) {
+      return;
+    }
+
+    const nextSessionId = firstSessionIdForProject(sessionProjections, projectId);
+    if (nextSessionId) {
+      setSelectedSessionId(nextSessionId);
+    }
+  }, [projectId, selectedSessionId, sessionProjections]);
 
   useEffect(() => {
     if (!selectedSessionProjection) {
