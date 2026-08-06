@@ -24,10 +24,20 @@ import "./styles.css";
 
 const queryClient = new QueryClient();
 
+function isPreflightExemptPath(pathname: string) {
+  // Preflight itself, plus Provider Settings so "Configure providers →" can
+  // leave the gate without bouncing straight back (S3 E2E / DF-002).
+  return (
+    pathname === "/preflight" ||
+    pathname === "/settings" ||
+    pathname.startsWith("/settings/")
+  );
+}
+
 function PreflightGate({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const onPreflightRoute = pathname === "/preflight";
+  const onExemptRoute = isPreflightExemptPath(pathname);
   const statusQuery = useQuery({
     queryKey: preflightStatusQueryKey,
     queryFn: () => invoke<EnvironmentPreflightStatus>("get_environment_preflight_status"),
@@ -42,12 +52,12 @@ function PreflightGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (!statusQuery.data.completedAt && !onPreflightRoute) {
+    if (!statusQuery.data.completedAt && !onExemptRoute) {
       void navigate({ to: "/preflight", replace: true });
     }
   }, [
     navigate,
-    onPreflightRoute,
+    onExemptRoute,
     statusQuery.data,
     statusQuery.isError,
     statusQuery.isFetching,
@@ -73,7 +83,7 @@ function PreflightGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!statusQuery.data?.completedAt && !onPreflightRoute) {
+  if (!statusQuery.data?.completedAt && !onExemptRoute) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-6 text-sm text-muted">
         Opening environment check…
