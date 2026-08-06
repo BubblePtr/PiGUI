@@ -222,9 +222,10 @@ const traceUsageNavigationItems = [
 const systemNavigationItems = [
   {
     label: "Settings",
-    to: "/setup",
+    to: "/settings",
     icon: Settings,
-    isActive: (pathname: string) => pathname === "/setup",
+    isActive: (pathname: string) =>
+      pathname === "/settings" || pathname.startsWith("/settings/"),
   },
 ] as const;
 

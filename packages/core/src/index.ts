@@ -32,6 +32,14 @@ export {
   type EnvironmentPreflightStatus,
 } from "./environment-preflight";
 
+export {
+  PROVIDER_AUTH_CATALOG,
+  type ProviderAuthId,
+  type ProviderAuthMode,
+  type ProviderAuthStatusItem,
+  type ProviderAuthStatusReport,
+} from "./provider-auth";
+
 export type {
   PiRpcCommand,
   PiRpcResponse,

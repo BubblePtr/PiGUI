@@ -225,8 +225,7 @@ async function checkModelAuth(
         summary: "No provider credentials",
         detail: `${authPath} is not a JSON object`,
         remediation: [
-          "Configure at least one model provider credential for Pi",
-          "Typically via `pi` auth / login for your provider",
+          "Open Provider Settings and configure at least one provider",
           "Click Recheck",
         ],
       };
@@ -242,7 +241,7 @@ async function checkModelAuth(
         summary: "No provider credentials",
         detail: "auth.json has no usable provider entries",
         remediation: [
-          "Add at least one provider API key or login for Pi",
+          "Open Provider Settings and add an API key or subscription login",
           "Click Recheck",
         ],
       };
@@ -266,7 +265,7 @@ async function checkModelAuth(
         summary: "No provider credentials",
         detail: `Missing ${authPath}`,
         remediation: [
-          "Configure at least one model provider credential for Pi",
+          "Open Provider Settings and configure at least one provider",
           "Click Recheck",
         ],
       };
@@ -279,7 +278,10 @@ async function checkModelAuth(
       title: "Model auth",
       summary: "Could not read credentials",
       detail: error instanceof Error ? error.message : String(error),
-      remediation: ["Fix auth.json format or regenerate via Pi auth tools", "Click Recheck"],
+      remediation: [
+        "Open Provider Settings and re-save credentials",
+        "Click Recheck",
+      ],
     };
   }
 }

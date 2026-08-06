@@ -11,6 +11,10 @@ import {
   createEnvironmentPreflightReader,
   type EnvironmentPreflightReader,
 } from "./workspace/environment-preflight";
+import {
+  createProviderAuthService,
+  type ProviderAuthService,
+} from "./workspace/provider-auth";
 import { createNodeExecutionCheckoutGitClient } from "./workspace/execution-checkout";
 import {
   createNodeSessionChangesReader,
@@ -82,6 +86,7 @@ export type BackendServiceOptions = {
   sessionChangesReader?: SessionChangesReader;
   piSessionListAll?: () => Promise<PiSessionListItem[]>;
   environmentPreflight?: EnvironmentPreflightReader;
+  providerAuth?: ProviderAuthService;
 };
 
 export function createBackendService(options: BackendServiceOptions = {}): BackendService {
@@ -102,6 +107,11 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
     createEnvironmentPreflightReader({
       agentDir,
       dataDir,
+    });
+  const providerAuth =
+    options.providerAuth ??
+    createProviderAuthService({
+      agentDir,
     });
   const piSessionListAll =
     options.piSessionListAll ??
@@ -150,6 +160,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             sessionProjectionStore,
             sessionChangesReader,
             environmentPreflight,
+            providerAuth,
             piSessionListAll,
             runtimeGateway,
           }),
@@ -181,6 +192,7 @@ async function dispatchRequest(input: {
   sessionProjectionStore: SessionProjectionStore;
   sessionChangesReader: SessionChangesReader;
   environmentPreflight: EnvironmentPreflightReader;
+  providerAuth: ProviderAuthService;
   piSessionListAll: () => Promise<PiSessionListItem[]>;
   runtimeGateway: RuntimeGatewayService;
 }) {
@@ -220,6 +232,41 @@ async function dispatchRequest(input: {
       return input.environmentPreflight.getStatus();
     case "complete_environment_preflight":
       return input.environmentPreflight.complete();
+    case "list_provider_auth_status":
+      return input.providerAuth.listStatus();
+    case "set_provider_api_key":
+      return input.providerAuth.setApiKey(
+        requiredString(params.providerId, "providerId") as
+          | "openai"
+          | "anthropic"
+          | "deepseek"
+          | "xai",
+        requiredString(params.apiKey, "apiKey"),
+      );
+    case "remove_provider_auth":
+      return input.providerAuth.remove(
+        requiredString(params.providerId, "providerId") as
+          | "openai"
+          | "anthropic"
+          | "deepseek"
+          | "xai",
+      );
+    case "login_provider_oauth":
+      return input.providerAuth.loginOAuth(
+        requiredString(params.providerId, "providerId") as
+          | "openai"
+          | "anthropic"
+          | "deepseek"
+          | "xai",
+      );
+    case "logout_provider_auth":
+      return input.providerAuth.logout(
+        requiredString(params.providerId, "providerId") as
+          | "openai"
+          | "anthropic"
+          | "deepseek"
+          | "xai",
+      );
     case "is_git_repository":
       return input.gitClient.isGitRepository(requiredString(params.repoRoot, "repoRoot"));
     case "add_detached_worktree":
