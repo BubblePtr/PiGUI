@@ -173,6 +173,9 @@ test.describe("M3: Real diff action surface", () => {
         testApp.project!,
         testApp.projection!,
       );
+      // Default window is now 1280×840 (docked aside). Force narrow width so
+      // the Changes panel renders as a sheet dialog, matching these assertions.
+      await testApp.resizeWindow(640, 780);
       await testApp.window.getByLabel("Session changes").click();
 
       await expect(
@@ -192,8 +195,9 @@ test.describe("M3: Real diff action surface", () => {
         }),
       ).toBeVisible({ timeout: 15_000 });
 
-      await testApp.resizeWindow(640, 780);
-
+      // BrowserWindow now enforces minWidth 960 (S4), so the narrow 100%
+      // sheet breakpoint is unreachable; at 960 the medium sheet renders as
+      // a right-aligned 92vw sheet.
       const narrowSheetBox = await testApp.window
         .locator('[data-slot="sheet-content"]')
         .boundingBox();
@@ -203,9 +207,15 @@ test.describe("M3: Real diff action surface", () => {
       }));
 
       expect(narrowSheetBox).not.toBeNull();
-      expect(narrowSheetBox!.x).toBeLessThanOrEqual(1);
+      // Medium sheet is right-aligned: width ≈ 92vw, x ≈ 8vw.
       expect(narrowSheetBox!.width).toBeGreaterThanOrEqual(
-        narrowViewport.width - 1,
+        narrowViewport.width * 0.9,
+      );
+      expect(narrowSheetBox!.x).toBeGreaterThanOrEqual(
+        narrowViewport.width * 0.06,
+      );
+      expect(narrowSheetBox!.x).toBeLessThanOrEqual(
+        narrowViewport.width * 0.1,
       );
       expect(narrowSheetBox!.height).toBeGreaterThanOrEqual(
         narrowViewport.height - 1,
