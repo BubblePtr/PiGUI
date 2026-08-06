@@ -3,6 +3,8 @@ import { Card } from "@heroui/react";
 import { Resizable } from "@heroui-pro/react/resizable";
 import { useEffect, useState } from "react";
 import { AppFrame } from "@/app/app-shell";
+import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-state";
+import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
 import { SessionDetailPage } from "@/pages/session-detail";
 import { SessionListPanel } from "@/pages/session-list";
 
@@ -123,9 +125,15 @@ export function TraceWorkspace({
 }
 
 export function TraceIndexPage() {
+  const { loading, configured } = useProviderAuthStatus();
+
   return (
     <TraceWorkspace>
-      <TraceEmptyState />
+      {!loading && !configured ? (
+        <NoProvidersEmptyState testId="trace-no-providers-empty-state" />
+      ) : (
+        <TraceEmptyState />
+      )}
     </TraceWorkspace>
   );
 }

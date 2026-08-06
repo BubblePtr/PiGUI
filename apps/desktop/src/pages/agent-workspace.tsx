@@ -22,8 +22,10 @@ import { Sheet } from "@heroui-pro/react/sheet";
 import { TextShimmer } from "@heroui-pro/react/text-shimmer";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
-import type { ProviderAuthStatusReport, SessionChangedFile, SessionChanges } from "@pigui/core";
+import type { SessionChangedFile, SessionChanges } from "@pigui/core";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
+import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-state";
+import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
 import {
   Activity,
   Archive,
@@ -39,7 +41,6 @@ import {
   RefreshCw,
   Sparkles,
 } from "@/shared/ui/icons";
-import { invoke } from "@/shared/runtime";
 import {
   getBrowserDevelopmentSessionDraft,
   getProjectRegistryWithBrowserDevelopmentFallback,
@@ -1908,43 +1909,10 @@ function SessionDraftComposer({
   onDraftTargetChange: (projectId: string | null) => void;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
 }) {
-  const navigate = useNavigate();
   const [targetError, setTargetError] = useState(false);
   const selectedCheckoutMode = draft.checkoutMode ?? recommendedCheckoutMode;
-  const [providerAuth, setProviderAuth] = useState<ProviderAuthStatusReport | null>(
-    null,
-  );
-  const [providerAuthLoading, setProviderAuthLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void invoke<ProviderAuthStatusReport>("list_provider_auth_status")
-      .then((report) => {
-        if (!cancelled) {
-          setProviderAuth(report);
-          setProviderAuthLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          // Fail open for draft typing when status cannot be loaded (tests / offline).
-          setProviderAuth({
-            agentDir: "",
-            authPath: "",
-            configuredCount: 1,
-            providers: [],
-          });
-          setProviderAuthLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const providersConfigured = (providerAuth?.configuredCount ?? 0) > 0;
+  const { loading: providerAuthLoading, configured: providersConfigured } =
+    useProviderAuthStatus();
   const applySuggestedPrompt = (prompt: string) => {
     setTargetError(false);
     onDraftChange(prompt);
@@ -1972,6 +1940,17 @@ function SessionDraftComposer({
     });
   };
 
+  if (!providerAuthLoading && !providersConfigured) {
+    return (
+      <section
+        className="flex h-full min-h-0 flex-col items-center justify-center px-6 py-8"
+        data-testid="session-draft-composer"
+      >
+        <NoProvidersEmptyState testId="session-draft-no-models-gate" />
+      </section>
+    );
+  }
+
   return (
     <section
       className="flex h-full min-h-0 flex-col items-center justify-center px-6 py-8"
@@ -1989,32 +1968,11 @@ function SessionDraftComposer({
             </span>
           </h2>
         </div>
-        {!providerAuthLoading && !providersConfigured ? (
-          <div
-            className="w-full rounded-lg border border-danger/30 bg-danger/5 px-4 py-4 text-center"
-            data-testid="session-draft-no-models-gate"
-          >
-            <p className="text-base font-semibold text-foreground">No models available</p>
-            <p className="mt-1 text-sm text-muted">
-              Configure a provider before creating a chat.
-            </p>
-            <Button
-              className="mt-3"
-              variant="primary"
-              onPress={() => {
-                void navigate({ to: "/settings" });
-              }}
-            >
-              Open Provider Settings →
-            </Button>
-          </div>
-        ) : null}
         <div className="flex w-full flex-col gap-3">
           <PromptInput
             className="w-full"
             value={draft.prompt}
             variant="primary"
-            isDisabled={!providerAuthLoading && !providersConfigured}
             onSubmit={submitDraft}
             onValueChange={onDraftChange}
           >
