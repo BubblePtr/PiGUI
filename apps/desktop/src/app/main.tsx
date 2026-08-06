@@ -13,6 +13,7 @@ import {
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
 import { PreflightPage, preflightStatusQueryKey } from "@/pages/preflight";
+import { SettingsPage } from "@/pages/settings";
 import { SetupPage } from "@/pages/setup";
 import { TraceIndexPage, TraceSessionPage } from "@/pages/trace";
 import { UsagePage } from "@/pages/usage";
@@ -121,6 +122,12 @@ const setupRoute = createRoute({
   component: SetupPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 const preflightRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/preflight",
@@ -135,6 +142,7 @@ const router = createRouter({
     usageRoute,
     projectSessionsRoute,
     setupRoute,
+    settingsRoute,
     preflightRoute,
   ]),
 });

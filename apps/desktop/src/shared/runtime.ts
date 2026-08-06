@@ -182,6 +182,52 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
       return Promise.resolve({ completedAt: "2026-07-25T00:00:00.000Z" } as T);
     case "complete_environment_preflight":
       return Promise.resolve({ completedAt: new Date().toISOString() } as T);
+    case "list_provider_auth_status":
+      return Promise.resolve({
+        agentDir: "/browser-dev",
+        authPath: "/browser-dev/auth.json",
+        configuredCount: 1,
+        providers: [
+          {
+            id: "openai",
+            label: "OpenAI",
+            supportsApiKey: true,
+            supportsOAuth: true,
+            mode: "api_key",
+            configured: true,
+            keyHint: "…dev1",
+          },
+          {
+            id: "anthropic",
+            label: "Anthropic",
+            supportsApiKey: true,
+            supportsOAuth: true,
+            mode: "none",
+            configured: false,
+          },
+          {
+            id: "deepseek",
+            label: "DeepSeek",
+            supportsApiKey: true,
+            supportsOAuth: false,
+            mode: "none",
+            configured: false,
+          },
+          {
+            id: "xai",
+            label: "Grok (xAI)",
+            supportsApiKey: true,
+            supportsOAuth: false,
+            mode: "none",
+            configured: false,
+          },
+        ],
+      } as T);
+    case "set_provider_api_key":
+    case "remove_provider_auth":
+    case "login_provider_oauth":
+    case "logout_provider_auth":
+      return invokeBrowserFallback("list_provider_auth_status");
     default:
       return Promise.reject(
         new Error(`Backend command "${command}" is unavailable outside Electron.`),

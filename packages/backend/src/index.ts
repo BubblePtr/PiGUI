@@ -20,6 +20,12 @@ export {
 } from "./workspace/environment-preflight";
 
 export {
+  createProviderAuthService,
+  type ProviderAuthService,
+  type ProviderAuthServiceOptions,
+} from "./workspace/provider-auth";
+
+export {
   createRuntimeGatewayService,
   type RuntimeGatewayDriverEvent,
   type CreateRuntimeSessionInput,

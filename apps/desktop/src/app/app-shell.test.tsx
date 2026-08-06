@@ -75,6 +75,11 @@ function renderAppFrame(
     path: "/setup",
     component: () => null,
   });
+  const settingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/settings",
+    component: () => null,
+  });
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
     routeTree: rootRoute.addChildren([
@@ -83,6 +88,7 @@ function renderAppFrame(
       usageRoute,
       projectSessionsRoute,
       setupRoute,
+      settingsRoute,
     ]),
   });
 

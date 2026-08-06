@@ -161,6 +161,29 @@ export function PreflightPage() {
             successful Continue, this gate only reappears when you open it from Setup.
           </p>
 
+          {!canContinue &&
+          report?.checks.some(
+            (check) => check.id === "model_auth" && check.status === "fail",
+          ) ? (
+            <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3">
+              <p className="text-sm font-semibold text-foreground">
+                Configure a model provider to continue
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Provider credentials are required. Use Settings, then return and Recheck.
+              </p>
+              <Button
+                className="mt-3"
+                variant="primary"
+                onPress={() => {
+                  void navigate({ to: "/settings" });
+                }}
+              >
+                Configure providers →
+              </Button>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Button
               variant="outline"
@@ -175,10 +198,10 @@ export function PreflightPage() {
               <Button
                 variant="outline"
                 onPress={() => {
-                  void navigate({ to: "/setup" });
+                  void navigate({ to: "/settings" });
                 }}
               >
-                Open Setup later
+                Provider Settings
               </Button>
               <Button
                 variant="primary"
@@ -194,7 +217,8 @@ export function PreflightPage() {
 
           {!canContinue && report ? (
             <p className="text-xs text-muted">
-              Continue is enabled only when all required checks pass.
+              Continue is enabled only when all required checks pass (including at least one
+              provider).
             </p>
           ) : null}
           {completeMutation.isError ? (
