@@ -26,8 +26,8 @@ type ProviderBrand = {
 const providerBrands: Record<ProviderAuthId, ProviderBrand> = {
   openai: {
     Mono: OpenAI,
-    // ChatGPT green badge + white mark (not flat black mono).
-    background: OpenAI.colorGpt3 ?? "#19C37D",
+    // Official OpenAI mark is black/white (LobeHub #000), not ChatGPT green.
+    background: OpenAI.colorPrimary || "#000000",
     foreground: "#ffffff",
   },
   anthropic: {
