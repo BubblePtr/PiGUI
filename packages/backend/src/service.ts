@@ -15,6 +15,7 @@ import {
   createProviderAuthService,
   type ProviderAuthService,
 } from "./workspace/provider-auth";
+import { listAvailableModelControls } from "./workspace/available-model-controls";
 import { createNodeExecutionCheckoutGitClient } from "./workspace/execution-checkout";
 import {
   createNodeSessionChangesReader,
@@ -267,6 +268,8 @@ async function dispatchRequest(input: {
           | "deepseek"
           | "xai",
       );
+    case "list_available_model_controls":
+      return listAvailableModelControls({ agentDir: input.agentDir });
     case "is_git_repository":
       return input.gitClient.isGitRepository(requiredString(params.repoRoot, "repoRoot"));
     case "add_detached_worktree":

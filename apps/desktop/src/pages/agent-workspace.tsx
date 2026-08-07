@@ -26,6 +26,7 @@ import type { SessionChangedFile, SessionChanges } from "@pigui/core";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
 import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-state";
 import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
+import { invoke } from "@/shared/runtime";
 import {
   Activity,
   Archive,
@@ -218,6 +219,7 @@ export type SessionDraftSubmitEvent = {
   projectId: string;
   prompt: string;
   checkoutMode: SessionDraftCheckoutMode;
+  modelSelection?: RuntimeModelSelection;
 };
 
 type SessionCreatorInput = Omit<
@@ -1913,6 +1915,34 @@ function SessionDraftComposer({
   const selectedCheckoutMode = draft.checkoutMode ?? recommendedCheckoutMode;
   const { loading: providerAuthLoading, configured: providersConfigured } =
     useProviderAuthStatus();
+  const [draftModelControls, setDraftModelControls] =
+    useState<RuntimeModelControls | null>(null);
+
+  useEffect(() => {
+    if (providerAuthLoading || !providersConfigured) {
+      setDraftModelControls(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void invoke<RuntimeModelControls>("list_available_model_controls")
+      .then((controls) => {
+        if (!cancelled) {
+          setDraftModelControls(controls);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDraftModelControls(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [providerAuthLoading, providersConfigured]);
+
   const applySuggestedPrompt = (prompt: string) => {
     setTargetError(false);
     onDraftChange(prompt);
@@ -1937,6 +1967,9 @@ function SessionDraftComposer({
       projectId: draft.projectId,
       prompt: draft.prompt,
       checkoutMode: selectedCheckoutMode,
+      ...(draftModelControls?.selected
+        ? { modelSelection: draftModelControls.selected }
+        : {}),
     });
   };
 
@@ -1981,6 +2014,24 @@ function SessionDraftComposer({
                 <PromptInput.TextArea placeholder="Do anything with Pi" />
               </PromptInput.Content>
               <PromptInput.Toolbar>
+                <PromptInput.ToolbarStart>
+                  {draftModelControls?.selected ? (
+                    <ModelThinkingControl
+                      controls={draftModelControls}
+                      isLocked={false}
+                      onChange={(selection) => {
+                        setDraftModelControls((current) =>
+                          current
+                            ? {
+                                ...current,
+                                selected: selection,
+                              }
+                            : current,
+                        );
+                      }}
+                    />
+                  ) : null}
+                </PromptInput.ToolbarStart>
                 <PromptInput.ToolbarEnd>
                   <PromptInput.Send aria-label="Submit initial prompt" />
                 </PromptInput.ToolbarEnd>
@@ -3111,6 +3162,7 @@ function LiveSessionColumn({
         projectRoot: targetProjectRoot,
       },
       executionMode: checkoutModeToExecutionMode(event.checkoutMode),
+      ...(event.modelSelection ? { modelSelection: event.modelSelection } : {}),
       onProjectionChange: (projection) => {
         setCreationProjection(projection);
         onProjectionChange?.(projection);

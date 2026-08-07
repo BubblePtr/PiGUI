@@ -228,6 +228,22 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
     case "login_provider_oauth":
     case "logout_provider_auth":
       return invokeBrowserFallback("list_provider_auth_status");
+    case "list_available_model_controls":
+      return Promise.resolve({
+        models: [
+          {
+            provider: "openai",
+            modelId: "gpt-4.1",
+            name: "GPT-4.1",
+            thinkingLevels: ["off"],
+          },
+        ],
+        selected: {
+          provider: "openai",
+          modelId: "gpt-4.1",
+          thinkingLevel: "off",
+        },
+      } as T);
     default:
       return Promise.reject(
         new Error(`Backend command "${command}" is unavailable outside Electron.`),
