@@ -478,6 +478,8 @@ describe("Runtime Gateway service", () => {
         modelId: "claude-sonnet-4",
         thinkingLevel: "high",
       },
+      // configure_model must not bump list time to "now".
+      updatedAt: "2026-06-29T12:00:00.000Z",
     });
 
     const restartDriver = createFakeRuntimeDriver();
@@ -508,6 +510,59 @@ describe("Runtime Gateway service", () => {
         },
       }),
     );
+  });
+
+  it("does not stamp resume wall-clock onto projection list time (DF-012)", async () => {
+    const journal = createInMemorySessionEventJournal();
+    const projections = createInMemorySessionProjectionStore();
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      journal,
+      projections,
+      now: () => "2026-08-07T13:30:00.000Z",
+    });
+
+    await projections.save({
+      sessionId: "app-session-old",
+      runtimeId: "runtime:app-session-old",
+      piSessionId: "pi-session-old",
+      projectId: "pig",
+      cwd: "/repo",
+      status: "completed",
+      sessionFile: "/sessions/pi-session-old.jsonl",
+      // Corrupted by an earlier resume that wrote "now".
+      updatedAt: "2026-08-07T05:00:00.000Z",
+    });
+
+    journal.append({
+      id: "evt-old-assistant",
+      seq: 3,
+      sessionId: "app-session-old",
+      piSessionId: "pi-session-old",
+      type: "message_update",
+      ts: "2026-08-01T12:03:34.764Z",
+      payload: {
+        kind: "message",
+        role: "assistant",
+        body: "Real last answer",
+      },
+    });
+
+    await service.handleRequest({
+      id: "req-resume-old",
+      method: "resume_session",
+      params: {
+        sessionId: "app-session-old",
+        projectId: "pig",
+        piSessionId: "pi-session-old",
+        sessionFile: "/sessions/pi-session-old.jsonl",
+        cwd: "/repo",
+      },
+    });
+
+    await expect(projections.get("app-session-old")).resolves.toMatchObject({
+      updatedAt: "2026-08-01T12:03:34.764Z",
+    });
   });
 
   it("persists runtime status and usage as driver events arrive", async () => {
@@ -692,6 +747,8 @@ describe("Runtime Gateway service", () => {
         runtimeId: "runtime:app-session-resumed",
         piSessionId: "pi-session-resumed",
         sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-resumed.jsonl",
+        // DF-012: last message ts, not driver resume wall-clock (12:00).
+        updatedAt: "2026-07-03T11:00:00.000Z",
       }),
     ]);
 

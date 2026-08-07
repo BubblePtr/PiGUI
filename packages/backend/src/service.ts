@@ -45,6 +45,7 @@ import {
   type PersistedSessionProjection,
   type SessionProjectionStore,
 } from "./persistence/session-projection-store";
+import { lastChatActivityAtFromGatewayEvents } from "./persistence/session-list-time";
 import {
   buildSessionIndexWithCache,
   createSessionIndexCache,
@@ -124,6 +125,11 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
         path: session.path,
       }));
     });
+  const runtimeJournal =
+    options.runtimeJournal ??
+    createFileSessionEventJournal({
+      dataDir,
+    });
   const runtimeGateway = createRuntimeGatewayService({
     driver:
       options.runtimeDriver ??
@@ -133,11 +139,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
         runtimeResumer: createPublicPiSdkRuntimeResumer({ sdk: piSdk }),
       }),
     projections: sessionProjectionStore,
-    journal:
-      options.runtimeJournal ??
-      createFileSessionEventJournal({
-        dataDir,
-      }),
+    journal: runtimeJournal,
   });
   const listeners = new Set<(event: BackendRpcEvent) => void>();
 
@@ -164,6 +166,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             providerAuth,
             piSessionListAll,
             runtimeGateway,
+            runtimeJournal,
           }),
         };
       } catch (error) {
@@ -196,6 +199,7 @@ async function dispatchRequest(input: {
   providerAuth: ProviderAuthService;
   piSessionListAll: () => Promise<PiSessionListItem[]>;
   runtimeGateway: RuntimeGatewayService;
+  runtimeJournal: SessionEventJournal;
 }) {
   const params = paramsRecord(input.request.params);
 
@@ -218,6 +222,7 @@ async function dispatchRequest(input: {
       return listSessionProjections({
         store: input.sessionProjectionStore,
         piSessionListAll: input.piSessionListAll,
+        journal: input.runtimeJournal,
       });
     case "get_session_changes":
       return getSessionChanges({
@@ -323,6 +328,7 @@ async function getSessionChanges(input: {
 async function listSessionProjections(input: {
   store: SessionProjectionStore;
   piSessionListAll: () => Promise<PiSessionListItem[]>;
+  journal?: SessionEventJournal;
 }) {
   const projections = await input.store.list();
 
@@ -330,24 +336,61 @@ async function listSessionProjections(input: {
     (projection) => !projection.sessionFile && !projection.sessionFileMissing,
   );
 
-  if (!projectionsNeedingRepair.length) {
-    return projections;
+  let nextProjections = projections;
+
+  if (projectionsNeedingRepair.length) {
+    nextProjections = repairProjectionSessionFiles(
+      projections,
+      await input.piSessionListAll(),
+    );
+
+    await Promise.all(
+      nextProjections
+        .filter((projection, index) =>
+          projectionChangedForRepair(projections[index], projection),
+        )
+        .map((projection) => input.store.save(projection)),
+    );
   }
 
-  const repaired = repairProjectionSessionFiles(
-    projections,
-    await input.piSessionListAll(),
+  // DF-012: cold list has no in-memory messages; heal updatedAt from journal
+  // so sidebar shows last chat time, not last resume wall-clock.
+  if (input.journal) {
+    nextProjections = await healProjectionListTimesFromJournal({
+      projections: nextProjections,
+      journal: input.journal,
+      store: input.store,
+    });
+  }
+
+  return nextProjections;
+}
+
+async function healProjectionListTimesFromJournal(input: {
+  projections: PersistedSessionProjection[];
+  journal: SessionEventJournal;
+  store: SessionProjectionStore;
+}): Promise<PersistedSessionProjection[]> {
+  const healed = await Promise.all(
+    input.projections.map(async (projection) => {
+      try {
+        const events = await input.journal.read(projection.piSessionId);
+        const activityAt = lastChatActivityAtFromGatewayEvents(events);
+
+        if (!activityAt || activityAt === projection.updatedAt) {
+          return projection;
+        }
+
+        const next = { ...projection, updatedAt: activityAt };
+        await input.store.save(next);
+        return next;
+      } catch {
+        return projection;
+      }
+    }),
   );
 
-  await Promise.all(
-    repaired
-      .filter((projection, index) =>
-        projectionChangedForRepair(projections[index], projection),
-      )
-      .map((projection) => input.store.save(projection)),
-  );
-
-  return repaired;
+  return healed;
 }
 
 function projectionChangedForRepair(

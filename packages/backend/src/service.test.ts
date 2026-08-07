@@ -18,6 +18,18 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
     open: sessionManagerOpen,
     listAll: sessionManagerListAll,
   },
+  AuthStorage: {
+    create: () => ({
+      get: () => null,
+      set: () => undefined,
+      delete: () => undefined,
+    }),
+  },
+  ModelRegistry: {
+    create: () => ({
+      getAvailable: () => [],
+    }),
+  },
 }));
 
 function fixtureAgentDir() {
@@ -862,5 +874,63 @@ describe("backend service", () => {
         sessionFile: "/Users/void/.pi/agent/sessions/project/pi-session-sdk.jsonl",
       }),
     );
+  });
+
+  it("heals cold-list updatedAt from journal last chat activity (DF-012)", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const journal = createInMemorySessionEventJournal();
+
+    await projections.save({
+      sessionId: "session-old",
+      runtimeId: "pi-sdk:session-old",
+      piSessionId: "pi-session-old",
+      projectId: "project-1",
+      cwd: process.cwd(),
+      status: "completed",
+      sessionFile: "/Users/void/.pi/agent/sessions/project/pi-session-old.jsonl",
+      // Last open stamped today — list would show same-day until open.
+      updatedAt: "2026-08-07T05:00:41.401Z",
+    });
+
+    journal.append({
+      id: "evt-last-msg",
+      seq: 9,
+      sessionId: "session-old",
+      piSessionId: "pi-session-old",
+      type: "message_update",
+      ts: "2026-08-01T12:03:34.764Z",
+      payload: {
+        kind: "message",
+        role: "assistant",
+        body: "Last real answer",
+      },
+    });
+
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      sessionProjectionStore: projections,
+      runtimeJournal: journal,
+      piSessionListAll: vi.fn(async () => []),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-projections-heal",
+        method: "list_session_projections",
+      }),
+    ).resolves.toEqual({
+      id: "req-projections-heal",
+      result: [
+        expect.objectContaining({
+          sessionId: "session-old",
+          updatedAt: "2026-08-01T12:03:34.764Z",
+        }),
+      ],
+    });
+
+    await expect(projections.get("session-old")).resolves.toMatchObject({
+      updatedAt: "2026-08-01T12:03:34.764Z",
+    });
   });
 });

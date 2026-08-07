@@ -22,6 +22,7 @@ import {
   type SessionProjectionStore,
   type PersistedSessionProjection,
 } from "../persistence/session-projection-store";
+import { resolvePersistedListUpdatedAt } from "../persistence/session-list-time";
 
 export type RuntimeGatewayDriverEvent = Omit<RuntimeGatewayEventInput, "sessionId"> & {
   sessionId?: string;
@@ -639,13 +640,30 @@ async function saveSnapshotProjection(input: {
   snapshot: RuntimeGatewaySnapshot;
   patch?: Partial<PersistedSessionProjection>;
 }) {
-  await saveMergedProjection({
+  if (!input.store) {
+    return;
+  }
+
+  const current = await getProjectionBySessionId({
     store: input.store,
-    projection: {
-      ...projectionFromRuntimeSnapshot(input.snapshot),
-      ...input.patch,
-    },
+    sessionId: input.snapshot.sessionId,
   });
+  const base = projectionFromRuntimeSnapshot(input.snapshot);
+  // Drivers stamp snapshot.updatedAt = now() on every resume/getSnapshot.
+  // List time must stay on last chat activity (DF-010/DF-012).
+  const updatedAt = resolvePersistedListUpdatedAt({
+    events: input.snapshot.events,
+    previousUpdatedAt: current?.updatedAt,
+    snapshotUpdatedAt: base.updatedAt,
+  });
+
+  await input.store.save(
+    mergeSessionProjection(current, {
+      ...base,
+      ...input.patch,
+      updatedAt,
+    }),
+  );
 }
 
 async function persistModelSelection(input: {
@@ -664,10 +682,11 @@ async function persistModelSelection(input: {
     throw new Error(`Session "${input.sessionId}" was not found.`);
   }
 
+  // Model/thinking changes are not chat activity — keep list time stable.
+  void input.updatedAt;
   await input.store.save({
     ...current,
     ...(input.selection ? { modelSelection: { ...input.selection } } : {}),
-    updatedAt: input.updatedAt,
   });
 }
 
