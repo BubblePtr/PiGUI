@@ -67,6 +67,11 @@ import {
 
 type AppFrameProps = {
   sidebar?: ReactNode;
+  /**
+   * When false, render only the window titlebar chrome + content (no app sidebar).
+   * Used by first-run preflight: needs traffic-light titlebar, not navigation.
+   */
+  showSidebar?: boolean;
   toolbarActions?: ReactNode;
   sessionProjections?: SessionProjection[];
   /** False until first successful projection list (or intentional empty after retries). */
@@ -266,6 +271,10 @@ function getActiveTab(pathname: string) {
 
   if (pathname === "/usage") {
     return "Usage";
+  }
+
+  if (pathname === "/preflight") {
+    return "Preflight";
   }
 
   return "Settings";
@@ -815,12 +824,14 @@ function HeaderChrome({
   toolbarActions,
   sidebarOpen,
   mainLeft,
+  showSidebarToggle = true,
 }: {
   chromeRef: RefObject<HTMLDivElement | null>;
   title: string;
   toolbarActions?: ReactNode;
   sidebarOpen: boolean;
   mainLeft: string;
+  showSidebarToggle?: boolean;
 }) {
   const chromeStyle = {
     "--pigui-chrome-safe-left": chromeSafeLeft,
@@ -853,13 +864,15 @@ function HeaderChrome({
           data-testid="mac-traffic-space"
           style={{ width: trafficWidth }}
         />
-        <Sidebar.Trigger
-          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          className="shrink-0"
-          style={titlebarControlStyle}
-        >
-          <SidebarToggleIcon sidebarOpen={sidebarOpen} />
-        </Sidebar.Trigger>
+        {showSidebarToggle ? (
+          <Sidebar.Trigger
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            className="shrink-0"
+            style={titlebarControlStyle}
+          >
+            <SidebarToggleIcon sidebarOpen={sidebarOpen} />
+          </Sidebar.Trigger>
+        ) : null}
         <div
           aria-hidden="true"
           className="h-full min-w-0 flex-1"
@@ -901,6 +914,7 @@ function HeaderChrome({
 
 export function AppFrame({
   children,
+  showSidebar = true,
   toolbarActions,
   sessionProjections,
   sessionsHydrated,
@@ -1209,6 +1223,38 @@ export function AppFrame({
     });
   };
 
+  const frameContent = (
+    <>
+      <HeaderChrome
+        chromeRef={headerChromeRef}
+        mainLeft={showSidebar ? headerMainLeft : "0px"}
+        showSidebarToggle={showSidebar}
+        sidebarOpen={showSidebar ? sidebarOpen : false}
+        title={activeTab}
+        toolbarActions={toolbarActions}
+      />
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-col"
+        data-testid="app-frame-content"
+      >
+        <div aria-hidden="true" className="h-10 shrink-0" />
+        <div className="min-h-0 min-w-0 flex-1">{children}</div>
+      </div>
+    </>
+  );
+
+  // Titlebar-only shell (first-run preflight): keep chrome, omit navigation sidebar.
+  if (!showSidebar) {
+    return (
+      <div
+        className="pigui-app-layout flex h-dvh min-h-0 flex-col bg-background text-foreground"
+        data-testid="app-frame-titlebar-only"
+      >
+        {frameContent}
+      </div>
+    );
+  }
+
   return (
     <AppLayout
       ref={layoutRef}
@@ -1247,20 +1293,7 @@ export function AppFrame({
       sidebarVariant="inset"
       onSidebarOpenChange={handleSidebarOpenChange}
     >
-      <HeaderChrome
-        chromeRef={headerChromeRef}
-        mainLeft={headerMainLeft}
-        sidebarOpen={sidebarOpen}
-        title={activeTab}
-        toolbarActions={toolbarActions}
-      />
-      <div
-        className="flex h-full min-h-0 min-w-0 flex-col"
-        data-testid="app-frame-content"
-      >
-        <div aria-hidden="true" className="h-10 shrink-0" />
-        <div className="min-h-0 min-w-0 flex-1">{children}</div>
-      </div>
+      {frameContent}
     </AppLayout>
   );
 }

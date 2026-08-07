@@ -121,7 +121,7 @@ export function PreflightPage() {
   const checks = useMemo(() => report?.checks ?? [], [report?.checks]);
 
   return (
-    <AppFrame sessionProjections={[]}>
+    <AppFrame sessionProjections={[]} showSidebar={false}>
       <main className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-10 text-foreground">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
           <header className="space-y-2">
