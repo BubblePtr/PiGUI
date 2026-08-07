@@ -44,11 +44,14 @@ test.describe("S3: Provider Settings (DF-002)", () => {
         testApp.window.getByRole("tab", { name: "API Key" }),
       ).toBeVisible();
 
-      // API Key tab: OpenAI / Anthropic / DeepSeek / Grok (xAI) cards
+      // API Key tab: OpenAI / Anthropic / DeepSeek / Grok (xAI) cards + brand icons
       await testApp.window.getByRole("tab", { name: "API Key" }).click();
       for (const provider of ["openai", "anthropic", "deepseek", "xai"]) {
         await expect(
           testApp.window.getByTestId(`provider-api-key-${provider}`),
+        ).toBeVisible();
+        await expect(
+          testApp.window.getByTestId(`provider-icon-${provider}`),
         ).toBeVisible();
       }
 
@@ -60,6 +63,8 @@ test.describe("S3: Provider Settings (DF-002)", () => {
       await expect(
         testApp.window.getByTestId("provider-subscription-anthropic"),
       ).toBeVisible();
+      await expect(testApp.window.getByTestId("provider-icon-openai")).toBeVisible();
+      await expect(testApp.window.getByTestId("provider-icon-anthropic")).toBeVisible();
       // DeepSeek / xAI have no subscription card
       await expect(
         testApp.window.getByTestId("provider-subscription-deepseek"),
