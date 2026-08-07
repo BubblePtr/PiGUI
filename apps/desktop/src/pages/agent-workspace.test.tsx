@@ -2096,11 +2096,13 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
 
-    expect(onDraftSubmit).toHaveBeenCalledWith({
-      checkoutMode: "local",
-      projectId: "pig-docs",
-      prompt: "Summarize the docs ADR",
-    });
+    expect(onDraftSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkoutMode: "local",
+        projectId: "pig-docs",
+        prompt: "Summarize the docs ADR",
+      }),
+    );
     await waitFor(() => expect(getSessionDraft("pig-docs")).toBeNull());
     expect(screen.queryByTestId("session-draft-composer")).not.toBeInTheDocument();
     expect(screen.getAllByText("Summarize the docs ADR").length).toBeGreaterThan(0);

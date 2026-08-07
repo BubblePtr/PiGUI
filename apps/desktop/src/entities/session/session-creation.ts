@@ -1,3 +1,4 @@
+import type { RuntimeModelSelection } from "@pigui/core";
 import type { SessionDraft } from "@/entities/session/session-drafts";
 import { PiRuntimeBridgeError, type PiRuntimeBridge } from "@/entities/runtime/pi-runtime-bridge";
 import {
@@ -29,6 +30,8 @@ export type CreateSessionFromDraftInput = {
   projections: SessionProjectionStore;
   draft: SessionDraft;
   project: ProjectSessionCreationTarget;
+  /** Optional model chosen on the draft composer before the session exists (DF-011). */
+  modelSelection?: RuntimeModelSelection;
   executionMode?: "foreground" | "background";
   now?: () => string;
   idFactory?: () => string;
@@ -203,6 +206,23 @@ export async function createSessionFromDraft(
         occurredAt: now(),
       }),
     );
+
+    if (input.modelSelection && input.bridge.configureModel) {
+      const modelControls = await input.bridge.configureModel({
+        sessionId: projection.id,
+        piSessionId: piState.piSessionId,
+        ...input.modelSelection,
+      });
+
+      commit(
+        applySessionProjectionEvent(projection, {
+          type: "model-controls-changed",
+          modelControls,
+          occurredAt: now(),
+        }),
+      );
+    }
+
     failureStage = "sending prompt";
     commit(
       applySessionProjectionEvent(projection, {
