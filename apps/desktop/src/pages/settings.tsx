@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, Input, Tabs } from "@heroui/react";
 import { useMemo, useState } from "react";
 import { AppFrame } from "@/app/app-shell";
+import { ProviderIcon } from "@/entities/provider/provider-icon";
 import { invoke } from "@/shared/runtime";
 import type {
   ProviderAuthId,
@@ -75,9 +76,12 @@ function ProviderApiKeyCard({
 
   return (
     <Card data-testid={`provider-api-key-${provider.id}`}>
-      <Card.Header className="flex flex-col items-start gap-1">
-        <Card.Title className="text-base">{provider.label}</Card.Title>
-        <Card.Description>{statusSummary(provider)}</Card.Description>
+      <Card.Header className="flex flex-row items-start gap-3">
+        <ProviderIcon providerId={provider.id} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <Card.Title className="text-base">{provider.label}</Card.Title>
+          <Card.Description>{statusSummary(provider)}</Card.Description>
+        </div>
       </Card.Header>
       <Card.Content className="flex flex-col gap-3">
         <Input
@@ -157,9 +161,12 @@ function ProviderSubscriptionCard({
 
   return (
     <Card data-testid={`provider-subscription-${provider.id}`}>
-      <Card.Header className="flex flex-col items-start gap-1">
-        <Card.Title className="text-base">{provider.label}</Card.Title>
-        <Card.Description>{statusSummary(provider)}</Card.Description>
+      <Card.Header className="flex flex-row items-start gap-3">
+        <ProviderIcon providerId={provider.id} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <Card.Title className="text-base">{provider.label}</Card.Title>
+          <Card.Description>{statusSummary(provider)}</Card.Description>
+        </div>
       </Card.Header>
       <Card.Content className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
