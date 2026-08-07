@@ -17,6 +17,8 @@ type ProviderBrand = {
   background: string;
   /** Glyph color when using Mono (ignored for Color). */
   foreground: string;
+  /** Optional hairline so light badges read on white cards. */
+  ring?: string;
 };
 
 /**
@@ -26,9 +28,10 @@ type ProviderBrand = {
 const providerBrands: Record<ProviderAuthId, ProviderBrand> = {
   openai: {
     Mono: OpenAI,
-    // Official OpenAI mark is black/white (LobeHub #000), not ChatGPT green.
-    background: OpenAI.colorPrimary || "#000000",
-    foreground: "#ffffff",
+    // Official OpenAI: light surface + black mark (#000) — not inverted black badge.
+    background: "#ffffff",
+    foreground: OpenAI.colorPrimary || "#000000",
+    ring: "0 0 0 1px rgba(0,0,0,0.12)",
   },
   anthropic: {
     Mono: Anthropic,
@@ -80,6 +83,7 @@ export function ProviderIcon({
       style={{
         backgroundColor: brand.background,
         color: usesColorSvg ? undefined : brand.foreground,
+        boxShadow: brand.ring,
       }}
     >
       <Icon size={size} />
