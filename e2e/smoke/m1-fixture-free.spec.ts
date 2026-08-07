@@ -57,7 +57,7 @@ test.describe("M1: Real-data-only", () => {
   });
 
   test("opens a real registered Project with an empty Session draft", async () => {
-    const testApp = await launchPiGUI({ seedProject: true });
+    const testApp = await launchPiGUI({ seedProject: true, seedPreflightAuth: true });
 
     try {
       await openProjectDraft(testApp.window, testApp.project!);
@@ -71,7 +71,7 @@ test.describe("M1: Real-data-only", () => {
 
 test.describe("M2: Reliable lifecycle", () => {
   test("archives a persisted Session through the real UI", async () => {
-    const testApp = await launchPiGUI({ seedSession: true });
+    const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
 
     try {
       await openSession(
@@ -99,7 +99,7 @@ test.describe("M2: Reliable lifecycle", () => {
   });
 
   test("restarts the killed backend and reloads persisted projections", async () => {
-    const testApp = await launchPiGUI({ seedSession: true });
+    const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
 
     try {
       await openSession(
@@ -165,7 +165,7 @@ test.describe("M2: Reliable lifecycle", () => {
 
 test.describe("M3: Real diff action surface", () => {
   test("renders Git changes from the Session checkout", async () => {
-    const testApp = await launchPiGUI({ seedGitChanges: true });
+    const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
 
     try {
       await openSession(
@@ -226,7 +226,7 @@ test.describe("M3: Real diff action surface", () => {
   });
 
   test("docks Changes beside Chat in a wide Electron window", async () => {
-    const testApp = await launchPiGUI({ seedGitChanges: true });
+    const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
 
     try {
       await testApp.resizeWindow(1440, 900);
