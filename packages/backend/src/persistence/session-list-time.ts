@@ -9,6 +9,7 @@ export type GatewayEventLike = {
   payload?: {
     kind?: unknown;
     type?: unknown;
+    [key: string]: unknown;
   };
 };
 
