@@ -15,6 +15,13 @@ test.describe("M5.2: First-run preflight", () => {
       await expect(testApp.window.getByText("Model auth", { exact: true }).first()).toBeVisible();
       await expect(testApp.window.getByText("Git", { exact: true }).first()).toBeVisible();
 
+      // Preflight is titlebar-only — no app navigation sidebar (DF-013).
+      await expect(testApp.window.getByTestId("app-frame-titlebar-only")).toBeVisible();
+      await expect(testApp.window.getByTestId("sidebar-projects")).toHaveCount(0);
+      await expect(
+        testApp.window.getByRole("button", { name: /Collapse sidebar|Expand sidebar/i }),
+      ).toHaveCount(0);
+
       const continueButton = testApp.window.getByRole("button", { name: /Continue/i });
       await expect(continueButton).toBeEnabled({ timeout: 30_000 });
       await continueButton.click();
@@ -23,6 +30,8 @@ test.describe("M5.2: First-run preflight", () => {
         timeout: 30_000,
       });
       await expect(testApp.window.getByText("Before your first session")).toHaveCount(0);
+      // After Continue, main shell has sidebar again.
+      await expect(testApp.window.getByTestId("sidebar-projects")).toBeVisible();
     } finally {
       await testApp.close();
     }
