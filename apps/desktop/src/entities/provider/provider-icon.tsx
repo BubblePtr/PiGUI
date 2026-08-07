@@ -1,19 +1,53 @@
 import type { ComponentType, CSSProperties } from "react";
-import { Anthropic, DeepSeek, OpenAI, XAI } from "@lobehub/icons";
+import { Anthropic, DeepSeek, Grok, OpenAI } from "@lobehub/icons";
 import type { ProviderAuthId } from "@pigui/core";
 
-type MonoIcon = ComponentType<{
+type GlyphIcon = ComponentType<{
   size?: number | string;
   className?: string;
   style?: CSSProperties;
 }>;
 
-const providerIcons: Record<ProviderAuthId, MonoIcon> = {
-  openai: OpenAI,
-  anthropic: Anthropic,
-  deepseek: DeepSeek,
-  // Grok is xAI — brand mark from lobe-icons XAI set.
-  xai: XAI,
+type ProviderBrand = {
+  /** Mono mark (currentColor). */
+  Mono: GlyphIcon;
+  /** Optional multi-color SVG when LobeHub ships one. */
+  Color?: GlyphIcon;
+  /** Badge background (brand surface). */
+  background: string;
+  /** Glyph color when using Mono (ignored for Color). */
+  foreground: string;
+};
+
+/**
+ * Brand treatment from @lobehub/icons constants / Color variants.
+ * Mono alone is flat black — wrap in brand surface + tint (or Color path).
+ */
+const providerBrands: Record<ProviderAuthId, ProviderBrand> = {
+  openai: {
+    Mono: OpenAI,
+    // ChatGPT green badge + white mark (not flat black mono).
+    background: OpenAI.colorGpt3 ?? "#19C37D",
+    foreground: "#ffffff",
+  },
+  anthropic: {
+    Mono: Anthropic,
+    // LobeHub Anthropic avatar pair: cream surface + near-black mark.
+    background: Anthropic.colorPrimary || "#F1F0E8",
+    foreground: "#141413",
+  },
+  deepseek: {
+    Mono: DeepSeek,
+    Color: DeepSeek.Color,
+    background: "color-mix(in srgb, #4D6BFE 14%, transparent)",
+    foreground: DeepSeek.colorPrimary || "#4D6BFE",
+  },
+  xai: {
+    // Grok mark for xAI/Grok provider.
+    Mono: Grok,
+    background: Grok.colorPrimary === "#000" || !Grok.colorPrimary ? "#111111" : Grok.colorPrimary,
+    foreground: "#ffffff",
+  },
 };
 
 export function ProviderIcon({
@@ -25,20 +59,28 @@ export function ProviderIcon({
   size?: number;
   className?: string;
 }) {
-  const Icon = providerIcons[providerId];
+  const brand = providerBrands[providerId];
 
-  if (!Icon) {
+  if (!brand) {
     return null;
   }
+
+  const Icon = brand.Color ?? brand.Mono;
+  const usesColorSvg = Boolean(brand.Color);
 
   return (
     <span
       aria-hidden
       data-testid={`provider-icon-${providerId}`}
+      data-provider-brand={providerId}
       className={
         className ??
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-secondary text-foreground"
+        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg"
       }
+      style={{
+        backgroundColor: brand.background,
+        color: usesColorSvg ? undefined : brand.foreground,
+      }}
     >
       <Icon size={size} />
     </span>
