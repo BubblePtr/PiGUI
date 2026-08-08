@@ -409,6 +409,7 @@ function PromptInputDemo({
   initialValue?: string;
   status?: "ready" | "submitted" | "streaming" | "error";
   lockInputOnRun?: boolean;
+  error?: string;
 }) {
   const [value, setValue] = useState(initialValue);
 
@@ -416,24 +417,13 @@ function PromptInputDemo({
     <Variant caption={caption}>
       <div className="w-96">
         <ChatPromptInput
+          placeholder="Ask anything"
           value={value}
           onStop={() => {}}
           onSubmit={() => setValue("")}
           onValueChange={setValue}
           {...promptProps}
-        >
-          <ChatPromptInput.Shell>
-            <ChatPromptInput.Content>
-              <ChatPromptInput.TextArea placeholder="Ask anything" />
-            </ChatPromptInput.Content>
-            <ChatPromptInput.Toolbar>
-              <ChatPromptInput.ToolbarStart />
-              <ChatPromptInput.ToolbarEnd>
-                <ChatPromptInput.Send />
-              </ChatPromptInput.ToolbarEnd>
-            </ChatPromptInput.Toolbar>
-          </ChatPromptInput.Shell>
-        </ChatPromptInput>
+        />
       </div>
     </Variant>
   );
@@ -449,7 +439,11 @@ function ChatPromptInputGallery() {
           initialValue="Summarize the last run"
         />
         <PromptInputDemo caption="status=streaming" status="streaming" lockInputOnRun />
-        <PromptInputDemo caption="status=error" status="error" />
+        <PromptInputDemo
+          caption="status=error"
+          error="Runtime rejected the prompt"
+          status="error"
+        />
       </VariantRow>
     </GallerySection>
   );

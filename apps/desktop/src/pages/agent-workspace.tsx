@@ -893,51 +893,35 @@ function FullChatComposer({
       <PromptInput
         allowSubmitWhileRunning={queueMode}
         className="mx-auto w-full max-w-[44rem]"
+        error={composerError}
+        footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
         lockInputOnRun={!queueMode}
+        placeholder="What do you want to know?"
+        startActions={
+          projection?.modelControls && onModelConfigChange ? (
+            <ModelThinkingControl
+              controls={projection.modelControls}
+              isLocked={queueMode}
+              onChange={onModelConfigChange}
+            />
+          ) : undefined
+        }
+        endActions={
+          queueMode ? (
+            <Button
+              label="Steer"
+              size="sm"
+              variant="secondary"
+              onClick={() => void submitSteer()}
+            />
+          ) : undefined
+        }
         status={promptStatus}
         value={draft}
-        variant="primary"
         onStop={onStopRun ? () => void onStopRun() : undefined}
         onSubmit={submitDraft}
         onValueChange={updateDraft}
-      >
-        <PromptInput.Shell>
-          <PromptInput.Content>
-            <PromptInput.TextArea placeholder="What do you want to know?" />
-          </PromptInput.Content>
-          <PromptInput.Toolbar>
-            <PromptInput.ToolbarStart>
-              {projection?.modelControls && onModelConfigChange ? (
-                <ModelThinkingControl
-                  controls={projection.modelControls}
-                  isLocked={queueMode}
-                  onChange={onModelConfigChange}
-                />
-              ) : null}
-            </PromptInput.ToolbarStart>
-            <PromptInput.ToolbarEnd>
-              {queueMode ? (
-                <Button
-                  label="Steer"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void submitSteer()}
-                />
-              ) : null}
-              <PromptInput.Send aria-label={isStopAction ? "Stop" : "Send"} />
-            </PromptInput.ToolbarEnd>
-          </PromptInput.Toolbar>
-        </PromptInput.Shell>
-        {composerError || !queueMode ? (
-          <PromptInput.Footer>
-            {composerError ? (
-              <span role="status">{composerError}</span>
-            ) : (
-              "AI can make mistakes. Check important info."
-            )}
-          </PromptInput.Footer>
-        ) : null}
-      </PromptInput>
+      />
     </div>
   );
 }
@@ -1937,40 +1921,29 @@ function SessionDraftComposer({
         <div className="flex w-full flex-col gap-3">
           <PromptInput
             className="w-full"
+            placeholder="Do anything with Pi"
+            startActions={
+              draftModelControls?.selected ? (
+                <ModelThinkingControl
+                  controls={draftModelControls}
+                  isLocked={false}
+                  onChange={(selection) => {
+                    setDraftModelControls((current) =>
+                      current
+                        ? {
+                            ...current,
+                            selected: selection,
+                          }
+                        : current,
+                    );
+                  }}
+                />
+              ) : undefined
+            }
             value={draft.prompt}
-            variant="primary"
             onSubmit={submitDraft}
             onValueChange={onDraftChange}
-          >
-            <PromptInput.Shell className="border border-border bg-surface shadow-surface">
-              <PromptInput.Content>
-                <PromptInput.TextArea placeholder="Do anything with Pi" />
-              </PromptInput.Content>
-              <PromptInput.Toolbar>
-                <PromptInput.ToolbarStart>
-                  {draftModelControls?.selected ? (
-                    <ModelThinkingControl
-                      controls={draftModelControls}
-                      isLocked={false}
-                      onChange={(selection) => {
-                        setDraftModelControls((current) =>
-                          current
-                            ? {
-                                ...current,
-                                selected: selection,
-                              }
-                            : current,
-                        );
-                      }}
-                    />
-                  ) : null}
-                </PromptInput.ToolbarStart>
-                <PromptInput.ToolbarEnd>
-                  <PromptInput.Send aria-label="Submit initial prompt" />
-                </PromptInput.ToolbarEnd>
-              </PromptInput.Toolbar>
-            </PromptInput.Shell>
-          </PromptInput>
+          />
           <div
             className="flex w-full flex-wrap justify-start gap-2"
             data-testid="session-draft-project-picker"

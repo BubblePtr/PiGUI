@@ -370,9 +370,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(promptInput).toBeInTheDocument();
     expect(composer).toBeInTheDocument();
     expect(composer).toHaveClass("mt-auto", "pb-3");
-    expect(liveColumn.querySelector('[data-slot="prompt-input-shell"]')).toBeInTheDocument();
+    expect(liveColumn.querySelector(".astryx-chat-composer")).toBeInTheDocument();
     expect(liveColumn.querySelector('[data-slot="prompt-input-textarea"]')).toBeInTheDocument();
-    expect(liveColumn.querySelector('[data-slot="prompt-input-send"]')).toBeInTheDocument();
     expect(promptInput).toHaveAttribute("data-status", "streaming");
     expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).not.toBeDisabled();
     expect(within(liveColumn).getByRole("button", { name: "Steer" })).toBeInTheDocument();
@@ -974,7 +973,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     fireEvent.change(await screen.findByPlaceholderText("Do anything with Pi"), {
       target: { value: "Create a draft-backed active Session" },
     });
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     expect(
       await within(screen.getByTestId("live-session-column")).findByRole("button", {
         name: "Stop",
@@ -1881,9 +1880,8 @@ describe("AgentWorkspaceSessionsPage", () => {
       "Do anything with Pi",
     );
     const promptInput = draftPrompt.closest('[data-slot="prompt-input"]');
-    const promptInputShell = promptInput?.querySelector(
-      '[data-slot="prompt-input-shell"]',
-    );
+    // The composer surface is the Astryx ChatComposer shell now.
+    const promptInputShell = promptInput?.querySelector(".astryx-chat-composer");
     const projectPicker = within(draftComposer).getByTestId(
       "session-draft-project-picker",
     );
@@ -1909,12 +1907,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     if (!promptInput || !promptInputShell || !suggestionRoot) {
       throw new Error("Session Draft composer layout is incomplete.");
     }
-    expect(promptInputShell).toHaveClass(
-      "border",
-      "border-border",
-      "bg-surface",
-      "shadow-surface",
-    );
+    expect(promptInputShell).toBeInTheDocument();
     expect(
       Boolean(
         promptInput.compareDocumentPosition(suggestionRoot) &
@@ -2101,7 +2094,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(onDraftSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2223,7 +2216,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => {
       expect(capturedProject).toMatchObject({
@@ -2276,7 +2269,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       "Select Project",
     );
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(onDraftSubmit).not.toHaveBeenCalled();
     expect(screen.getByText("Select a Project before submitting.")).toBeInTheDocument();
@@ -2316,7 +2309,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     expect(
       await within(screen.getByTestId("live-session-column")).findByRole("button", {
         name: "Stop",
@@ -2443,7 +2436,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expectAdaptiveInlineSelectPopover(getOpenSelectorListbox());
     await user.click(worktreeCheckoutOption);
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     const createdProjection = await waitFor(() => {
       const latest = projections[projections.length - 1];
@@ -2548,7 +2541,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(checkoutStrategyTrigger).getByTestId("checkout-strategy-local-icon"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     const createdProjection = await waitFor(() => {
       const latest = projections[projections.length - 1];
@@ -2893,7 +2886,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Session creation failed")).toBeInTheDocument();
     expect(screen.getByText("sending prompt")).toBeInTheDocument();

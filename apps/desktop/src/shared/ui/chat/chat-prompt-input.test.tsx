@@ -11,7 +11,7 @@ function renderPromptInput({
   onSubmit = () => {},
   onStop,
   onValueChange = () => {},
-  sendLabel = "Send",
+  error,
 }: {
   value?: string;
   status?: "ready" | "submitted" | "streaming" | "error";
@@ -20,55 +20,52 @@ function renderPromptInput({
   onSubmit?: () => void;
   onStop?: () => void;
   onValueChange?: (value: string) => void;
-  sendLabel?: string;
+  error?: string;
 } = {}) {
   return render(
     <ChatPromptInput
       allowSubmitWhileRunning={allowSubmitWhileRunning}
+      error={error}
+      footer="footer text"
       lockInputOnRun={lockInputOnRun}
+      placeholder="Type here"
+      startActions={<span>start</span>}
       status={status}
       value={value}
-      variant="primary"
       onStop={onStop}
       onSubmit={onSubmit}
       onValueChange={onValueChange}
-    >
-      <ChatPromptInput.Shell>
-        <ChatPromptInput.Content>
-          <ChatPromptInput.TextArea placeholder="Type here" />
-        </ChatPromptInput.Content>
-        <ChatPromptInput.Toolbar>
-          <ChatPromptInput.ToolbarStart>start</ChatPromptInput.ToolbarStart>
-          <ChatPromptInput.ToolbarEnd>
-            <ChatPromptInput.Send aria-label={sendLabel} />
-          </ChatPromptInput.ToolbarEnd>
-        </ChatPromptInput.Toolbar>
-      </ChatPromptInput.Shell>
-      <ChatPromptInput.Footer>footer text</ChatPromptInput.Footer>
-    </ChatPromptInput>,
+    />,
   );
 }
 
 describe("ChatPromptInput", () => {
-  it("renders the compound slots and mirrors the status on the root", () => {
+  it("renders the Astryx composer shell with a native textarea and footer", () => {
     const { container } = renderPromptInput({ status: "streaming" });
 
     const root = container.querySelector('[data-slot="prompt-input"]');
+    const textarea = screen.getByPlaceholderText("Type here");
 
     expect(root).toBeInTheDocument();
     expect(root).toHaveAttribute("data-status", "streaming");
-    expect(container.querySelector('[data-slot="prompt-input-shell"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="prompt-input-textarea"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="prompt-input-send"]')).toBeInTheDocument();
+    expect(root?.querySelector(".astryx-chat-composer")).toBeInTheDocument();
+    expect(textarea.tagName).toBe("TEXTAREA");
+    expect(textarea).toHaveAttribute("data-slot", "prompt-input-textarea");
     expect(screen.getByText("footer text")).toBeInTheDocument();
+    expect(screen.getByText("start")).toBeInTheDocument();
+  });
+
+  it("surfaces errors through the Astryx composer status", () => {
+    renderPromptInput({ error: "Runtime rejected the prompt" });
+
+    expect(screen.getByText("Runtime rejected the prompt")).toBeInTheDocument();
   });
 
   it("submits on Enter and inserts a newline on Shift+Enter", async () => {
     const onSubmit = vi.fn();
-    const onValueChange = vi.fn();
     const user = userEvent.setup();
 
-    renderPromptInput({ value: "hello", onSubmit, onValueChange });
+    renderPromptInput({ value: "hello", onSubmit });
 
     const textarea = screen.getByPlaceholderText("Type here");
 
@@ -128,7 +125,6 @@ describe("ChatPromptInput", () => {
       status: "streaming",
       allowSubmitWhileRunning: true,
       lockInputOnRun: false,
-      sendLabel: "Stop",
       onStop,
       onSubmit,
     });
@@ -157,6 +153,12 @@ describe("ChatPromptInput", () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it("uses the Astryx send/stop accessible names", () => {
+    renderPromptInput({ value: "go" });
+
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
   });
 
   it("forwards text edits through onValueChange", async () => {
