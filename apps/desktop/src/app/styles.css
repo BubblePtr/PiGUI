@@ -143,6 +143,27 @@ body {
   justify-content: center;
 }
 
+/* Project row actions (New Session / MoreMenu) are interactive, so they
+   cannot live inside the SideNavItem <button> (astryx-migration issue 01).
+   They render as an overlay sibling aligned to the first row; the in-row
+   spacer reserves their width so the label truncates before the overlay. */
+.pigui-sidenav-row-with-actions {
+  position: relative;
+}
+
+.pigui-sidenav-row-actions {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: var(--spacing-1);
+  height: var(--pigui-sidebar-row-height);
+  z-index: 1;
+}
+
+.pigui-sidenav-actions-spacer {
+  display: inline-block;
+  width: calc(2 * var(--size-element-sm) + var(--spacing-0-5));
+}
+
 /* Project rows carry their own folder/chevron indicator — hide the built-in
    trailing chevron Astryx renders on collapsible items. */
 .pigui-app-layout .astryx-side-nav-item[aria-expanded] > span:last-of-type {

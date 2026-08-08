@@ -1,6 +1,6 @@
 # Issue 1: SideNavItem 行内动作按钮造成 button 嵌套（hydration 警告）
 
-Status: ready-for-agent
+Status: done(兄弟覆盖层方案,2026-08-08)
 Source PRD: .scratch/astryx-migration/PRD.md
 
 ## 现象

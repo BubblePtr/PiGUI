@@ -554,35 +554,23 @@ function ProjectNavigation({
         void followUpDraftVersion;
 
         return (
-          <SideNavItem
+          <div
             key={project.id}
-            collapsible={{
-              isCollapsed: !expanded,
-              onCollapsedChange: () => onToggleProject(project.id),
-            }}
-            icon={<ProjectExpansionIndicator expanded={expanded} />}
-            label={project.displayName}
-            endContent={
-              <HStack gap={0.5} vAlign="center" onClick={stopRowActivation}>
-                {!expanded && hasProjectUnsentFollowUp ? (
-                  <UnsentFollowUpIndicator />
-                ) : null}
-                <IconButton
-                  icon={<Plus aria-hidden="true" />}
-                  label={`New Session for ${project.displayName}`}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onNewProjectSession(project.id)}
-                />
-                <ProjectActionsMenu
-                  project={project}
-                  onRenameProject={onRenameProject}
-                  onRevealProject={onRevealProject}
-                  onRemoveProject={onRemoveProject}
-                />
-              </HStack>
-            }
+            className="pigui-sidenav-row-with-actions"
+            data-testid="project-row-with-actions"
           >
+            <SideNavItem
+              collapsible={{
+                isCollapsed: !expanded,
+                onCollapsedChange: () => onToggleProject(project.id),
+              }}
+              icon={<ProjectExpansionIndicator expanded={expanded} />}
+              label={project.displayName}
+              // A <button> row cannot contain the interactive actions
+              // (astryx-migration issue 01); this only reserves their width
+              // so the label truncates before the overlay.
+              endContent={<span aria-hidden="true" className="pigui-sidenav-actions-spacer" />}
+            >
             {projectSessions.length === 0 ? (
               <SideNavItem
                 icon={<SessionGlyphSlot active={false} unread={false} />}
@@ -613,7 +601,24 @@ function ProjectNavigation({
                 />
               );
             })}
-          </SideNavItem>
+            </SideNavItem>
+            <HStack className="pigui-sidenav-row-actions" gap={0.5} vAlign="center">
+              {!expanded && hasProjectUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+              <IconButton
+                icon={<Plus aria-hidden="true" />}
+                label={`New Session for ${project.displayName}`}
+                size="sm"
+                variant="ghost"
+                onClick={() => onNewProjectSession(project.id)}
+              />
+              <ProjectActionsMenu
+                project={project}
+                onRenameProject={onRenameProject}
+                onRevealProject={onRevealProject}
+                onRemoveProject={onRemoveProject}
+              />
+            </HStack>
+          </div>
         );
       })}
       <AddProjectButton onAddProject={onAddProject} />
