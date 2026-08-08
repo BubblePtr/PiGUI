@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppFrame } from "@/app/app-shell";
+import { DesignComponentsLayer } from "@/pages/design-components";
 
 /**
  * Dev-only design gallery (/design). Layer 1: tokens.
@@ -101,7 +102,7 @@ function TokenLabel({ token }: { token: string }) {
   );
 }
 
-function GallerySection({
+export function GallerySection({
   title,
   children,
 }: {
@@ -230,6 +231,7 @@ export function DesignPage() {
           <SpacingScaleSection />
           <RadiusScaleSection />
           <TypeScaleSection />
+          <DesignComponentsLayer />
         </div>
       </div>
     </AppFrame>

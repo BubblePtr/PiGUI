@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -60,7 +60,11 @@ describe("PiSheet", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // Base UI tears the panel down after its exit transition; teardown may
+    // land before or after this line depending on test load, so poll.
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 
   it("closes on Escape", async () => {
