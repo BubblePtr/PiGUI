@@ -20,6 +20,10 @@ import { UsagePage } from "@/pages/usage";
 import type { EnvironmentPreflightStatus } from "@pigui/core";
 import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
 import { invoke, isElectronRuntime } from "@/shared/runtime";
+import { Theme } from "@astryxdesign/core";
+import { neutralTheme } from "@astryxdesign/theme-neutral/built";
+// Astryx CSS is @imported inside styles.css (after tailwindcss) so its
+// cascade layers outrank Tailwind preflight.
 import "./styles.css";
 
 const queryClient = new QueryClient();
@@ -165,10 +169,12 @@ declare module "@tanstack/react-router" {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <SessionProjectionsProvider>
-        <RouterProvider router={router} />
-      </SessionProjectionsProvider>
-    </QueryClientProvider>
+    <Theme theme={neutralTheme}>
+      <QueryClientProvider client={queryClient}>
+        <SessionProjectionsProvider>
+          <RouterProvider router={router} />
+        </SessionProjectionsProvider>
+      </QueryClientProvider>
+    </Theme>
   </React.StrictMode>,
 );

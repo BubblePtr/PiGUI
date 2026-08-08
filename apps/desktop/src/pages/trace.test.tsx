@@ -138,7 +138,7 @@ describe("TraceWorkspace", () => {
       "min-h-0",
       "overflow-hidden",
     );
-    expect(container.querySelector(".app-layout__main")).toBeInTheDocument();
+    expect(container.querySelector('[role="main"]')).toBeInTheDocument();
   });
 
   it("frames trace replay as a first-level Trace surface", async () => {

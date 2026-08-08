@@ -57,7 +57,7 @@ describe("UsageSecondLayer", () => {
     expect(screen.getByText("run_command")).toBeInTheDocument();
     expect(screen.queryByText("long_tail_tool")).not.toBeInTheDocument();
     expect(screen.getByText("review")).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(2);
+    expect(container.querySelectorAll(".astryx-card")).toHaveLength(2);
     expect(screen.getAllByTestId("rank-card-content")).toHaveLength(2);
     expect(
       screen.getAllByTestId("rank-card-content").every((content) => content.classList.contains("p-5")),
@@ -270,8 +270,8 @@ describe("UsageSummaryPanel", () => {
 
     const summary = screen.getByTestId("usage-summary");
 
-    expect(summary).not.toHaveAttribute("data-slot", "card");
-    expect(summary.closest('[data-slot="card"]')).toBeNull();
+    expect(summary.classList.contains("astryx-card")).toBe(false);
+    expect(summary.closest(".astryx-card")).toBeNull();
     expect(container.querySelector('[data-slot="kpi-footer"]')).not.toBeInTheDocument();
     expect(container.querySelectorAll('[data-slot="kpi"]')).toHaveLength(4);
     expect(screen.getByText("Sessions")).toBeInTheDocument();
@@ -280,13 +280,12 @@ describe("UsageSummaryPanel", () => {
     expect(screen.queryByText("API list price")).not.toBeInTheDocument();
   });
 
-  it("wraps the icon-only refresh action with a HeroUI tooltip trigger", () => {
+  it("wraps the icon-only refresh action with a tooltip trigger", () => {
     render(<UsageSummaryPanel sessions={[session()]} isFetching={false} onRefresh={() => {}} />);
 
     const refreshButton = screen.getByRole("button", { name: "Refresh usage" });
     const tooltipTrigger = screen.getByTestId("usage-refresh-tooltip-trigger");
 
-    expect(tooltipTrigger).toHaveAttribute("data-slot", "tooltip-trigger");
     expect(tooltipTrigger).toContainElement(refreshButton);
   });
 });

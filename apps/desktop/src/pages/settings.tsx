@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Input, Tabs } from "@heroui/react";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMemo, useState } from "react";
 import { AppFrame } from "@/app/app-shell";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
@@ -76,35 +79,37 @@ function ProviderApiKeyCard({
 
   return (
     <Card data-testid={`provider-api-key-${provider.id}`}>
-      <Card.Header className="flex flex-row items-start gap-3">
+      <div className="flex flex-row items-start gap-3">
         <ProviderIcon providerId={provider.id} />
         <div className="flex min-w-0 flex-col gap-1">
-          <Card.Title className="text-base">{provider.label}</Card.Title>
-          <Card.Description>{statusSummary(provider)}</Card.Description>
+          <h3 className="text-base font-semibold text-foreground">{provider.label}</h3>
+          <p className="text-sm text-muted">{statusSummary(provider)}</p>
         </div>
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-3">
-        <Input
-          aria-label={`${provider.label} API key`}
-          autoComplete="off"
+      </div>
+      <div className="mt-4 flex flex-col gap-3">
+        <TextInput
+          label={`${provider.label} API key`}
+          isLabelHidden
           placeholder="Paste API key"
           type="password"
           value={apiKey}
-          onChange={(event) => setApiKey(event.target.value)}
+          onChange={(value) => setApiKey(value)}
         />
         <div className="flex flex-wrap gap-2">
           <Button
             variant="primary"
+            label={
+              provider.configured && provider.mode === "api_key" ? "Replace key" : "Save key"
+            }
             isDisabled={!apiKey.trim() || saveMutation.isPending}
-            onPress={() => saveMutation.mutate()}
-          >
-            {provider.configured && provider.mode === "api_key" ? "Replace key" : "Save key"}
-          </Button>
+            onClick={() => saveMutation.mutate()}
+          />
           {provider.configured ? (
             <Button
-              variant="danger"
+              variant="destructive"
+              label="Remove"
               isDisabled={removeMutation.isPending}
-              onPress={() => {
+              onClick={() => {
                 if (
                   window.confirm(
                     `Remove credentials for ${provider.label}? This cannot be undone from the UI.`,
@@ -113,13 +118,11 @@ function ProviderApiKeyCard({
                   removeMutation.mutate();
                 }
               }}
-            >
-              Remove
-            </Button>
+            />
           ) : null}
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-      </Card.Content>
+      </div>
     </Card>
   );
 }
@@ -161,41 +164,39 @@ function ProviderSubscriptionCard({
 
   return (
     <Card data-testid={`provider-subscription-${provider.id}`}>
-      <Card.Header className="flex flex-row items-start gap-3">
+      <div className="flex flex-row items-start gap-3">
         <ProviderIcon providerId={provider.id} />
         <div className="flex min-w-0 flex-col gap-1">
-          <Card.Title className="text-base">{provider.label}</Card.Title>
-          <Card.Description>{statusSummary(provider)}</Card.Description>
+          <h3 className="text-base font-semibold text-foreground">{provider.label}</h3>
+          <p className="text-sm text-muted">{statusSummary(provider)}</p>
         </div>
-      </Card.Header>
-      <Card.Content className="flex flex-col gap-3">
+      </div>
+      <div className="mt-4 flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
           {provider.mode === "oauth" ? (
             <Button
-              variant="danger"
+              variant="destructive"
+              label="Logout"
               isDisabled={logoutMutation.isPending}
-              onPress={() => {
+              onClick={() => {
                 if (window.confirm(`Log out of ${provider.label} subscription?`)) {
                   logoutMutation.mutate();
                 }
               }}
-            >
-              Logout
-            </Button>
+            />
           ) : (
             <Button
               variant="primary"
+              label={
+                loginMutation.isPending ? "Waiting for browser…" : "Login with subscription"
+              }
               isDisabled={loginMutation.isPending}
-              onPress={() => loginMutation.mutate()}
-            >
-              {loginMutation.isPending
-                ? "Waiting for browser…"
-                : "Login with subscription"}
-            </Button>
+              onClick={() => loginMutation.mutate()}
+            />
           )}
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-      </Card.Content>
+      </div>
     </Card>
   );
 }
@@ -244,59 +245,55 @@ export function SettingsPage() {
             ) : null}
           </header>
 
-          <Tabs
-            selectedKey={tab}
-            onSelectionChange={(key) => {
-              if (key === "subscription" || key === "api_key") {
-                setTab(key);
-              }
-            }}
-          >
-            <Tabs.ListContainer>
-              <Tabs.List aria-label="Provider auth mode">
-                <Tabs.Tab id="subscription">
-                  Subscription
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab id="api_key">
-                  API Key
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
-            <Tabs.Panel id="subscription" className="mt-4 flex flex-col gap-3">
-              <p className="text-xs text-muted">
-                OpenAI and Anthropic subscription login via Pi OAuth (browser).
-              </p>
-              {statusQuery.isLoading ? (
-                <p className="text-sm text-muted">Loading…</p>
-              ) : (
-                subscriptionProviders.map((provider) => (
-                  <ProviderSubscriptionCard
-                    key={provider.id}
-                    provider={provider}
-                    onSaved={refresh}
-                  />
-                ))
-              )}
-            </Tabs.Panel>
-            <Tabs.Panel id="api_key" className="mt-4 flex flex-col gap-3">
-              <p className="text-xs text-muted">
-                Paste API keys for OpenAI, Anthropic, DeepSeek, or Grok (xAI).
-              </p>
-              {statusQuery.isLoading ? (
-                <p className="text-sm text-muted">Loading…</p>
-              ) : (
-                apiKeyProviders.map((provider) => (
-                  <ProviderApiKeyCard
-                    key={provider.id}
-                    provider={provider}
-                    onSaved={refresh}
-                  />
-                ))
-              )}
-            </Tabs.Panel>
-          </Tabs>
+          <div className="flex flex-col">
+            <TabList
+              hasDivider
+              value={tab}
+              onChange={(value) => {
+                if (value === "subscription" || value === "api_key") {
+                  setTab(value);
+                }
+              }}
+            >
+              <Tab value="subscription" label="Subscription" />
+              <Tab value="api_key" label="API Key" />
+            </TabList>
+            {tab === "subscription" ? (
+              <div className="mt-4 flex flex-col gap-3">
+                <p className="text-xs text-muted">
+                  OpenAI and Anthropic subscription login via Pi OAuth (browser).
+                </p>
+                {statusQuery.isLoading ? (
+                  <p className="text-sm text-muted">Loading…</p>
+                ) : (
+                  subscriptionProviders.map((provider) => (
+                    <ProviderSubscriptionCard
+                      key={provider.id}
+                      provider={provider}
+                      onSaved={refresh}
+                    />
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col gap-3">
+                <p className="text-xs text-muted">
+                  Paste API keys for OpenAI, Anthropic, DeepSeek, or Grok (xAI).
+                </p>
+                {statusQuery.isLoading ? (
+                  <p className="text-sm text-muted">Loading…</p>
+                ) : (
+                  apiKeyProviders.map((provider) => (
+                    <ProviderApiKeyCard
+                      key={provider.id}
+                      provider={provider}
+                      onSaved={refresh}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </div>
 
           {statusQuery.isError ? (
             <p className="text-sm text-danger">

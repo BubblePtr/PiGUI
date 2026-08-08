@@ -1,7 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, EmptyState as HeroEmptyState } from "@heroui/react";
-import { ListView } from "@heroui-pro/react/list-view";
-import { Segment } from "@heroui-pro/react/segment";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { EmptyState as AstryxEmptyState } from "@astryxdesign/core/EmptyState";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { List, ListItem } from "@astryxdesign/core/List";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppFrame } from "@/app/app-shell";
@@ -67,54 +73,44 @@ export function SetupInventoryControls({
 
   return (
     <Card>
-      <Card.Content>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Inventory sections</h2>
-            <p className="mt-1 text-xs text-muted">Read-only Pi inventory</p>
-          </div>
-          <Button
-            isIconOnly
-            aria-label="Refresh setup"
-            isDisabled={isFetching}
-            size="sm"
-            variant="outline"
-            onPress={onRefresh}
-          >
-            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Inventory sections</h2>
+          <p className="mt-1 text-xs text-muted">Read-only Pi inventory</p>
         </div>
+        <IconButton
+          label="Refresh setup"
+          icon={<RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />}
+          isDisabled={isFetching}
+          size="sm"
+          variant="secondary"
+          onClick={onRefresh}
+        />
+      </div>
 
-      <Segment
-        aria-label="Configuration sections"
-        className="flex w-full max-w-full overflow-x-auto"
-        selectedKey={selected}
-        size="sm"
-        onSelectionChange={(key) => onSelect(key as SetupCategory)}
-      >
-        {categories.map((category) => {
-          const meta = categoryMeta[category];
-          const Icon = meta.icon;
+      <div className="w-full max-w-full overflow-x-auto">
+        <SegmentedControl
+          label="Configuration sections"
+          size="sm"
+          value={selected}
+          onChange={(value) => onSelect(value as SetupCategory)}
+        >
+          {categories.map((category) => {
+            const meta = categoryMeta[category];
+            const Icon = meta.icon;
+            const count = categoryCount(category, inventory);
 
-          return (
-            <Segment.Item
-              key={category}
-              id={category}
-              className="w-auto min-w-32 flex-1 justify-between"
-            >
-              <Segment.Separator />
-              <span className="flex min-w-0 items-center gap-2">
-                <Icon className="size-4 shrink-0" />
-                <span className="truncate">{meta.label}</span>
-              </span>
-              <span className="shrink-0 text-xs text-muted">
-                {categoryCount(category, inventory)}
-              </span>
-            </Segment.Item>
-          );
-        })}
-      </Segment>
-      </Card.Content>
+            return (
+              <SegmentedControlItem
+                key={category}
+                value={category}
+                label={count ? `${meta.label} · ${count}` : meta.label}
+                icon={<Icon className="size-4 shrink-0" />}
+              />
+            );
+          })}
+        </SegmentedControl>
+      </div>
     </Card>
   );
 }
@@ -129,11 +125,7 @@ function KeyValue({ label, value }: { label: string; value: string }) {
 }
 
 function EmptyState({ children }: { children: string }) {
-  return (
-    <HeroEmptyState className="bg-surface-muted px-4 py-10 text-sm text-muted">
-      {children}
-    </HeroEmptyState>
-  );
+  return <AstryxEmptyState isCompact title={children} />;
 }
 
 function NameList({ items }: { items: string[] }) {
@@ -141,23 +133,12 @@ function NameList({ items }: { items: string[] }) {
     return <EmptyState>Not installed</EmptyState>;
   }
 
-  const listItems = items.map((item) => ({ id: item, name: item }));
-
   return (
-    <ListView
-      aria-label="Installed items"
-      items={listItems}
-      selectionMode="none"
-      variant="secondary"
-    >
-      {(item) => (
-        <ListView.Item id={item.id} textValue={item.name}>
-          <ListView.ItemContent>
-            <ListView.Title>{item.name}</ListView.Title>
-          </ListView.ItemContent>
-        </ListView.Item>
-      )}
-    </ListView>
+    <List data-testid="installed-items-list" hasDividers>
+      {items.map((item) => (
+        <ListItem key={item} label={item} />
+      ))}
+    </List>
   );
 }
 
@@ -167,25 +148,15 @@ function ExtensionList({ extensions }: { extensions: ExtensionInfo[] }) {
   }
 
   return (
-    <ListView
-      aria-label="Installed extensions"
-      items={extensions}
-      selectionMode="none"
-      variant="secondary"
-    >
-      {(extension) => (
-        <ListView.Item id={extension.name} textValue={extension.name}>
-          <ListView.ItemContent>
-            <div className="flex min-w-0 flex-col">
-              <ListView.Title>{extension.name}</ListView.Title>
-              <ListView.Description>
-                {extension.enabled ? "enabled" : "disabled"} · {extension.source}
-              </ListView.Description>
-            </div>
-          </ListView.ItemContent>
-        </ListView.Item>
-      )}
-    </ListView>
+    <List data-testid="installed-extensions-list" hasDividers>
+      {extensions.map((extension) => (
+        <ListItem
+          key={extension.name}
+          label={extension.name}
+          description={`${extension.enabled ? "enabled" : "disabled"} · ${extension.source}`}
+        />
+      ))}
+    </List>
   );
 }
 
@@ -200,16 +171,12 @@ export function ConfigInventoryView({
 
   return (
     <Card>
-      <Card.Header className="border-b border-border">
-        <div>
-          <Card.Title className="text-base font-semibold text-foreground">{title}</Card.Title>
-          <Card.Description className="mt-1 text-sm text-muted">
-            Read-only view from PI_CODING_AGENT_DIR.
-          </Card.Description>
-        </div>
-      </Card.Header>
+      <div className="border-b border-border pb-4">
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        <p className="mt-1 text-sm text-muted">Read-only view from PI_CODING_AGENT_DIR.</p>
+      </div>
 
-      <Card.Content>
+      <div className="mt-4">
         {selected === "models" ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <KeyValue label="Default model" value={valueOrMissing(inventory.defaultModel)} />
@@ -229,7 +196,7 @@ export function ConfigInventoryView({
         ) : (
           <NameList items={inventory.promptTemplates.map((template) => template.name)} />
         )}
-      </Card.Content>
+      </div>
     </Card>
   );
 }
@@ -273,14 +240,13 @@ export function SetupPage() {
             </p>
             <div className="mt-4">
               <Button
+                label="Run environment check"
                 size="sm"
-                variant="outline"
-                onPress={() => {
+                variant="secondary"
+                onClick={() => {
                   void navigate({ to: "/preflight" });
                 }}
-              >
-                Run environment check
-              </Button>
+              />
             </div>
           </header>
 

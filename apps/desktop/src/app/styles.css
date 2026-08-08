@@ -1,18 +1,60 @@
+@layer theme, base, properties, reset, astryx-base, astryx-theme, components, utilities;
 @import "tailwindcss";
-@import "@heroui/styles";
-@import "@heroui-pro/react/css";
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/theme.css";
+@import "../shared/ui/chat/chat.css";
+@import "../shared/ui/primitives.css";
 
-@source "../node_modules/@heroui-pro/react/dist/components/**/*.{js,ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
+/* —— PiGUI semantic token bridge ——
+   Composes Astryx first-level tokens into the app-level semantic vocabulary
+   (formerly supplied by the HeroUI theme). Declared on both :root and the
+   Astryx theme scope: custom properties resolve chained var() references at
+   the element they are declared on, so re-declaring under [data-astryx-theme]
+   lets the bridge pick up theme-neutral's token overrides. */
 :root,
-.light,
-.default,
-[data-theme="light"],
-[data-theme="default"] {
-  --font-varela-round: "Varela Round", sans-serif;
-  --font-inter: "Inter", sans-serif;
-  --font-sans: var(--font-varela-round);
+[data-astryx-theme] {
+  --foreground: var(--color-text-primary);
+  --background: var(--color-background-body);
+  --surface: var(--color-background-surface);
+  --surface-muted: var(--color-background-muted);
+  --surface-secondary: var(--color-background-muted);
+  --surface-hover: var(--color-overlay-hover);
+  --muted: var(--color-text-secondary);
+  --default: var(--color-neutral);
+  --separator: var(--color-border);
+  --border: var(--color-border);
+  --primary: var(--color-accent);
+  --danger: var(--color-error);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --radius: var(--radius-element);
+}
+
+/* Tailwind utility names generated from the bridge. `inline` keeps the
+   var() references in the emitted utilities so they resolve at usage site,
+   inside the Astryx theme scope. */
+@theme inline {
+  --font-sans: var(--font-family-body);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-hover: var(--surface-hover);
+  --color-muted: var(--muted);
+  --color-default: var(--default);
+  --color-separator: var(--separator);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
+:root {
   --pigui-data-blue: #1677e8;
   --pigui-data-orange: #ff6a2a;
   --pigui-data-orange-strong: #f04c0c;
@@ -32,8 +74,6 @@
   --pigui-sidebar-icon-box-size: 1.25rem;
   --pigui-sidebar-icon-size: 1rem;
   --pigui-sidebar-action-size: 1.25rem;
-  --pigui-sidebar-dropdown-min-width: 9.5rem;
-  --pigui-sidebar-dropdown-max-width: 14rem;
   --pigui-sidebar-dropdown-padding: 0.25rem;
   --pigui-sidebar-dropdown-menu-gap: var(--pigui-sidebar-row-gap);
   --pigui-sidebar-dropdown-item-height: 1.75rem;
@@ -41,7 +81,6 @@
   --pigui-sidebar-dropdown-item-padding-x: 0.5rem;
   --pigui-sidebar-dropdown-item-padding-y: 0.25rem;
   --pigui-sidebar-dropdown-icon-size: 0.875rem;
-  --pigui-sidebar-dropdown-label-line-height: 1.25rem;
 }
 
 html,
@@ -62,105 +101,52 @@ body {
   margin: 0;
 }
 
-.pigui-app-layout .sidebar__offcanvas-wrapper {
-  --sidebar-width: 260px;
-}
-
-.pigui-app-layout .sidebar__content,
-.pigui-app-layout .sidebar__footer {
-  overflow-x: hidden;
-  padding-inline: var(--pigui-sidebar-content-padding-x);
-}
-
-.pigui-app-layout .sidebar__group {
-  gap: var(--pigui-sidebar-group-gap);
-  min-width: 0;
-}
-
-.pigui-app-layout .sidebar__menu {
-  gap: var(--pigui-sidebar-row-gap);
-  --sidebar-menu-indent: var(--pigui-sidebar-indent);
-  --sidebar-menu-row-gap: var(--pigui-sidebar-row-gap);
-  min-width: 0;
-  overflow-x: hidden;
-}
-
 .pigui-app-layout :where(*) {
   font-weight: var(--font-weight-normal, 400);
 }
 
-.pigui-app-layout .sidebar__group-label,
-.pigui-app-layout .sidebar__menu-header,
-.pigui-app-layout .sidebar__menu-item[data-current="true"] .sidebar__menu-label {
+/* Weight normalization for the Astryx side nav: section titles and the
+   selected item label must stay at normal weight (everything 400). */
+.pigui-app-layout .astryx-side-nav-section span,
+.pigui-app-layout .astryx-side-nav-item,
+.pigui-app-layout .astryx-side-nav-item[data-selected="selected"] {
   font-weight: var(--font-weight-normal, 400);
 }
 
-.pigui-app-layout .sidebar__menu-item-content,
-.pigui-app-layout .sidebar__menu-action {
+/* Inactive side nav rows keep normal foreground color instead of the
+   secondary tone Astryx applies by default. */
+.pigui-app-layout .astryx-side-nav-item:not([aria-disabled="true"]):not(:disabled),
+.pigui-app-layout .astryx-side-nav-item:not([aria-disabled="true"]):not(:disabled) .astryx-icon {
+  color: var(--foreground);
+}
+
+.pigui-app-layout .astryx-side-nav-item {
   border-radius: var(--pigui-sidebar-item-radius);
-}
-
-.pigui-app-layout .sidebar__menu-item-content {
   min-height: var(--pigui-sidebar-row-height);
-  gap: var(--pigui-sidebar-row-icon-gap);
-  min-width: 0;
-  overflow-x: hidden;
-  padding-block: var(--pigui-sidebar-row-padding-y);
-  padding-inline: var(--pigui-sidebar-row-padding-x);
 }
 
-.pigui-app-layout .sidebar__menu-trigger,
-.pigui-app-layout .sidebar__menu-icon {
-  width: var(--pigui-sidebar-icon-box-size);
-  height: var(--pigui-sidebar-icon-box-size);
-}
-
-.pigui-app-layout .sidebar__menu-icon svg,
-.pigui-app-layout .sidebar__menu-action svg {
+.pigui-app-layout .astryx-side-nav-item svg,
+.pigui-app-layout .astryx-more-menu svg,
+.pigui-app-layout .pigui-session-glyph svg {
   width: var(--pigui-sidebar-icon-size);
   height: var(--pigui-sidebar-icon-size);
-}
-
-.pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger svg,
-.pigui-app-layout .sidebar__menu-icon svg,
-.pigui-app-layout .sidebar__menu-action svg {
   shape-rendering: geometricPrecision;
 }
 
-.pigui-app-layout .sidebar__menu-action {
-  width: var(--pigui-sidebar-action-size);
-  height: var(--pigui-sidebar-action-size);
-  padding: 0;
-}
-
-.pigui-app-layout .pigui-project-session-menu .sidebar__menu-item {
-  --sidebar-menu-item-offset: 0px;
-}
-
-.pigui-app-layout .pigui-sidebar-row {
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-.pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger,
-.pigui-app-layout .pigui-sidebar-row__icon {
-  flex: 0 0 var(--pigui-sidebar-icon-box-size);
-}
-
-.pigui-app-layout .pigui-sidebar-row__label,
-.pigui-app-layout .pigui-sidebar-row__label [data-slot="sidebar-menu-label-text"],
-.pigui-app-layout .pigui-sidebar-row__label-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pigui-app-layout .pigui-sidebar-row__chip,
-.pigui-app-layout .pigui-sidebar-row__actions {
+/* Fixed-size glyph slot so session rows with and without status stay aligned. */
+.pigui-session-glyph {
+  display: inline-flex;
+  width: var(--pigui-sidebar-icon-size);
+  height: var(--pigui-sidebar-icon-size);
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Project rows carry their own folder/chevron indicator — hide the built-in
+   trailing chevron Astryx renders on collapsible items. */
+.pigui-app-layout .astryx-side-nav-item[aria-expanded] > span:last-of-type {
+  display: none;
 }
 
 .pigui-project-expansion-indicator {
@@ -197,7 +183,7 @@ body {
 }
 
 .pigui-app-layout
-  .sidebar__menu-item:is(
+  .astryx-side-nav-item:is(
     :hover,
     [data-hovered="true"],
     :focus-visible,
@@ -208,7 +194,7 @@ body {
 }
 
 .pigui-app-layout
-  .sidebar__menu-item:is(
+  .astryx-side-nav-item:is(
     :hover,
     [data-hovered="true"],
     :focus-visible,
@@ -218,31 +204,13 @@ body {
   opacity: 1;
 }
 
-.pigui-app-layout [data-slot="sidebar-menu-item"]:not([data-disabled="true"]) [data-slot="sidebar-menu-label"],
-.pigui-app-layout [data-slot="sidebar-menu-item"]:not([data-disabled="true"]) [data-slot="sidebar-menu-icon"] {
-  color: var(--foreground);
-}
-
-.pigui-sidebar-action-dropdown__trigger {
-  --button-fg: var(--muted);
-  --button-bg-hover: var(--default);
-  --button-bg-pressed: var(--default);
-}
-
-.pigui-compact-menu-popover,
-.pigui-sidebar-action-dropdown__popover {
+.pigui-compact-menu-popover {
   border: 1px solid var(--separator);
   border-radius: var(--pigui-sidebar-item-radius);
   box-shadow: 0 4px 14px 0 rgba(24, 24, 27, 0.10);
 }
 
-.pigui-sidebar-action-dropdown__popover {
-  min-width: var(--pigui-sidebar-dropdown-min-width);
-  max-width: var(--pigui-sidebar-dropdown-max-width);
-}
-
-.pigui-compact-menu-surface,
-.pigui-sidebar-action-dropdown__popover [data-slot="dropdown-menu"] {
+.pigui-compact-menu-surface {
   gap: var(--pigui-sidebar-dropdown-menu-gap);
   padding: var(--pigui-sidebar-dropdown-padding);
 }
@@ -252,25 +220,14 @@ body {
   flex-direction: column;
 }
 
-.pigui-compact-menu-item,
-.pigui-sidebar-action-dropdown__popover [data-slot="menu-item"] {
+.pigui-compact-menu-item {
   min-height: var(--pigui-sidebar-dropdown-item-height);
   gap: var(--pigui-sidebar-dropdown-item-gap);
   padding: var(--pigui-sidebar-dropdown-item-padding-y) var(--pigui-sidebar-dropdown-item-padding-x);
   border-radius: var(--pigui-sidebar-item-radius);
 }
 
-.pigui-compact-menu-item-content,
-.pigui-sidebar-action-dropdown__item-content {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--pigui-sidebar-dropdown-item-gap);
-}
-
-.pigui-compact-menu-item-icon,
-.pigui-compact-menu-item-indicator,
-.pigui-sidebar-action-dropdown__item-icon {
+.pigui-compact-menu-item-icon {
   display: inline-flex;
   width: var(--pigui-sidebar-dropdown-icon-size);
   height: var(--pigui-sidebar-dropdown-icon-size);
@@ -279,18 +236,10 @@ body {
   justify-content: center;
 }
 
-.pigui-compact-menu-item-icon svg,
-.pigui-compact-menu-item-indicator svg,
-.pigui-sidebar-action-dropdown__item-icon svg {
+.pigui-compact-menu-item-icon svg {
   width: var(--pigui-sidebar-dropdown-icon-size);
   height: var(--pigui-sidebar-dropdown-icon-size);
   shape-rendering: geometricPrecision;
-}
-
-.pigui-compact-menu-label,
-.pigui-sidebar-action-dropdown__popover [data-slot="label"] {
-  font-size: var(--text-sm);
-  line-height: var(--pigui-sidebar-dropdown-label-line-height);
 }
 
 .pigui-header-chrome {
@@ -358,32 +307,45 @@ body {
   z-index: 0;
 }
 
-.pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel] {
-  transition: flex-grow 200ms ease;
+.pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
+  transition: width 200ms ease;
 }
 
-.pigui-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"] {
-  transition:
-    translate 200ms ease,
-    visibility 200ms;
-}
-
-.pigui-app-layout[data-scroll-mode="content"] .app-layout__main {
+.pigui-app-layout [role="main"] {
   overscroll-behavior: none;
-}
-
-.pigui-app-layout[data-resizable] .sidebar__offcanvas-wrapper,
-.pigui-app-layout[data-resizable] [data-slot="sidebar"] {
-  min-width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pigui-header-chrome__title,
   .pigui-header-chrome__title-track,
-  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel],
-  .pigui-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"] {
+  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
     transition: none;
   }
+}
+
+/* —— Scroll fade ——
+   Replacement for HeroUI's ScrollShadow: fade scrollable content at both
+   ends of the scroll axis with a mask gradient on the scroll container. */
+.pigui-scroll-fade {
+  --pigui-scroll-fade-size: var(--spacing-8);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--pigui-scroll-fade-size),
+    black calc(100% - var(--pigui-scroll-fade-size)),
+    transparent 100%
+  );
+}
+
+.pigui-scroll-fade-x {
+  --pigui-scroll-fade-size: var(--spacing-8);
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black var(--pigui-scroll-fade-size),
+    black calc(100% - var(--pigui-scroll-fade-size)),
+    transparent 100%
+  );
 }
 
 * {

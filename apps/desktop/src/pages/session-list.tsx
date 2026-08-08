@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react/native-select";
+import { Card } from "@astryxdesign/core/Card";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Token } from "@astryxdesign/core/Token";
 import { useMemo, useState } from "react";
 import { Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
@@ -37,10 +40,12 @@ function SessionTitle({ title }: { title: Title }) {
   if (title.kind === "command") {
     return (
       <div className="flex min-w-0 flex-col gap-1">
-        <Chip className="max-w-full" size="sm" variant="soft">
-          <Command aria-hidden="true" className="size-3.5 shrink-0" />
-          <span className="block truncate">{title.name}</span>
-        </Chip>
+        <Token
+          className="max-w-full"
+          icon={<Command aria-hidden="true" className="size-3.5 shrink-0" />}
+          label={title.name}
+          size="sm"
+        />
         {title.args ? <span className="block truncate text-xs text-muted">{title.args}</span> : null}
       </div>
     );
@@ -48,10 +53,12 @@ function SessionTitle({ title }: { title: Title }) {
 
   if (title.kind === "skill") {
     return (
-      <Chip className="max-w-full" size="sm" variant="soft">
-        <Puzzle aria-hidden="true" className="size-3.5 shrink-0" />
-        <span className="block truncate">{title.name}</span>
-      </Chip>
+      <Token
+        className="max-w-full"
+        icon={<Puzzle aria-hidden="true" className="size-3.5 shrink-0" />}
+        label={title.name}
+        size="sm"
+      />
     );
   }
 
@@ -126,59 +133,47 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   useRefreshOnWindowFocus(refetch);
 
   return (
-    <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+    <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden" padding={0}>
       <div className="border-b border-border px-4 py-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold uppercase text-muted">Trace</h2>
             <p className="mt-1 text-xs text-muted">Historical Pi session traces</p>
           </div>
-          <Button
-            isIconOnly
-            aria-label="Refresh sessions"
+          <IconButton
+            icon={<RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />}
             isDisabled={sessions.isFetching}
+            label="Refresh sessions"
             size="sm"
-            variant="outline"
-            onPress={() => sessions.refetch()}
-          >
-            <RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />
-          </Button>
+            onClick={() => sessions.refetch()}
+          />
         </div>
 
-        <label className="sr-only" htmlFor="project-filter">
-          Filter by project
-        </label>
-        <NativeSelect fullWidth>
-          <NativeSelect.Trigger
-            id="project-filter"
-            value={selectedProject ?? "all"}
-            onChange={(event) =>
-              setSelectedProject(event.target.value === "all" ? null : event.target.value)
-            }
-          >
-            <NativeSelect.Option value="all">All projects</NativeSelect.Option>
-            {projects.map((project) => (
-              <NativeSelect.Option key={project} value={project}>
-                {project}
-              </NativeSelect.Option>
-            ))}
-          </NativeSelect.Trigger>
-        </NativeSelect>
+        <Selector
+          isLabelHidden
+          label="Filter by project"
+          options={[
+            { value: "all", label: "All projects" },
+            ...projects.map((project) => ({ value: project, label: project })),
+          ]}
+          size="sm"
+          value={selectedProject ?? "all"}
+          width="100%"
+          onChange={(value) => setSelectedProject(value === "all" ? null : value)}
+        />
       </div>
 
-      <ScrollShadow className="min-h-0 flex-1 overflow-y-auto">
+      <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto">
         {sessions.isLoading ? (
-          <HeroEmptyState className="px-4 py-10 text-sm text-muted">
-            Loading sessions...
-          </HeroEmptyState>
+          <EmptyState className="px-4 py-10" isCompact title="Loading sessions..." />
         ) : sessions.isError ? (
-          <HeroEmptyState className="px-4 py-10 text-sm text-danger">
-            Could not read the Pi agent directory.
-          </HeroEmptyState>
+          <EmptyState
+            className="px-4 py-10"
+            isCompact
+            title="Could not read the Pi agent directory."
+          />
         ) : sessionRows.length === 0 ? (
-          <HeroEmptyState className="px-4 py-10 text-sm text-muted">
-            No sessions found.
-          </HeroEmptyState>
+          <EmptyState className="px-4 py-10" isCompact title="No sessions found." />
         ) : (
           <ol>
             {sessionRows.map((session) => (
@@ -190,7 +185,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
             ))}
           </ol>
         )}
-      </ScrollShadow>
+      </div>
     </Card>
   );
 }

@@ -1,20 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
+import { Card } from "@astryxdesign/core/Card";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import {
-  Button,
-  Card,
-  EmptyState as HeroEmptyState,
-  ProgressBar,
-  ScrollShadow,
-  Tooltip,
-} from "@heroui/react";
-import { BarChart } from "@heroui-pro/react/bar-chart";
-import { KPI } from "@heroui-pro/react/kpi";
-import { Segment } from "@heroui-pro/react/segment";
-import { useMemo, useState, type ComponentProps } from "react";
-import { SharedElementTransition } from "react-aria-components/SharedElementTransition";
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
+import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, Tooltip as RechartsTooltip } from "recharts";
 import { AppFrame } from "@/app/app-shell";
 import { RefreshCw } from "@/shared/ui/icons";
+import {
+  PiBarChart,
+  type PiBarChartDatum,
+  type PiBarChartSeries,
+} from "@/shared/ui/pi-bar-chart";
+import { PiKpi } from "@/shared/ui/pi-kpi";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import {
   formatCost,
@@ -43,6 +44,7 @@ const chartColorCount = 5;
 const defaultRankLimit = 8;
 const usageCardContentClass = "p-5";
 const usageTrendBarSize = 14;
+const usageKpiValueClass = "tabular-nums text-[var(--pigui-data-blue)]";
 const usageChartColors = [
   "var(--pigui-data-blue)",
   "var(--pigui-data-orange)",
@@ -102,10 +104,29 @@ function summarizeSessions(sessions: SessionSummary[]) {
 }
 
 function EmptyUsageState({ children }: { children: string }) {
+  return <EmptyState className="px-4 py-4" isCompact title={children} />;
+}
+
+/**
+ * Chart-adjacent rank bar with a per-item palette color. Astryx ProgressBar
+ * only exposes semantic variants, so the track/fill pair is hand-rolled on
+ * tokenized utilities instead.
+ */
+function RankBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <HeroEmptyState className="bg-surface px-4 py-10 text-sm text-muted">
-      {children}
-    </HeroEmptyState>
+    <div
+      aria-label={label}
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={value}
+      className="h-1.5 w-full overflow-hidden rounded-full bg-surface-secondary"
+      role="progressbar"
+    >
+      <span
+        className="block h-full rounded-full"
+        style={{ backgroundColor: color, width: `${value}%` }}
+      />
+    </div>
   );
 }
 
@@ -123,8 +144,8 @@ function NamedRankList({
   const maxCount = Math.max(...items.map((item) => item.count), 0);
 
   return (
-    <Card>
-      <Card.Content className={usageCardContentClass} data-testid="rank-card-content">
+    <Card padding={0}>
+      <div className={usageCardContentClass} data-testid="rank-card-content">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-foreground">{title}</h2>
@@ -149,17 +170,17 @@ function NamedRankList({
                     </span>
                     <span className="shrink-0 text-muted">{item.count}</span>
                   </div>
-                  <ProgressBar aria-label={`${item.name} count share`} value={width}>
-                    <ProgressBar.Track>
-                      <ProgressBar.Fill style={{ backgroundColor: chartColor(index) }} />
-                    </ProgressBar.Track>
-                  </ProgressBar>
+                  <RankBar
+                    color={chartColor(index)}
+                    label={`${item.name} count share`}
+                    value={width}
+                  />
                 </div>
               );
             })}
           </div>
         )}
-      </Card.Content>
+      </div>
     </Card>
   );
 }
@@ -205,110 +226,47 @@ export function UsageSummaryPanel({
 
   return (
     <section className="relative" data-testid="usage-summary">
-      <Tooltip delay={0}>
-        <Tooltip.Trigger
-          className="absolute right-3 top-3 z-10 inline-flex"
-          data-testid="usage-refresh-tooltip-trigger"
-        >
-          <Button
-            isIconOnly
-            aria-label="Refresh usage"
-            isDisabled={isFetching}
-            size="sm"
-            variant="outline"
-            onPress={onRefresh}
-          >
-            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content>Refresh usage data</Tooltip.Content>
-      </Tooltip>
+      <div
+        className="absolute right-3 top-3 z-10 inline-flex"
+        data-testid="usage-refresh-tooltip-trigger"
+      >
+        <IconButton
+          icon={<RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />}
+          isDisabled={isFetching}
+          label="Refresh usage"
+          size="sm"
+          tooltip="Refresh usage data"
+          variant="secondary"
+          onClick={onRefresh}
+        />
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>Total cost</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value
-              className="tabular-nums text-[var(--pigui-data-blue)]"
-              currency="USD"
-              maximumFractionDigits={2}
-              minimumFractionDigits={2}
-              style="currency"
-              value={summary.totalCostUsd}
-            />
-          </KPI.Content>
-        </KPI>
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>Total tokens</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value
-              className="tabular-nums text-[var(--pigui-data-blue)]"
-              maximumFractionDigits={1}
-              notation="compact"
-              value={summary.totalTokens}
-            />
-          </KPI.Content>
-        </KPI>
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>Sessions</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value
-              className="tabular-nums text-[var(--pigui-data-blue)]"
-              value={sessions.length}
-            />
-          </KPI.Content>
-        </KPI>
-        <KPI>
-          <KPI.Header>
-            <KPI.Title>Projects</KPI.Title>
-          </KPI.Header>
-          <KPI.Content>
-            <KPI.Value
-              className="tabular-nums text-[var(--pigui-data-blue)]"
-              value={summary.projects.size}
-            />
-          </KPI.Content>
-        </KPI>
+        <PiKpi
+          formatOptions={{
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }}
+          label="Total cost"
+          value={summary.totalCostUsd}
+          valueClassName={usageKpiValueClass}
+        />
+        <PiKpi
+          formatOptions={{ notation: "compact", maximumFractionDigits: 1 }}
+          label="Total tokens"
+          value={summary.totalTokens}
+          valueClassName={usageKpiValueClass}
+        />
+        <PiKpi label="Sessions" value={sessions.length} valueClassName={usageKpiValueClass} />
+        <PiKpi
+          label="Projects"
+          value={summary.projects.size}
+          valueClassName={usageKpiValueClass}
+        />
       </div>
     </section>
-  );
-}
-
-type UsageTrendChartDatum = Record<string, number | string> & {
-  key: string;
-  label: string;
-  tooltipLabel: string;
-};
-
-type UsageTrendSeries = {
-  color: string;
-  dataKey: string;
-  project: string;
-};
-
-type UsageTrendTooltipContentProps = ComponentProps<typeof BarChart.TooltipContent>;
-
-function UsageTrendTooltipContent({ payload, label, ...props }: UsageTrendTooltipContentProps) {
-  const nonZeroPayload = payload?.filter((entry) => Number(entry.value ?? 0) > 0);
-  if (!nonZeroPayload?.length) {
-    return null;
-  }
-
-  const tooltipLabel = nonZeroPayload[0]?.payload?.tooltipLabel;
-
-  return (
-    <BarChart.TooltipContent
-      {...props}
-      label={typeof tooltipLabel === "string" ? tooltipLabel : label}
-      payload={nonZeroPayload}
-      valueFormatter={(value) => `${formatTokens(Number(value))} tokens`}
-    />
   );
 }
 
@@ -338,43 +296,37 @@ export function UsageTrendChart({
   preset: UsageTrendPreset;
 }) {
   const buckets = useMemo(() => bucketTokenUsageByProject(days, preset), [days, preset]);
-  const series = useMemo<UsageTrendSeries[]>(
+  const series = useMemo<PiBarChartSeries[]>(
     () =>
       projects.map((project, index) => ({
         color: projectColor(project, projects),
-        dataKey: `project_${index}`,
-        project,
+        key: `project_${index}`,
+        label: project,
       })),
     [projects],
   );
-  const data = useMemo<UsageTrendChartDatum[]>(
+  const data = useMemo<PiBarChartDatum[]>(
     () =>
       buckets.map((bucket) => {
         const tokensByProject = new Map(
           bucket.projects.map((project) => [project.project, project.tokens]),
         );
-        const datum: UsageTrendChartDatum = {
+
+        return {
           key: bucket.key,
           label: usageTrendLabel(bucket, preset),
           tooltipLabel: usageTrendTooltipLabel(bucket),
+          values: Object.fromEntries(
+            series.map((item) => [item.key, tokensByProject.get(item.label) ?? 0]),
+          ),
         };
-
-        for (const item of series) {
-          datum[item.dataKey] = tokensByProject.get(item.project) ?? 0;
-        }
-
-        return datum;
       }),
     [buckets, preset, series],
   );
   const tickInterval = preset === "30d" ? 4 : 0;
 
   if (buckets.length === 0) {
-    return (
-      <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
-        No sessions found.
-      </HeroEmptyState>
-    );
+    return <EmptyUsageState>No sessions found.</EmptyUsageState>;
   }
 
   return (
@@ -385,52 +337,15 @@ export function UsageTrendChart({
       data-preset={preset}
       data-testid="usage-trend-chart-viewport"
     >
-      <BarChart
+      <PiBarChart
         aria-label="Token usage trend by project chart"
-        className="overflow-visible"
+        barSize={usageTrendBarSize}
         data={data}
         height={200}
-        margin={{ bottom: 0, left: 0, right: 8, top: 18 }}
-        role="img"
-        width="100%"
-      >
-        <BarChart.Grid vertical={false} />
-        <BarChart.XAxis
-          axisLine={false}
-          dataKey="label"
-          interval={tickInterval}
-          minTickGap={8}
-          tickLine={false}
-          tickMargin={10}
-        />
-        <BarChart.YAxis domain={[0, "dataMax"]} hide />
-        <BarChart.Tooltip
-          allowEscapeViewBox={{ x: false, y: true }}
-          content={<UsageTrendTooltipContent />}
-          cursor={{ fill: "var(--surface-tertiary)" }}
-          isAnimationActive={false}
-          offset={12}
-          position={{ y: 16 }}
-          reverseDirection={{ x: true, y: false }}
-          shared
-          wrapperStyle={{
-            outline: "none",
-            pointerEvents: "none",
-            zIndex: 30,
-          }}
-        />
-        {series.map((item) => (
-          <BarChart.Bar
-            key={item.dataKey}
-            barSize={usageTrendBarSize}
-            dataKey={item.dataKey}
-            fill={item.color}
-            isAnimationActive={false}
-            name={item.project}
-            stackId="tokens"
-          />
-        ))}
-      </BarChart>
+        series={series}
+        tickInterval={tickInterval}
+        valueFormatter={(value) => `${formatTokens(value)} tokens`}
+      />
     </div>
   );
 }
@@ -449,33 +364,25 @@ export function UsageTrendSection({
 
   return (
     <section className="min-w-0">
-      <Card className="h-full overflow-visible">
-        <Card.Content
-          className={usageCardContentClass}
-          data-testid="usage-trend-card-content"
-        >
+      <Card className="h-full overflow-visible" padding={0}>
+        <div className={usageCardContentClass} data-testid="usage-trend-card-content">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-foreground">Usage trend</h2>
               <p className="mt-1 text-sm text-muted">{description}</p>
             </div>
-            <SharedElementTransition>
-              <Segment
-                aria-label="Usage trend period"
-                selectedKey={preset}
-                size="sm"
-                onSelectionChange={(key) => {
-                  const value = String(key);
-                  setPreset(isUsageTrendPreset(value) ? value : "30d");
-                }}
-              >
-                {usageTrendPresetOptions.map((option) => (
-                  <Segment.Item key={option.id} id={option.id}>
-                    {option.label}
-                  </Segment.Item>
-                ))}
-              </Segment>
-            </SharedElementTransition>
+            <SegmentedControl
+              label="Usage trend period"
+              size="sm"
+              value={preset}
+              onChange={(value) => {
+                setPreset(isUsageTrendPreset(value) ? value : "30d");
+              }}
+            >
+              {usageTrendPresetOptions.map((option) => (
+                <SegmentedControlItem key={option.id} label={option.label} value={option.id} />
+              ))}
+            </SegmentedControl>
           </div>
           <UsageTrendChart days={days} preset={preset} projects={projects} />
           {projects.length > 0 ? (
@@ -492,7 +399,7 @@ export function UsageTrendSection({
               ))}
             </div>
           ) : null}
-        </Card.Content>
+        </div>
       </Card>
     </section>
   );
@@ -526,8 +433,8 @@ export function ModelMixCard({ sessions }: { sessions: SessionSummary[] }) {
   const totalTokens = models.reduce((sum, model) => sum + model.tokens, 0);
 
   return (
-    <Card className="h-full">
-      <Card.Content className={usageCardContentClass} data-testid="model-mix-card-content">
+    <Card className="h-full" padding={0}>
+      <div className={usageCardContentClass} data-testid="model-mix-card-content">
         <div>
           <h2 className="text-base font-semibold text-foreground">Model mix</h2>
           <p className="mt-1 text-sm text-muted">Share of total tokens</p>
@@ -598,7 +505,7 @@ export function ModelMixCard({ sessions }: { sessions: SessionSummary[] }) {
             </div>
           </div>
         )}
-      </Card.Content>
+      </div>
     </Card>
   );
 }
@@ -615,11 +522,7 @@ export function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
   const heatmap = useMemo(() => buildTrailingAnnualTokenHeatmap(days), [days]);
 
   if (!heatmap) {
-    return (
-      <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
-        No token usage yet.
-      </HeroEmptyState>
-    );
+    return <EmptyUsageState>No token usage yet.</EmptyUsageState>;
   }
 
   const activeDays = heatmap.days.filter((day) => day.totalTokens > 0).length;
@@ -627,11 +530,8 @@ export function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
   const maxTokens = peakDayTokens;
 
   return (
-    <Card className="overflow-visible">
-      <Card.Content
-        className={usageCardContentClass}
-        data-testid="token-heatmap-card-content"
-      >
+    <Card className="overflow-visible" padding={0}>
+      <div className={usageCardContentClass} data-testid="token-heatmap-card-content">
         <div className="mb-5">
           <h2 className="text-base font-semibold text-foreground">Token activity</h2>
           <p className="mt-1 text-sm text-muted">Daily total tokens over the last year</p>
@@ -640,12 +540,7 @@ export function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
           className="grid items-start gap-5 xl:grid-cols-[max-content_minmax(7rem,1fr)]"
           data-testid="token-heatmap-layout"
         >
-          <ScrollShadow
-            className="min-w-0 max-w-full overflow-x-auto pb-1"
-            hideScrollBar
-            orientation="horizontal"
-            size={32}
-          >
+          <div className="pigui-scroll-fade-x min-w-0 max-w-full overflow-x-auto pb-1">
             <div className="w-max" data-testid="token-heatmap-calendar">
               <div className="grid gap-2">
                 <div
@@ -710,7 +605,7 @@ export function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
                 </div>
               </div>
             </div>
-          </ScrollShadow>
+          </div>
           <div
             className="grid grid-cols-2 items-start gap-x-5 gap-y-4 border-t border-border pt-4 xl:grid-cols-1 xl:content-start xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"
             data-testid="token-heatmap-summary"
@@ -745,7 +640,7 @@ export function TokenHeatmap({ days }: { days: DailyTokenUsage[] }) {
             </div>
           </div>
         </div>
-      </Card.Content>
+      </div>
     </Card>
   );
 }
@@ -773,13 +668,12 @@ export function UsagePage() {
       <article className="min-h-full px-6 py-6">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
           {sessions.isError ? (
-            <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-danger">
-              Could not read the Pi agent directory.
-            </HeroEmptyState>
+            <EmptyState
+              className="px-4 py-12"
+              title="Could not read the Pi agent directory."
+            />
           ) : sessions.isLoading ? (
-            <HeroEmptyState className="bg-surface px-4 py-12 text-sm text-muted">
-              Loading usage...
-            </HeroEmptyState>
+            <EmptyState className="px-4 py-12" title="Loading usage..." />
           ) : (
             <>
               <UsageSummaryPanel

@@ -36,7 +36,7 @@ describe("ConfigInventoryView", () => {
     expect(screen.getByText("openai")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
     expect(screen.getByText("system")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="card"]')).toBeInTheDocument();
+    expect(container.querySelector(".astryx-card")).toBeInTheDocument();
   });
 
   it("shows not installed for empty prompt templates", () => {
@@ -52,27 +52,24 @@ describe("ConfigInventoryView", () => {
     expect(screen.getAllByText("Not set")).toHaveLength(4);
   });
 
-  it("renders package names with HeroUI Pro ListView", () => {
-    const { container } = render(<ConfigInventoryView inventory={inventory} selected="packages" />);
+  it("renders package names as an Astryx list", () => {
+    render(<ConfigInventoryView inventory={inventory} selected="packages" />);
 
-    expect(screen.getByText("@pi/code")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="list-view"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="list-view-item"]')).toBeInTheDocument();
+    expect(screen.getByTestId("installed-items-list")).toHaveAttribute("role", "list");
+    expect(screen.getByRole("listitem")).toHaveTextContent("@pi/code");
   });
 
-  it("renders extension status with HeroUI Pro ListView descriptions", () => {
-    const { container } = render(
-      <ConfigInventoryView inventory={inventory} selected="extensions" />,
-    );
+  it("renders extension status in Astryx list item descriptions", () => {
+    render(<ConfigInventoryView inventory={inventory} selected="extensions" />);
 
+    expect(screen.getByTestId("installed-extensions-list")).toHaveAttribute("role", "list");
     expect(screen.getByText("terminal-tools")).toBeInTheDocument();
     expect(screen.getByText("enabled · settings")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="list-view-description"]')).toBeInTheDocument();
   });
 });
 
 describe("SetupInventoryControls", () => {
-  it("renders setup categories with HeroUI Pro Segment", () => {
+  it("renders setup categories with Astryx SegmentedControl", () => {
     const { container } = render(
       <SetupInventoryControls
         selected="models"
@@ -86,7 +83,7 @@ describe("SetupInventoryControls", () => {
     expect(screen.getByRole("radiogroup", { name: "Configuration sections" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Models/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Packages/ })).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="segment"]')).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="segment-item"]')).toHaveLength(5);
+    expect(container.querySelector(".astryx-segmented-control")).toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(5);
   });
 });

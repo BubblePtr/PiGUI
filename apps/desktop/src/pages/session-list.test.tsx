@@ -53,28 +53,28 @@ function renderWithQueryClient(children: ReactNode) {
 }
 
 describe("SessionListPanel", () => {
-  it("renders the project filter with HeroUI Pro NativeSelect", async () => {
+  it("renders the project filter with the Astryx Selector", async () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
 
     expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="native-select"]')).toBeInTheDocument();
+    expect(container.querySelector(".astryx-selector")).toBeInTheDocument();
   });
 
   it("fits inside a fixed trace workspace without forcing page scroll", async () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
 
     expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="card"]')).toHaveClass(
+    expect(container.querySelector(".astryx-card")).toHaveClass(
       "h-full",
       "min-h-0",
       "overflow-hidden",
     );
   });
 
-  it("uses HeroUI EmptyState for transient list states", () => {
+  it("uses the Astryx EmptyState for transient list states", () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
 
     expect(screen.getByText("Loading sessions...")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="empty-state"]')).toBeInTheDocument();
+    expect(container.querySelector(".astryx-empty-state")).toBeInTheDocument();
   });
 });
