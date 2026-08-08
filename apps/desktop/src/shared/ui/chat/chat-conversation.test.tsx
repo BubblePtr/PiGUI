@@ -54,6 +54,16 @@ describe("ChatConversation", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the scroll-to-bottom control icon-only, without visible label text", () => {
+    renderConversation();
+
+    const button = screen.getByRole("button", { name: "Scroll to bottom" });
+
+    // The accessible name must not leak into the circular button as
+    // clipped visible text (upstream facebook/astryx#4834).
+    expect(button).toHaveTextContent("");
+  });
+
   it("marks the log busy while streaming", () => {
     render(
       <ChatConversation aria-label="Busy" isStreaming>

@@ -1,10 +1,11 @@
 import { type ReactNode, useRef } from "react";
 import {
-  ChatLayoutScrollButton,
   ChatMessageList,
   useChatNewMessages,
   useChatStreamScroll,
 } from "@astryxdesign/core/Chat";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { ChevronDown } from "@/shared/ui/icons";
 
 /**
  * Scroll region for live chat. The Astryx stream-scroll stack owns the
@@ -49,12 +50,19 @@ export function ChatConversation({
           {children}
         </ChatMessageList>
       </div>
+      {/* Icon-only stand-in for ChatLayoutScrollButton, which renders its
+          accessible label as clipped visible text (facebook/astryx#4834).
+          Swap back once the upstream fix ships. */}
       <div
         className="chat-conversation__scroll-button"
         data-slot="chat-conversation-scroll-button"
+        data-visible={String(scroll.isScrolledUp || newMessages.hasNewMessages)}
       >
-        <ChatLayoutScrollButton
-          isVisible={scroll.isScrolledUp || newMessages.hasNewMessages}
+        <IconButton
+          icon={<ChevronDown aria-hidden="true" />}
+          label="Scroll to bottom"
+          size="md"
+          variant="secondary"
           onClick={() => {
             newMessages.dismiss();
             scroll.scrollToBottom();
