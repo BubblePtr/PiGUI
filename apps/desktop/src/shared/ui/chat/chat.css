@@ -350,9 +350,12 @@
   min-width: 0;
 }
 
-/* Detail panes inside the Astryx ChatToolCalls row (args / result). */
+/* Detail panes inside the Astryx ChatToolCalls row (args / result). The
+   Astryx detail container only indents; separation from the row above and
+   between panes is ours to provide. */
 .chat-tool__section {
   margin: 0;
+  margin-block-start: var(--spacing-1-5);
   padding: var(--spacing-2);
   border-radius: var(--radius-inner);
   background: var(--color-background-muted);
