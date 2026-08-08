@@ -1,141 +1,48 @@
 import {
-  createContext,
   type KeyboardEvent,
   type ReactNode,
-  useContext,
+  useEffect,
   useRef,
 } from "react";
-import { ArrowUp, Stop } from "@/shared/ui/icons";
+import {
+  ChatComposer,
+  ChatSendButton,
+  useChatComposerContext,
+} from "@astryxdesign/core/Chat";
 
 export type PromptInputStatus = "ready" | "submitted" | "streaming" | "error";
 
-type PromptInputContextValue = {
-  value: string;
-  status: PromptInputStatus;
-  isRunning: boolean;
-  allowSubmitWhileRunning: boolean;
-  lockInputOnRun: boolean;
-  submit: () => void;
-  stop?: () => void;
-  onValueChange?: (value: string) => void;
-};
+/**
+ * Native textarea wired into the Astryx composer context. Kept native (not
+ * the contentEditable ChatComposerInput) for the platform textarea behavior
+ * and the placeholder/value test surface, per issue 09.
+ */
+function PromptTextArea({
+  disabled = false,
+  onSubmitRequest,
+}: {
+  disabled?: boolean;
+  onSubmitRequest: () => void;
+}) {
+  const context = useChatComposerContext();
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-const PromptInputContext = createContext<PromptInputContextValue | null>(null);
+  useEffect(() => {
+    const control = context?.inputControlRef;
 
-function usePromptInputContext(component: string) {
-  const context = useContext(PromptInputContext);
+    if (!control) {
+      return;
+    }
+
+    control.current = { focus: () => textareaRef.current?.focus() };
+    return () => {
+      control.current = null;
+    };
+  }, [context?.inputControlRef]);
 
   if (!context) {
-    throw new Error(`${component} must be used inside <ChatPromptInput>.`);
+    return null;
   }
-
-  return context;
-}
-
-/**
- * Compound prompt composer. The root owns submit/stop semantics; slots render
- * the shell, autosizing textarea, toolbar regions, send button, and footer.
- */
-export function ChatPromptInput({
-  children,
-  className = "",
-  value,
-  status = "ready",
-  variant = "primary",
-  allowSubmitWhileRunning = false,
-  lockInputOnRun = false,
-  onSubmit,
-  onStop,
-  onValueChange,
-}: {
-  children: ReactNode;
-  className?: string;
-  value: string;
-  status?: PromptInputStatus;
-  variant?: "primary";
-  allowSubmitWhileRunning?: boolean;
-  lockInputOnRun?: boolean;
-  onSubmit?: () => void;
-  onStop?: () => void;
-  onValueChange?: (value: string) => void;
-}) {
-  const isRunning = status === "streaming" || status === "submitted";
-  const submit = () => {
-    if (!value.trim()) {
-      return;
-    }
-
-    if (isRunning && !allowSubmitWhileRunning) {
-      return;
-    }
-
-    onSubmit?.();
-  };
-
-  return (
-    <div
-      className={`prompt-input prompt-input--${variant} ${className}`.trim()}
-      data-slot="prompt-input"
-      data-status={status}
-    >
-      <PromptInputContext.Provider
-        value={{
-          value,
-          status,
-          isRunning,
-          allowSubmitWhileRunning,
-          lockInputOnRun,
-          submit,
-          stop: onStop,
-          onValueChange,
-        }}
-      >
-        {children}
-      </PromptInputContext.Provider>
-    </div>
-  );
-}
-
-function PromptInputShell({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`prompt-input__shell ${className}`.trim()} data-slot="prompt-input-shell">
-      {children}
-    </div>
-  );
-}
-
-function PromptInputContent({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`prompt-input__content ${className}`.trim()}
-      data-slot="prompt-input-content"
-    >
-      {children}
-    </div>
-  );
-}
-
-function PromptInputTextArea({
-  placeholder,
-  className = "",
-}: {
-  placeholder?: string;
-  className?: string;
-}) {
-  const context = usePromptInputContext("ChatPromptInput.TextArea");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const autosize = () => {
     const textarea = textareaRef.current;
@@ -162,20 +69,23 @@ function PromptInputTextArea({
     }
 
     event.preventDefault();
-    context.submit();
+    // Submit through our own path: the composer's context.onSubmit eagerly
+    // clears the value via onChange("") even in controlled mode, but the
+    // caller owns clearing (a failed submit must keep the draft).
+    onSubmitRequest();
   };
 
   return (
     <textarea
       ref={textareaRef}
-      className={`prompt-input__textarea ${className}`.trim()}
+      className="prompt-input__textarea"
       data-slot="prompt-input-textarea"
-      disabled={context.lockInputOnRun && context.isRunning}
-      placeholder={placeholder}
+      disabled={disabled}
+      placeholder={context.placeholder}
       rows={1}
       value={context.value}
       onChange={(event) => {
-        context.onValueChange?.(event.target.value);
+        context.onChange(event.target.value);
         autosize();
       }}
       onKeyDown={handleKeyDown}
@@ -183,115 +93,89 @@ function PromptInputTextArea({
   );
 }
 
-function PromptInputToolbar({
-  children,
+/**
+ * Prompt composer over Astryx ChatComposer. The shell, slot layout, send/stop
+ * button, and error status are Astryx; the textarea stays native and the
+ * neutral footer hint is ours (Astryx status only carries error/warning).
+ */
+export function ChatPromptInput({
+  value,
+  status = "ready",
   className = "",
+  placeholder,
+  allowSubmitWhileRunning = false,
+  lockInputOnRun = false,
+  startActions,
+  endActions,
+  footer,
+  error,
+  onSubmit,
+  onStop,
+  onValueChange,
 }: {
-  children: ReactNode;
+  value: string;
+  status?: PromptInputStatus;
   className?: string;
+  placeholder?: string;
+  allowSubmitWhileRunning?: boolean;
+  lockInputOnRun?: boolean;
+  startActions?: ReactNode;
+  endActions?: ReactNode;
+  footer?: ReactNode;
+  error?: string | null;
+  onSubmit?: () => void;
+  onStop?: () => void;
+  onValueChange?: (value: string) => void;
 }) {
-  return (
-    <div
-      className={`prompt-input__toolbar ${className}`.trim()}
-      data-slot="prompt-input-toolbar"
-    >
-      {children}
-    </div>
-  );
-}
-
-function PromptInputToolbarStart({
-  children,
-  className = "",
-}: {
-  children?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`prompt-input__toolbar-start ${className}`.trim()}
-      data-slot="prompt-input-toolbar-start"
-    >
-      {children}
-    </div>
-  );
-}
-
-function PromptInputToolbarEnd({
-  children,
-  className = "",
-}: {
-  children?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`prompt-input__toolbar-end ${className}`.trim()}
-      data-slot="prompt-input-toolbar-end"
-    >
-      {children}
-    </div>
-  );
-}
-
-function PromptInputSend({
-  "aria-label": ariaLabel = "Send",
-  className = "",
-}: {
-  "aria-label"?: string;
-  className?: string;
-}) {
-  const context = usePromptInputContext("ChatPromptInput.Send");
-  const isStopAction =
-    context.isRunning && !context.value.trim() && Boolean(context.stop);
+  const isRunning = status === "streaming" || status === "submitted";
+  const isStopShown = isRunning && !value.trim() && Boolean(onStop);
   const canSubmit =
-    Boolean(context.value.trim()) &&
-    (!context.isRunning || context.allowSubmitWhileRunning);
+    Boolean(value.trim()) && (!isRunning || allowSubmitWhileRunning);
+
+  const handleSubmit = () => {
+    if (!canSubmit) {
+      return;
+    }
+
+    onSubmit?.();
+  };
 
   return (
-    <button
-      aria-label={ariaLabel}
-      className={`prompt-input__send ${className}`.trim()}
-      data-slot="prompt-input-send"
-      disabled={!isStopAction && !canSubmit}
-      type="button"
-      onClick={() => {
-        if (isStopAction) {
-          context.stop?.();
-          return;
-        }
-
-        context.submit();
-      }}
+    <div
+      className={`prompt-input ${className}`.trim()}
+      data-slot="prompt-input"
+      data-status={status}
     >
-      {isStopAction ? (
-        <Stop aria-hidden="true" size={16} />
-      ) : (
-        <ArrowUp aria-hidden="true" size={16} />
-      )}
-    </button>
-  );
-}
-
-function PromptInputFooter({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`prompt-input__footer ${className}`.trim()} data-slot="prompt-input-footer">
-      {children}
+      <ChatComposer
+        elevation="none"
+        footerActions={startActions}
+        input={
+          <PromptTextArea
+            disabled={lockInputOnRun && isRunning}
+            onSubmitRequest={handleSubmit}
+          />
+        }
+        isStopShown={isStopShown}
+        placeholder={placeholder}
+        sendActions={endActions}
+        sendButton={
+          <ChatSendButton
+            isDisabled={!isStopShown && !canSubmit}
+            // Bypass the composer's submit path, which force-clears the value.
+            onSend={handleSubmit}
+          />
+        }
+        status={error ? { type: "error", message: error } : undefined}
+        value={value}
+        onChange={(next) => onValueChange?.(next)}
+        onStop={onStop}
+        onSubmit={handleSubmit}
+      />
+      {footer ? (
+        <div className="prompt-input__footer" data-slot="prompt-input-footer">
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }
-
-ChatPromptInput.Shell = PromptInputShell;
-ChatPromptInput.Content = PromptInputContent;
-ChatPromptInput.TextArea = PromptInputTextArea;
-ChatPromptInput.Toolbar = PromptInputToolbar;
-ChatPromptInput.ToolbarStart = PromptInputToolbarStart;
-ChatPromptInput.ToolbarEnd = PromptInputToolbarEnd;
-ChatPromptInput.Send = PromptInputSend;
-ChatPromptInput.Footer = PromptInputFooter;
