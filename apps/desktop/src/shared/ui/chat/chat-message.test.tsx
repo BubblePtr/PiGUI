@@ -20,6 +20,12 @@ describe("ChatMessage", () => {
     const user = container.querySelector('[data-slot="chat-message-user"]');
 
     expect(user).toBeInTheDocument();
+    // Alignment and density come from the Astryx sender-aware wrapper.
+    expect(user).toHaveClass("astryx-chat-message");
+    expect(user).toHaveAttribute("data-sender", "user");
+    expect(
+      user?.querySelector('[data-slot="chat-message-bubble"]'),
+    ).toHaveClass("astryx-chat-message-bubble");
     expect(user?.querySelector('[data-slot="chat-message-bubble"]')).toBeInTheDocument();
     expect(user?.querySelector('[data-slot="chat-message-content"]')).toBeInTheDocument();
     expect(user?.querySelector('[data-slot="chat-message-actions"]')).toBeInTheDocument();
@@ -42,6 +48,8 @@ describe("ChatMessage", () => {
     const assistant = container.querySelector('[data-slot="chat-message-assistant"]');
 
     expect(assistant).toBeInTheDocument();
+    expect(assistant).toHaveClass("astryx-chat-message");
+    expect(assistant).toHaveAttribute("data-sender", "assistant");
     expect(assistant?.querySelector('[data-slot="chat-message-body"]')).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Good response" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bad response" })).toBeInTheDocument();
