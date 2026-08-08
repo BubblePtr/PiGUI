@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Button, Card, Chip, EmptyState as HeroEmptyState, ScrollShadow } from "@heroui/react";
-import { KPI } from "@heroui-pro/react/kpi";
+import { Badge } from "@astryxdesign/core/Badge";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { PiKpi } from "@/shared/ui/pi-kpi";
 import { lazy, Suspense, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -238,20 +241,23 @@ function CostTokenBadge({ usage, cost }: { usage?: TokenUsage; cost?: CostBreakd
   }
 
   return (
-    <Chip
+    <Badge
       className="h-auto min-w-0 max-w-full whitespace-normal py-1"
-      size="sm"
-      variant="soft"
-    >
-      <Chip.Label className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-tight">
-        <span className="min-w-0 max-w-full truncate text-foreground">
-          {formatCost(cost?.totalUsd ?? 0)}
+      variant="gray"
+      label={
+        <span
+          className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-tight"
+          data-testid="turn-cost-token-badge-label"
+        >
+          <span className="min-w-0 max-w-full truncate text-foreground">
+            {formatCost(cost?.totalUsd ?? 0)}
+          </span>
+          <span className="min-w-0 max-w-full truncate">
+            {formatTokens(usage?.totalTokens ?? 0)} tokens
+          </span>
         </span>
-        <span className="min-w-0 max-w-full truncate">
-          {formatTokens(usage?.totalTokens ?? 0)} tokens
-        </span>
-      </Chip.Label>
-    </Chip>
+      }
+    />
   );
 }
 
@@ -268,13 +274,12 @@ function FoldButton({
     <Button
       aria-expanded={expanded}
       className="min-h-8 gap-1.5 text-xs"
+      icon={expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+      label={children}
       size="sm"
-      variant="outline"
-      onPress={onClick}
-    >
-      {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-      {children}
-    </Button>
+      variant="secondary"
+      onClick={onClick}
+    />
   );
 }
 
@@ -352,12 +357,11 @@ function SessionPart({ part }: { part: SessionContentPart }) {
             <Button
               aria-expanded={isExpanded}
               className="mt-2 min-h-8 text-xs"
+              label={isExpanded ? "Collapse thinking" : "Expand all"}
               size="sm"
-              variant="outline"
-              onPress={() => setIsExpanded((value) => !value)}
-            >
-              {isExpanded ? "Collapse thinking" : "Expand all"}
-            </Button>
+              variant="secondary"
+              onClick={() => setIsExpanded((value) => !value)}
+            />
           ) : null}
         </>
       ) : part.partType === "toolResult" && !shouldRenderBody ? (
@@ -400,19 +404,23 @@ export function TimelineTurn({ turn }: { turn: SessionTurn }) {
       <div className="min-w-0">
         <Button
           aria-expanded={isExpanded}
-          className="min-h-12 w-full justify-between gap-3 bg-surface-muted px-4 py-3 text-left text-sm text-foreground"
-          variant="outline"
-          onPress={() => setIsExpanded((value) => !value)}
+          className="min-h-12 w-full bg-surface-muted px-4 py-3 text-left text-sm text-foreground"
+          label={turnSummary(turn)}
+          variant="secondary"
+          width="100%"
+          onClick={() => setIsExpanded((value) => !value)}
         >
-          <span className="min-w-0 truncate">{turnSummary(turn)}</span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted">
-            {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-            {isExpanded ? "Collapse" : "Expand"}
+          <span className="flex w-full min-w-0 items-center justify-between gap-3">
+            <span className="min-w-0 truncate">{turnSummary(turn)}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted">
+              {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+              {isExpanded ? "Collapse" : "Expand"}
+            </span>
           </span>
         </Button>
 
         {isExpanded ? (
-          <Card className="mt-2 min-w-0 overflow-hidden">
+          <Card className="mt-2 min-w-0 overflow-hidden" padding={0}>
             {turn.parts.length === 0 ? (
               <div className="px-4 py-3 text-sm text-muted">No content.</div>
             ) : (
@@ -528,8 +536,8 @@ export function SessionDetailView({
           ) : null}
         </header>
 
-        <ScrollShadow
-          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"
+        <div
+          className="pigui-scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"
           data-testid="session-detail-scroll-body"
         >
           {session ? (
@@ -542,78 +550,62 @@ export function SessionDetailView({
                 className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4"
                 data-testid="session-summary-grid"
               >
-                <KPI>
-                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
-                    <KPI.Title>Total cost</KPI.Title>
-                    <KPI.Value
-                      className="min-w-0 max-w-full truncate text-right"
-                      currency="USD"
-                      maximumFractionDigits={6}
-                      minimumFractionDigits={4}
-                      style="currency"
-                      value={session.totalCostUsd}
-                    />
-                  </KPI.Content>
-                </KPI>
-                <KPI>
-                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
-                    <KPI.Title>Total tokens</KPI.Title>
-                    <KPI.Value
-                      className="min-w-0 max-w-full truncate text-right"
-                      maximumFractionDigits={1}
-                      notation="compact"
-                      value={session.totalTokens}
-                    />
-                  </KPI.Content>
-                </KPI>
-                <KPI>
-                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
-                    <KPI.Title>Primary model</KPI.Title>
-                    <dd
-                      className="mt-1 min-w-0 max-w-full truncate text-right text-base font-semibold text-foreground"
-                      data-testid="session-primary-model-value"
-                    >
-                      {session.primaryModel ?? "Unknown model"}
-                    </dd>
-                  </KPI.Content>
-                </KPI>
-                <KPI>
-                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
-                    <KPI.Title>Turns</KPI.Title>
-                    <KPI.Value
-                      className="min-w-0 max-w-full truncate text-right"
-                      value={session.turnCount}
-                    />
-                  </KPI.Content>
-                </KPI>
-                <KPI>
-                  <KPI.Content className="min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
-                    <KPI.Title>Duration</KPI.Title>
-                    <dd className="mt-1 min-w-0 max-w-full truncate text-right text-base font-semibold text-foreground">
-                      {formatDuration(session.durationSeconds)}
-                    </dd>
-                  </KPI.Content>
-                </KPI>
+                <PiKpi
+                  formatOptions={{
+                    style: "currency",
+                    currency: "USD",
+                    minimumFractionDigits: 4,
+                    maximumFractionDigits: 6,
+                  }}
+                  label="Total cost"
+                  layout="inline"
+                  value={session.totalCostUsd}
+                  valueClassName="min-w-0 max-w-full truncate text-right"
+                />
+                <PiKpi
+                  formatOptions={{ notation: "compact", maximumFractionDigits: 1 }}
+                  label="Total tokens"
+                  layout="inline"
+                  value={session.totalTokens}
+                  valueClassName="min-w-0 max-w-full truncate text-right"
+                />
+                <PiKpi
+                  label="Primary model"
+                  layout="inline"
+                  valueClassName="min-w-0 max-w-full truncate text-right"
+                  valueTestId="session-primary-model-value"
+                >
+                  {session.primaryModel ?? "Unknown model"}
+                </PiKpi>
+                <PiKpi
+                  label="Turns"
+                  layout="inline"
+                  value={session.turnCount}
+                  valueClassName="min-w-0 max-w-full truncate text-right"
+                />
+                <PiKpi
+                  label="Duration"
+                  layout="inline"
+                  valueClassName="min-w-0 max-w-full truncate text-right"
+                >
+                  {formatDuration(session.durationSeconds)}
+                </PiKpi>
               </div>
             </section>
           ) : null}
 
-          <Card className="mt-6 overflow-hidden">
+          <Card className="mt-6 overflow-hidden" padding={0}>
             {isLoading ? (
-              <HeroEmptyState className="px-4 py-12 text-sm text-muted">Loading session...</HeroEmptyState>
+              <EmptyState className="px-4 py-12" isCompact title="Loading session..." />
             ) : isError ? (
-              <HeroEmptyState className="px-4 py-12 text-sm text-danger">
-                Could not read this session.
-              </HeroEmptyState>
+              <EmptyState className="px-4 py-12" isCompact title="Could not read this session." />
             ) : !session || session.turns.length === 0 ? (
-              <HeroEmptyState className="px-4 py-12 text-sm text-muted">
-                No timeline entries found.
-              </HeroEmptyState>
+              <EmptyState className="px-4 py-12" isCompact title="No timeline entries found." />
             ) : (
               <SessionTimeline turns={session.turns} />
             )}
           </Card>
-        </ScrollShadow>
+        </div>
       </div>
     </article>
   );

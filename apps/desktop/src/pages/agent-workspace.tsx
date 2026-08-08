@@ -1,13 +1,9 @@
-import {
-  Button,
-  ListBox,
-  Popover,
-  ScrollShadow,
-  Slider,
-  Tooltip,
-} from "@heroui/react";
-import { Sheet } from "@heroui-pro/react/sheet";
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { Popover } from "@astryxdesign/core/Popover";
 import { ResizeHandle, useResizable } from "@astryxdesign/core/Resizable";
+import { Slider } from "@astryxdesign/core/Slider";
 import {
   SegmentedControl,
   SegmentedControlItem,
@@ -24,6 +20,7 @@ import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-inp
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
 import { ChatTool, type ToolPartState } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import { PiSheet } from "@/shared/ui/pi-sheet";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import type { SessionChangedFile, SessionChanges } from "@pigui/core";
@@ -36,6 +33,7 @@ import {
   Archive,
   Box,
   Cancel,
+  Check,
   ChevronDown,
   Computer,
   FileDiff,
@@ -504,10 +502,10 @@ function QueuedMessageList({
             </div>
             {queuedMessage.status === "pending" ? (
               <Button
+                label="Withdraw queued message"
                 size="sm"
                 variant="ghost"
-                aria-label="Withdraw queued message"
-                onPress={() => onWithdraw(queuedMessage.id)}
+                onClick={() => onWithdraw(queuedMessage.id)}
               >
                 Withdraw
               </Button>
@@ -618,83 +616,62 @@ function ModelThinkingControl({
   };
 
   return (
-    <Popover>
-      <Button
-        aria-label="Model and Thinking"
-        className="min-w-0 max-w-[19rem] gap-1.5 px-2 text-muted"
-        data-testid="model-thinking-trigger"
-        isDisabled={!controls.models.length}
-        size="sm"
-        variant="ghost"
-      >
-        <span className="truncate">
-          {selectedModel?.name ?? selected.modelId} · {thinkingLevelLabels[selected.thinkingLevel]}
-        </span>
-        <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
-      </Button>
-      <Popover.Content
-        className="w-[18rem] max-w-[calc(100vw-2rem)]"
-        data-testid="model-thinking-popover"
-        placement="top start"
-      >
-        <Popover.Dialog className="flex flex-col gap-5 p-4">
+    <Popover
+      alignment="start"
+      label="Model and Thinking"
+      placement="above"
+      content={
+        <div
+          className="flex w-[18rem] max-w-[calc(100vw-2rem)] flex-col gap-5 p-4"
+          data-testid="model-thinking-popover"
+        >
           <div className="flex flex-col gap-3">
-            <Popover.Heading className="text-sm font-medium text-foreground">
-              Model
-            </Popover.Heading>
-            <ListBox
+            <span className="text-sm font-medium text-foreground">Model</span>
+            <List
               aria-label="Model"
-              className="pigui-compact-menu-surface -mx-1 max-h-56 gap-1.5 overflow-y-auto"
+              className="pigui-compact-menu-surface -mx-1 max-h-56 overflow-y-auto"
               data-testid="model-thinking-model-list"
-              selectedKeys={new Set([
-                modelControlKey(selected.provider, selected.modelId),
-              ])}
-              selectionMode="single"
-              onSelectionChange={(keys) => {
-                if (keys === "all") {
-                  return;
-                }
-
-                const key = [...keys][0];
-                const model = controls.models.find(
-                  (candidate) =>
-                    modelControlKey(candidate.provider, candidate.modelId) === key,
-                );
-
-                if (!model) {
-                  return;
-                }
-
-                void submitSelection({
-                  provider: model.provider,
-                  modelId: model.modelId,
-                  thinkingLevel: nearestThinkingLevel(
-                    selected.thinkingLevel,
-                    model.thinkingLevels,
-                  ),
-                });
-              }}
+              density="compact"
             >
-              {controls.models.map((model) => (
-                <ListBox.Item
-                  className="pigui-compact-menu-item my-0.5 grid grid-cols-[minmax(0,1fr)_1rem] items-center text-sm"
-                  id={modelControlKey(model.provider, model.modelId)}
-                  isDisabled={isLocked || isPending}
-                  key={modelControlKey(model.provider, model.modelId)}
-                  textValue={`${model.name} ${model.provider}`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-foreground">
-                      {model.name}
-                    </span>
-                    <span className="block truncate text-xs text-muted">
-                      {model.provider}
-                    </span>
-                  </span>
-                  <ListBox.ItemIndicator className="text-foreground" />
-                </ListBox.Item>
-              ))}
-            </ListBox>
+              {controls.models.map((model) => {
+                const isSelected =
+                  model.provider === selected.provider &&
+                  model.modelId === selected.modelId;
+
+                return (
+                  <ListItem
+                    className="pigui-compact-menu-item"
+                    description={model.provider}
+                    endContent={
+                      isSelected ? (
+                        <Check
+                          aria-hidden="true"
+                          className="size-4 text-foreground"
+                        />
+                      ) : undefined
+                    }
+                    isDisabled={isLocked || isPending}
+                    isSelected={isSelected}
+                    key={modelControlKey(model.provider, model.modelId)}
+                    label={model.name}
+                    onClick={() => {
+                      if (isSelected || isLocked || isPending) {
+                        return;
+                      }
+
+                      void submitSelection({
+                        provider: model.provider,
+                        modelId: model.modelId,
+                        thinkingLevel: nearestThinkingLevel(
+                          selected.thinkingLevel,
+                          model.thinkingLevels,
+                        ),
+                      });
+                    }}
+                  />
+                );
+              })}
+            </List>
           </div>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
@@ -704,19 +681,26 @@ function ModelThinkingControl({
               </span>
             </div>
             <Slider
-              aria-label="Thinking level"
+              formatValue={(value) =>
+                thinkingLevelLabels[thinkingLevels[value] ?? "off"]
+              }
               isDisabled={isLocked || isPending || thinkingLevels.length < 2}
-              maxValue={Math.max(0, thinkingLevels.length - 1)}
-              minValue={0}
+              isLabelHidden
+              label="Thinking level"
+              marks={thinkingLevels.map((level, index) => ({
+                value: index,
+                label: thinkingLevelLabels[level],
+              }))}
+              max={Math.max(0, thinkingLevels.length - 1)}
+              min={0}
               step={1}
               value={sliderValue}
-              onChange={(value) => {
-                const index = Array.isArray(value) ? value[0] : value;
-                setSliderValue(typeof index === "number" ? index : committedSliderValue);
+              width="100%"
+              onChange={(value: number) => {
+                setSliderValue(value);
               }}
-              onChangeEnd={(value) => {
-                const index = Array.isArray(value) ? value[0] : value;
-                const thinkingLevel = thinkingLevels[index];
+              onChangeEnd={(value: number) => {
+                const thinkingLevel = thinkingLevels[value];
 
                 if (!thinkingLevel || thinkingLevel === selected.thinkingLevel) {
                   setSliderValue(committedSliderValue);
@@ -729,24 +713,7 @@ function ModelThinkingControl({
                   thinkingLevel,
                 });
               }}
-            >
-              <Slider.Track>
-                <Slider.Fill />
-                <Slider.Thumb />
-              </Slider.Track>
-              <Slider.Marks
-                className="grid gap-1 pt-2 text-center text-[0.6875rem] text-muted"
-                style={{
-                  gridTemplateColumns: `repeat(${thinkingLevels.length}, minmax(0, 1fr))`,
-                }}
-              >
-                {thinkingLevels.map((level) => (
-                  <span className="truncate" key={level}>
-                    {thinkingLevelLabels[level]}
-                  </span>
-                ))}
-              </Slider.Marks>
-            </Slider>
+            />
             {isLocked ? (
               <span className="text-xs text-muted">Locked while running</span>
             ) : null}
@@ -756,8 +723,22 @@ function ModelThinkingControl({
               </span>
             ) : null}
           </div>
-        </Popover.Dialog>
-      </Popover.Content>
+        </div>
+      }
+    >
+      <Button
+        className="min-w-0 max-w-[19rem] gap-1.5 px-2 text-muted"
+        data-testid="model-thinking-trigger"
+        isDisabled={!controls.models.length}
+        label="Model and Thinking"
+        size="sm"
+        variant="ghost"
+      >
+        <span className="truncate">
+          {selectedModel?.name ?? selected.modelId} · {thinkingLevelLabels[selected.thinkingLevel]}
+        </span>
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
+      </Button>
     </Popover>
   );
 }
@@ -908,12 +889,11 @@ function FullChatComposer({
             <PromptInput.ToolbarEnd>
               {queueMode ? (
                 <Button
+                  label="Steer"
                   size="sm"
                   variant="secondary"
-                  onPress={() => void submitSteer()}
-                >
-                  Steer
-                </Button>
+                  onClick={() => void submitSteer()}
+                />
               ) : null}
               <PromptInput.Send aria-label={isStopAction ? "Stop" : "Send"} />
             </PromptInput.ToolbarEnd>
@@ -2127,21 +2107,15 @@ export function SessionChangesPanel({
           ) : null}
         </div>
         {sessionId ? (
-          <Tooltip delay={0}>
-            <Tooltip.Trigger className="inline-flex">
-              <Button
-                isIconOnly
-                aria-label="Refresh Session changes"
-                isDisabled={loading}
-                size="sm"
-                variant="ghost"
-                onPress={() => setRefreshKey((value) => value + 1)}
-              >
-                <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>Refresh changes</Tooltip.Content>
-          </Tooltip>
+          <IconButton
+            icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
+            isDisabled={loading}
+            label="Refresh Session changes"
+            size="sm"
+            tooltip="Refresh changes"
+            variant="ghost"
+            onClick={() => setRefreshKey((value) => value + 1)}
+          />
         ) : null}
       </div>
 
@@ -2168,12 +2142,11 @@ export function SessionChangesPanel({
           <p className="text-sm text-danger">{error}</p>
           <Button
             className="mt-3"
+            label="Retry"
             size="sm"
             variant="secondary"
-            onPress={() => setRefreshKey((value) => value + 1)}
-          >
-            Retry
-          </Button>
+            onClick={() => setRefreshKey((value) => value + 1)}
+          />
         </div>
       ) : changes?.state === "non-git" ? (
         <p className="mt-3 rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
@@ -2494,15 +2467,14 @@ export function SessionActionsContent({
         <h3 className="text-sm font-semibold text-foreground">Archive</h3>
         <div className="mt-3">
           <Button
+            icon={<Archive className="size-4" />}
             isDisabled={!archiveAllowed || isArchiving}
-            isPending={isArchiving}
+            isLoading={isArchiving}
+            label="Archive Session"
             size="sm"
-            variant="outline"
-            onPress={onArchive}
-          >
-            <Archive className="size-4" />
-            Archive Session
-          </Button>
+            variant="secondary"
+            onClick={onArchive}
+          />
         </div>
         {!archiveAllowed && projection && !isSessionProjectionArchived(projection) ? (
           <p className="mt-2 text-sm leading-6 text-muted">
@@ -2532,21 +2504,15 @@ function SessionChangesTrigger({
   onOpenChange: (isOpen: boolean) => void;
 }) {
   return (
-    <Tooltip delay={0}>
-      <Tooltip.Trigger className="inline-flex">
-        <Button
-          isIconOnly
-          aria-label="Session changes"
-          aria-pressed={isOpen}
-          size="sm"
-          variant="ghost"
-          onPress={() => onOpenChange(!isOpen)}
-        >
-          <FileDiff className="size-4" />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{isOpen ? "Close changes" : "Open changes"}</Tooltip.Content>
-    </Tooltip>
+    <IconButton
+      aria-pressed={isOpen}
+      icon={<FileDiff className="size-4" />}
+      label="Session changes"
+      size="sm"
+      tooltip={isOpen ? "Close changes" : "Open changes"}
+      variant="ghost"
+      onClick={() => onOpenChange(!isOpen)}
+    />
   );
 }
 
@@ -2560,39 +2526,25 @@ function SessionChangesSheet({
   onOpenChange: (isOpen: boolean) => void;
 }) {
   return (
-    <Sheet isOpen={isOpen} placement="right" onOpenChange={onOpenChange}>
-      <Sheet.Backdrop>
-        <Sheet.Content
-          className="w-full max-w-none rounded-none md:w-[min(80rem,92vw)] md:rounded-l-lg"
-          style={
-            isOpen
-              ? {
-                  animation: "none",
-                  transform: "translate3d(0, 0, 0)",
-                }
-              : undefined
-          }
-        >
-          <Sheet.Dialog className="rounded-none md:rounded-l-lg">
-            <Sheet.CloseTrigger />
-            <Sheet.Header>
-              <Sheet.Heading>Changes</Sheet.Heading>
-              <p className="mt-1 text-sm text-muted">
-                Review the working tree for this Session checkout.
-              </p>
-            </Sheet.Header>
-            <Sheet.Body>
-              <ScrollShadow className="max-h-[calc(100vh-10rem)] overflow-y-auto">
-                <SessionChangesPanel
-                  sessionId={projection?.id ?? null}
-                  stale={projection?.stale ?? false}
-                />
-              </ScrollShadow>
-            </Sheet.Body>
-          </Sheet.Dialog>
-        </Sheet.Content>
-      </Sheet.Backdrop>
-    </Sheet>
+    <PiSheet isOpen={isOpen} onOpenChange={onOpenChange}>
+      <PiSheet.Content>
+        <PiSheet.CloseTrigger />
+        <PiSheet.Header>
+          <PiSheet.Heading>Changes</PiSheet.Heading>
+          <p className="mt-1 text-sm text-muted">
+            Review the working tree for this Session checkout.
+          </p>
+        </PiSheet.Header>
+        <PiSheet.Body>
+          <div className="pigui-scroll-fade max-h-[calc(100vh-10rem)] overflow-y-auto">
+            <SessionChangesPanel
+              sessionId={projection?.id ?? null}
+              stale={projection?.stale ?? false}
+            />
+          </div>
+        </PiSheet.Body>
+      </PiSheet.Content>
+    </PiSheet>
   );
 }
 
@@ -2617,27 +2569,21 @@ function SessionChangesAside({
           <FileDiff className="size-4 shrink-0 text-muted" />
           <span className="truncate">Changes</span>
         </h2>
-        <Tooltip delay={0}>
-          <Tooltip.Trigger className="inline-flex">
-            <Button
-              isIconOnly
-              aria-label="Close Session changes"
-              size="sm"
-              variant="ghost"
-              onPress={onClose}
-            >
-              <Cancel className="size-4" />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content>Close changes</Tooltip.Content>
-        </Tooltip>
+        <IconButton
+          icon={<Cancel className="size-4" />}
+          label="Close Session changes"
+          size="sm"
+          tooltip="Close changes"
+          variant="ghost"
+          onClick={onClose}
+        />
       </header>
-      <ScrollShadow className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+      <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         <SessionChangesPanel
           sessionId={projection?.id ?? null}
           stale={projection?.stale ?? false}
         />
-      </ScrollShadow>
+      </div>
     </aside>
   );
 }
@@ -2659,57 +2605,37 @@ function SessionActionsSheet({
 
   return (
     <>
-      <Tooltip delay={0}>
-        <Tooltip.Trigger className="inline-flex">
-          <Button
-            isIconOnly
-            aria-label="Session actions"
-            size="sm"
-            variant="ghost"
-            onPress={() => setOpen(true)}
-          >
-            <Activity className="size-4" />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content>Session actions</Tooltip.Content>
-      </Tooltip>
+      <IconButton
+        icon={<Activity className="size-4" />}
+        label="Session actions"
+        size="sm"
+        tooltip="Session actions"
+        variant="ghost"
+        onClick={() => setOpen(true)}
+      />
 
-      <Sheet isOpen={open} placement="right" onOpenChange={setOpen}>
-        <Sheet.Backdrop>
-          <Sheet.Content
-            className="w-full md:w-[min(80rem,92vw)]"
-            style={
-              open
-                ? {
-                    animation: "none",
-                    transform: "translate3d(0, 0, 0)",
-                  }
-                : undefined
-            }
-          >
-            <Sheet.Dialog>
-              <Sheet.CloseTrigger />
-              <Sheet.Header>
-                <Sheet.Heading>Session actions</Sheet.Heading>
-                <p className="mt-1 text-sm text-muted">
-                  Checkout, model, cost, and lifecycle context.
-                </p>
-              </Sheet.Header>
-              <Sheet.Body>
-                <ScrollShadow className="max-h-[calc(100vh-10rem)] overflow-y-auto">
-                  <SessionActionsContent
-                    archiveError={archiveError}
-                    isArchiving={isArchiving}
-                    workspace={workspace}
-                    projection={projection}
-                    onArchive={onArchive}
-                  />
-                </ScrollShadow>
-              </Sheet.Body>
-            </Sheet.Dialog>
-          </Sheet.Content>
-        </Sheet.Backdrop>
-      </Sheet>
+      <PiSheet isOpen={open} onOpenChange={setOpen}>
+        <PiSheet.Content>
+          <PiSheet.CloseTrigger />
+          <PiSheet.Header>
+            <PiSheet.Heading>Session actions</PiSheet.Heading>
+            <p className="mt-1 text-sm text-muted">
+              Checkout, model, cost, and lifecycle context.
+            </p>
+          </PiSheet.Header>
+          <PiSheet.Body>
+            <div className="pigui-scroll-fade max-h-[calc(100vh-10rem)] overflow-y-auto">
+              <SessionActionsContent
+                archiveError={archiveError}
+                isArchiving={isArchiving}
+                workspace={workspace}
+                projection={projection}
+                onArchive={onArchive}
+              />
+            </div>
+          </PiSheet.Body>
+        </PiSheet.Content>
+      </PiSheet>
     </>
   );
 }
@@ -3508,9 +3434,12 @@ function LiveSessionColumn({
                   "Showing read-only session data."}
               </span>
               {canRetryRuntimeResume ? (
-                <Button size="sm" variant="outline" onPress={handleRetryRuntimeResume}>
-                  Retry
-                </Button>
+                <Button
+                  label="Retry"
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleRetryRuntimeResume}
+                />
               ) : null}
             </div>
           ) : null}

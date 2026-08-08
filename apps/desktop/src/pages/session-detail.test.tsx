@@ -28,7 +28,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 describe("SessionTimeline", () => {
-  it("keeps turn cost and token metadata inside a shrinkable HeroUI chip", () => {
+  it("keeps turn cost and token metadata inside a shrinkable badge", () => {
     render(
       <TimelineTurn
         turn={{
@@ -57,11 +57,11 @@ describe("SessionTimeline", () => {
 
     const cost = screen.getByText("$0.330091");
     const tokens = screen.getByText("43.8K tokens");
-    const chip = cost.closest('[data-slot="chip"]');
-    const label = cost.closest('[data-slot="chip-label"]');
+    const badge = cost.closest(".astryx-badge");
+    const label = screen.getByTestId("turn-cost-token-badge-label");
 
-    expect(chip).toBeInTheDocument();
-    expect(chip).toHaveClass("min-w-0", "max-w-full", "whitespace-normal");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("min-w-0", "max-w-full", "whitespace-normal");
     expect(label).toHaveClass("min-w-0", "max-w-full", "flex-wrap");
     expect(cost).toHaveClass("min-w-0", "max-w-full", "truncate");
     expect(tokens).toHaveClass("min-w-0", "max-w-full", "truncate");
@@ -133,8 +133,10 @@ describe("SessionDetailView", () => {
       "grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]",
     );
     expect(screen.getByTestId("session-summary-grid")).not.toHaveClass("lg:grid-cols-5");
-    for (const content of container.querySelectorAll('[data-slot="kpi-content"]')) {
-      expect(content).toHaveClass("grid-cols-[minmax(0,auto)_minmax(0,1fr)]");
+    const kpis = container.querySelectorAll('[data-slot="kpi"]');
+    expect(kpis).toHaveLength(5);
+    for (const kpi of kpis) {
+      expect(kpi).toHaveClass("pi-kpi--inline");
     }
     const [totalCostValue, totalTokensValue] = container.querySelectorAll('[data-slot="kpi-value"]');
     expect(totalCostValue).toHaveClass(

@@ -1,4 +1,5 @@
-import { Button, Card } from "@heroui/react";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
 import { useNavigate } from "@tanstack/react-router";
 
 /**
@@ -18,29 +19,24 @@ export function NoProvidersEmptyState({
       data-testid={testId}
     >
       <Card className="w-full max-w-xl">
-        <Card.Header className="block">
-          <div className="text-sm font-semibold uppercase text-muted">Providers</div>
-          <Card.Title className="mt-3 text-2xl font-semibold tracking-normal text-foreground">
-            No models available
-          </Card.Title>
-        </Card.Header>
-        <Card.Content className="flex flex-col gap-4">
-          <p className="text-sm leading-6 text-muted">
-            No provider credentials are set. Add an API key or subscription login in Settings to
-            create chats and pick models. First-run preflight will not show again — only this
-            empty state.
-          </p>
-          <div>
-            <Button
-              variant="primary"
-              onPress={() => {
-                void navigate({ to: "/settings" });
-              }}
-            >
-              Open Provider Settings →
-            </Button>
-          </div>
-        </Card.Content>
+        <div className="text-sm font-semibold uppercase text-muted">Providers</div>
+        <h2 className="mt-3 text-2xl font-semibold tracking-normal text-foreground">
+          No models available
+        </h2>
+        <p className="mt-4 text-sm leading-6 text-muted">
+          No provider credentials are set. Add an API key or subscription login in Settings to
+          create chats and pick models. First-run preflight will not show again — only this
+          empty state.
+        </p>
+        <div className="mt-4">
+          <Button
+            label="Open Provider Settings →"
+            variant="primary"
+            onClick={() => {
+              void navigate({ to: "/settings" });
+            }}
+          />
+        </div>
       </Card>
     </div>
   );

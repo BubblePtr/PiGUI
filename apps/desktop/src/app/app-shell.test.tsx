@@ -1102,7 +1102,7 @@ describe("AppFrame", () => {
   it("smooths sidebar icon rendering without changing icon sizing tokens", () => {
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
     const themeRootBlock = styles.match(
-      /:root,\n\.light,\n\.default,\n\[data-theme="light"\],\n\[data-theme="default"\] \{(?<body>[\s\S]*?)\n\}/,
+      /\n:root \{(?<body>[\s\S]*?)\n\}/,
     )?.groups?.body;
 
     expect(styles).toContain("-webkit-font-smoothing: antialiased;");
@@ -1230,26 +1230,15 @@ describe("AppFrame", () => {
     expect(source).not.toContain("margin: 0 calc(var(--spacing, 0.25rem) * 1) 0 0;");
   });
 
-  it("uses compact styling for sidebar action dropdowns", () => {
+  it("uses compact styling for sidebar and picker menus", () => {
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
-    const dropdownSource = readFileSync(
-      join(process.cwd(), "apps/desktop/src/app/sidebar-action-dropdown.tsx"),
-      "utf8",
-    );
     const appShellSource = readFileSync(
       join(process.cwd(), "apps/desktop/src/app/app-shell.tsx"),
       "utf8",
     );
-    const themeRootBlock = source.match(
-      /:root,\n\.light,\n\.default,\n\[data-theme="light"\],\n\[data-theme="default"\] \{(?<body>[\s\S]*?)\n\}/,
-    )?.groups?.body;
 
     expect(source).toContain("--pigui-sidebar-item-radius:");
-    expect(themeRootBlock).toContain("--pigui-sidebar-dropdown-min-width: 9.5rem;");
-    expect(themeRootBlock).toContain("--pigui-sidebar-dropdown-icon-size: 0.875rem;");
     expect(source).not.toContain(".pigui-app-layout {\n  --pigui-sidebar-content-padding-x:");
-    expect(source).toContain("--pigui-sidebar-dropdown-min-width: 9.5rem;");
-    expect(source).toContain("--pigui-sidebar-dropdown-max-width: 14rem;");
     expect(source).toContain("--pigui-sidebar-dropdown-padding: 0.25rem;");
     expect(source).toContain("--pigui-sidebar-dropdown-menu-gap: var(--pigui-sidebar-row-gap);");
     expect(source).toContain("--pigui-sidebar-dropdown-item-height: 1.75rem;");
@@ -1257,33 +1246,22 @@ describe("AppFrame", () => {
     expect(source).toContain("--pigui-sidebar-dropdown-item-padding-x: 0.5rem;");
     expect(source).toContain("--pigui-sidebar-dropdown-item-padding-y: 0.25rem;");
     expect(source).toContain("--pigui-sidebar-dropdown-icon-size: 0.875rem;");
-    expect(source).toContain("--pigui-sidebar-dropdown-label-line-height: 1.25rem;");
     expect(source).toContain(".pigui-app-layout .astryx-side-nav-item");
     expect(source).toContain("border-radius: var(--pigui-sidebar-item-radius);");
-    expect(source).toContain(".pigui-sidebar-action-dropdown__trigger");
-    expect(source).toContain(".pigui-sidebar-action-dropdown__popover");
-    expect(source).toContain("min-width: var(--pigui-sidebar-dropdown-min-width);");
-    expect(source).toContain("max-width: var(--pigui-sidebar-dropdown-max-width);");
+    expect(source).toContain(".pigui-compact-menu-popover");
     expect(source).toContain("border: 1px solid var(--separator);");
     expect(source).not.toContain("border: 0;");
     expect(source).toContain("box-shadow: 0 4px 14px 0 rgba(24, 24, 27, 0.10);");
     expect(source).toContain("gap: var(--pigui-sidebar-dropdown-menu-gap);");
     expect(source).toContain("padding: var(--pigui-sidebar-dropdown-padding);");
-    expect(source).toContain(".pigui-sidebar-action-dropdown__popover [data-slot=\"menu-item\"]");
+    expect(source).toContain(".pigui-compact-menu-item");
     expect(source).toContain("min-height: var(--pigui-sidebar-dropdown-item-height);");
     expect(source).toContain("gap: var(--pigui-sidebar-dropdown-item-gap);");
     expect(source).toContain("padding: var(--pigui-sidebar-dropdown-item-padding-y) var(--pigui-sidebar-dropdown-item-padding-x);");
-    expect(source).toContain(".pigui-sidebar-action-dropdown__item-icon");
     expect(source).toContain("width: var(--pigui-sidebar-dropdown-icon-size);");
     expect(source).toContain("height: var(--pigui-sidebar-dropdown-icon-size);");
-    expect(source).toContain("line-height: var(--pigui-sidebar-dropdown-label-line-height);");
     expect(source).not.toContain("border-radius: calc(var(--radius) * 0.75);");
-    expect(dropdownSource).toContain('className="pigui-sidebar-action-dropdown__item-content"');
-    expect(dropdownSource).toContain('className="pigui-sidebar-action-dropdown__item-icon"');
-    expect(dropdownSource).not.toContain("gap-2");
-    expect(dropdownSource).not.toContain("size-3.5");
-    expect(dropdownSource).not.toContain("sidebarActionDropdownIconSlotClassName");
-    expect(appShellSource).not.toContain("sidebarActionDropdownIconClassName");
+    expect(source).not.toContain("pigui-sidebar-action-dropdown");
     expect(appShellSource).toContain("<Pencil");
     expect(appShellSource).toContain("<FolderOpen");
     expect(appShellSource).toContain("<Trash2");

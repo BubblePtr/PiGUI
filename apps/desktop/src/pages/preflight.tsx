@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card } from "@heroui/react";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
 import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type {
@@ -141,7 +142,7 @@ export function PreflightPage() {
           </header>
 
           <Card>
-            <Card.Content className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
               {reportQuery.isLoading ? (
                 <div className="rounded-md border border-border bg-surface-muted px-4 py-10 text-sm text-muted">
                   Checking environment…
@@ -153,7 +154,7 @@ export function PreflightPage() {
               ) : (
                 checks.map((check) => <CheckRow key={check.id} check={check} />)
               )}
-            </Card.Content>
+            </div>
           </Card>
 
           <p className="text-xs text-muted">
@@ -172,46 +173,43 @@ export function PreflightPage() {
               <p className="mt-1 text-xs text-muted">
                 Provider credentials are required. Use Settings, then return and Recheck.
               </p>
-              <Button
-                className="mt-3"
-                variant="primary"
-                onPress={() => {
-                  void navigate({ to: "/settings" });
-                }}
-              >
-                Configure providers →
-              </Button>
+              <div className="mt-3">
+                <Button
+                  variant="primary"
+                  label="Configure providers →"
+                  onClick={() => {
+                    void navigate({ to: "/settings" });
+                  }}
+                />
+              </div>
             </div>
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Button
-              variant="outline"
-              onPress={() => {
+              variant="secondary"
+              label="Recheck"
+              onClick={() => {
                 void reportQuery.refetch();
               }}
               isDisabled={reportQuery.isFetching}
-            >
-              Recheck
-            </Button>
+            />
             <div className="flex flex-wrap gap-2">
               <Button
-                variant="outline"
-                onPress={() => {
+                variant="secondary"
+                label="Provider Settings"
+                onClick={() => {
                   void navigate({ to: "/settings" });
                 }}
-              >
-                Provider Settings
-              </Button>
+              />
               <Button
                 variant="primary"
+                label={canContinue ? "Continue →" : "Continue (disabled)"}
                 isDisabled={!canContinue || completeMutation.isPending}
-                onPress={() => {
+                onClick={() => {
                   completeMutation.mutate();
                 }}
-              >
-                {canContinue ? "Continue →" : "Continue (disabled)"}
-              </Button>
+              />
             </div>
           </div>
 

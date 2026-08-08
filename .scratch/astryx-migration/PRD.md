@@ -45,6 +45,11 @@ Status: ready-for-agent
 - **SideNav 折叠是 48px 图标轨不是 offcanvas**;且折叠切换时 SideNav 根节点会重挂载,长期 ref/observer 需随 open 状态重挂(已处理)。
 - **视觉抛光遗留**:侧栏内容内边距比 HeroUI 版本紧(Projects 标签贴边)、强调色变成 Astryx 默认蓝紫——留到 slice 1 抛光 pass 处理。
 
+## 勘误与后续选项(2026-08-08)
+
+- **Astryx 其实自带 Chat 组件族**(ChatLayout/ChatMessageList/ChatComposer/ChatToolCalls/ChatTokenizedText 等,`astryx component --list` 可见)——立项时查官网文档得出"无聊天组件"的结论有误。Slice 2 的自建原语已交付且测试全绿,不推倒;自建层对 Pi 特有语义(ToolPartState、回放时间线)控制力更强。后续若想收敛维护面,可评估把部分原语底座换成 Astryx Chat*,属可选优化不属债务。
+- Slice 2 取舍:Astryx `useResizable` 仅像素边界(42%/64% 挂载时换算,resize 不重 clamp);shiki 语言 chunk 双份(HeroUI 清退后消失)。
+
 ## 风险与开放问题
 
 - Astryx Beta:API 变动走 `astryx upgrade --apply`;版本钉死在 bun.lock。

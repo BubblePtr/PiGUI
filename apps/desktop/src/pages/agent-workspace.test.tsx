@@ -383,12 +383,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     await user.click(sessionActionsButton);
 
     const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
-    const sheetContent = document.querySelector('[data-slot="sheet-content"]');
+    const sheetPanel = document.querySelector('[data-slot="sheet-panel"]');
 
-    expect(sheetContent).toHaveStyle({
-      animation: "none",
-      transform: "translate3d(0, 0, 0)",
-    });
+    // PiSheet renders the right-side panel; slide-in styling lives in
+    // primitives.css, so no per-instance animation suppression is needed.
+    expect(sheetPanel).toBeInTheDocument();
+    expect(actionDialog).toBe(sheetPanel);
     expect(within(actionDialog).queryByText("Diff summary")).not.toBeInTheDocument();
     expect(within(actionDialog).getByText("Checkout")).toBeInTheDocument();
     expect(within(actionDialog).getByText("gpt-5-codex")).toBeInTheDocument();
@@ -407,10 +407,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     await user.click(changesButton);
 
     const changesDialog = await screen.findByRole("dialog", { name: "Changes" });
-    const sheetContent = changesDialog.closest('[data-slot="sheet-content"]');
+    const sheetPanel = changesDialog.closest('[data-slot="sheet-panel"]');
 
     expect(within(changesDialog).getByText("Diff summary")).toBeInTheDocument();
-    expect(sheetContent).toHaveClass("w-full", "max-w-none", "rounded-none");
+    // Panel width and rounding come from the shared pi-sheet__panel styles.
+    expect(sheetPanel).toHaveClass("pi-sheet__panel");
     expect(screen.queryByTestId("session-changes-aside")).not.toBeInTheDocument();
     expect(changesButton).toHaveAttribute(
       "aria-pressed",
@@ -3524,8 +3525,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     const popover = await screen.findByTestId("model-thinking-popover");
     const modelList = screen.getByTestId("model-thinking-model-list");
 
-    expect(popover).toHaveClass("w-[18rem]");
-    expect(screen.getByRole("dialog")).toHaveClass("gap-5", "p-4");
+    expect(popover).toHaveClass("w-[18rem]", "gap-5", "p-4");
+    expect(screen.getByRole("dialog")).toContainElement(popover);
     expect(modelList).toHaveClass("pigui-compact-menu-surface");
     expect(modelList).not.toHaveClass("border", "border-border");
     expect(await screen.findByRole("slider", { name: "Thinking level" })).toBeInTheDocument();
