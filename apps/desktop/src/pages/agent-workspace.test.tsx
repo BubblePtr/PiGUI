@@ -252,7 +252,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(sessionsView).queryByText(/Messages and run activity/)).not.toBeInTheDocument();
 
     const liveColumn = screen.getByTestId("live-session-column");
-    const navbarActions = screen.getByTestId("navbar-actions");
+    // Session hydration and auto-selection settle asynchronously after the
+    // sessions view mounts; the toolbar appears once a session is selected.
+    const navbarActions = await screen.findByTestId("navbar-actions");
 
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/pages/agent-workspace.tsx"), "utf8");
 
@@ -302,7 +304,10 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(chatConversation).toBeInTheDocument();
     expect(chatConversation?.closest(".card")).toBeNull();
     expect(promptInput?.closest(".card")).toBeNull();
-    expect(chatConversation).toHaveAttribute("role", "log");
+    // The log role lives on the Astryx ChatMessageList inside the viewport.
+    const conversationLog = chatConversation?.querySelector('[role="log"]');
+    expect(conversationLog).toBeInTheDocument();
+    expect(conversationLog).toHaveClass("astryx-chat-message-list");
     expect(traceSidebarLabel).not.toHaveClass("font-medium");
     expect(newSessionSidebarLabel).not.toHaveClass("font-medium");
     expect(liveComposerInput).not.toHaveClass("font-medium");
@@ -928,7 +933,10 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveColumn = await screen.findByTestId("live-session-column");
 
-    expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    // Session hydration settles asynchronously after the column mounts.
+    expect(
+      await within(liveColumn).findByRole("button", { name: "Stop" }),
+    ).toBeInTheDocument();
     expect(
       within(screen.getByTestId("navbar-actions")).queryByRole("button", { name: "Stop" }),
     ).not.toBeInTheDocument();
@@ -2014,8 +2022,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     const liveColumn = await screen.findByTestId("live-session-column");
 
     expect(within(liveColumn).queryByTestId("session-draft-composer")).not.toBeInTheDocument();
+    // Session hydration settles asynchronously after the column mounts.
     expect(
-      within(liveColumn).getAllByText("Agent Workspace shell").length,
+      (await within(liveColumn).findAllByText("Agent Workspace shell")).length,
     ).toBeGreaterThan(0);
     expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
   });

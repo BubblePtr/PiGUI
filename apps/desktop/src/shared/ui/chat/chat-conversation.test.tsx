@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
 
 function mockScrollMetrics(
@@ -14,128 +14,96 @@ function mockScrollMetrics(
     configurable: true,
     get: () => clientHeight,
   });
+  Object.defineProperty(element, "offsetHeight", {
+    configurable: true,
+    get: () => clientHeight,
+  });
+}
+
+function renderConversation(label = "Live Chat messages") {
+  render(
+    <ChatConversation aria-label={label}>
+      <ChatConversation.Content>
+        <p>Hello</p>
+      </ChatConversation.Content>
+    </ChatConversation>,
+  );
+
+  const root = document.querySelector<HTMLElement>('[data-slot="chat-conversation"]')!;
+  const viewport = root.querySelector<HTMLElement>(
+    '[data-slot="chat-conversation-viewport"]',
+  )!;
+
+  return { root, viewport };
 }
 
 describe("ChatConversation", () => {
-  it("renders a labelled log with content and scroll anchor slots", () => {
-    render(
-      <ChatConversation aria-label="Live Chat messages" initial="instant">
-        <ChatConversation.Content>
-          <p>Hello</p>
-          <ChatConversation.ScrollAnchor />
-        </ChatConversation.Content>
-      </ChatConversation>,
-    );
+  it("renders the Astryx message list as a labelled log inside a scroll viewport", () => {
+    const { root, viewport } = renderConversation();
 
     const log = screen.getByLabelText("Live Chat messages");
 
     expect(log).toHaveAttribute("role", "log");
-    expect(log).toHaveAttribute("data-slot", "chat-conversation");
+    expect(log).toHaveClass("astryx-chat-message-list");
+    expect(viewport.contains(log)).toBe(true);
     expect(
-      log.querySelector('[data-slot="chat-conversation-content"]'),
+      root.querySelector('[data-slot="chat-conversation-content"]'),
     ).toBeInTheDocument();
     expect(
-      log.querySelector('[data-slot="chat-conversation-scroll-anchor"]'),
+      root.querySelector('[data-slot="chat-conversation-scroll-button"]'),
     ).toBeInTheDocument();
   });
 
-  it("stays pinned to the bottom while the user has not scrolled up", () => {
+  it("renders the scroll-to-bottom control icon-only, without visible label text", () => {
+    renderConversation();
+
+    const button = screen.getByRole("button", { name: "Scroll to bottom" });
+
+    // The accessible name must not leak into the circular button as
+    // clipped visible text (upstream facebook/astryx#4834).
+    expect(button).toHaveTextContent("");
+  });
+
+  it("marks the log busy while streaming", () => {
     render(
-      <ChatConversation aria-label="Pinned">
+      <ChatConversation aria-label="Busy" isStreaming>
         <ChatConversation.Content>
-          <p>message</p>
+          <p>token</p>
         </ChatConversation.Content>
       </ChatConversation>,
     );
 
-    const log = screen.getByLabelText("Pinned");
-
-    mockScrollMetrics(log, { scrollHeight: 1000, clientHeight: 400 });
-    log.scrollTop = 600; // exactly at the bottom
-    fireEvent.scroll(log);
-
-    expect(log).toHaveAttribute("data-pinned", "true");
+    expect(screen.getByLabelText("Busy")).toHaveAttribute("aria-busy", "true");
   });
 
-  it("releases the pin when the user scrolls up and re-pins at the bottom", () => {
-    render(
-      <ChatConversation aria-label="Released">
-        <ChatConversation.Content>
-          <p>message</p>
-        </ChatConversation.Content>
-      </ChatConversation>,
-    );
+  it("starts pinned and releases the pin when the user scrolls up", () => {
+    const { root, viewport } = renderConversation("Released");
 
-    const log = screen.getByLabelText("Released");
+    expect(root).toHaveAttribute("data-pinned", "true");
 
-    mockScrollMetrics(log, { scrollHeight: 1000, clientHeight: 400 });
-    log.scrollTop = 100;
-    fireEvent.scroll(log);
+    mockScrollMetrics(viewport, { scrollHeight: 1000, clientHeight: 400 });
+    viewport.scrollTop = 600; // settle at the bottom first
+    fireEvent.scroll(viewport);
+    viewport.scrollTop = 100; // scrolling up unlocks immediately
+    fireEvent.scroll(viewport);
 
-    expect(log).toHaveAttribute("data-pinned", "false");
-
-    log.scrollTop = 600;
-    fireEvent.scroll(log);
-
-    expect(log).toHaveAttribute("data-pinned", "true");
+    expect(root).toHaveAttribute("data-pinned", "false");
   });
 
-  it("scrolls new content into view only while pinned", async () => {
-    vi.useFakeTimers();
+  it("re-pins when scrolling settles at the bottom", () => {
+    const { root, viewport } = renderConversation("Repinned");
 
-    try {
-      const { rerender } = render(
-        <ChatConversation aria-label="Growing">
-          <ChatConversation.Content>
-            <p>first</p>
-          </ChatConversation.Content>
-        </ChatConversation>,
-      );
+    mockScrollMetrics(viewport, { scrollHeight: 1000, clientHeight: 400 });
+    viewport.scrollTop = 600;
+    fireEvent.scroll(viewport);
+    viewport.scrollTop = 100;
+    fireEvent.scroll(viewport);
+    expect(root).toHaveAttribute("data-pinned", "false");
 
-      const log = screen.getByLabelText("Growing");
-      const scrollTo = vi.fn();
+    viewport.scrollTop = 600; // back at the bottom
+    fireEvent.scroll(viewport);
+    fireEvent(viewport, new Event("scrollend"));
 
-      Object.defineProperty(log, "scrollTo", {
-        configurable: true,
-        value: scrollTo,
-      });
-      mockScrollMetrics(log, { scrollHeight: 1000, clientHeight: 400 });
-      log.scrollTop = 100;
-      fireEvent.scroll(log); // user scrolled up: released
-
-      rerender(
-        <ChatConversation aria-label="Growing">
-          <ChatConversation.Content>
-            <p>first</p>
-            <p>second</p>
-          </ChatConversation.Content>
-        </ChatConversation>,
-      );
-      await act(async () => {
-        await vi.runAllTimersAsync();
-      });
-
-      expect(scrollTo).not.toHaveBeenCalled();
-
-      log.scrollTop = 600;
-      fireEvent.scroll(log); // back at the bottom: re-pinned
-
-      rerender(
-        <ChatConversation aria-label="Growing">
-          <ChatConversation.Content>
-            <p>first</p>
-            <p>second</p>
-            <p>third</p>
-          </ChatConversation.Content>
-        </ChatConversation>,
-      );
-      await act(async () => {
-        await vi.runAllTimersAsync();
-      });
-
-      expect(scrollTo).toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(root).toHaveAttribute("data-pinned", "true");
   });
 });
