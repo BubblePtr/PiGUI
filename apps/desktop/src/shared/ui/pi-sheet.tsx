@@ -5,7 +5,7 @@ import { Cancel } from "@/shared/ui/icons";
 /**
  * Right-side sheet on Base UI Dialog: overlay, focus trap, Escape and
  * overlay-click close come from Base UI; the slide-in panel styling lives in
- * primitives.css on Astryx tokens. Replaces the HeroUI Pro Sheet.
+ * primitives.css on Astryx tokens.
  */
 export function PiSheet({
   isOpen,

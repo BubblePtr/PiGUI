@@ -32,7 +32,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
     const testApp = await launchPiGUI({ seedPreflightAuth: true });
 
     try {
-      // Navigate to Settings via sidebar (HeroUI Sidebar.MenuItem renders as menuitem)
+      // Navigate to Settings via the sidebar row
       await testApp.window.getByRole("row", { name: "Settings" }).click();
       await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
 

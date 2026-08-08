@@ -21,7 +21,6 @@ export type PiKpiProps = {
 
 /**
  * Stat tile (label + value + optional delta) on Astryx Card/Text tokens.
- * Replaces the HeroUI Pro KPI compound component.
  */
 export function PiKpi({
   label,

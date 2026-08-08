@@ -9,8 +9,8 @@
 @source "./**/*.{ts,tsx}";
 
 /* —— PiGUI semantic token bridge ——
-   Composes Astryx first-level tokens into the app-level semantic vocabulary
-   (formerly supplied by the HeroUI theme). Declared on both :root and the
+   Composes Astryx first-level tokens into the app-level semantic vocabulary.
+   Declared on both :root and the
    Astryx theme scope: custom properties resolve chained var() references at
    the element they are declared on, so re-declaring under [data-astryx-theme]
    lets the bridge pick up theme-neutral's token overrides. */
@@ -324,8 +324,8 @@ body {
 }
 
 /* —— Scroll fade ——
-   Replacement for HeroUI's ScrollShadow: fade scrollable content at both
-   ends of the scroll axis with a mask gradient on the scroll container. */
+   Fade scrollable content at both ends of the scroll axis with a mask
+   gradient on the scroll container. */
 .pigui-scroll-fade {
   --pigui-scroll-fade-size: var(--spacing-8);
   mask-image: linear-gradient(
