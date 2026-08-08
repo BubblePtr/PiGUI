@@ -38,8 +38,8 @@ PiGUI 已完成 Astryx 迁移（slice 1-3），`shared/ui` 下积累了 `pi-kpi`
 
 ## Slices
 
-- **S1 — 骨架 + Tokens 层**：dev-only 路由、侧边栏入口、preflight 豁免、Tokens 层（色板/间距/圆角/字号）。
-- **S2 — PiGUI 组件层**：`shared/ui` 现有组件全量登记（pi-kpi、pi-bar-chart、pi-sheet、dot-matrix、icons 全集、chat 栈）。
+- **S1 — 骨架 + Tokens 层**（done，PR #69）：dev-only 路由、侧边栏入口、preflight 豁免、Tokens 层（色板/间距/圆角/字号）。
+- **S2 — PiGUI 组件层**（done）：`shared/ui` 现有组件全量登记（pi-kpi、pi-bar-chart、pi-sheet、dot-matrix、icons 全集、chat 栈），实现于 `pages/design-components.tsx`。
 - **S3 — Astryx 原语层**：选定变体约定陈列（IconButton、SideNavItem、MoreMenu 等）。
 
 ## Acceptance（S1）

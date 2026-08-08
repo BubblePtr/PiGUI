@@ -1,9 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DataPaletteSection,
+  DesignPageContent,
   RadiusScaleSection,
   SemanticPaletteSection,
   SpacingScaleSection,
@@ -92,6 +94,40 @@ describe("Design tokens layer", () => {
   });
 });
 
+describe("Design page tabs", () => {
+  it("shows the Tokens tab by default and hides the components layer", () => {
+    render(<DesignPageContent />);
+
+    // Astryx Tab renders as a nav-style button with aria-current, not role=tab.
+    expect(screen.getByRole("button", { name: "Tokens" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("button", { name: "Components" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "PiKpi" })).not.toBeInTheDocument();
+  });
+
+  it("switches to the Components tab and back", async () => {
+    const user = userEvent.setup();
+
+    render(<DesignPageContent />);
+
+    await user.click(screen.getByRole("button", { name: "Components" }));
+
+    expect(screen.getByRole("region", { name: "PiKpi" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Semantic colors" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Tokens" }));
+
+    expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
+  });
+});
+
 describe("Design page dev-only gating", () => {
   it("registers the /design route only in development builds", () => {
     const main = readFileSync(
@@ -100,9 +136,15 @@ describe("Design page dev-only gating", () => {
     );
 
     expect(main).toContain('path: "/design"');
-    // Route must be spread in behind the DEV flag so production builds
-    // tree-shake the whole page out of the bundle.
-    expect(main).toMatch(/import\.meta\.env\.DEV\s*\?\s*\[designRoute\]\s*:\s*\[\]/);
+    // The whole route construction and a *dynamic* page import must sit
+    // behind the DEV flag: a top-level createRoute()/static import keeps the
+    // page referenced in production builds (Rollup cannot prove the call
+    // pure), which is how the page once leaked into the prod bundle.
+    expect(main).toMatch(
+      /import\.meta\.env\.DEV\s*\?\s*\[\s*createRoute\(/,
+    );
+    expect(main).toContain('import("@/pages/design")');
+    expect(main).not.toMatch(/from\s+"@\/pages\/design"/);
   });
 
   it("exempts /design from the preflight gate", () => {

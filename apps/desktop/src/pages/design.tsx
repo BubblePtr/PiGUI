@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { AppFrame } from "@/app/app-shell";
+import { DesignComponentsLayer } from "@/pages/design-components";
 
 /**
  * Dev-only design gallery (/design). Layer 1: tokens.
@@ -101,7 +103,7 @@ function TokenLabel({ token }: { token: string }) {
   );
 }
 
-function GallerySection({
+export function GallerySection({
   title,
   children,
 }: {
@@ -214,23 +216,50 @@ export function TypeScaleSection() {
   );
 }
 
-export function DesignPage() {
+type DesignTab = "tokens" | "components";
+
+export function DesignPageContent() {
+  const [tab, setTab] = useState<DesignTab>("tokens");
+
   return (
-    <AppFrame>
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-6">
-          <p className="text-sm text-muted">
-            Living registry of the PiGUI design system. Layer 1: tokens, read
-            live from the Astryx theme and the semantic bridge. New reusable
-            components in <code>shared/ui</code> must register here (see
-            AGENTS.md).
-          </p>
+    <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-6">
+      <p className="text-sm text-muted">
+        Living registry of the PiGUI design system, read live from the Astryx
+        theme and the semantic bridge. New reusable components in{" "}
+        <code>shared/ui</code> must register here (see AGENTS.md).
+      </p>
+      <TabList
+        hasDivider
+        value={tab}
+        onChange={(value) => {
+          if (value === "tokens" || value === "components") {
+            setTab(value);
+          }
+        }}
+      >
+        <Tab label="Tokens" value="tokens" />
+        <Tab label="Components" value="components" />
+      </TabList>
+      {tab === "tokens" ? (
+        <>
           <SemanticPaletteSection />
           <DataPaletteSection />
           <SpacingScaleSection />
           <RadiusScaleSection />
           <TypeScaleSection />
-        </div>
+        </>
+      ) : (
+        <DesignComponentsLayer />
+      )}
+    </div>
+  );
+}
+
+export function DesignPage() {
+  return (
+    <AppFrame>
+      <div className="h-full overflow-y-auto">
+        <DesignPageContent />
       </div>
     </AppFrame>
   );
