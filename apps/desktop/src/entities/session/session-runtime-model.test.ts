@@ -284,6 +284,9 @@ describe("session runtime model", () => {
       args: { path: "a.ts", validated: true },
       result: { ok: true },
       isError: false,
+      // Execution timing: startedAt pinned at phase start, kept through end.
+      startedAt: "2026-07-02T10:00:03.000Z",
+      updatedAt: "2026-07-02T10:00:04.000Z",
     });
     expect(model.order).toEqual([
       { kind: "message", id: messageId, seq: 2 },

@@ -83,7 +83,8 @@ function ChatChainOfThoughtStep({
   children,
   className = "",
 }: {
-  label: ReactNode;
+  // Omit for steps whose content is self-describing (e.g. tool-call groups).
+  label?: ReactNode;
   children?: ReactNode;
   className?: string;
 }) {
@@ -92,7 +93,9 @@ function ChatChainOfThoughtStep({
       className={`chain-of-thought__step ${className}`.trim()}
       data-slot="chain-of-thought-step"
     >
-      <div className="chain-of-thought__step-label">{label}</div>
+      {label != null ? (
+        <div className="chain-of-thought__step-label">{label}</div>
+      ) : null}
       {children !== undefined && children !== null ? (
         <div className="chain-of-thought__step-body">{children}</div>
       ) : null}

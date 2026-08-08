@@ -60,6 +60,24 @@ describe("Design components layer", () => {
     }
   });
 
+  it("shows ChatToolGroup single and grouped variants", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ChatToolGroup" });
+
+    const single = section.querySelector('[data-slot="chat-tool-group"][data-tool-count="1"]');
+    expect(single).toBeInTheDocument();
+    expect(single).toHaveAttribute("data-state", "output-available");
+    expect(single).toHaveTextContent("read_file");
+    expect(single).toHaveTextContent("src/index.ts");
+    expect(single).toHaveTextContent("45ms");
+
+    const grouped = section.querySelector('[data-slot="chat-tool-group"][data-tool-count="4"]');
+    expect(grouped).toBeInTheDocument();
+    expect(grouped).not.toHaveAttribute("data-state");
+    expect(grouped).toHaveTextContent("git diff --stat");
+  });
+
   it("shows the prompt input across its status matrix", () => {
     render(<DesignComponentsLayer />);
 

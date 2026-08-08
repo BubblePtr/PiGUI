@@ -11,7 +11,11 @@ import { ChatMarkdown, ChatStreamMarkdown } from "@/shared/ui/chat/chat-markdown
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatPromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
-import { ChatTool, type ToolPartState } from "@/shared/ui/chat/chat-tool";
+import {
+  ChatTool,
+  ChatToolGroup,
+  type ToolPartState,
+} from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import { Button } from "@astryxdesign/core/Button";
 import * as Icons from "@/shared/ui/icons";
@@ -271,6 +275,64 @@ function ChatToolGallery() {
   );
 }
 
+function ChatToolGroupGallery() {
+  return (
+    <GallerySection title="ChatToolGroup">
+      <div className="flex max-w-xl flex-col gap-2">
+        <Variant caption="single call (inline row with target + duration)">
+          <ChatToolGroup
+            tools={[
+              {
+                toolCallId: "g1",
+                toolName: "read_file",
+                state: "output-available",
+                argsText: '{"path":"src/index.ts"}',
+                output: "ok",
+                durationMs: 45,
+              },
+            ]}
+          />
+        </Variant>
+        <Variant caption="multiple calls (collapsed into a group summary)">
+          <ChatToolGroup
+            tools={[
+              {
+                toolCallId: "g2",
+                toolName: "bash",
+                state: "output-available",
+                argsText: '{"command":"git diff --stat"}',
+                output: "3 files changed",
+                durationMs: 340,
+              },
+              {
+                toolCallId: "g3",
+                toolName: "read_file",
+                state: "output-available",
+                argsText: '{"path":"src/utils/formatDate.ts"}',
+                output: "ok",
+                durationMs: 45,
+              },
+              {
+                toolCallId: "g4",
+                toolName: "edit",
+                state: "output-error",
+                argsText: '{"path":"src/utils/formatDate.ts"}',
+                output: "patch failed to apply",
+              },
+              {
+                toolCallId: "g5",
+                toolName: "shell",
+                state: "input-streaming",
+                argsText: '{"command":"yarn test"}',
+              },
+            ]}
+          />
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
 function PromptInputDemo({
   caption,
   initialValue = "",
@@ -433,6 +495,7 @@ export function DesignComponentsLayer() {
       <ChatMarkdownGallery />
       <ChatCodeBlockGallery />
       <ChatToolGallery />
+      <ChatToolGroupGallery />
       <ChatPromptInputGallery />
       <ChatPromptSuggestionGallery />
       <ChatChainOfThoughtGallery />

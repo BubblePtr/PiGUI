@@ -1,6 +1,6 @@
 # Issue 3: ChatTool 内部替换为 Astryx ChatToolCalls
 
-Status: ready-for-agent
+Status: done(PR #72,2026-08-08)
 Source PRD: .scratch/astryx-migration/PRD.md(Slice 2 修订)
 
 ## 背景
