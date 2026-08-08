@@ -297,7 +297,7 @@ describe("AppFrame", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Sessions" })).toBeInTheDocument();
   });
 
-  it("renders Project headers as side nav rows with inline row actions", async () => {
+  it("renders Project headers as side nav rows with sibling row actions (no nested buttons)", async () => {
     renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
@@ -307,18 +307,26 @@ describe("AppFrame", () => {
     expect(projectHeader).toHaveClass("astryx-side-nav-item");
     expect(projectHeaderLabel(projectHeader)).toBe("Pig");
 
-    const projectActionButtons = within(projectHeader).getAllByRole("button");
-    const projectNewSessionButton = within(projectHeader).getByRole("button", {
+    // Interactive elements must never nest (invalid HTML, hydration warning,
+    // unreachable for screen readers) — astryx-migration issue 01.
+    expect(projectGroup.querySelectorAll("button button, a button, button a")).toHaveLength(0);
+    expect(within(projectHeader).queryAllByRole("button")).toHaveLength(0);
+
+    // The actions still render on the same visual row: siblings of the row
+    // button inside the shared row wrapper.
+    const rowWrapper = projectHeader.closest<HTMLElement>(
+      "[data-testid='project-row-with-actions']",
+    );
+    expect(rowWrapper).not.toBeNull();
+    const projectNewSessionButton = within(rowWrapper!).getByRole("button", {
       name: "New Session for Pig",
     });
-    const projectActionsButton = within(projectHeader).getByRole("button", {
+    const projectActionsButton = within(rowWrapper!).getByRole("button", {
       name: "Project actions for Pig",
     });
 
-    expect(projectActionButtons.map((button) => button.getAttribute("aria-label"))).toEqual([
-      "New Session for Pig",
-      "Project actions for Pig",
-    ]);
+    expect(projectHeader.contains(projectNewSessionButton)).toBe(false);
+    expect(projectHeader.contains(projectActionsButton)).toBe(false);
     expect(projectNewSessionButton).toHaveClass("astryx-button");
     expect(projectActionsButton).toHaveClass("astryx-button");
   });
@@ -532,8 +540,13 @@ describe("AppFrame", () => {
     await user.click(expandedProjectHeader);
 
     const projectHeader = getProjectHeaderButton(projectGroup, "Pig");
+    // The indicator sits in the sibling actions overlay on the same row, not
+    // inside the row button (no interactive-element nesting).
+    const projectActions = projectHeader
+      .closest<HTMLElement>("[data-testid='project-row-with-actions']")
+      ?.querySelector<HTMLElement>(".pigui-sidenav-row-actions");
 
-    expect(within(projectHeader).getByLabelText("Unsent follow-up")).toBeInTheDocument();
+    expect(within(projectActions!).getByLabelText("Unsent follow-up")).toBeInTheDocument();
     expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
     expect(projectHeader).toHaveAttribute("aria-expanded", "false");
   });

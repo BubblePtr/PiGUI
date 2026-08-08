@@ -33,6 +33,16 @@ Status: ready-for-agent
 
 ### Slice 3:清退
 - trace/usage/settings/setup 余量组件迁移;移除 @heroui-pro/react 依赖与其主题测试。
+- **已完成(2026-08-08)**:PR #68(e340979,余量迁移 + 依赖移除)、PR #71(残留清理);`app/design-system.test.ts` 守卫"无 heroui、无 Montserrat"。字体统一为 Astryx `--font-family-body`,语义 token 桥落在 `app/styles.css`(`:root, [data-astryx-theme]` 双作用域)。
+
+## 切片进度台账
+
+| 切片 | 状态 |
+| --- | --- |
+| Slice 1 壳层 | done(PR #68 含) |
+| Slice 2 聊天栈(修订为逐组件换 Astryx) | done:issues 03(PR #72)/04(PR #73)/05(PR #74)/06(PR #75);保留自建:chain-of-thought、text-shimmer、KPI/图表 |
+| Slice 3 清退 | done(PR #68/#71) |
+| 遗留 | issue 01(SideNav button 嵌套,ready-for-agent);issue 02(radius-none,上游 facebook/astryx#4833 跟踪) |
 
 ## Slice 1 实测冲突清单(2026-08-08)
 

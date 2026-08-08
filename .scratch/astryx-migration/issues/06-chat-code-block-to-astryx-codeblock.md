@@ -1,6 +1,6 @@
 # Issue 6: chat-code-block → Astryx CodeBlock(移除 shiki)
 
-Status: ready-for-agent
+Status: done(PR #75,2026-08-08)
 Source PRD: .scratch/astryx-migration/PRD.md(Slice 2 修订)
 
 ## 背景
