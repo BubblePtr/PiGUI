@@ -1,6 +1,6 @@
 # Issue 5: chat-markdown → Astryx Markdown(流式增量解析)
 
-Status: ready-for-agent
+Status: done(PR #74,2026-08-08)
 Source PRD: .scratch/astryx-migration/PRD.md(Slice 2 修订)
 
 ## 背景

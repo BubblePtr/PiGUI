@@ -1,6 +1,6 @@
 # Issue 4: 工具调用分组 + target/耗时元数据 + isError 映射修复
 
-Status: ready-for-agent
+Status: done(PR #73,2026-08-08)
 Source PRD: .scratch/astryx-migration/PRD.md(Slice 2 修订)
 
 ## 背景

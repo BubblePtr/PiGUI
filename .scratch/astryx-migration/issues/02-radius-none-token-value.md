@@ -1,7 +1,16 @@
 # Issue 2: `--radius-none` 在 theme-neutral 下解析为 0.25rem 而非 0
 
-Status: needs-info
+Status: done(定性上游 bug,facebook/astryx#4833 跟踪,2026-08-08)
 Source PRD: .scratch/astryx-migration/PRD.md
+
+## 结论(2026-08-08)
+
+**上游 bug,非 by-design。** 证据:
+- `@astryxdesign/core` 默认值 `--radius-none: 0px`(dist/astryx.css);
+- `dist/theme/defineTheme.d.ts` 明文:"--radius-none and --radius-full are always fixed (never affected by multiplier)";
+- `theme-neutral/src/neutralTheme.ts` 注释 "Radius — slightly larger than default" 整组抬高时把 `none` 一并写成 `0.25rem`,违反上述契约(`--radius-full` 未被误改)。
+
+PiGUI 代码零处依赖 `--radius-none`(已 grep 确认),不做本地 override。上游跟踪:https://github.com/facebook/astryx/issues/4833,修复版本发布后随 `astryx upgrade` 消化。
 
 ## 现象
 
