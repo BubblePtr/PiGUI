@@ -12,7 +12,6 @@ import {
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
-import { DesignPage } from "@/pages/design";
 import { PreflightPage, preflightStatusQueryKey } from "@/pages/preflight";
 import { SettingsPage } from "@/pages/settings";
 import { SetupPage } from "@/pages/setup";
@@ -150,13 +149,21 @@ const preflightRoute = createRoute({
   component: PreflightPage,
 });
 
-// Dev-only design gallery: the DEV flag folds to false in production builds,
-// so the route and the whole page tree-shake out of the bundle.
-const designRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/design",
-  component: DesignPage,
-});
+// Dev-only design gallery. Both the createRoute() call and the page import
+// must live inside the DEV branch: a top-level createRoute() is not provably
+// pure, and a static import would keep the page in the production bundle
+// even with the route unregistered.
+const devOnlyRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/design",
+        component: React.lazy(async () => ({
+          default: (await import("@/pages/design")).DesignPage,
+        })),
+      }),
+    ]
+  : [];
 
 const router = createRouter({
   ...(isElectronRuntime() ? { history: createHashHistory() } : {}),
@@ -168,7 +175,7 @@ const router = createRouter({
     setupRoute,
     settingsRoute,
     preflightRoute,
-    ...(import.meta.env.DEV ? [designRoute] : []),
+    ...devOnlyRoutes,
   ]),
 });
 

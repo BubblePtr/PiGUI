@@ -136,9 +136,15 @@ describe("Design page dev-only gating", () => {
     );
 
     expect(main).toContain('path: "/design"');
-    // Route must be spread in behind the DEV flag so production builds
-    // tree-shake the whole page out of the bundle.
-    expect(main).toMatch(/import\.meta\.env\.DEV\s*\?\s*\[designRoute\]\s*:\s*\[\]/);
+    // The whole route construction and a *dynamic* page import must sit
+    // behind the DEV flag: a top-level createRoute()/static import keeps the
+    // page referenced in production builds (Rollup cannot prove the call
+    // pure), which is how the page once leaked into the prod bundle.
+    expect(main).toMatch(
+      /import\.meta\.env\.DEV\s*\?\s*\[\s*createRoute\(/,
+    );
+    expect(main).toContain('import("@/pages/design")');
+    expect(main).not.toMatch(/from\s+"@\/pages\/design"/);
   });
 
   it("exempts /design from the preflight gate", () => {
