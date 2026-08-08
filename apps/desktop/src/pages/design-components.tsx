@@ -260,7 +260,6 @@ function ChatToolGallery() {
           <Variant key={state} caption={`state=${state}`}>
             <ChatTool
               argsText={'{"path":"src/index.ts"}'}
-              defaultExpanded={state === "output-error"}
               output={state === "output-error" ? "ENOENT: file not found" : "ok"}
               state={state}
               toolName="read_file"

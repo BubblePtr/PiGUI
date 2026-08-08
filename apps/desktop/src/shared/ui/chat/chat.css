@@ -350,48 +350,12 @@
   min-width: 0;
 }
 
-.chat-tool__trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-base);
-  cursor: pointer;
-}
-
-.chat-tool__trigger:hover {
-  color: var(--color-text-primary);
-}
-
-.chat-tool__chevron {
-  transition: rotate var(--duration-fast) var(--ease-standard);
-}
-
-.chat-tool__trigger[aria-expanded="true"] .chat-tool__chevron {
-  rotate: 90deg;
-}
-
-.chat-tool__state {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.chat-tool[data-state="output-error"] .chat-tool__state {
-  color: var(--color-error);
-}
-
-.chat-tool__details {
-  margin-block-start: var(--spacing-1-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1-5);
-}
-
+/* Detail panes inside the Astryx ChatToolCalls row (args / result). The
+   Astryx detail container only indents; separation from the row above and
+   between panes is ours to provide. */
 .chat-tool__section {
   margin: 0;
+  margin-block-start: var(--spacing-1-5);
   padding: var(--spacing-2);
   border-radius: var(--radius-inner);
   background: var(--color-background-muted);

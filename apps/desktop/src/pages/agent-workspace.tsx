@@ -445,7 +445,6 @@ function RunTimelineStepContent({ item }: { item: RunTimelineItem }) {
       state={item.toolState ?? "input-available"}
       toolCallId={item.toolCallId}
       toolName={item.toolName ?? item.title}
-      triggerPrefix="Used tool: "
     />
   );
 }

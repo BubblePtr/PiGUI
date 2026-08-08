@@ -27,8 +27,9 @@ Status: ready-for-agent
 - 验收:app-shell 行为测试全绿(HeroUI 结构断言改写);Electron 截图确认侧栏/标题栏/字体正常;记录两套样式冲突清单。
 
 ### Slice 2:聊天栈
-- agent-workspace.tsx 的 ChatConversation/ChatMessage/ChatTool/ChainOfThought/StreamMarkdown/PromptInput/TextShimmer 自建替换(shiki + 流式 markdown + 粘底 hook + Base UI)。
-- session-detail.tsx 的 CodeBlock 换 shiki 方案。
+- ~~agent-workspace.tsx 的 ChatConversation/ChatMessage/ChatTool/ChainOfThought/StreamMarkdown/PromptInput/TextShimmer 自建替换(shiki + 流式 markdown + 粘底 hook + Base UI)。~~
+- ~~session-detail.tsx 的 CodeBlock 换 shiki 方案。~~
+- **修订(2026-08-08)**:"聊天栈自建"的前提(未确认 Astryx Chat 能力)已不成立。@astryxdesign/core 0.3.0 的 Chat 全家桶(ChatLayout/ChatMessageList/ChatMessage/ChatMessageBubble/ChatToolCalls/ChatComposer + useChatStreamScroll 等 hooks)、流式增量 Markdown、自带高亮的 CodeBlock 已覆盖自建组件的绝大部分能力(官方 `ai-chat` 模板逐一验证)。新方向:**能用 Astryx 则用 Astryx**,仅保留无对应物的自建件(chat-chain-of-thought、text-shimmer、pi-kpi/pi-bar-chart/dot-matrix)。逐组件替换切片见 issues/03 起;首个切片 ChatTool → ChatToolCalls。
 
 ### Slice 3:清退
 - trace/usage/settings/setup 余量组件迁移;移除 @heroui-pro/react 依赖与其主题测试。
