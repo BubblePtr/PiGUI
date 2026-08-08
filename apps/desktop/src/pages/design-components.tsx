@@ -221,8 +221,8 @@ function ChatMarkdownGallery() {
         <Variant caption="static GFM">
           <ChatMarkdown>{markdownFixture}</ChatMarkdown>
         </Variant>
-        <Variant caption="streaming with caret">
-          <ChatStreamMarkdown caret="block" isStreaming>
+        <Variant caption="streaming (Astryx incremental fade-in)">
+          <ChatStreamMarkdown isStreaming>
             Streaming tokens arrive here
           </ChatStreamMarkdown>
         </Variant>

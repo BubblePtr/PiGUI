@@ -486,7 +486,7 @@ function AssistantMessageContent({ message }: { message: LiveMessage }) {
 
   if (message.isStreaming) {
     return (
-      <StreamMarkdown caret="block" isStreaming>
+      <StreamMarkdown isStreaming>
         {message.body}
       </StreamMarkdown>
     );
