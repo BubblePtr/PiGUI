@@ -4,6 +4,7 @@ import {
   AddIcon,
   ArchiveIcon,
   ArrowLeftIcon,
+  ArrowUp02Icon,
   BarChartIcon,
   BotIcon,
   BoxIcon,
@@ -14,6 +15,7 @@ import {
   CircleIcon,
   CommandIcon,
   ComputerIcon,
+  Copy01Icon,
   Delete02Icon,
   FileDiffIcon,
   Folder01Icon,
@@ -33,7 +35,11 @@ import {
   Settings02Icon,
   SidebarLeftIcon,
   SparklesIcon,
+  StopIcon as HugeStopIcon,
   TerminalIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
+  Tick02Icon,
   UserIcon,
   WrenchIcon,
 } from "@hugeicons/core-free-icons";
@@ -58,6 +64,7 @@ function iconComponent(icon: IconSvgElement) {
 export const Activity = iconComponent(ActivityIcon);
 export const Archive = iconComponent(ArchiveIcon);
 export const ArrowLeft = iconComponent(ArrowLeftIcon);
+export const ArrowUp = iconComponent(ArrowUp02Icon);
 export const BarChart3 = iconComponent(BarChartIcon);
 export const Bot = iconComponent(RobotIcon);
 export const Box = iconComponent(BoxIcon);
@@ -65,9 +72,11 @@ export const Cancel = iconComponent(Cancel01Icon);
 export const ChatAdd = iconComponent(ChatAddIcon);
 export const ChevronDown = iconComponent(ChevronDownIcon);
 export const ChevronRight = iconComponent(ChevronRightIcon);
+export const Check = iconComponent(Tick02Icon);
 export const Circle = iconComponent(CircleIcon);
 export const Command = iconComponent(CommandIcon);
 export const Computer = iconComponent(ComputerIcon);
+export const Copy = iconComponent(Copy01Icon);
 export const FileDiff = iconComponent(FileDiffIcon);
 export const FolderClosed = iconComponent(Folder01Icon);
 export const FolderOpen = iconComponent(FolderOpenIcon);
@@ -86,7 +95,10 @@ export const Settings = iconComponent(Settings01Icon);
 export const Settings2 = iconComponent(Settings02Icon);
 export const SidebarLeft = iconComponent(SidebarLeftIcon);
 export const Sparkles = iconComponent(SparklesIcon);
+export const Stop = iconComponent(HugeStopIcon);
 export const Terminal = iconComponent(TerminalIcon);
+export const ThumbsDown = iconComponent(ThumbsDownIcon);
+export const ThumbsUp = iconComponent(ThumbsUpIcon);
 export const Trash2 = iconComponent(Delete02Icon);
 export const User = iconComponent(UserIcon);
 export const Wrench = iconComponent(WrenchIcon);

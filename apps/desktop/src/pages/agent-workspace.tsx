@@ -1,25 +1,29 @@
 import {
   Button,
-  type Key,
   ListBox,
   Popover,
   ScrollShadow,
   Slider,
   Tooltip,
 } from "@heroui/react";
-import { ChainOfThought } from "@heroui-pro/react/chain-of-thought";
-import { ChatConversation } from "@heroui-pro/react/chat-conversation";
-import { ChatMessage } from "@heroui-pro/react/chat-message";
-import { ChatMessageActions } from "@heroui-pro/react/chat-message-actions";
-import { ChatTool, type ToolPartState } from "@heroui-pro/react/chat-tool";
-import { InlineSelect } from "@heroui-pro/react/inline-select";
-import { Markdown, StreamMarkdown } from "@heroui-pro/react/markdown";
-import { PromptInput } from "@heroui-pro/react/prompt-input";
-import { PromptSuggestion } from "@heroui-pro/react/prompt-suggestion";
-import { Resizable } from "@heroui-pro/react/resizable";
-import { Segment } from "@heroui-pro/react/segment";
 import { Sheet } from "@heroui-pro/react/sheet";
-import { TextShimmer } from "@heroui-pro/react/text-shimmer";
+import { ResizeHandle, useResizable } from "@astryxdesign/core/Resizable";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
+import { Selector } from "@astryxdesign/core/Selector";
+import { ChatChainOfThought as ChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
+import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
+import {
+  ChatMarkdown as Markdown,
+  ChatStreamMarkdown as StreamMarkdown,
+} from "@/shared/ui/chat/chat-markdown";
+import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
+import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
+import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
+import { ChatTool, type ToolPartState } from "@/shared/ui/chat/chat-tool";
+import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import type { SessionChangedFile, SessionChanges } from "@pigui/core";
@@ -1651,12 +1655,6 @@ const SESSION_DRAFT_SUGGESTED_PROMPTS = [
 
 const projectPickerPlaceholder = "Select Project";
 const projectPickerPlaceholderKey = "__project-picker-placeholder__";
-const sessionDraftInlineSelectPopoverClassName =
-  "pigui-compact-menu-popover w-max min-w-[var(--trigger-width)] max-w-[calc(100vw-2rem)]";
-const sessionDraftInlineSelectItemClassName =
-  "pigui-compact-menu-item grid grid-cols-[1rem_minmax(0,1fr)_1rem] items-center gap-2";
-const sessionDraftInlineSelectItemIconClassName =
-  "pigui-compact-menu-item-icon col-start-1 shrink-0 text-muted";
 
 function createSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -1666,108 +1664,12 @@ function createSessionId() {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function projectPickerKeyToProjectId(key: Key | null) {
+function projectPickerKeyToProjectId(key: string | null) {
   if (key === null || key === projectPickerPlaceholderKey) {
     return null;
   }
 
-  return String(key);
-}
-
-function SessionDraftInlineSelect({
-  ariaLabel,
-  listBoxLabel,
-  value,
-  onChange,
-  rootTestId,
-  triggerTestId,
-  triggerClassName = "text-muted",
-  triggerContent,
-  children,
-}: {
-  ariaLabel: string;
-  listBoxLabel: string;
-  value: Key;
-  onChange: (key: Key | null) => void;
-  rootTestId: string;
-  triggerTestId: string;
-  triggerClassName?: string;
-  triggerContent: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="max-w-full" data-testid={rootTestId}>
-      <InlineSelect aria-label={ariaLabel} value={value} onChange={onChange}>
-        <InlineSelect.Trigger
-          aria-label={ariaLabel}
-          className={`inline-flex min-h-8 w-fit max-w-full min-w-0 items-center gap-2 rounded-xl border border-transparent bg-surface-secondary px-2.5 py-1.5 text-sm ${triggerClassName} transition-colors hover:text-foreground`}
-          data-testid={triggerTestId}
-        >
-          {triggerContent}
-          <InlineSelect.Indicator className="size-4 shrink-0 text-muted" />
-        </InlineSelect.Trigger>
-        <InlineSelect.Popover
-          className={sessionDraftInlineSelectPopoverClassName}
-          placement="bottom start"
-        >
-          <ListBox
-            aria-label={listBoxLabel}
-            className="pigui-compact-menu-surface"
-          >
-            {children}
-          </ListBox>
-        </InlineSelect.Popover>
-      </InlineSelect>
-    </div>
-  );
-}
-
-function SessionDraftInlineSelectItem({
-  id,
-  textValue,
-  label,
-  Icon,
-  iconTestId,
-  labelClassName = "",
-}: {
-  id: Key;
-  textValue: string;
-  label: string;
-  Icon?: typeof FolderClosed;
-  iconTestId?: string;
-  labelClassName?: string;
-}) {
-  return (
-    <ListBox.Item
-      className={sessionDraftInlineSelectItemClassName}
-      id={id}
-      textValue={textValue}
-    >
-      {Icon ? (
-        <Icon
-          aria-hidden="true"
-          className={sessionDraftInlineSelectItemIconClassName}
-          data-testid={iconTestId}
-        />
-      ) : (
-        <span
-          aria-hidden="true"
-          className={sessionDraftInlineSelectItemIconClassName}
-        />
-      )}
-      <span
-        className={`pigui-compact-menu-label col-start-2 min-w-0 truncate ${labelClassName}`}
-      >
-        {label}
-      </span>
-      <span
-        className="pigui-compact-menu-item-indicator col-start-3 flex shrink-0 items-center justify-center justify-self-end"
-        data-testid="session-draft-inline-select-item-indicator"
-      >
-        <ListBox.ItemIndicator className="text-muted" />
-      </span>
-    </ListBox.Item>
-  );
+  return key;
 }
 
 function ProjectPicker({
@@ -1780,53 +1682,42 @@ function ProjectPicker({
   onProjectChange: (projectId: string | null) => void;
 }) {
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
-  const displayLabel = selectedProject?.displayName ?? projectPickerPlaceholder;
   const selectedPickerKey = selectedProject?.id ?? projectPickerPlaceholderKey;
-  const triggerTextColor = selectedProject ? "text-foreground" : "text-muted";
 
   return (
-    <SessionDraftInlineSelect
-      ariaLabel="Target Project"
-      listBoxLabel="Projects"
-      rootTestId="project-picker"
-      triggerClassName={triggerTextColor}
-      triggerContent={
-        <>
+    <div className="max-w-full" data-testid="project-picker">
+      <Selector
+        data-testid="project-picker-trigger"
+        isLabelHidden
+        label="Target Project"
+        options={[
+          { value: projectPickerPlaceholderKey, label: projectPickerPlaceholder },
+          ...projects.map((project) => ({
+            value: project.id,
+            label: project.displayName,
+            icon: (
+              <FolderClosed
+                aria-hidden="true"
+                className="pigui-compact-menu-item-icon text-muted"
+              />
+            ),
+          })),
+        ]}
+        size="sm"
+        startIcon={
           <FolderClosed
             aria-hidden="true"
             className="size-4 shrink-0 text-muted"
             data-testid="project-picker-folder-icon"
           />
-          <span
-            className="min-w-0 truncate"
-            data-testid="project-picker-label"
-          >
-            {displayLabel}
-          </span>
-        </>
-      }
-      triggerTestId="project-picker-trigger"
-      value={selectedPickerKey}
-      onChange={(key) => {
-        onProjectChange(projectPickerKeyToProjectId(key));
-      }}
-    >
-      <SessionDraftInlineSelectItem
-        id={projectPickerPlaceholderKey}
-        label={projectPickerPlaceholder}
-        labelClassName="text-muted"
-        textValue={projectPickerPlaceholder}
+        }
+        value={selectedPickerKey}
+        variant="ghost"
+        onChange={(value) => {
+          onProjectChange(projectPickerKeyToProjectId(value));
+        }}
       />
-      {projects.map((project) => (
-        <SessionDraftInlineSelectItem
-          key={project.id}
-          Icon={FolderClosed}
-          id={project.id}
-          label={project.displayName}
-          textValue={project.displayName}
-        />
-      ))}
-    </SessionDraftInlineSelect>
+    </div>
   );
 }
 
@@ -1849,13 +1740,37 @@ function CheckoutStrategyPicker({
   onCheckoutModeChange: (checkoutMode: SessionDraftCheckoutMode) => void;
 }) {
   return (
-    <SessionDraftInlineSelect
-      ariaLabel="Checkout strategy"
-      listBoxLabel="Checkout strategies"
-      rootTestId="checkout-strategy-picker"
-      triggerContent={
-        <>
-          {selectedCheckoutMode === "worktree" ? (
+    <div className="max-w-full" data-testid="checkout-strategy-picker">
+      <Selector
+        data-testid="checkout-strategy-trigger"
+        isLabelHidden
+        label="Checkout strategy"
+        options={[
+          {
+            value: "local",
+            label: checkoutModeLabels.local,
+            icon: (
+              <Computer
+                aria-hidden="true"
+                className="pigui-compact-menu-item-icon text-muted"
+                data-testid="checkout-strategy-local-icon"
+              />
+            ),
+          },
+          {
+            value: "worktree",
+            label: checkoutModeLabels.worktree,
+            icon: (
+              <GitBranch
+                aria-hidden="true"
+                className="pigui-compact-menu-item-icon text-muted"
+              />
+            ),
+          },
+        ]}
+        size="sm"
+        startIcon={
+          selectedCheckoutMode === "worktree" ? (
             <GitBranch aria-hidden="true" className="size-4 shrink-0 text-muted" />
           ) : (
             <Computer
@@ -1863,32 +1778,15 @@ function CheckoutStrategyPicker({
               className="size-4 shrink-0 text-muted"
               data-testid="checkout-strategy-local-icon"
             />
-          )}
-          <span className="min-w-0 truncate">
-            {checkoutModeLabels[selectedCheckoutMode]}
-          </span>
-        </>
-      }
-      triggerTestId="checkout-strategy-trigger"
-      value={selectedCheckoutMode}
-      onChange={(key) => {
-        onCheckoutModeChange(String(key) === "worktree" ? "worktree" : "local");
-      }}
-    >
-      <SessionDraftInlineSelectItem
-        Icon={Computer}
-        iconTestId="checkout-strategy-local-icon"
-        id="local"
-        label={checkoutModeLabels.local}
-        textValue={checkoutModeLabels.local}
+          )
+        }
+        value={selectedCheckoutMode}
+        variant="ghost"
+        onChange={(value) => {
+          onCheckoutModeChange(value === "worktree" ? "worktree" : "local");
+        }}
       />
-      <SessionDraftInlineSelectItem
-        Icon={GitBranch}
-        id="worktree"
-        label={checkoutModeLabels.worktree}
-        textValue={checkoutModeLabels.worktree}
-      />
-    </SessionDraftInlineSelect>
+    </div>
   );
 }
 
@@ -2339,23 +2237,17 @@ export function SessionChangesPanel({
               >
                 {selectedFile?.path}
               </p>
-              <Segment
-                aria-label="Diff layout"
-                selectedKey={diffStyle}
+              <SegmentedControl
+                label="Diff layout"
                 size="sm"
-                onSelectionChange={(key) =>
-                  setDiffStyle(key === "split" ? "split" : "unified")
+                value={diffStyle}
+                onChange={(value) =>
+                  setDiffStyle(value === "split" ? "split" : "unified")
                 }
               >
-                <Segment.Item id="unified">
-                  <Segment.Separator />
-                  Unified
-                </Segment.Item>
-                <Segment.Item id="split">
-                  <Segment.Separator />
-                  Split
-                </Segment.Item>
-              </Segment>
+                <SegmentedControlItem label="Unified" value="unified" />
+                <SegmentedControlItem label="Split" value="split" />
+              </SegmentedControl>
             </div>
 
             {selectedFile?.kind === "conflicted" ? (
@@ -3750,6 +3642,28 @@ export function AgentWorkspaceSessionsView({
     />
   );
   const resizableSizes = getSessionChangesResizableSizes();
+  // Percentage bounds resolve against the viewport once; the drag itself is
+  // pixel-based (Astryx useResizable), matching the previous percent split.
+  const [asideSizeBounds] = useState(() => {
+    const viewportWidth =
+      typeof window !== "undefined" && window.innerWidth > 0
+        ? window.innerWidth
+        : 1280;
+
+    return {
+      minSizePx: Math.round(
+        (viewportWidth * resizableSizes.changesMinSize) / 100,
+      ),
+      maxSizePx: Math.round(
+        (viewportWidth * resizableSizes.changesMaxSize) / 100,
+      ),
+    };
+  });
+  const asideResizable = useResizable({
+    defaultSize: `${resizableSizes.changesDefaultSize}%`,
+    minSizePx: asideSizeBounds.minSizePx,
+    maxSizePx: asideSizeBounds.maxSizePx,
+  });
 
   return (
     <article
@@ -3759,14 +3673,14 @@ export function AgentWorkspaceSessionsView({
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[96rem] flex-col gap-4">
         <div className="min-h-0 flex-1">
           {aside ? (
-            <Resizable
-              className="h-full min-h-0 w-full"
+            <div
+              className="flex h-full min-h-0 w-full flex-row"
+              data-slot="resizable"
               data-testid="session-workspace-split-view"
-              orientation="horizontal"
             >
-              <Resizable.Panel
-                defaultSize={resizableSizes.workspaceDefaultSize}
-                minSize={resizableSizes.workspaceMinSize}
+              <div
+                className="h-full min-h-0 min-w-0 flex-1"
+                data-slot="resizable-panel"
               >
                 <div
                   className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
@@ -3774,15 +3688,18 @@ export function AgentWorkspaceSessionsView({
                 >
                   {liveSession}
                 </div>
-              </Resizable.Panel>
-              <Resizable.Handle
-                aria-label="Resize Session changes"
+              </div>
+              <ResizeHandle
                 className="mx-2"
+                direction="horizontal"
+                isReversed
+                label="Resize Session changes"
+                resizable={asideResizable.props}
               />
-              <Resizable.Panel
-                defaultSize={resizableSizes.changesDefaultSize}
-                maxSize={resizableSizes.changesMaxSize}
-                minSize={resizableSizes.changesMinSize}
+              <div
+                className="h-full min-h-0 shrink-0"
+                data-slot="resizable-panel"
+                style={{ width: asideResizable.size }}
               >
                 <div
                   className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
@@ -3790,8 +3707,8 @@ export function AgentWorkspaceSessionsView({
                 >
                   {aside}
                 </div>
-              </Resizable.Panel>
-            </Resizable>
+              </div>
+            </div>
           ) : (
             <div className="h-full min-h-0 pt-16">{liveSession}</div>
           )}

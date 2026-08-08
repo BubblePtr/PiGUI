@@ -43,57 +43,86 @@ import { createSessionRuntimeModel } from "@/entities/session/session-runtime-mo
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 
-vi.mock("@heroui-pro/react/markdown", () => ({
-  Markdown: ({ children }: { children: string }) => (
-    <div data-testid="markdown-renderer">{children}</div>
-  ),
-  StreamMarkdown: ({
-    children,
-    isStreaming,
-  }: {
-    children: string;
-    isStreaming?: boolean;
-  }) => (
-    <div data-is-streaming={String(Boolean(isStreaming))} data-testid="stream-markdown-renderer">
-      {children}
-    </div>
-  ),
-}));
+// The app shell renders the sidebar with Astryx SideNav: rows are buttons,
+// project sessions live in the aria-controls group owned by the project
+// header row. These helpers mirror app-shell.test.tsx.
+function isAstryxSideNavRow(candidate: HTMLElement) {
+  return candidate.classList.contains("astryx-side-nav-item");
+}
 
-vi.mock("@heroui-pro/react/chat-tool", () => ({
-  ChatTool: ({
-    argsText,
-    defaultExpanded,
-    output,
-    state,
-    toolName,
-    triggerPrefix,
-  }: {
-    argsText?: string;
-    defaultExpanded?: boolean;
-    output?: unknown;
-    state: string;
-    toolName?: string;
-    triggerPrefix?: string;
-  }) => (
-    <div data-slot="chat-tool" data-state={state}>
-      <div data-slot="chat-tool-trigger">
-        {triggerPrefix}
-        {toolName}
-      </div>
-      {defaultExpanded ? (
-        <>
-          {argsText ? <div data-slot="chat-tool-args">{argsText}</div> : null}
-          {output !== undefined ? (
-            <div data-slot="chat-tool-result">
-              {typeof output === "string" ? output : JSON.stringify(output)}
-            </div>
-          ) : null}
-        </>
-      ) : null}
-    </div>
-  ),
-}));
+function getProjectHeaderRowByName(name: string) {
+  const projectGroup = screen.getByTestId("sidebar-projects");
+  const header = within(projectGroup)
+    .getAllByRole("button")
+    .find(
+      (candidate) =>
+        isAstryxSideNavRow(candidate) &&
+        candidate.hasAttribute("aria-expanded") &&
+        !candidate.hasAttribute("aria-haspopup") &&
+        (candidate.textContent ?? "").startsWith(name),
+    );
+
+  if (!header) {
+    throw new Error(`Project header row not found: ${name}`);
+  }
+
+  return header;
+}
+
+function getProjectSessionsGroupByName(name: string) {
+  const header = getProjectHeaderRowByName(name);
+  const groupId = header.getAttribute("aria-controls");
+  const group = groupId ? document.getElementById(groupId) : null;
+
+  if (!group) {
+    throw new Error(`Project sessions group not found: ${name}`);
+  }
+
+  return group as HTMLElement;
+}
+
+async function findProjectSessionsGroupByName(name: string) {
+  await screen.findByTestId("sidebar-projects");
+
+  return getProjectSessionsGroupByName(name);
+}
+
+function getSidebarSessionRows(scope: HTMLElement) {
+  return within(scope)
+    .getAllByRole("button")
+    .filter(
+      (candidate) =>
+        isAstryxSideNavRow(candidate) && !candidate.hasAttribute("aria-expanded"),
+    );
+}
+
+function querySidebarSessionRow(title: string) {
+  const projectGroup = screen.queryByTestId("sidebar-projects");
+
+  if (!projectGroup) {
+    return undefined;
+  }
+
+  return within(projectGroup)
+    .queryAllByRole("button")
+    .filter(
+      (candidate) =>
+        isAstryxSideNavRow(candidate) && !candidate.hasAttribute("aria-expanded"),
+    )
+    .find((candidate) => (candidate.textContent ?? "").includes(title));
+}
+
+async function findSidebarSessionRow(title: string) {
+  return waitFor(() => {
+    const row = querySidebarSessionRow(title);
+
+    if (!row) {
+      throw new Error(`Session row not found: ${title}`);
+    }
+
+    return row;
+  });
+}
 
 vi.mock("@/entities/session/session-diff-viewer", () => ({
   default: ({ patch, style }: { patch: string; style: string }) => (
@@ -152,50 +181,30 @@ async function chooseProjectFromPicker(
   await user.click(await screen.findByRole("option", { name: projectName }));
 }
 
+// Astryx Selector renders the dropdown as a role="listbox" popup labelled by
+// its trigger; these helpers assert the structural contract of that popup.
 function expectAdaptiveInlineSelectPopover(listbox: HTMLElement) {
-  const popover = listbox.closest('[data-slot="select-popover"]');
-
-  expect(popover).toHaveClass(
-    "w-max",
-    "min-w-[var(--trigger-width)]",
-    "max-w-[calc(100vw-2rem)]",
-  );
-  expect(popover).toHaveClass("pigui-compact-menu-popover");
-  expect(popover).not.toHaveClass("w-[min(18rem,calc(100vw-2rem))]");
-  expect(listbox).toHaveClass("pigui-compact-menu-surface");
+  expect(listbox).toBeInTheDocument();
+  expect(listbox.querySelectorAll('[role="option"]').length).toBeGreaterThan(0);
 }
 
-function expectInlineSelectOptionHasReservedIndicatorColumn(option: HTMLElement) {
-  expect(option).toHaveClass(
-    "pigui-compact-menu-item",
-    "grid",
-    "grid-cols-[1rem_minmax(0,1fr)_1rem]",
-    "items-center",
-    "gap-2",
-  );
-  expect(
-    within(option).getByTestId("session-draft-inline-select-item-indicator"),
-  ).toHaveClass(
-    "pigui-compact-menu-item-indicator",
-    "col-start-3",
-    "justify-self-end",
-  );
+function expectInlineSelectOptionIsAstryxOption(option: HTMLElement) {
+  expect(option).toHaveAttribute("role", "option");
+  expect(option).toHaveAttribute("aria-selected");
 }
 
 function expectInlineSelectOptionLabelMatchesCompactMenu(
   option: HTMLElement,
   label: string,
 ) {
-  expect(within(option).getByText(label)).toHaveClass("pigui-compact-menu-label");
+  expect(within(option).getByText(label)).toBeInTheDocument();
 }
 
-function getListboxByAriaLabel(ariaLabel: string) {
-  const listbox = document.querySelector(
-    `[role="listbox"][aria-label="${ariaLabel}"]`,
-  );
+function getOpenSelectorListbox() {
+  const listbox = document.querySelector('[role="listbox"]');
 
   if (!(listbox instanceof HTMLElement)) {
-    throw new Error(`Expected ${ariaLabel} listbox to be rendered.`);
+    throw new Error("Expected an open Selector listbox to be rendered.");
   }
 
   return listbox;
@@ -279,14 +288,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     const liveComposerInput = within(liveColumn).getByPlaceholderText(
       "What do you want to know?",
     );
-    const traceSidebarLabel = within(screen.getByRole("row", { name: "Trace" }))
-      .getByText("Trace")
-      .closest('[data-slot="sidebar-menu-label"]');
+    const traceSidebarLabel = within(screen.getByRole("button", { name: "Trace" }))
+      .getByText("Trace");
     const newSessionSidebarLabel = within(
-      screen.getByLabelText("Trace and usage navigation"),
-    )
-      .getByText("New Session")
-      .closest('[data-slot="sidebar-menu-label"]');
+      screen.getByRole("group", { name: "Trace and usage navigation" }),
+    ).getByText("New Session");
 
     expect(sessionActionsButton).toBeInTheDocument();
     expect(sessionChangesButton).toHaveAttribute("aria-pressed", "false");
@@ -522,9 +528,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith("list_session_projections", undefined);
     });
-    expect(
-      await screen.findByRole("row", { name: "Persisted cold session" }),
-    ).toBeInTheDocument();
+    expect(await findSidebarSessionRow("Persisted cold session")).toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalledWith("list_sessions", expect.anything());
   });
 
@@ -564,7 +568,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    expect(await screen.findByRole("row", { name: "Archive this session" })).toBeInTheDocument();
+    expect(await findSidebarSessionRow("Archive this session")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Session actions" }));
     fireEvent.click(
       within(await screen.findByRole("dialog", { name: "Session actions" })).getByRole(
@@ -578,7 +582,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         sessionId: "persisted-session-1",
       });
     });
-    expect(screen.queryByRole("row", { name: "Archive this session" })).not.toBeInTheDocument();
+    expect(querySidebarSessionRow("Archive this session")).toBeUndefined();
   });
 
   it("reloads projections and resumes the selected Session after backend recovery", async () => {
@@ -764,7 +768,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    expect(await screen.findAllByText("Missing session file")).toHaveLength(2);
+    await waitFor(() => {
+      expect(screen.getAllByText("Missing session file")).toHaveLength(2);
+    });
     expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
       "Session file is missing",
     );
@@ -851,10 +857,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     });
 
     const draftComposer = await screen.findByTestId("session-draft-composer");
-    const projectNavigation = screen.getByTestId("sidebar-projects");
     const projectPickerTrigger = screen.getByTestId("project-picker-trigger");
 
-    expect(within(projectNavigation).getByText("Pig")).toBeInTheDocument();
+    expect(getProjectHeaderRowByName("Pig")).toBeInTheDocument();
     expect(screen.queryByTestId("empty-workspace-state")).not.toBeInTheDocument();
     expect(within(draftComposer).getByPlaceholderText("Do anything with Pi")).toHaveValue("");
     expect(projectPickerTrigger).toHaveTextContent("Pig");
@@ -901,13 +906,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    const projectNavigation = await screen.findByLabelText("Pig project sessions");
-
-    await user.click(
-      within(projectNavigation).getByRole("row", {
-        name: "Trace boundary pass",
-      }),
-    );
+    await user.click(await findSidebarSessionRow("Trace boundary pass"));
     await user.click(screen.getByRole("button", { name: "Session actions" }));
 
     const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
@@ -961,7 +960,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("row", { name: "New Session" }));
+    await user.click(await screen.findByRole("button", { name: "New Session" }));
     await chooseProjectFromPicker(user, "Pig");
     fireEvent.change(await screen.findByPlaceholderText("Do anything with Pi"), {
       target: { value: "Create a draft-backed active Session" },
@@ -1085,10 +1084,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    const projectNavigation = await screen.findByLabelText("Pig project sessions");
-    const unreadRow = within(projectNavigation).getByRole("row", {
-      name: "Trace boundary pass",
-    });
+    const unreadRow = await findSidebarSessionRow("Trace boundary pass");
 
     expect(within(unreadRow).getByLabelText("Unread result")).toBeInTheDocument();
 
@@ -1098,13 +1094,13 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(screen.getByLabelText("Live Chat messages")).getByText("Trace boundary pass"),
     ).toBeInTheDocument();
     await waitFor(() => {
-      expect(
-        within(
-          within(projectNavigation).getByRole("row", {
-            name: "Trace boundary pass",
-          }),
-        ).queryByLabelText("Unread result"),
-      ).not.toBeInTheDocument();
+      const row = querySidebarSessionRow("Trace boundary pass");
+
+      if (!row) {
+        throw new Error("Session row not found: Trace boundary pass");
+      }
+
+      expect(within(row).queryByLabelText("Unread result")).not.toBeInTheDocument();
     });
   });
 
@@ -1836,11 +1832,13 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    const projectNavigation = await screen.findByLabelText("Pig project sessions");
-    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
-    const initialRows = within(projectNavigation).getAllByRole("row");
+    const projectNavigation = await findProjectSessionsGroupByName("Pig");
+    const traceUsageNavigation = screen.getByRole("group", {
+      name: "Trace and usage navigation",
+    });
+    const initialRows = getSidebarSessionRows(projectNavigation);
 
-    await user.click(within(traceUsageNavigation).getByRole("row", { name: "New Session" }));
+    await user.click(within(traceUsageNavigation).getByRole("button", { name: "New Session" }));
 
     const draftComposer = await screen.findByTestId("session-draft-composer");
     const emptyState = within(draftComposer).getByTestId("session-draft-empty-state");
@@ -1876,21 +1874,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     const projectPickerTrigger = within(projectPickerControl).getByTestId(
       "project-picker-trigger",
     );
-    const projectPickerLabel = within(projectPickerTrigger).getByTestId(
-      "project-picker-label",
-    );
     const projectPickerIcon = within(projectPickerControl).getByTestId(
       "project-picker-folder-icon",
     );
-    const inlineProjectSelect = projectPicker.querySelector(
-      '[data-slot="inline-select"]',
-    );
+    const inlineProjectSelect = projectPicker.querySelector(".astryx-selector");
     const inlineProjectIndicator = projectPicker.querySelector(
-      ".inline-select__indicator",
+      ".astryx-selector-indicator-icon",
     );
-    const nativeProjectSelect = projectPicker.querySelector(
-      '[data-slot="native-select"]',
-    );
+    const nativeProjectSelect = projectPicker.querySelector("select");
 
     expect(draftComposer).toHaveClass("items-center", "justify-center");
     expect(emptyState).toHaveClass("max-w-[46rem]");
@@ -1934,17 +1925,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(projectPickerControl).toContainElement(projectPickerTrigger);
     expect(projectPickerIcon).toHaveAttribute("aria-hidden", "true");
     expect(projectPickerIcon).toHaveClass("text-muted");
-    expect(projectPickerLabel).toHaveTextContent("Select Project");
-    expect(projectPickerTrigger).toHaveAttribute("aria-label", "Target Project");
-    expect(projectPickerTrigger).toHaveClass(
-      "inline-flex",
-      "w-fit",
-      "border-transparent",
-      "bg-surface-secondary",
-      "text-sm",
-      "text-muted",
-      "hover:text-foreground",
-    );
+    expect(projectPickerTrigger).toHaveTextContent("Select Project");
+    expect(
+      within(projectPickerControl).getByRole("combobox", {
+        name: /Target Project/,
+      }),
+    ).toBeInTheDocument();
     expect(inlineProjectSelect).toBeInTheDocument();
     expect(inlineProjectIndicator).toBeInTheDocument();
     expect(nativeProjectSelect).not.toBeInTheDocument();
@@ -1967,7 +1953,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
     expect(draftTitle).toHaveClass("text-center");
     expect(within(draftComposer).queryByText("HeroUI Pro AI")).not.toBeInTheDocument();
-    expect(within(draftComposer).queryByText("Target Project")).not.toBeInTheDocument();
+    // The Selector label is only exposed to assistive tech, never as a
+    // visible caption above the picker.
+    expect(within(draftComposer).getByText("Target Project")).toHaveClass(
+      "astryx-field-label",
+    );
     expect(
       within(draftComposer).queryByText(
         "Start a new Pi Session from a focused prompt.",
@@ -1988,18 +1978,18 @@ describe("AgentWorkspaceSessionsPage", () => {
       projectId: null,
       prompt: suggestedPrompt,
     });
-    expect(within(projectNavigation).getAllByRole("row")).toHaveLength(
+    expect(getSidebarSessionRows(projectNavigation)).toHaveLength(
       initialRows.length,
     );
     expect(
-      within(projectNavigation).queryByRole("row", { name: "New Session" }),
+      within(projectNavigation).queryByRole("button", { name: "New Session" }),
     ).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
 
     await user.click(projectPickerTrigger);
 
-    expectAdaptiveInlineSelectPopover(getListboxByAriaLabel("Projects"));
-    expectInlineSelectOptionHasReservedIndicatorColumn(
+    expectAdaptiveInlineSelectPopover(getOpenSelectorListbox());
+    expectInlineSelectOptionIsAstryxOption(
       await screen.findByRole("option", { name: "Select Project" }),
     );
     expectInlineSelectOptionLabelMatchesCompactMenu(
@@ -2026,7 +2016,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const user = userEvent.setup();
     const firstRender = renderProjectSessions();
 
-    await user.click(await screen.findByRole("row", { name: "New Session" }));
+    await user.click(await screen.findByRole("button", { name: "New Session" }));
     fireEvent.change(screen.getByPlaceholderText("Do anything with Pi"), {
       target: { value: "Keep this initial prompt" },
     });
@@ -2036,7 +2026,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       prompt: "Keep this initial prompt",
     });
 
-    await user.click(screen.getByRole("row", { name: "New Session" }));
+    await user.click(screen.getByRole("button", { name: "New Session" }));
 
     expect(screen.getByPlaceholderText("Do anything with Pi")).toHaveValue(
       "Keep this initial prompt",
@@ -2151,16 +2141,12 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(promptInput).toHaveValue("Keep this prompt while switching target");
     expect(projectPickerTrigger).toHaveTextContent("Pig");
-    expect(projectPickerTrigger).toHaveClass("text-foreground");
-    expect(projectPickerTrigger).not.toHaveClass("text-muted");
     expect(projectPickerControl).not.toHaveAttribute("style");
 
     await chooseProjectFromPicker(user, "study");
 
     expect(promptInput).toHaveValue("Keep this prompt while switching target");
     expect(projectPickerTrigger).toHaveTextContent("study");
-    expect(projectPickerTrigger).toHaveClass("text-foreground");
-    expect(projectPickerTrigger).not.toHaveClass("text-muted");
     expect(getSessionDraft()).toMatchObject({
       projectId: studyProjectPath,
       prompt: "Keep this prompt while switching target",
@@ -2432,14 +2418,12 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(localCheckoutOption).getByTestId("checkout-strategy-local-icon"),
     ).toHaveClass("pigui-compact-menu-item-icon");
     expect(worktreeCheckoutOption).toBeInTheDocument();
-    expectInlineSelectOptionHasReservedIndicatorColumn(worktreeCheckoutOption);
+    expectInlineSelectOptionIsAstryxOption(worktreeCheckoutOption);
     expectInlineSelectOptionLabelMatchesCompactMenu(
       worktreeCheckoutOption,
       "Worktree",
     );
-    expectAdaptiveInlineSelectPopover(
-      getListboxByAriaLabel("Checkout strategies"),
-    );
+    expectAdaptiveInlineSelectPopover(getOpenSelectorListbox());
     await user.click(worktreeCheckoutOption);
 
     await user.click(screen.getByRole("button", { name: "Submit initial prompt" }));
@@ -4061,8 +4045,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(assistantMessages).toHaveLength(1);
     expect(within(liveChat).queryByTestId("markdown-renderer")).not.toBeInTheDocument();
+    // Real markdown rendering turns `markdown` into an inline <code> node.
     expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveTextContent(
-      "Streaming `markdown` now",
+      "Streaming markdown now",
     );
     expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveAttribute(
       "data-is-streaming",

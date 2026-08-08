@@ -37,16 +37,12 @@ const thinkingPreviewLines = 6;
 const thinkingPreviewChars = 1200;
 const highlightedCodeBlockMaxChars = 4000;
 
-const LazyHeroCodeBlock = lazy(async () => {
-  const { CodeBlock } = await import("@heroui-pro/react/code-block");
+const LazyChatCodeBlock = lazy(async () => {
+  const { ChatCodeBlock } = await import("@/shared/ui/chat/chat-code-block");
 
   return {
     default: function HighlightedCodeBlock({ code }: { code: string }) {
-      return (
-        <CodeBlock>
-          <CodeBlock.Code code={code} language="plaintext" />
-        </CodeBlock>
-      );
+      return <ChatCodeBlock code={code} language="plaintext" />;
     },
   };
 });
@@ -299,7 +295,7 @@ function LogCodeBlock({ children }: { children: string | string[] }) {
 
   return (
     <Suspense fallback={<PlainLogCodeBlock code={code} />}>
-      <LazyHeroCodeBlock code={code} />
+      <LazyChatCodeBlock code={code} />
     </Suspense>
   );
 }

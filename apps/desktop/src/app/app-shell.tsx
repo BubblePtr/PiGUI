@@ -1,6 +1,9 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { AppLayout } from "@heroui-pro/react/app-layout";
-import { Sidebar } from "@heroui-pro/react/sidebar";
+import { AppShell } from "@astryxdesign/core/AppShell";
+import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { HStack } from "@astryxdesign/core/Stack";
 import {
   BarChart3,
   ChatAdd,
@@ -24,7 +27,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type Key,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -60,10 +63,6 @@ import {
 } from "@/shared/browser-development-data";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { revealProjectInFinder, selectProjectDirectory } from "@/shared/runtime";
-import {
-  SidebarActionDropdown,
-  SidebarActionDropdownItem,
-} from "./sidebar-action-dropdown";
 
 type AppFrameProps = {
   sidebar?: ReactNode;
@@ -235,12 +234,7 @@ const systemNavigationItems = [
 ] as const;
 
 const sidebarDefaultSize = "260px";
-const sidebarMinSize = "240px";
-const sidebarMaxSize = "320px";
 const projectExpansionStorageKey = "pigui.projectSidebar.expanded.v1";
-const sidebarStyle = {
-  "--sidebar-width": sidebarDefaultSize,
-} as CSSProperties;
 
 const titlebarHeight = "40px";
 const titlebarHeaderStyle = {
@@ -304,6 +298,20 @@ function SidebarSessionGlyph({
   }
 
   return null;
+}
+
+function SessionGlyphSlot({
+  active,
+  unread,
+}: {
+  active: boolean;
+  unread: boolean;
+}) {
+  return (
+    <span className="pigui-session-glyph" data-testid="session-glyph">
+      <SidebarSessionGlyph active={active} unread={unread} />
+    </span>
+  );
 }
 
 function UnsentFollowUpIndicator() {
@@ -383,6 +391,11 @@ function writeProjectExpansionState(expandedProjects: Record<string, boolean>) {
   window.localStorage.setItem(projectExpansionStorageKey, JSON.stringify(expandedProjects));
 }
 
+/** Keep clicks on row-embedded actions from also toggling/activating the row. */
+function stopRowActivation(event: ReactMouseEvent) {
+  event.stopPropagation();
+}
+
 function AddProjectButton({
   onAddProject,
 }: {
@@ -408,18 +421,55 @@ function AddProjectButton({
     }
   };
 
+  // SideNavItem (not Button) so the collapsed 48px rail collapses it to an
+  // icon like every other nav row instead of overflowing its label.
   return (
-    <div className="px-3 py-2">
-      <button
-        aria-busy={choosing}
-        className="inline-flex h-8 w-full items-center justify-center gap-2 rounded-md border border-default px-2 text-sm text-foreground transition-colors hover:bg-muted/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        type="button"
-        onClick={() => void chooseProject()}
-      >
-        <Plus aria-hidden="true" className="size-4" />
-        Add Project
-      </button>
-    </div>
+    <SideNavItem
+      icon={<Plus aria-hidden="true" className="size-4" />}
+      isDisabled={choosing}
+      label="Add Project"
+      onClick={() => void chooseProject()}
+    />
+  );
+}
+
+function ProjectActionsMenu({
+  project,
+  onRenameProject,
+  onRevealProject,
+  onRemoveProject,
+}: {
+  project: ProjectRegistryEntry;
+  onRenameProject: (projectId: string) => void;
+  onRevealProject: (projectId: string) => void;
+  onRemoveProject: (projectId: string) => void;
+}) {
+  return (
+    <MoreMenu
+      icon={<MoreHorizontal aria-hidden="true" />}
+      label={`Project actions for ${project.displayName}`}
+      size="sm"
+      items={[
+        {
+          label: "Rename Project",
+          icon: <Pencil aria-hidden="true" />,
+          onClick: () => onRenameProject(project.id),
+        },
+        {
+          label: "Reveal in Finder",
+          icon: <FolderOpen aria-hidden="true" />,
+          onClick: () => onRevealProject(project.id),
+        },
+        // Destructive action separated from safe actions; Astryx MoreMenu has
+        // no destructive item variant yet, so a divider carries the intent.
+        { type: "divider" },
+        {
+          label: "Remove Project...",
+          icon: <Trash2 aria-hidden="true" />,
+          onClick: () => onRemoveProject(project.id),
+        },
+      ]}
+    />
   );
 }
 
@@ -467,26 +517,14 @@ function ProjectNavigation({
 
   if (projects.length === 0) {
     return (
-      <Sidebar.Group
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-        data-testid="sidebar-projects"
-      >
-        <Sidebar.GroupLabel className="px-3 text-sm normal-case">
-          Projects
-        </Sidebar.GroupLabel>
+      <SideNavSection data-testid="sidebar-projects" title="Projects">
         <AddProjectButton onAddProject={onAddProject} />
-      </Sidebar.Group>
+      </SideNavSection>
     );
   }
 
   return (
-    <Sidebar.Group
-      className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-      data-testid="sidebar-projects"
-    >
-      <Sidebar.GroupLabel className="px-3 text-sm normal-case">
-        Projects
-      </Sidebar.GroupLabel>
+    <SideNavSection data-testid="sidebar-projects" title="Projects">
       {projects.map((project) => {
         const projectSessions = sessions.filter(
           (session) => session.projection.projectId === project.id,
@@ -498,166 +536,71 @@ function ProjectNavigation({
 
         void followUpDraftVersion;
 
-        const projectMenuItemId = `project:${project.id}`;
-        const projectExpandedKeys = expanded ? [projectMenuItemId] : [];
-        const onProjectExpandedChange = (keys: "all" | Set<Key>) => {
-          const nextExpanded = keys === "all" || keys.has(projectMenuItemId);
-
-          if (nextExpanded !== expanded) {
-            onToggleProject(project.id);
-          }
-        };
-
         return (
-          <div key={project.id} className="grid gap-1">
-            <Sidebar.Menu
-              aria-label={`${project.displayName} project sessions`}
-              className="pigui-project-session-menu"
-              expandedKeys={projectExpandedKeys}
-              showGuideLines={false}
-              onExpandedChange={onProjectExpandedChange}
-            >
-              <Sidebar.MenuItem
-                id={projectMenuItemId}
-                closeMobileOnAction={false}
-                textValue={project.displayName}
-              >
-                <Sidebar.MenuItemContent className="pigui-sidebar-row">
-                  <Sidebar.MenuTrigger>
-                    <ProjectExpansionIndicator expanded={expanded} />
-                  </Sidebar.MenuTrigger>
-                  <Sidebar.MenuLabel className="pigui-sidebar-row__label">
-                    <span className="pigui-sidebar-row__label-text">
-                      {project.displayName}
-                    </span>
-                  </Sidebar.MenuLabel>
-                  {!expanded && hasProjectUnsentFollowUp ? (
-                    <Sidebar.MenuChip className="pigui-sidebar-row__chip">
-                      <UnsentFollowUpIndicator />
-                    </Sidebar.MenuChip>
-                  ) : null}
-                  <Sidebar.MenuActions className="pigui-sidebar-row__actions ml-auto">
-                    <Sidebar.MenuAction
-                      aria-label={`New Session for ${project.displayName}`}
-                      onPress={() => onNewProjectSession(project.id)}
-                    >
-                      <Plus aria-hidden="true" />
-                    </Sidebar.MenuAction>
-                    <SidebarActionDropdown
-                      ariaLabel={`Project actions for ${project.displayName}`}
-                      icon={<MoreHorizontal aria-hidden="true" />}
-                      onAction={(key) => {
-                        if (key === "rename-project") {
-                          onRenameProject(project.id);
-                          return;
-                        }
+          <SideNavItem
+            key={project.id}
+            collapsible={{
+              isCollapsed: !expanded,
+              onCollapsedChange: () => onToggleProject(project.id),
+            }}
+            icon={<ProjectExpansionIndicator expanded={expanded} />}
+            label={project.displayName}
+            endContent={
+              <HStack gap={0.5} vAlign="center" onClick={stopRowActivation}>
+                {!expanded && hasProjectUnsentFollowUp ? (
+                  <UnsentFollowUpIndicator />
+                ) : null}
+                <IconButton
+                  icon={<Plus aria-hidden="true" />}
+                  label={`New Session for ${project.displayName}`}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onNewProjectSession(project.id)}
+                />
+                <ProjectActionsMenu
+                  project={project}
+                  onRenameProject={onRenameProject}
+                  onRevealProject={onRevealProject}
+                  onRemoveProject={onRemoveProject}
+                />
+              </HStack>
+            }
+          >
+            {projectSessions.length === 0 ? (
+              <SideNavItem
+                icon={<SessionGlyphSlot active={false} unread={false} />}
+                isDisabled
+                label={sessionsHydrated ? "No chats" : "Loading chats"}
+              />
+            ) : null}
+            {projectSessions.map((session) => {
+              const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
 
-                        if (key === "reveal-project") {
-                          onRevealProject(project.id);
-                          return;
-                        }
-
-                        if (key === "remove-project") {
-                          onRemoveProject(project.id);
-                        }
-                      }}
-                    >
-                      <SidebarActionDropdownItem
-                        icon={(
-                          <Pencil aria-hidden="true" />
-                        )}
-                        id="rename-project"
-                        textValue="Rename Project"
-                      >
-                        Rename Project
-                      </SidebarActionDropdownItem>
-                      <SidebarActionDropdownItem
-                        icon={(
-                          <FolderOpen aria-hidden="true" />
-                        )}
-                        id="reveal-project"
-                        textValue="Reveal in Finder"
-                      >
-                        Reveal in Finder
-                      </SidebarActionDropdownItem>
-                      <SidebarActionDropdownItem
-                        icon={(
-                          <Trash2 aria-hidden="true" />
-                        )}
-                        id="remove-project"
-                        textValue="Remove Project..."
-                        variant="danger"
-                      >
-                        Remove Project...
-                      </SidebarActionDropdownItem>
-                    </SidebarActionDropdown>
-                  </Sidebar.MenuActions>
-                </Sidebar.MenuItemContent>
-                <Sidebar.Submenu>
-                  {projectSessions.length === 0 ? (
-                    <Sidebar.MenuItem
-                      id={`${project.id}-empty`}
-                      isDisabled
-                      textValue={sessionsHydrated ? "No chats" : "Loading chats"}
-                    >
-                      <Sidebar.MenuItemContent className="pigui-sidebar-row">
-                        <Sidebar.MenuIcon className="pigui-sidebar-row__icon justify-center">
-                          {null}
-                        </Sidebar.MenuIcon>
-                        <Sidebar.MenuLabel className="pigui-sidebar-row__label">
-                          <span className="pigui-sidebar-row__label-text">
-                            {sessionsHydrated ? "No chats" : "Loading chats"}
-                          </span>
-                        </Sidebar.MenuLabel>
-                      </Sidebar.MenuItemContent>
-                    </Sidebar.MenuItem>
-                  ) : null}
-                  {projectSessions.map((session) => {
-                    const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
-
-                    return (
-                      <Sidebar.MenuItem
-                        key={session.id}
-                        id={session.id}
-                        isCurrent={
-                          !draftViewActive && projectActive && session.id === selectedSessionId
-                        }
-                        textValue={session.title}
-                        onAction={() => onOpenSession(session.id, project.id)}
-                      >
-                        <Sidebar.MenuItemContent className="pigui-sidebar-row">
-                          <Sidebar.MenuIcon className="pigui-sidebar-row__icon justify-center">
-                            <SidebarSessionGlyph active={session.active} unread={session.unread} />
-                          </Sidebar.MenuIcon>
-                          <Sidebar.MenuLabel className="pigui-sidebar-row__label">
-                            {hasSessionUnsentFollowUp ? (
-                              <span className="pigui-sidebar-row__label-text flex items-center gap-1">
-                                <span className="block min-w-0 truncate">{session.title}</span>
-                                <UnsentFollowUpIndicator />
-                              </span>
-                            ) : (
-                              <span className="pigui-sidebar-row__label-text block truncate">
-                                {session.title}
-                              </span>
-                            )}
-                          </Sidebar.MenuLabel>
-                          <Sidebar.MenuChip className="pigui-sidebar-row__chip">
-                            <span className="text-muted text-[10px] leading-none">
-                              {formatSessionListTime(session.updatedAt)}
-                            </span>
-                          </Sidebar.MenuChip>
-                        </Sidebar.MenuItemContent>
-                      </Sidebar.MenuItem>
-                    );
-                  })}
-                </Sidebar.Submenu>
-              </Sidebar.MenuItem>
-            </Sidebar.Menu>
-          </div>
+              return (
+                <SideNavItem
+                  key={session.id}
+                  icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
+                  isSelected={
+                    !draftViewActive && projectActive && session.id === selectedSessionId
+                  }
+                  label={session.title}
+                  endContent={
+                    <HStack gap={1} vAlign="center">
+                      {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+                      <span className="text-muted text-[10px] leading-none">
+                        {formatSessionListTime(session.updatedAt)}
+                      </span>
+                    </HStack>
+                  }
+                  onClick={() => onOpenSession(session.id, project.id)}
+                />
+              );
+            })}
+          </SideNavItem>
         );
       })}
       <AddProjectButton onAddProject={onAddProject} />
-    </Sidebar.Group>
+    </SideNavSection>
   );
 }
 
@@ -665,150 +608,67 @@ function TraceUsageNavigation({
   draftViewActive,
   hasProjects,
   pathname,
+  onNavigate,
   onNewSession,
 }: {
   draftViewActive: boolean;
   hasProjects: boolean;
   pathname: string;
+  onNavigate: (to: string) => void;
   onNewSession: () => void;
 }) {
   return (
-    <Sidebar.Group>
-      <Sidebar.Menu aria-label="Trace and usage navigation" showGuideLines={false}>
-        {hasProjects ? (
-          <Sidebar.MenuItem
-            id="global-new-session"
-            isCurrent={draftViewActive}
-            textValue="New Session"
-            onAction={onNewSession}
-          >
-            <Sidebar.MenuIcon>
-              <ChatAdd className="size-4" />
-            </Sidebar.MenuIcon>
-            <Sidebar.MenuLabel>New Session</Sidebar.MenuLabel>
-          </Sidebar.MenuItem>
-        ) : null}
-        {traceUsageNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const active = item.isActive(pathname);
+    <SideNavSection isHeaderHidden title="Trace and usage navigation">
+      {hasProjects ? (
+        <SideNavItem
+          icon={<ChatAdd aria-hidden="true" className="size-4" />}
+          isSelected={draftViewActive}
+          label="New Session"
+          onClick={onNewSession}
+        />
+      ) : null}
+      {traceUsageNavigationItems.map((item) => {
+        const Icon = item.icon;
+        const active = item.isActive(pathname);
 
-          return (
-            <Sidebar.MenuItem
-              key={item.to}
-              href={item.to}
-              id={item.label}
-              isCurrent={active}
-              textValue={item.label}
-            >
-              <Sidebar.MenuIcon>
-                <Icon className="size-4" />
-              </Sidebar.MenuIcon>
-              <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-            </Sidebar.MenuItem>
-          );
-        })}
-      </Sidebar.Menu>
-    </Sidebar.Group>
+        return (
+          <SideNavItem
+            key={item.to}
+            icon={<Icon aria-hidden="true" className="size-4" />}
+            isSelected={active}
+            label={item.label}
+            onClick={() => onNavigate(item.to)}
+          />
+        );
+      })}
+    </SideNavSection>
   );
 }
 
-function SystemNavigation({ pathname }: { pathname: string }) {
-  return (
-    <Sidebar.Group>
-      <Sidebar.Menu aria-label="System navigation" showGuideLines={false}>
-        {systemNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const active = item.isActive(pathname);
-
-          return (
-            <Sidebar.MenuItem
-              key={item.to}
-              href={item.to}
-              id={item.to}
-              isCurrent={active}
-              textValue={item.label}
-            >
-              <Sidebar.MenuIcon>
-                <Icon className="size-4" />
-              </Sidebar.MenuIcon>
-              <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-            </Sidebar.MenuItem>
-          );
-        })}
-      </Sidebar.Menu>
-    </Sidebar.Group>
-  );
-}
-
-function SidebarPanelContent({
-  draftViewActive,
+function SystemNavigation({
   pathname,
-  projects,
-  selectedSessionId,
-  sessions,
-  sessionsHydrated,
-  expandedProjects,
-  onAddProject,
-  onToggleProject,
-  onOpenSession,
-  onNewSession,
-  onNewProjectSession,
-  onRenameProject,
-  onRevealProject,
-  onRemoveProject,
+  onNavigate,
 }: {
-  draftViewActive: boolean;
   pathname: string;
-  projects: ProjectRegistryEntry[];
-  selectedSessionId: string | null;
-  sessions: SessionProjectionListItem[];
-  sessionsHydrated: boolean;
-  expandedProjects: Record<string, boolean>;
-  onAddProject: (path: string) => void;
-  onToggleProject: (projectId: string) => void;
-  onOpenSession: (sessionId: string, projectId: string) => void;
-  onNewSession: () => void;
-  onNewProjectSession: (projectId: string) => void;
-  onRenameProject: (projectId: string) => void;
-  onRevealProject: (projectId: string) => void;
-  onRemoveProject: (projectId: string) => void;
+  onNavigate: (to: string) => void;
 }) {
   return (
-    <>
-      <div
-        aria-hidden="true"
-        className="shrink-0"
-        data-testid="sidebar-titlebar-spacer"
-        style={titlebarHeaderStyle}
-      />
-      <Sidebar.Content className="min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-hidden">
-        <TraceUsageNavigation
-          draftViewActive={draftViewActive}
-          hasProjects={projects.length > 0}
-          pathname={pathname}
-          onNewSession={onNewSession}
-        />
-        <ProjectNavigation
-          draftViewActive={draftViewActive}
-          pathname={pathname}
-          projects={projects}
-          selectedSessionId={selectedSessionId}
-          sessions={sessions}
-          sessionsHydrated={sessionsHydrated}
-          expandedProjects={expandedProjects}
-          onAddProject={onAddProject}
-          onToggleProject={onToggleProject}
-          onOpenSession={onOpenSession}
-          onNewProjectSession={onNewProjectSession}
-          onRenameProject={onRenameProject}
-          onRevealProject={onRevealProject}
-          onRemoveProject={onRemoveProject}
-        />
-      </Sidebar.Content>
-      <Sidebar.Footer className="shrink-0">
-        <SystemNavigation pathname={pathname} />
-      </Sidebar.Footer>
-    </>
+    <SideNavSection data-testid="sidebar-system" isHeaderHidden title="System navigation">
+      {systemNavigationItems.map((item) => {
+        const Icon = item.icon;
+        const active = item.isActive(pathname);
+
+        return (
+          <SideNavItem
+            key={item.to}
+            icon={<Icon aria-hidden="true" className="size-4" />}
+            isSelected={active}
+            label={item.label}
+            onClick={() => onNavigate(item.to)}
+          />
+        );
+      })}
+    </SideNavSection>
   );
 }
 
@@ -825,6 +685,7 @@ function HeaderChrome({
   sidebarOpen,
   mainLeft,
   showSidebarToggle = true,
+  onToggleSidebar,
 }: {
   chromeRef: RefObject<HTMLDivElement | null>;
   title: string;
@@ -832,6 +693,7 @@ function HeaderChrome({
   sidebarOpen: boolean;
   mainLeft: string;
   showSidebarToggle?: boolean;
+  onToggleSidebar?: () => void;
 }) {
   const chromeStyle = {
     "--pigui-chrome-safe-left": chromeSafeLeft,
@@ -865,13 +727,16 @@ function HeaderChrome({
           style={{ width: trafficWidth }}
         />
         {showSidebarToggle ? (
-          <Sidebar.Trigger
+          <button
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            className="shrink-0"
+            className="inline-flex shrink-0 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted/10"
+            data-slot="sidebar-trigger"
             style={titlebarControlStyle}
+            type="button"
+            onClick={onToggleSidebar}
           >
             <SidebarToggleIcon sidebarOpen={sidebarOpen} />
-          </Sidebar.Trigger>
+          </button>
         ) : null}
         <div
           aria-hidden="true"
@@ -1057,10 +922,12 @@ export function AppFrame({
       return;
     }
 
-    const sidebarPanel =
-      root.querySelector<HTMLElement>('[data-testid="app-layout-sidebar"][data-panel]') ??
-      root.querySelector<HTMLElement>(".sidebar__offcanvas-wrapper");
+    const sidebarPanel = root.querySelector<HTMLElement>(
+      '[data-testid="app-layout-sidebar"]',
+    );
     if (!sidebarPanel || typeof ResizeObserver === "undefined") {
+      // Offcanvas closed state: the sidenav is not rendered at all.
+      headerChromeRef.current?.style.setProperty("--pigui-main-left", "0px");
       return;
     }
 
@@ -1095,7 +962,9 @@ export function AppFrame({
     return () => {
       observer.disconnect();
     };
-  }, []);
+    // Re-observe on open/close: SideNav remounts its root when the resizable
+    // wrapper is added/removed, which would leave a stale observed node.
+  }, [sidebarOpen]);
 
   const openSessionDraft = (
     targetProjectId: string | null,
@@ -1113,6 +982,9 @@ export function AppFrame({
       to: projectRoute(navigationProjectId) as never,
       search: { view: "draft" } as never,
     });
+  };
+  const handleNavigate = (to: string) => {
+    void router.navigate({ to: to as never });
   };
   const handleNewSession = () => {
     openSessionDraft(null);
@@ -1232,6 +1104,7 @@ export function AppFrame({
         sidebarOpen={showSidebar ? sidebarOpen : false}
         title={activeTab}
         toolbarActions={toolbarActions}
+        onToggleSidebar={() => handleSidebarOpenChange(!sidebarOpen)}
       />
       <div
         className="flex h-full min-h-0 min-w-0 flex-col"
@@ -1256,16 +1129,39 @@ export function AppFrame({
   }
 
   return (
-    <AppLayout
+    <AppShell
       ref={layoutRef}
-      className="pigui-app-layout bg-background text-foreground"
+      className="pigui-app-layout text-foreground"
+      contentPadding={0}
       data-sidebar-animating={sidebarAnimating ? "true" : undefined}
-      navigate={(href) => void router.navigate({ to: href as never })}
-      resizableAutoSaveId="pigui-app-shell"
-      scrollMode="content"
-      sidebar={
-        <Sidebar style={sidebarStyle}>
-          <SidebarPanelContent
+      mobileNav={false}
+      variant="elevated"
+      sideNav={
+        // Offcanvas on purpose: an Agentic Developer Environment has no use
+        // for Astryx's 48px icon rail, so closed means fully removed.
+        !sidebarOpen ? undefined : (
+        <SideNav
+          className="pigui-app-sidenav"
+          data-state="expanded"
+          data-testid="app-layout-sidebar"
+          resizable={{ defaultWidth: 260, minWidth: 240, maxWidth: 320, autoSaveId: "pigui-app-shell" }}
+          header={
+            <div
+              aria-hidden="true"
+              data-testid="sidebar-titlebar-spacer"
+              style={titlebarHeaderStyle}
+            />
+          }
+          footer={<SystemNavigation pathname={pathname} onNavigate={handleNavigate} />}
+        >
+          <TraceUsageNavigation
+            draftViewActive={draftViewActive}
+            hasProjects={projects.length > 0}
+            pathname={pathname}
+            onNavigate={handleNavigate}
+            onNewSession={handleNewSession}
+          />
+          <ProjectNavigation
             draftViewActive={draftViewActive}
             pathname={pathname}
             projects={projects}
@@ -1276,24 +1172,16 @@ export function AppFrame({
             onAddProject={handleAddProject}
             onToggleProject={handleToggleProject}
             onOpenSession={handleOpenSession}
-            onNewSession={handleNewSession}
             onNewProjectSession={handleNewProjectSession}
             onRenameProject={handleRenameProject}
             onRevealProject={handleRevealProject}
             onRemoveProject={handleRemoveProject}
           />
-        </Sidebar>
+        </SideNav>
+        )
       }
-      sidebarCollapsible="offcanvas"
-      sidebarDefaultSize={sidebarDefaultSize}
-      sidebarMaxSize={sidebarMaxSize}
-      sidebarMinSize={sidebarMinSize}
-      sidebarOpen={sidebarOpen}
-      sidebarResizable
-      sidebarVariant="inset"
-      onSidebarOpenChange={handleSidebarOpenChange}
     >
       {frameContent}
-    </AppLayout>
+    </AppShell>
   );
 }

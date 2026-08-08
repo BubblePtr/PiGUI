@@ -17,7 +17,7 @@ describe("HeroUI Pro theme integration", () => {
     const html = readFileSync(join(repoRoot, "apps/desktop/index.html"), "utf8");
 
     expect(html).toContain("https://fonts.googleapis.com");
-    expect(html).toContain("family=Varela+Round");
+    expect(html).toContain("family=Montserrat:wght@100..900");
     expect(html).toContain("family=Inter:wght@100..900");
   });
 
@@ -33,12 +33,50 @@ describe("HeroUI Pro theme integration", () => {
     expect(styles).not.toContain("--color-background: var(--pigui-");
   });
 
-  it("maps the HeroUI sans font token to Varela Round", () => {
+  it("wires Astryx base styles and theme before the app renders", () => {
+    const main = readFileSync(
+      join(repoRoot, "apps/desktop/src/app/main.tsx"),
+      "utf8",
+    );
+    const styles = readFileSync(
+      join(repoRoot, "apps/desktop/src/app/styles.css"),
+      "utf8",
+    );
+
+    // Cascade-layer order is pinned explicitly: Astryx layers must outrank
+    // Tailwind preflight (base) or Astryx paddings get zeroed, yet stay below
+    // HeroUI's components/utilities or HeroUI controls lose their styling.
+    expect(styles).toContain(
+      "@layer theme, base, properties, reset, astryx-base, astryx-theme, components, utilities;",
+    );
+    expect(styles.indexOf("@layer theme,")).toBe(0);
+    expect(main).not.toContain("@astryxdesign/core/reset.css");
+    expect(styles.indexOf('@import "tailwindcss";')).toBeLessThan(
+      styles.indexOf('@import "@astryxdesign/core/reset.css";'),
+    );
+    expect(styles.indexOf('@import "@astryxdesign/core/reset.css";')).toBeLessThan(
+      styles.indexOf('@import "@astryxdesign/core/astryx.css";'),
+    );
+    expect(styles.indexOf('@import "@astryxdesign/core/astryx.css";')).toBeLessThan(
+      styles.indexOf('@import "@astryxdesign/theme-neutral/theme.css";'),
+    );
+    expect(main).toContain('from "@astryxdesign/theme-neutral/built"');
+    expect(main).toContain("<Theme theme={neutralTheme}>");
+  });
+
+  it("keeps Astryx surfaces on the theme's default font stack", () => {
     const styles = readFileSync(join(repoRoot, "apps/desktop/src/app/styles.css"), "utf8");
 
-    expect(styles).toContain('--font-varela-round: "Varela Round", sans-serif;');
+    expect(styles).not.toContain("--font-family-body:");
+    expect(styles).not.toContain("--font-family-heading:");
+  });
+
+  it("maps the HeroUI sans font token to Montserrat", () => {
+    const styles = readFileSync(join(repoRoot, "apps/desktop/src/app/styles.css"), "utf8");
+
+    expect(styles).toContain('--font-montserrat: "Montserrat", sans-serif;');
     expect(styles).toContain('--font-inter: "Inter", sans-serif;');
-    expect(styles).toContain("--font-sans: var(--font-varela-round);");
+    expect(styles).toContain("--font-sans: var(--font-montserrat);");
     expect(styles).toContain('[data-theme="default"]');
   });
 
@@ -47,10 +85,9 @@ describe("HeroUI Pro theme integration", () => {
 
     expect(styles).toContain(".pigui-app-layout :where(*)");
     expect(styles).not.toContain("data-pigui-session-title");
-    expect(styles).toContain(".pigui-app-layout .sidebar__group-label");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu-header");
+    expect(styles).toContain(".pigui-app-layout .astryx-side-nav-section span");
     expect(styles).toContain(
-      '.pigui-app-layout .sidebar__menu-item[data-current="true"] .sidebar__menu-label',
+      '.pigui-app-layout .astryx-side-nav-item[data-selected="selected"]',
     );
     expect(styles).toContain("font-weight: var(--font-weight-normal, 400);");
     expect(styles).not.toContain("font-weight: var(--font-weight-semibold, 600);");

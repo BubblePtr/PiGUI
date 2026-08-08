@@ -1,6 +1,11 @@
+@layer theme, base, properties, reset, astryx-base, astryx-theme, components, utilities;
 @import "tailwindcss";
 @import "@heroui/styles";
 @import "@heroui-pro/react/css";
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/theme.css";
+@import "../shared/ui/chat/chat.css";
 
 @source "../node_modules/@heroui-pro/react/dist/components/**/*.{js,ts,tsx}";
 @source "./**/*.{ts,tsx}";
@@ -10,9 +15,9 @@
 .default,
 [data-theme="light"],
 [data-theme="default"] {
-  --font-varela-round: "Varela Round", sans-serif;
+  --font-montserrat: "Montserrat", sans-serif;
   --font-inter: "Inter", sans-serif;
-  --font-sans: var(--font-varela-round);
+  --font-sans: var(--font-montserrat);
   --pigui-data-blue: #1677e8;
   --pigui-data-orange: #ff6a2a;
   --pigui-data-orange-strong: #f04c0c;
@@ -62,105 +67,52 @@ body {
   margin: 0;
 }
 
-.pigui-app-layout .sidebar__offcanvas-wrapper {
-  --sidebar-width: 260px;
-}
-
-.pigui-app-layout .sidebar__content,
-.pigui-app-layout .sidebar__footer {
-  overflow-x: hidden;
-  padding-inline: var(--pigui-sidebar-content-padding-x);
-}
-
-.pigui-app-layout .sidebar__group {
-  gap: var(--pigui-sidebar-group-gap);
-  min-width: 0;
-}
-
-.pigui-app-layout .sidebar__menu {
-  gap: var(--pigui-sidebar-row-gap);
-  --sidebar-menu-indent: var(--pigui-sidebar-indent);
-  --sidebar-menu-row-gap: var(--pigui-sidebar-row-gap);
-  min-width: 0;
-  overflow-x: hidden;
-}
-
 .pigui-app-layout :where(*) {
   font-weight: var(--font-weight-normal, 400);
 }
 
-.pigui-app-layout .sidebar__group-label,
-.pigui-app-layout .sidebar__menu-header,
-.pigui-app-layout .sidebar__menu-item[data-current="true"] .sidebar__menu-label {
+/* Weight normalization for the Astryx side nav: section titles and the
+   selected item label must stay at normal weight (everything 400). */
+.pigui-app-layout .astryx-side-nav-section span,
+.pigui-app-layout .astryx-side-nav-item,
+.pigui-app-layout .astryx-side-nav-item[data-selected="selected"] {
   font-weight: var(--font-weight-normal, 400);
 }
 
-.pigui-app-layout .sidebar__menu-item-content,
-.pigui-app-layout .sidebar__menu-action {
+/* Inactive side nav rows keep normal foreground color instead of the
+   secondary tone Astryx applies by default. */
+.pigui-app-layout .astryx-side-nav-item:not([aria-disabled="true"]):not(:disabled),
+.pigui-app-layout .astryx-side-nav-item:not([aria-disabled="true"]):not(:disabled) .astryx-icon {
+  color: var(--foreground);
+}
+
+.pigui-app-layout .astryx-side-nav-item {
   border-radius: var(--pigui-sidebar-item-radius);
-}
-
-.pigui-app-layout .sidebar__menu-item-content {
   min-height: var(--pigui-sidebar-row-height);
-  gap: var(--pigui-sidebar-row-icon-gap);
-  min-width: 0;
-  overflow-x: hidden;
-  padding-block: var(--pigui-sidebar-row-padding-y);
-  padding-inline: var(--pigui-sidebar-row-padding-x);
 }
 
-.pigui-app-layout .sidebar__menu-trigger,
-.pigui-app-layout .sidebar__menu-icon {
-  width: var(--pigui-sidebar-icon-box-size);
-  height: var(--pigui-sidebar-icon-box-size);
-}
-
-.pigui-app-layout .sidebar__menu-icon svg,
-.pigui-app-layout .sidebar__menu-action svg {
+.pigui-app-layout .astryx-side-nav-item svg,
+.pigui-app-layout .astryx-more-menu svg,
+.pigui-app-layout .pigui-session-glyph svg {
   width: var(--pigui-sidebar-icon-size);
   height: var(--pigui-sidebar-icon-size);
-}
-
-.pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger svg,
-.pigui-app-layout .sidebar__menu-icon svg,
-.pigui-app-layout .sidebar__menu-action svg {
   shape-rendering: geometricPrecision;
 }
 
-.pigui-app-layout .sidebar__menu-action {
-  width: var(--pigui-sidebar-action-size);
-  height: var(--pigui-sidebar-action-size);
-  padding: 0;
-}
-
-.pigui-app-layout .pigui-project-session-menu .sidebar__menu-item {
-  --sidebar-menu-item-offset: 0px;
-}
-
-.pigui-app-layout .pigui-sidebar-row {
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-.pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger,
-.pigui-app-layout .pigui-sidebar-row__icon {
-  flex: 0 0 var(--pigui-sidebar-icon-box-size);
-}
-
-.pigui-app-layout .pigui-sidebar-row__label,
-.pigui-app-layout .pigui-sidebar-row__label [data-slot="sidebar-menu-label-text"],
-.pigui-app-layout .pigui-sidebar-row__label-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pigui-app-layout .pigui-sidebar-row__chip,
-.pigui-app-layout .pigui-sidebar-row__actions {
+/* Fixed-size glyph slot so session rows with and without status stay aligned. */
+.pigui-session-glyph {
+  display: inline-flex;
+  width: var(--pigui-sidebar-icon-size);
+  height: var(--pigui-sidebar-icon-size);
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Project rows carry their own folder/chevron indicator — hide the built-in
+   trailing chevron Astryx renders on collapsible items. */
+.pigui-app-layout .astryx-side-nav-item[aria-expanded] > span:last-of-type {
+  display: none;
 }
 
 .pigui-project-expansion-indicator {
@@ -197,7 +149,7 @@ body {
 }
 
 .pigui-app-layout
-  .sidebar__menu-item:is(
+  .astryx-side-nav-item:is(
     :hover,
     [data-hovered="true"],
     :focus-visible,
@@ -208,7 +160,7 @@ body {
 }
 
 .pigui-app-layout
-  .sidebar__menu-item:is(
+  .astryx-side-nav-item:is(
     :hover,
     [data-hovered="true"],
     :focus-visible,
@@ -216,11 +168,6 @@ body {
   )
   .pigui-project-expansion-indicator__chevron {
   opacity: 1;
-}
-
-.pigui-app-layout [data-slot="sidebar-menu-item"]:not([data-disabled="true"]) [data-slot="sidebar-menu-label"],
-.pigui-app-layout [data-slot="sidebar-menu-item"]:not([data-disabled="true"]) [data-slot="sidebar-menu-icon"] {
-  color: var(--foreground);
 }
 
 .pigui-sidebar-action-dropdown__trigger {
@@ -358,30 +305,18 @@ body {
   z-index: 0;
 }
 
-.pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel] {
-  transition: flex-grow 200ms ease;
+.pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
+  transition: width 200ms ease;
 }
 
-.pigui-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"] {
-  transition:
-    translate 200ms ease,
-    visibility 200ms;
-}
-
-.pigui-app-layout[data-scroll-mode="content"] .app-layout__main {
+.pigui-app-layout [role="main"] {
   overscroll-behavior: none;
-}
-
-.pigui-app-layout[data-resizable] .sidebar__offcanvas-wrapper,
-.pigui-app-layout[data-resizable] [data-slot="sidebar"] {
-  min-width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pigui-header-chrome__title,
   .pigui-header-chrome__title-track,
-  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel],
-  .pigui-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"] {
+  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
     transition: none;
   }
 }

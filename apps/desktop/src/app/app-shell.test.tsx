@@ -95,20 +95,78 @@ function renderAppFrame(
   return render(<RouterProvider router={router} />);
 }
 
-function getProjectHeaderRow(projectGroup: HTMLElement, name: string) {
-  const row = within(projectGroup)
-    .getAllByRole("row")
-    .find((candidate) => candidate.getAttribute("aria-label") === name);
+function isSideNavRow(candidate: HTMLElement) {
+  return candidate.classList.contains("astryx-side-nav-item");
+}
+
+/**
+ * Project header rows are the collapsible Astryx SideNavItem buttons
+ * (aria-expanded, not the MoreMenu trigger which carries aria-haspopup).
+ */
+function findProjectHeaderButton(projectGroup: HTMLElement, name: string) {
+  return within(projectGroup)
+    .getAllByRole("button")
+    .find(
+      (candidate) =>
+        isSideNavRow(candidate) &&
+        candidate.hasAttribute("aria-expanded") &&
+        !candidate.hasAttribute("aria-haspopup") &&
+        (candidate.textContent ?? "").startsWith(name),
+    );
+}
+
+function getProjectHeaderButton(projectGroup: HTMLElement, name: string) {
+  const button = findProjectHeaderButton(projectGroup, name);
+
+  if (!button) {
+    throw new Error(`Project header row not found: ${name}`);
+  }
+
+  return button;
+}
+
+/** The label span sits after the expansion-indicator icon slot. */
+function projectHeaderLabel(header: HTMLElement) {
+  return (header.children[1] as HTMLElement | undefined)?.textContent ?? "";
+}
+
+/** Sessions live in the aria-controls group owned by the project header row. */
+function getProjectSessionsGroup(projectGroup: HTMLElement, name: string) {
+  const header = getProjectHeaderButton(projectGroup, name);
+  const groupId = header.getAttribute("aria-controls");
+  const group = groupId ? document.getElementById(groupId) : null;
+
+  if (!group) {
+    throw new Error(`Project sessions group not found: ${name}`);
+  }
+
+  return group as HTMLElement;
+}
+
+function findSessionRow(scope: HTMLElement, title: string) {
+  return within(scope)
+    .getAllByRole("button")
+    .find(
+      (candidate) =>
+        isSideNavRow(candidate) &&
+        !candidate.hasAttribute("aria-expanded") &&
+        (candidate.textContent ?? "").includes(title),
+    );
+}
+
+function getSessionRow(scope: HTMLElement, title: string) {
+  const row = findSessionRow(scope, title);
 
   if (!row) {
-    throw new Error(`Project header row not found: ${name}`);
+    throw new Error(`Session row not found: ${title}`);
   }
 
   return row;
 }
 
-function getProjectToggleButton(projectGroup: HTMLElement, name: string) {
-  return within(getProjectHeaderRow(projectGroup, name)).getAllByRole("button")[0];
+/** Session row layout: [glyph slot, label span, end content]. */
+function sessionRowLabel(row: HTMLElement) {
+  return (row.children[1] as HTMLElement | undefined)?.textContent ?? "";
 }
 
 describe("AppFrame", () => {
@@ -129,11 +187,20 @@ describe("AppFrame", () => {
       within(projectGroup).queryByRole("button", { name: "New Session for Pig" }),
     ).not.toBeInTheDocument();
     expect(
-      within(screen.getByLabelText("Trace and usage navigation")).queryByRole("row", {
-        name: "New Session",
-      }),
+      within(screen.getByRole("group", { name: "Trace and usage navigation" })).queryByRole(
+        "button",
+        { name: "New Session" },
+      ),
     ).not.toBeInTheDocument();
     expect(within(projectGroup).queryByText("Pig")).not.toBeInTheDocument();
+  });
+
+  it("renders Add Project as a rail-aware SideNavItem so the collapsed rail hides its label", async () => {
+    renderAppFrame("/projects/pig/sessions", { seedProjects: false });
+
+    const addProject = await screen.findByRole("button", { name: "Add Project" });
+
+    expect(addProject).toHaveClass("astryx-side-nav-item");
   });
 
   it("uses the native directory picker when adding a Project", async () => {
@@ -157,7 +224,9 @@ describe("AppFrame", () => {
     await user.click(await screen.findByRole("button", { name: "Add Project" }));
 
     expect(invoke).toHaveBeenCalledWith("select_project_directory", undefined);
-    expect(await screen.findByText("study")).toBeInTheDocument();
+    const projectGroup = screen.getByTestId("sidebar-projects");
+
+    expect(getProjectHeaderButton(projectGroup, "study")).toBeInTheDocument();
     expect(getSessionDraft()).toMatchObject({
       projectId: "/Users/void/Documents/study",
       prompt: "",
@@ -169,9 +238,9 @@ describe("AppFrame", () => {
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const projectGroup = screen.getByTestId("sidebar-projects");
-    const projectNavigation = within(projectGroup).getByLabelText("Pig project sessions");
+    const projectNavigation = getProjectSessionsGroup(projectGroup, "Pig");
 
-    expect(within(projectGroup).getByText("Pig")).toBeInTheDocument();
+    expect(getProjectHeaderButton(projectGroup, "Pig")).toBeInTheDocument();
     expect(within(projectNavigation).getByText("Agent Workspace shell")).not.toHaveAttribute(
       "data-pigui-session-title",
     );
@@ -188,19 +257,19 @@ describe("AppFrame", () => {
       day: "numeric",
     }).format(new Date("2026-06-26T08:06:00.000Z"));
     // Fixture timestamps are not "today", so chips use local short date (not UTC HH:mm slice).
-    const activeSessionRow = within(projectNavigation).getByRole("row", {
-      name: /Agent Workspace shell/,
-    });
+    const activeSessionRow = getSessionRow(projectNavigation, "Agent Workspace shell");
     const activeTime = within(activeSessionRow).getByText(activeTimeLabel);
 
     expect(activeTime).toHaveClass("text-muted", "text-[10px]", "leading-none");
-    expect(activeTime.closest('[data-slot="sidebar-menu-chip"]')).toBeInTheDocument();
-    expect(activeTime.closest('[data-slot="sidebar-menu-actions"]')).toBeNull();
+    // The time chip lives on the session row itself, not inside an action button.
+    expect(activeTime.closest("button")).toBe(activeSessionRow);
     // Must not use naive UTC HH:mm from ISO.
     expect(within(activeSessionRow).queryByText("08:06")).toBeNull();
-    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
-    const topRows = within(traceUsageNavigation).getAllByRole("row");
-    const globalNewSessionRow = within(traceUsageNavigation).getByRole("row", {
+    const traceUsageNavigation = screen.getByRole("group", {
+      name: "Trace and usage navigation",
+    });
+    const topRows = within(traceUsageNavigation).getAllByRole("button");
+    const globalNewSessionRow = within(traceUsageNavigation).getByRole("button", {
       name: "New Session",
     });
     const projectActionsButton = within(projectGroup).getByRole("button", {
@@ -210,60 +279,48 @@ describe("AppFrame", () => {
       name: "New Session for Pig",
     });
 
-    expect(topRows.map((row) => row.getAttribute("aria-label"))).toEqual([
+    expect(topRows.map((row) => row.textContent)).toEqual([
       "New Session",
       "Trace",
       "Usage",
     ]);
-    expect(globalNewSessionRow).not.toHaveAttribute("data-current", "true");
+    expect(globalNewSessionRow).not.toHaveAttribute("aria-current", "page");
     expect(
-      within(projectNavigation).queryByRole("row", { name: "New Session" }),
+      within(projectNavigation).queryByRole("button", { name: "New Session" }),
     ).not.toBeInTheDocument();
-    expect(projectNewSessionButton).toHaveAttribute("data-slot", "sidebar-menu-action");
-    expect(projectNewSessionButton).toHaveClass("sidebar__menu-action");
-    expect(projectActionsButton).toHaveAttribute("data-slot", "sidebar-menu-action");
-    expect(projectActionsButton).toHaveClass("sidebar__menu-action");
-    expect(projectActionsButton).not.toHaveClass("size-5", "size-6", "hover:bg-muted/10");
+    expect(projectNewSessionButton).toHaveClass("astryx-button");
+    expect(projectNewSessionButton).toHaveAttribute("data-size", "sm");
+    expect(projectNewSessionButton).toHaveAttribute("data-variant", "ghost");
+    expect(projectActionsButton).toHaveClass("astryx-button");
+    expect(projectActionsButton).toHaveAttribute("data-size", "sm");
+    expect(projectActionsButton).toHaveAttribute("aria-haspopup", "menu");
     expect(screen.getByRole("heading", { level: 1, name: "Sessions" })).toBeInTheDocument();
   });
 
-  it("renders Project headers as sidebar menu items with menu actions", async () => {
+  it("renders Project headers as side nav rows with inline row actions", async () => {
     renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const projectGroup = screen.getByTestId("sidebar-projects");
-    const projectHeader = within(projectGroup).getAllByRole("row").find((row) =>
-      within(row).queryByText("Pig"),
-    );
+    const projectHeader = getProjectHeaderButton(projectGroup, "Pig");
 
-    expect(projectHeader).toBeDefined();
-    expect(projectHeader).toHaveAttribute("data-slot", "sidebar-menu-item");
-    expect(projectHeader?.querySelector('[data-slot="sidebar-menu-label"]')).toHaveTextContent(
-      "Pig",
-    );
+    expect(projectHeader).toHaveClass("astryx-side-nav-item");
+    expect(projectHeaderLabel(projectHeader)).toBe("Pig");
 
-    const projectActions = projectHeader?.querySelector('[data-slot="sidebar-menu-actions"]');
-    const projectActionButtons = within(projectActions as HTMLElement).getAllByRole("button");
-    const projectNewSessionButton = within(projectHeader as HTMLElement).getByRole("button", {
+    const projectActionButtons = within(projectHeader).getAllByRole("button");
+    const projectNewSessionButton = within(projectHeader).getByRole("button", {
       name: "New Session for Pig",
     });
-    const projectActionsButton = within(projectHeader as HTMLElement).getByRole("button", {
+    const projectActionsButton = within(projectHeader).getByRole("button", {
       name: "Project actions for Pig",
     });
 
-    expect(projectActions).toBeInTheDocument();
     expect(projectActionButtons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "New Session for Pig",
       "Project actions for Pig",
     ]);
-    expect(projectNewSessionButton.closest('[data-slot="sidebar-menu-actions"]')).toBe(
-      projectActions,
-    );
-    expect(projectActionsButton.closest('[data-slot="sidebar-menu-actions"]')).toBe(
-      projectActions,
-    );
-    expect(projectNewSessionButton).toHaveAttribute("data-slot", "sidebar-menu-action");
-    expect(projectActionsButton).toHaveAttribute("data-slot", "sidebar-menu-action");
+    expect(projectNewSessionButton).toHaveClass("astryx-button");
+    expect(projectActionsButton).toHaveClass("astryx-button");
   });
 
   it("uses folder state icons for Project expansion and swaps to a chevron affordance on hover", async () => {
@@ -278,17 +335,13 @@ describe("AppFrame", () => {
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const projectGroup = screen.getByTestId("sidebar-projects");
-    const projectHeader = getProjectHeaderRow(projectGroup, "Pig");
-    const projectToggle = within(projectHeader).getAllByRole("button")[0];
+    const projectHeader = getProjectHeaderButton(projectGroup, "Pig");
 
-    expect(projectToggle).toHaveAttribute("data-slot", "sidebar-menu-trigger");
-    expect(projectToggle.querySelector(".pigui-project-expansion-indicator")).toBeInTheDocument();
+    expect(projectHeader.querySelector(".pigui-project-expansion-indicator")).toBeInTheDocument();
     expect(source).toContain("FolderClosed,");
     expect(source).toContain("FolderOpenState,");
     expect(source).toContain("ChevronRight,");
-    expect(source).toContain("<ProjectExpansionIndicator expanded={expanded} />");
-    expect(source).not.toContain("<Sidebar.MenuIndicator />");
-    expect(source).toContain("<Sidebar.MenuTrigger>");
+    expect(source).toContain("icon={<ProjectExpansionIndicator expanded={expanded} />}");
     expect(iconSource).toContain("Folder01Icon");
     expect(iconSource).toContain("Folder02Icon");
     expect(iconSource).toContain("export const FolderClosed = iconComponent(Folder01Icon);");
@@ -307,16 +360,15 @@ describe("AppFrame", () => {
     renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const projectNavigation = within(screen.getByTestId("sidebar-projects")).getByLabelText(
-      "Pig project sessions",
+    const projectNavigation = getProjectSessionsGroup(
+      screen.getByTestId("sidebar-projects"),
+      "Pig",
     );
-    const sessionRows = within(projectNavigation).getAllByRole("row").slice(1);
+    const sessionRows = within(projectNavigation)
+      .getAllByRole("button")
+      .filter((row) => isSideNavRow(row));
 
-    expect(
-      sessionRows.map((row) =>
-        row.querySelector('[data-slot="sidebar-menu-label"]')?.textContent?.trim(),
-      ),
-    ).toEqual([
+    expect(sessionRows.map((row) => sessionRowLabel(row))).toEqual([
       "Agent Workspace shell",
       "Trace boundary pass",
       "Usage evidence review",
@@ -329,7 +381,7 @@ describe("AppFrame", () => {
     expect(activeRunIndicator.querySelectorAll('[data-slot="dot-matrix-dot"]')).toHaveLength(16);
     expect(within(sessionRows[1]).getByLabelText("Unread result")).toBeInTheDocument();
     expect(
-      sessionRows[2].querySelector('[data-slot="sidebar-menu-icon"]'),
+      sessionRows[2].querySelector('[data-testid="session-glyph"]'),
     ).toBeEmptyDOMElement();
     expect(within(projectNavigation).queryByText("Archived checkout snapshot")).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText(/Running|Completed|Failed|Waiting/)).not.toBeInTheDocument();
@@ -341,22 +393,19 @@ describe("AppFrame", () => {
     renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const projectNavigation = within(screen.getByTestId("sidebar-projects")).getByLabelText(
-      "Pig project sessions",
+    const projectNavigation = getProjectSessionsGroup(
+      screen.getByTestId("sidebar-projects"),
+      "Pig",
     );
-    const unreadRow = within(projectNavigation).getByRole("row", {
-      name: "Trace boundary pass",
-    });
+    const unreadRow = getSessionRow(projectNavigation, "Trace boundary pass");
 
     expect(within(unreadRow).getByLabelText("Unread result")).toBeInTheDocument();
 
     await user.click(unreadRow);
 
-    const openedRow = within(projectNavigation).getByRole("row", {
-      name: "Trace boundary pass",
-    });
+    const openedRow = getSessionRow(projectNavigation, "Trace boundary pass");
 
-    expect(openedRow).toHaveAttribute("data-current", "true");
+    expect(openedRow).toHaveAttribute("aria-current", "page");
     expect(within(openedRow).getByLabelText("Unread result")).toBeInTheDocument();
     expect(within(projectNavigation).queryByText(/Completed|Failed|Waiting/)).not.toBeInTheDocument();
   });
@@ -369,14 +418,11 @@ describe("AppFrame", () => {
 
     renderAppFrame("/projects/pig/sessions");
 
-    const projectNavigation = await screen.findByLabelText("Pig project sessions");
+    const projectGroup = await screen.findByTestId("sidebar-projects");
+    const projectNavigation = getProjectSessionsGroup(projectGroup, "Pig");
 
-    expect(
-      within(projectNavigation).getByRole("row", { name: "Agent Workspace shell" }),
-    ).toBeInTheDocument();
-    expect(
-      getProjectHeaderRow(screen.getByTestId("sidebar-projects"), "Pig"),
-    ).toHaveAttribute("aria-expanded", "true");
+    expect(getSessionRow(projectNavigation, "Agent Workspace shell")).toBeInTheDocument();
+    expect(getProjectHeaderButton(projectGroup, "Pig")).toHaveAttribute("aria-expanded", "true");
   });
 
   it("lists registry Projects by addedAt and persists independent collapse state", async () => {
@@ -391,20 +437,26 @@ describe("AppFrame", () => {
 
     const firstRender = renderAppFrame("/projects/pig/sessions", { seedProjects: false });
     const projectGroup = await screen.findByTestId("sidebar-projects");
+    const projectHeaders = within(projectGroup)
+      .getAllByRole("button")
+      .filter(
+        (row) =>
+          isSideNavRow(row) &&
+          row.hasAttribute("aria-expanded") &&
+          !row.hasAttribute("aria-haspopup"),
+      );
 
-    expect(
-      within(projectGroup)
-        .getAllByRole("row")
-        .filter((row) => ["study", "Pig"].includes(row.getAttribute("aria-label") ?? ""))
-        .map((row) => row.getAttribute("aria-label")),
-    ).toEqual(["study", "Pig"]);
-    expect(screen.getByLabelText("study project sessions")).toBeInTheDocument();
-    expect(screen.getByLabelText("Pig project sessions")).toBeInTheDocument();
+    expect(projectHeaders.map((row) => projectHeaderLabel(row))).toEqual(["study", "Pig"]);
+    expect(getProjectSessionsGroup(projectGroup, "study")).toBeInTheDocument();
+    expect(getProjectSessionsGroup(projectGroup, "Pig")).toBeInTheDocument();
 
-    await user.click(getProjectToggleButton(projectGroup, "study"));
+    await user.click(getProjectHeaderButton(projectGroup, "study"));
 
-    expect(getProjectHeaderRow(projectGroup, "study")).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByLabelText("Pig project sessions")).toBeInTheDocument();
+    expect(getProjectHeaderButton(projectGroup, "study")).toHaveAttribute("aria-expanded", "false");
+    expect(getProjectSessionsGroup(projectGroup, "Pig")).not.toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     expect(screen.getByText("Main content")).toBeInTheDocument();
 
     firstRender.unmount();
@@ -412,11 +464,14 @@ describe("AppFrame", () => {
 
     const restoredProjectGroup = await screen.findByTestId("sidebar-projects");
 
-    expect(getProjectHeaderRow(restoredProjectGroup, "study")).toHaveAttribute(
+    expect(getProjectHeaderButton(restoredProjectGroup, "study")).toHaveAttribute(
       "aria-expanded",
       "false",
     );
-    expect(screen.getByLabelText("Pig project sessions")).toBeInTheDocument();
+    expect(getProjectSessionsGroup(restoredProjectGroup, "Pig")).not.toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
   });
 
   it("opens the global New Session draft without adding Project draft rows", async () => {
@@ -428,17 +483,19 @@ describe("AppFrame", () => {
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const projectGroup = screen.getByTestId("sidebar-projects");
-    const projectNavigation = within(projectGroup).getByLabelText("Pig project sessions");
-    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
-    const globalNewSessionRow = within(traceUsageNavigation).getByRole("row", {
+    const projectNavigation = getProjectSessionsGroup(projectGroup, "Pig");
+    const traceUsageNavigation = screen.getByRole("group", {
+      name: "Trace and usage navigation",
+    });
+    const globalNewSessionRow = within(traceUsageNavigation).getByRole("button", {
       name: "New Session",
     });
 
     expect(
       within(projectGroup).getByRole("button", { name: "New Session for Pig" }),
-    ).toHaveAttribute("data-slot", "sidebar-menu-action");
+    ).toHaveClass("astryx-button");
     expect(
-      within(projectNavigation).queryByRole("row", { name: "New Session" }),
+      within(projectNavigation).queryByRole("button", { name: "New Session" }),
     ).not.toBeInTheDocument();
     expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
@@ -449,10 +506,9 @@ describe("AppFrame", () => {
       projectId: null,
       prompt: "Existing Project draft",
     });
-    expect(within(traceUsageNavigation).getByRole("row", { name: "New Session" })).toHaveAttribute(
-      "data-current",
-      "true",
-    );
+    expect(
+      within(traceUsageNavigation).getByRole("button", { name: "New Session" }),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it("shows unsent follow-up icons on Session rows and collapsed Projects", async () => {
@@ -463,11 +519,9 @@ describe("AppFrame", () => {
     renderAppFrame("/projects/pig/sessions");
 
     const projectGroup = await screen.findByTestId("sidebar-projects");
-    const projectNavigation = within(projectGroup).getByLabelText("Pig project sessions");
-    const sessionRow = within(projectNavigation).getByRole("row", {
-      name: "Trace boundary pass",
-    });
-    const expandedProjectHeader = getProjectHeaderRow(projectGroup, "Pig");
+    const projectNavigation = getProjectSessionsGroup(projectGroup, "Pig");
+    const sessionRow = getSessionRow(projectNavigation, "Trace boundary pass");
+    const expandedProjectHeader = getProjectHeaderButton(projectGroup, "Pig");
 
     expect(within(sessionRow).getByLabelText("Unsent follow-up")).toBeInTheDocument();
     expect(
@@ -475,9 +529,9 @@ describe("AppFrame", () => {
     ).not.toBeInTheDocument();
     expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
 
-    await user.click(getProjectToggleButton(projectGroup, "Pig"));
+    await user.click(expandedProjectHeader);
 
-    const projectHeader = getProjectHeaderRow(projectGroup, "Pig");
+    const projectHeader = getProjectHeaderButton(projectGroup, "Pig");
 
     expect(within(projectHeader).getByLabelText("Unsent follow-up")).toBeInTheDocument();
     expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
@@ -500,8 +554,7 @@ describe("AppFrame", () => {
     const projectGroup = await screen.findByTestId("sidebar-projects");
 
     await user.click(within(projectGroup).getByRole("button", { name: "Project actions for Pig" }));
-    const projectActionsMenu = screen.getByRole("menu");
-    const projectActionsPopover = projectActionsMenu.closest('[data-slot="dropdown-popover"]');
+    const projectActionsMenu = screen.getByRole("menu", { name: "Project actions for Pig" });
     const renameProjectItem = within(projectActionsMenu).getByRole("menuitem", {
       name: "Rename Project",
     });
@@ -512,18 +565,14 @@ describe("AppFrame", () => {
       name: "Remove Project...",
     });
 
-    expect(projectActionsMenu).toHaveAttribute("data-slot", "dropdown-menu");
-    expect(projectActionsPopover).toHaveClass("pigui-compact-menu-popover");
-    expect(projectActionsPopover).toHaveClass("pigui-sidebar-action-dropdown__popover");
-    expect(projectActionsMenu).toHaveClass("pigui-compact-menu-surface");
-    expect(projectActionsMenu).toHaveClass("pigui-sidebar-action-dropdown__menu");
+    expect(projectActionsMenu).toHaveClass("astryx-dropdown-menu");
+    expect(projectActionsMenu).toHaveClass("astryx-more-menu");
     expect(within(projectActionsMenu).queryByRole("menuitem", { name: "New Session" })).toBeNull();
-    expect(renameProjectItem).toHaveClass("pigui-compact-menu-item");
-    expect(renameProjectItem).toHaveClass("pigui-sidebar-action-dropdown__item");
-    expect(revealProjectItem).toHaveClass("pigui-compact-menu-item");
-    expect(revealProjectItem).toHaveClass("pigui-sidebar-action-dropdown__item");
-    expect(removeProjectItem).toHaveClass("pigui-compact-menu-item");
-    expect(removeProjectItem).toHaveClass("pigui-sidebar-action-dropdown__item");
+    expect(renameProjectItem).toHaveClass("astryx-dropdown-menu-item");
+    expect(revealProjectItem).toHaveClass("astryx-dropdown-menu-item");
+    expect(removeProjectItem).toHaveClass("astryx-dropdown-menu-item");
+    // Destructive action stays separated from the safe actions by a divider.
+    expect(removeProjectItem.previousElementSibling).toHaveAttribute("role", "separator");
     expect(
       within(projectActionsMenu).getAllByRole("menuitem").map((item) => item.textContent?.trim()),
     ).toEqual(["Rename Project", "Reveal in Finder", "Remove Project..."]);
@@ -536,7 +585,7 @@ describe("AppFrame", () => {
       expect.stringContaining("Local files and historical Sessions will not be deleted."),
     );
     expect(within(projectGroup).queryByText("Pig")).not.toBeInTheDocument();
-    expect(within(projectGroup).getByText("study")).toBeInTheDocument();
+    expect(getProjectHeaderButton(projectGroup, "study")).toBeInTheDocument();
     expect(getSessionDraft()).toMatchObject({
       projectId: null,
       prompt: "Keep this prompt",
@@ -558,10 +607,11 @@ describe("AppFrame", () => {
       prompt: "Prompt from the global draft",
     });
     expect(
-      within(screen.getByLabelText("Trace and usage navigation")).getByRole("row", {
-        name: "New Session",
-      }),
-    ).toHaveAttribute("data-current", "true");
+      within(screen.getByRole("group", { name: "Trace and usage navigation" })).getByRole(
+        "button",
+        { name: "New Session" },
+      ),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it("renames a Project from the sidebar action menu", async () => {
@@ -575,8 +625,8 @@ describe("AppFrame", () => {
     await user.click(screen.getByRole("menuitem", { name: "Rename Project" }));
 
     expect(prompt).toHaveBeenCalledWith("Rename Project", "Pig");
-    expect(within(projectGroup).queryByText("Pig")).not.toBeInTheDocument();
-    expect(within(projectGroup).getByText("PiGUI Desktop")).toBeInTheDocument();
+    expect(findProjectHeaderButton(projectGroup, "Pig")).toBeUndefined();
+    expect(getProjectHeaderButton(projectGroup, "PiGUI Desktop")).toBeInTheDocument();
     expect(getProjectRegistry()[0]).toMatchObject({
       id: pigProjectPath,
       displayName: "PiGUI Desktop",
@@ -603,64 +653,69 @@ describe("AppFrame", () => {
     });
   });
 
-  it("renders Trace and Usage as first-level sidebar menu items", async () => {
+  it("renders Trace and Usage as first-level side nav items", async () => {
     renderAppFrame("/");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
-    const traceItem = within(traceUsageNavigation).getByRole("row", { name: "Trace" });
-    const usageItem = within(traceUsageNavigation).getByRole("row", { name: "Usage" });
+    const traceUsageNavigation = screen.getByRole("group", {
+      name: "Trace and usage navigation",
+    });
+    const traceItem = within(traceUsageNavigation).getByRole("button", { name: "Trace" });
+    const usageItem = within(traceUsageNavigation).getByRole("button", { name: "Usage" });
 
     expect(within(traceUsageNavigation).queryByText("Analyze")).not.toBeInTheDocument();
-    expect(traceUsageNavigation.querySelector('[data-key="Analyze"]')).not.toBeInTheDocument();
-    expect(traceItem).toHaveAttribute("data-current", "true");
-    expect(usageItem).not.toHaveAttribute("data-current", "true");
+    expect(traceItem).toHaveAttribute("aria-current", "page");
+    expect(usageItem).not.toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { level: 1, name: "Trace" })).toBeInTheDocument();
   });
 
-  it("orders Trace and Usage above Projects and pins Settings to the footer", async () => {
+  it("orders Trace and Usage above Projects and pins Settings to the sidenav footer", async () => {
     const { container } = renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const sidebarContent = container.querySelector('[data-slot="sidebar-content"]');
-    const sidebarFooter = container.querySelector('[data-slot="sidebar-footer"]');
-    const traceUsageNavigation = screen.getByLabelText("Trace and usage navigation");
+    const sidebar = container.querySelector('[data-testid="app-layout-sidebar"]');
+    const traceUsageNavigation = screen.getByRole("group", {
+      name: "Trace and usage navigation",
+    });
     const projectGroup = screen.getByTestId("sidebar-projects");
+    const systemGroup = screen.getByTestId("sidebar-system");
 
-    expect(sidebarContent).toBeInTheDocument();
-    expect(sidebarFooter).toBeInTheDocument();
-    expect(sidebarContent).toHaveClass("flex-1", "min-h-0");
-    expect(projectGroup).toHaveClass("flex-1", "min-h-0", "overflow-y-auto");
+    expect(sidebar).toBeInTheDocument();
+    expect(sidebar).toContainElement(traceUsageNavigation);
+    expect(sidebar).toContainElement(projectGroup);
+    expect(sidebar).toContainElement(systemGroup);
     expect(within(projectGroup).getByText("Projects")).toBeInTheDocument();
     expect(within(projectGroup).getByRole("button", { name: "Add Project" })).toBeInTheDocument();
     expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-workspace")).not.toBeInTheDocument();
-    expect(sidebarContent?.children[0]).toBe(
-      traceUsageNavigation.closest('[data-slot="sidebar-group"]'),
-    );
-    expect(sidebarContent?.children[1]).toBe(projectGroup);
-    expect(sidebarFooter).toHaveTextContent("Settings");
-    expect(sidebarFooter).not.toHaveTextContent("Analyze");
-    expect(sidebarContent).not.toHaveTextContent("Settings");
+    // Document order: trace/usage → projects → system footer.
+    expect(
+      traceUsageNavigation.compareDocumentPosition(projectGroup) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      projectGroup.compareDocumentPosition(systemGroup) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(systemGroup).toHaveTextContent("Settings");
+    expect(systemGroup).not.toHaveTextContent("Analyze");
+    expect(traceUsageNavigation).not.toHaveTextContent("Settings");
+    expect(projectGroup).not.toHaveTextContent("Settings");
   });
 
-  it("uses HeroUI Pro AppLayout and keeps the sidebar to primary tabs only", async () => {
+  it("uses Astryx AppShell + SideNav and keeps the sidebar to primary tabs only", async () => {
     const { container } = renderAppFrame("/usage");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     expect(screen.queryByText("Route sidebar")).not.toBeInTheDocument();
-    const layout = container.querySelector("[data-app-layout]");
-    const sidebar = container.querySelector('[data-slot="sidebar"]');
+    const layout = container.querySelector(".astryx-app-shell");
+    const sidebar = container.querySelector('[data-testid="app-layout-sidebar"]');
 
     expect(layout).toBeInTheDocument();
     expect(layout).toHaveClass("pigui-app-layout");
-    expect(layout).toHaveAttribute("data-scroll-mode", "content");
-    expect(layout).toHaveAttribute("data-resizable");
     expect(sidebar).toBeInTheDocument();
-    expect(sidebar).toHaveAttribute("data-collapsible", "offcanvas");
-    expect(sidebar).toHaveAttribute("data-variant", "inset");
-    expect(sidebar).toHaveStyle({ "--sidebar-width": "260px" });
-    expect(sidebar).not.toHaveStyle({ "--spacing": "0.20rem" });
+    expect(sidebar).toHaveClass("astryx-side-nav");
+    expect(sidebar).toHaveAttribute("data-state", "expanded");
+    expect(sidebar).toHaveStyle({ width: "260px" });
     const sidebarChrome = screen.getByTestId("sidebar-titlebar-spacer");
     expect(sidebarChrome).toBeInTheDocument();
     expect(sidebarChrome).toHaveStyle({ height: "40px" });
@@ -684,15 +739,16 @@ describe("AppFrame", () => {
     });
     expect(sidebarCollapseTrigger).toHaveAttribute("data-slot", "sidebar-trigger");
     expect(container.querySelector('[data-testid="collapsed-traffic-space"]')).not.toBeInTheDocument();
-    expect(container.querySelector('[data-slot="sidebar-content"]')).not.toHaveClass("pt-12");
     expect(container.querySelector('[data-slot="navbar"]')).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="app-layout-menu-toggle"]')).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="sidebar-rail"]')).not.toBeInTheDocument();
-    const resizeHandle = container.querySelector('[data-slot="resizable-handle"]');
+    const resizeHandle = screen.getByTestId("astryx-sidenav-resize-handle");
     expect(resizeHandle).toBeInTheDocument();
-    expect(resizeHandle).toHaveAttribute("aria-label", "Resize handle");
-    expect(resizeHandle).toHaveAttribute("data-type", "line");
-    const currentItems = Array.from(container.querySelectorAll('[data-current="true"]'));
+    expect(resizeHandle).toHaveAttribute("aria-label", "Resize sidebar");
+    expect(resizeHandle).toHaveAttribute("role", "separator");
+    expect(resizeHandle).toHaveAttribute("aria-valuemin", "240");
+    expect(resizeHandle).toHaveAttribute("aria-valuemax", "320");
+    const currentItems = Array.from(container.querySelectorAll('[aria-current="page"]'));
     expect(currentItems.some((item) => item.textContent?.includes("Usage"))).toBe(true);
     expect(currentItems.some((item) => item.textContent?.includes("Analyze"))).toBe(false);
     expect(screen.getByRole("heading", { level: 1, name: "Usage" })).toBeInTheDocument();
@@ -812,8 +868,7 @@ describe("AppFrame", () => {
     const { container } = renderAppFrame("/");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const provider = container.querySelector('[data-slot="sidebar-provider"]');
-    const sidebar = container.querySelector('[data-slot="sidebar"]');
+    const sidebar = container.querySelector('[data-testid="app-layout-sidebar"]');
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
     const headerChrome = screen.getByTestId("header-chrome");
     const titleTrack = screen.getByTestId("header-chrome-title-track");
@@ -832,8 +887,8 @@ describe("AppFrame", () => {
 
     await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-    expect(provider).toHaveAttribute("data-state", "collapsed");
-    expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    // Offcanvas: the sidenav unmounts entirely when collapsed.
+    expect(container.querySelector('[data-testid="app-layout-sidebar"]')).toBeNull();
 
     const collapsedTrigger = within(headerChrome).getByRole("button", {
       name: "Expand sidebar",
@@ -891,29 +946,43 @@ describe("AppFrame", () => {
 
       expect(await screen.findByText("Main content")).toBeInTheDocument();
       const sidebarPanel = container.querySelector<HTMLElement>(
-        '[data-testid="app-layout-sidebar"][data-panel]',
+        '[data-testid="app-layout-sidebar"]',
       );
       const headerChrome = screen.getByTestId("header-chrome");
       const title = screen.getByTestId("header-chrome-title");
 
       expect(sidebarPanel).toBeInTheDocument();
       if (!sidebarPanel) {
-        throw new Error("Expected AppLayout sidebar panel to be rendered");
+        throw new Error("Expected the SideNav root to be rendered");
       }
 
       let measuredWidth = 224;
-      sidebarPanel.getBoundingClientRect = () =>
-        ({
-          bottom: 0,
-          height: 0,
-          left: 0,
-          right: measuredWidth,
-          top: 0,
-          width: measuredWidth,
-          x: 0,
-          y: 0,
-          toJSON: () => ({}),
-        }) as DOMRect;
+      const mockPanelRect = () => {
+        // SideNav remounts its root when the resizable wrapper toggles, so
+        // re-apply the rect mock to the current node after open/close.
+        const panel = container.querySelector<HTMLElement>(
+          '[data-testid="app-layout-sidebar"]',
+        );
+
+        if (!panel) {
+          throw new Error("Expected the SideNav root to be rendered");
+        }
+
+        panel.getBoundingClientRect = () =>
+          ({
+            bottom: 0,
+            height: 0,
+            left: 0,
+            right: measuredWidth,
+            top: 0,
+            width: measuredWidth,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+          }) as DOMRect;
+      };
+
+      mockPanelRect();
 
       await act(async () => {
         resizeObservers.forEach((observer) => observer.trigger());
@@ -927,23 +996,16 @@ describe("AppFrame", () => {
 
       await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-      measuredWidth = 160;
-      await act(async () => {
-        resizeObservers.forEach((observer) => observer.trigger());
-      });
-
-      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "160px" });
-
-      measuredWidth = 80;
-      await act(async () => {
-        resizeObservers.forEach((observer) => observer.trigger());
-      });
-
-      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "80px" });
+      // Offcanvas: with the sidenav unmounted, the header snaps to the edge.
+      expect(
+        container.querySelector('[data-testid="app-layout-sidebar"]'),
+      ).toBeNull();
+      expect(headerChrome).toHaveStyle({ "--pigui-main-left": "0px" });
 
       await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
 
       measuredWidth = 176;
+      mockPanelRect();
       await act(async () => {
         resizeObservers.forEach((observer) => observer.trigger());
       });
@@ -958,20 +1020,26 @@ describe("AppFrame", () => {
     }
   });
 
-  it("collapses and reopens the inset sidebar with the fixed header chrome trigger", async () => {
+  it("collapses and reopens the sidenav with the fixed header chrome trigger", async () => {
     const user = userEvent.setup();
     const { container } = renderAppFrame("/");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const sidebar = container.querySelector('[data-slot="sidebar"]');
-    const provider = container.querySelector('[data-slot="sidebar-provider"]');
-    const layout = container.querySelector("[data-app-layout]");
+    const querySidebar = () =>
+      container.querySelector('[data-testid="app-layout-sidebar"]');
+    const layout = container.querySelector(".astryx-app-shell");
     const headerChrome = screen.getByTestId("header-chrome");
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
-    expect(provider).toHaveAttribute("data-state", "expanded");
-    expect(sidebar).toHaveAttribute("data-state", "expanded");
+    expect(querySidebar()).toHaveAttribute("data-state", "expanded");
     expect(within(headerChrome).queryByRole("button", { name: "Expand sidebar" })).not.toBeInTheDocument();
+    // The icon-rail middle state is disabled: the shell must not opt into
+    // Astryx's collapsible rail at all.
+    expect(container.querySelector(".astryx-side-nav")).not.toHaveAttribute(
+      "data-mode",
+      "rail",
+    );
+    void styles;
 
     await user.click(
       within(headerChrome).getByRole("button", {
@@ -979,27 +1047,18 @@ describe("AppFrame", () => {
       }),
     );
 
-    expect(provider).toHaveAttribute("data-state", "collapsed");
-    expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    // Offcanvas: collapsed means the sidenav leaves the DOM entirely — no
+    // 48px icon rail in between.
+    expect(querySidebar()).toBeNull();
     expect(layout).toHaveAttribute("data-sidebar-animating", "true");
     const expandTrigger = within(headerChrome).getByRole("button", {
       name: "Expand sidebar",
     });
     expect(expandTrigger).toHaveAttribute("data-slot", "sidebar-trigger");
-    expect(styles).toContain(
-      '.pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"][data-panel]',
-    );
-    expect(styles).toContain("flex-grow 200ms ease");
-    expect(styles).toContain(
-      '.pigui-app-layout[data-sidebar-animating="true"] [data-slot="sidebar"][data-collapsible="offcanvas"]',
-    );
-    expect(styles).toContain("translate 200ms ease");
-    expect(styles).toContain("visibility 200ms");
 
     await user.click(expandTrigger);
 
-    expect(provider).toHaveAttribute("data-state", "expanded");
-    expect(sidebar).toHaveAttribute("data-state", "expanded");
+    expect(querySidebar()).toHaveAttribute("data-state", "expanded");
     expect(
       within(headerChrome).getByRole("button", {
         name: "Collapse sidebar",
@@ -1012,60 +1071,32 @@ describe("AppFrame", () => {
     const { container } = renderAppFrame("/");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const sidebar = container.querySelector<HTMLElement>('[data-slot="sidebar"]');
-    const sidebarWrapper = container.querySelector<HTMLElement>(".sidebar__offcanvas-wrapper");
+    const sidebar = container.querySelector<HTMLElement>('[data-testid="app-layout-sidebar"]');
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/app-shell.tsx"), "utf8");
 
-    expect(sidebar).toHaveStyle({ "--sidebar-width": "260px" });
-    expect(sidebar).not.toHaveStyle({ "--spacing": "0.20rem" });
-    expect(sidebarWrapper).toBeInTheDocument();
+    expect(sidebar).toHaveStyle({ width: "260px" });
     expect(styles).toContain("--pigui-sidebar-row-height: 1.875rem;");
     expect(styles).toContain("--pigui-sidebar-row-gap: 0.125rem;");
     expect(styles).toContain("--pigui-sidebar-row-icon-gap: 0.625rem;");
     expect(styles).toContain("--pigui-sidebar-icon-size: 1rem;");
-    expect(styles).toContain(".pigui-app-layout .sidebar__offcanvas-wrapper");
-    expect(styles).toContain("--sidebar-width: 260px;");
-    expect(styles).toContain(".pigui-app-layout .sidebar__content");
-    expect(styles).toContain("padding-inline: var(--pigui-sidebar-content-padding-x);");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu {");
-    expect(styles).toContain("--sidebar-menu-indent: var(--pigui-sidebar-indent);");
-    expect(styles).toContain("--sidebar-menu-row-gap: var(--pigui-sidebar-row-gap);");
-    expect(styles).toContain("gap: var(--pigui-sidebar-row-gap);");
-    expect(styles).toContain(".pigui-app-layout[data-resizable] .sidebar__offcanvas-wrapper");
-    expect(styles).toContain(".pigui-app-layout[data-resizable] [data-slot=\"sidebar\"]");
-    expect(styles).toContain("min-width: 100%;");
-    expect(styles).not.toContain(".pigui-app-layout .sidebar__group + .sidebar__group");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu-item-content");
+    expect(styles).toContain(".pigui-app-layout .astryx-side-nav-item {");
     expect(styles).toContain("min-height: var(--pigui-sidebar-row-height);");
-    expect(styles).toContain("gap: var(--pigui-sidebar-row-icon-gap);");
-    expect(styles).toContain("padding-block: var(--pigui-sidebar-row-padding-y);");
     expect(styles).toContain("border-radius: var(--pigui-sidebar-item-radius);");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu-icon svg");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu-action svg");
+    expect(styles).toContain(".pigui-app-layout .astryx-side-nav-item svg,");
     expect(styles).toContain("width: var(--pigui-sidebar-icon-size);");
     expect(styles).toContain("height: var(--pigui-sidebar-icon-size);");
-    expect(styles).not.toContain(".pigui-app-layout .sidebar__menu-item:hover .sidebar__menu-item-content");
-    expect(styles).not.toContain("border-radius: var(--radius, 0.5rem);");
-    expect(styles).not.toContain("box-shadow: none;");
-    expect(source).toContain('const sidebarDefaultSize = "260px";');
-    expect(source).toContain('const sidebarMinSize = "240px";');
-    expect(source).toContain('const sidebarMaxSize = "320px";');
+    expect(source).toContain(
+      'resizable={{ defaultWidth: 260, minWidth: 240, maxWidth: 320, autoSaveId: "pigui-app-shell" }}',
+    );
+    expect(source).not.toContain('resizableAutoSaveId="pig-app-shell"');
     expect(source).not.toContain('"--spacing"');
-    expect(source).toContain("<Sidebar.MenuTrigger>");
-    expect(source).toContain("<Sidebar.Submenu>");
-    expect(source).toContain("<SidebarActionDropdown");
-    expect(source).toContain("<SidebarActionDropdownItem");
+    expect(source).toContain("<ProjectActionsMenu");
+    expect(source).toContain("MoreMenu");
     expect(source).not.toContain("min-w-40");
     expect(source).not.toContain('role="menu"');
     expect(source).not.toContain('role="menuitem"');
     expect(source).not.toContain("absolute right-0 top-7");
-    expect(source).toContain('resizableAutoSaveId="pigui-app-shell"');
-    expect(source).not.toContain('resizableAutoSaveId="pig-app-shell"');
-    expect(source).toContain("sidebarDefaultSize={sidebarDefaultSize}");
-    expect(source).toContain("sidebarMinSize={sidebarMinSize}");
-    expect(source).toContain("sidebarMaxSize={sidebarMaxSize}");
-    expect(source).toContain("sidebarResizable");
   });
 
   it("smooths sidebar icon rendering without changing icon sizing tokens", () => {
@@ -1080,9 +1111,9 @@ describe("AppFrame", () => {
     expect(themeRootBlock).toContain("--pigui-sidebar-content-padding-x: 0.5rem;");
     expect(themeRootBlock).toContain("--pigui-sidebar-icon-box-size: 1.25rem;");
     expect(themeRootBlock).toContain("--pigui-sidebar-icon-size: 1rem;");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger svg,");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu-icon svg,");
-    expect(styles).toContain(".pigui-app-layout .sidebar__menu-action svg");
+    expect(styles).toContain(".pigui-app-layout .astryx-side-nav-item svg,");
+    expect(styles).toContain(".pigui-app-layout .astryx-more-menu svg,");
+    expect(styles).toContain(".pigui-app-layout .pigui-session-glyph svg");
     expect(styles).toContain("shape-rendering: geometricPrecision;");
   });
 
@@ -1094,82 +1125,47 @@ describe("AppFrame", () => {
       now: () => "2026-06-30T09:00:00.000Z",
     });
 
-    const { container } = renderAppFrame("/projects/pig/sessions", { seedProjects: false });
+    renderAppFrame("/projects/pig/sessions", { seedProjects: false });
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
+    const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/app-shell.tsx"), "utf8");
     const projectGroup = screen.getByTestId("sidebar-projects");
-    const projectHeader = getProjectHeaderRow(projectGroup, "Pig");
-    const projectContent = projectHeader.querySelector('[data-slot="sidebar-menu-item-content"]');
-    const projectTrigger = projectHeader.querySelector('[data-slot="sidebar-menu-trigger"]');
-    const projectLabel = projectHeader.querySelector('[data-slot="sidebar-menu-label"]');
-    const projectLabelText = projectHeader.querySelector(".pigui-sidebar-row__label-text");
-    const projectNavigation = within(projectGroup).getByLabelText("Pig project sessions");
-    const activeSessionRow = within(projectNavigation).getByRole("row", {
-      name: "Agent Workspace shell",
-    });
-    const sessionContent = activeSessionRow.querySelector('[data-slot="sidebar-menu-item-content"]');
-    const sessionIcon = activeSessionRow.querySelector('[data-slot="sidebar-menu-icon"]');
-    const sessionLabel = activeSessionRow.querySelector('[data-slot="sidebar-menu-label"]');
-    const sessionLabelText = activeSessionRow.querySelector(".pigui-sidebar-row__label-text");
-    const sessionChip = activeSessionRow.querySelector('[data-slot="sidebar-menu-chip"]');
-    const projectActions = projectHeader.querySelector('[data-slot="sidebar-menu-actions"]');
-    const emptyProjectNavigation = within(projectGroup).getByLabelText("study project sessions");
-    const emptySessionRow = within(emptyProjectNavigation).getByRole("row", {
-      name: "No chats",
-    });
-    const emptySessionContent = emptySessionRow.querySelector(
-      '[data-slot="sidebar-menu-item-content"]',
-    );
-    const emptySessionIcon = emptySessionRow.querySelector('[data-slot="sidebar-menu-icon"]');
-    const emptySessionLabel = emptySessionRow.querySelector('[data-slot="sidebar-menu-label"]');
-    const emptySessionLabelText = emptySessionRow.querySelector(".pigui-sidebar-row__label-text");
-    const sidebarContent = container.querySelector('[data-slot="sidebar-content"]');
-    const sidebarProjects = container.querySelector('[data-testid="sidebar-projects"]');
+    const projectHeader = getProjectHeaderButton(projectGroup, "Pig");
+    const projectNavigation = getProjectSessionsGroup(projectGroup, "Pig");
+    const activeSessionRow = getSessionRow(projectNavigation, "Agent Workspace shell");
+    const sessionGlyph = activeSessionRow.querySelector('[data-testid="session-glyph"]');
+    const emptyProjectNavigation = getProjectSessionsGroup(projectGroup, "study");
+    const emptySessionRow = getSessionRow(emptyProjectNavigation, "No chats");
+    const emptySessionGlyph = emptySessionRow.querySelector('[data-testid="session-glyph"]');
 
-    expect(projectTrigger).toBeInTheDocument();
-    expect(projectTrigger).toContainElement(projectHeader.querySelector(".pigui-project-expansion-indicator"));
-    expect(sessionIcon).toBeInTheDocument();
-    expect(within(sessionIcon as HTMLElement).getByLabelText("Active run")).toBeInTheDocument();
-    expect(projectContent).toHaveClass("pigui-sidebar-row");
-    expect(sessionContent).toHaveClass("pigui-sidebar-row");
-    expect(emptySessionContent).toHaveClass("pigui-sidebar-row");
-    expect(projectLabel).toHaveClass("pigui-sidebar-row__label");
-    expect(sessionLabel).toHaveClass("pigui-sidebar-row__label");
-    expect(emptySessionLabel).toHaveClass("pigui-sidebar-row__label");
-    expect(projectLabelText).toHaveClass("pigui-sidebar-row__label-text");
-    expect(sessionLabelText).toHaveClass("pigui-sidebar-row__label-text");
-    expect(emptySessionLabelText).toHaveClass("pigui-sidebar-row__label-text");
-    expect(emptySessionIcon).toHaveClass("pigui-sidebar-row__icon");
-    expect(emptySessionIcon).toBeEmptyDOMElement();
-    expect(sessionChip).toHaveClass("pigui-sidebar-row__chip");
-    expect(projectActions).toHaveClass("pigui-sidebar-row__actions");
-    expect(sidebarContent).toHaveClass("overflow-x-hidden");
-    expect(sidebarProjects).toHaveClass("overflow-x-hidden");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row {");
-    expect(styles).toContain("min-width: 0;");
-    expect(styles).toContain("overflow-x: hidden;");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row > .sidebar__menu-trigger,");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__icon");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__label,");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__label-text");
-    expect(styles).toContain("flex: 1 1 auto;");
-    expect(styles).toContain("text-overflow: ellipsis;");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__chip,");
-    expect(styles).toContain(".pigui-app-layout .pigui-sidebar-row__actions");
+    // Every row leads with a fixed-size glyph slot so titles line up.
+    expect(
+      projectHeader.querySelector(".pigui-project-expansion-indicator"),
+    ).toBeInTheDocument();
+    expect(sessionGlyph).toHaveClass("pigui-session-glyph");
+    expect(
+      within(sessionGlyph as HTMLElement).getByLabelText("Active run"),
+    ).toBeInTheDocument();
+    expect(emptySessionGlyph).toHaveClass("pigui-session-glyph");
+    expect(emptySessionGlyph).toBeEmptyDOMElement();
+    // Titles are string labels: the component owns single-line truncation.
+    expect(source).toContain("label={session.title}");
+    expect(source).toContain("label={project.displayName}");
+    expect(styles).toContain(".pigui-session-glyph {");
     expect(styles).toContain("flex: 0 0 auto;");
+    expect(styles).toContain(".pigui-project-expansion-indicator {");
+    expect(styles).toContain("width: var(--pigui-sidebar-icon-size);");
   });
 
-  it("uses the default resizable separator line", async () => {
+  it("uses the Astryx resizable separator without transparent overrides", async () => {
     const { container } = renderAppFrame("/");
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     expect(container.querySelector('[data-slot="sidebar-rail"]')).not.toBeInTheDocument();
-    expect(container.querySelector('[data-slot="resizable-handle"]')).toBeInTheDocument();
-    expect(styles).not.toContain(
-      ".pigui-app-layout[data-resizable] [data-slot=\"resizable-handle\"]",
-    );
+    expect(screen.getByTestId("astryx-sidenav-resize-handle")).toBeInTheDocument();
+    expect(styles).not.toContain("astryx-resize-handle");
     expect(styles).not.toContain("--resizable-handle-color: transparent;");
     expect(styles).not.toContain("--resizable-handle-color-hover: transparent;");
     expect(styles).not.toContain("--resizable-handle-color-active: transparent;");
@@ -1200,6 +1196,17 @@ describe("AppFrame", () => {
     expect(screen.getByTestId("app-frame-content")).not.toHaveClass("bg-background");
   });
 
+  it("lets the elevated AppShell variant paint the sidenav wash", async () => {
+    renderAppFrame("/");
+
+    await screen.findByText("Main content");
+    const shellRoot = document.querySelector(".astryx-app-shell");
+
+    expect(shellRoot).not.toBeNull();
+    expect(shellRoot).toHaveAttribute("data-variant", "elevated");
+    expect(shellRoot).not.toHaveClass("bg-background");
+  });
+
   it("disables document-level elastic overscroll", () => {
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
@@ -1208,10 +1215,10 @@ describe("AppFrame", () => {
     expect(source).toContain("#root");
     expect(source).toContain("overscroll-behavior: none;");
     expect(source).toContain("overflow: hidden;");
-    expect(source).toContain(".pigui-app-layout[data-scroll-mode=\"content\"] .app-layout__main");
+    expect(source).toContain('.pigui-app-layout [role="main"]');
   });
 
-  it("lets AppLayout own the right content column surface", () => {
+  it("lets AppShell own the right content column surface", () => {
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
     expect(source).not.toContain(".pigui-app-layout [data-slot=\"app-layout-body\"]");
@@ -1251,7 +1258,7 @@ describe("AppFrame", () => {
     expect(source).toContain("--pigui-sidebar-dropdown-item-padding-y: 0.25rem;");
     expect(source).toContain("--pigui-sidebar-dropdown-icon-size: 0.875rem;");
     expect(source).toContain("--pigui-sidebar-dropdown-label-line-height: 1.25rem;");
-    expect(source).toContain(".pigui-app-layout .sidebar__menu-item");
+    expect(source).toContain(".pigui-app-layout .astryx-side-nav-item");
     expect(source).toContain("border-radius: var(--pigui-sidebar-item-radius);");
     expect(source).toContain(".pigui-sidebar-action-dropdown__trigger");
     expect(source).toContain(".pigui-sidebar-action-dropdown__popover");
@@ -1259,7 +1266,6 @@ describe("AppFrame", () => {
     expect(source).toContain("max-width: var(--pigui-sidebar-dropdown-max-width);");
     expect(source).toContain("border: 1px solid var(--separator);");
     expect(source).not.toContain("border: 0;");
-    expect(source).toContain("border-radius: var(--pigui-sidebar-item-radius);");
     expect(source).toContain("box-shadow: 0 4px 14px 0 rgba(24, 24, 27, 0.10);");
     expect(source).toContain("gap: var(--pigui-sidebar-dropdown-menu-gap);");
     expect(source).toContain("padding: var(--pigui-sidebar-dropdown-padding);");
@@ -1288,10 +1294,7 @@ describe("AppFrame", () => {
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
     expect(source).toContain(
-      '.pigui-app-layout [data-slot="sidebar-menu-item"]:not([data-disabled="true"]) [data-slot="sidebar-menu-label"]',
-    );
-    expect(source).toContain(
-      '.pigui-app-layout [data-slot="sidebar-menu-item"]:not([data-disabled="true"]) [data-slot="sidebar-menu-icon"]',
+      '.pigui-app-layout .astryx-side-nav-item:not([aria-disabled="true"]):not(:disabled)',
     );
     expect(source).toContain("color: var(--foreground);");
   });
@@ -1305,8 +1308,8 @@ describe("AppFrame", () => {
     expect(source).not.toContain("sidebarNavigationIconSlotClassName");
     expect(source).not.toContain("sidebarNavigationIconClassName");
     expect(source).not.toContain("size-[1.125rem]");
-    expect(source).toContain('<ChatAdd className="size-4" />');
-    expect(source.split('<Icon className="size-4" />')).toHaveLength(3);
+    expect(source).toContain('<ChatAdd aria-hidden="true" className="size-4" />');
+    expect(source.split('<Icon aria-hidden="true" className="size-4" />')).toHaveLength(4);
   });
 
   it("does not import standalone React Aria Heading into the app shell", () => {
