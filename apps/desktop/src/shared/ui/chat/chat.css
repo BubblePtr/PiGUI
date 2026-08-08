@@ -350,12 +350,13 @@
   min-width: 0;
 }
 
-/* Astryx 0.3.0 upstream bug: rows widen their hover background with a -4px
-   inline margin, but the group's expand-animation container clips at
-   overflow:hidden, cutting the hover radius on grouped rows (single rows are
-   unclipped). Widen the clip box by the same overhang. Scoped to multi-call
-   groups (single-call groups carry data-state) and to the 0.3.0 DOM shape:
-   group toggle row + sibling content grid > clip container. */
+/* Astryx 0.3.0 upstream bug (facebook/astryx#4830): rows widen their hover
+   background with a -4px inline margin, but the group's expand-animation
+   container clips at overflow:hidden, cutting the hover radius on grouped
+   rows (single rows are unclipped). Widen the clip box by the same overhang.
+   Scoped to multi-call groups (single-call groups carry data-state) and to
+   the 0.3.0 DOM shape: group toggle row + sibling content grid > clip
+   container. Drop once the upstream fix ships. */
 .chat-tool[data-slot="chat-tool-group"]:not([data-state])
   [role="button"][aria-expanded]
   + div
