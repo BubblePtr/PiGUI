@@ -18,7 +18,11 @@ import {
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
-import { ChatTool, type ToolPartState } from "@/shared/ui/chat/chat-tool";
+import {
+  ChatToolGroup,
+  type ChatToolItem,
+  type ToolPartState,
+} from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import { PiSheet } from "@/shared/ui/pi-sheet";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
@@ -135,6 +139,7 @@ type RunTimelineItem = {
   toolState?: ToolPartState;
   argsText?: string;
   outputText?: string;
+  durationMs?: number;
 };
 
 type AgentWorkspaceFixture = {
@@ -422,31 +427,56 @@ function AssistantRunTrace({
       </ChainOfThought.Trigger>
       <ChainOfThought.Content>
         <ChainOfThought.Steps>
-          {timeline.map((item) => (
-            <ChainOfThought.Step key={item.id} label={item.title}>
-              <RunTimelineStepContent item={item} />
-            </ChainOfThought.Step>
-          ))}
+          {groupTimelineSteps(timeline).map((step) =>
+            step.kind === "tools" ? (
+              // Tool rows carry their own name/status; no step label on top.
+              <ChainOfThought.Step key={step.id}>
+                <ChatToolGroup tools={step.tools} />
+              </ChainOfThought.Step>
+            ) : (
+              <ChainOfThought.Step key={step.item.id} label={step.item.title}>
+                {step.item.meta}
+              </ChainOfThought.Step>
+            ),
+          )}
         </ChainOfThought.Steps>
       </ChainOfThought.Content>
     </ChainOfThought>
   );
 }
 
-function RunTimelineStepContent({ item }: { item: RunTimelineItem }) {
-  if (item.kind !== "tool") {
-    return item.meta;
+type TimelineStep =
+  | { kind: "tools"; id: string; tools: ChatToolItem[] }
+  | { kind: "item"; item: RunTimelineItem };
+
+/** Consecutive tool items fold into one Astryx tool-call group. */
+function groupTimelineSteps(timeline: RunTimelineItem[]): TimelineStep[] {
+  const steps: TimelineStep[] = [];
+
+  for (const item of timeline) {
+    if (item.kind !== "tool") {
+      steps.push({ kind: "item", item });
+      continue;
+    }
+
+    const tool: ChatToolItem = {
+      argsText: item.argsText,
+      durationMs: item.durationMs,
+      output: item.outputText,
+      state: item.toolState ?? "input-available",
+      toolCallId: item.toolCallId ?? item.id,
+      toolName: item.toolName ?? item.title,
+    };
+    const lastStep = steps[steps.length - 1];
+
+    if (lastStep?.kind === "tools") {
+      lastStep.tools.push(tool);
+    } else {
+      steps.push({ kind: "tools", id: item.id, tools: [tool] });
+    }
   }
 
-  return (
-    <ChatTool
-      argsText={item.argsText}
-      output={item.outputText}
-      state={item.toolState ?? "input-available"}
-      toolCallId={item.toolCallId}
-      toolName={item.toolName ?? item.title}
-    />
-  );
+  return steps;
 }
 
 function AssistantMessageContent({ message }: { message: LiveMessage }) {
@@ -1272,6 +1302,11 @@ function runTimelineFromRuntimeModel(
     const outputText =
       tool.result !== undefined ? serializeModelDetail(tool.result) : undefined;
 
+    const durationMs =
+      tool.phase === "done" && tool.startedAt
+        ? Date.parse(tool.updatedAt) - Date.parse(tool.startedAt)
+        : undefined;
+
     items.push({
       id: tool.toolCallId,
       kind: "tool",
@@ -1280,9 +1315,17 @@ function runTimelineFromRuntimeModel(
       messageId: messageIdByToolCallId.get(tool.toolCallId),
       toolCallId: tool.toolCallId,
       toolName,
-      toolState: tool.phase === "done" ? "output-available" : "input-available",
+      toolState:
+        tool.phase === "done"
+          ? tool.isError
+            ? "output-error"
+            : "output-available"
+          : "input-available",
       argsText,
       outputText,
+      ...(durationMs !== undefined && Number.isFinite(durationMs)
+        ? { durationMs }
+        : {}),
     });
   }
 
@@ -1535,6 +1578,7 @@ function runTimelineFromProjection(
 ): RunTimelineItem[] {
   const items: RunTimelineItem[] = [];
   const toolItemIndexes = new Map<string, number>();
+  const toolCallTimestamps = new Map<string, string>();
 
   for (const event of projection.runtimeEvents) {
     if (event.kind === "thinking") {
@@ -1555,6 +1599,10 @@ function runTimelineFromProjection(
     const toolName = event.title ?? "Tool";
     const toolIdentity = event.toolCallId ?? event.id;
     const existingIndex = toolItemIndexes.get(toolIdentity);
+
+    if (event.kind === "tool-call" && !toolCallTimestamps.has(toolIdentity)) {
+      toolCallTimestamps.set(toolIdentity, event.timestamp);
+    }
 
     if (existingIndex === undefined) {
       const item: RunTimelineItem = {
@@ -1577,6 +1625,11 @@ function runTimelineFromProjection(
     }
 
     const existingItem = items[existingIndex];
+    const callTimestamp = toolCallTimestamps.get(toolIdentity);
+    const durationMs =
+      event.kind === "tool-result" && callTimestamp
+        ? Date.parse(event.timestamp) - Date.parse(callTimestamp)
+        : undefined;
 
     items[existingIndex] = {
       ...existingItem,
@@ -1591,6 +1644,9 @@ function runTimelineFromProjection(
       outputText:
         event.kind === "tool-result" ? event.body : existingItem.outputText,
       meta: event.kind === "tool-result" ? event.body : existingItem.meta,
+      ...(durationMs !== undefined && Number.isFinite(durationMs) && durationMs >= 0
+        ? { durationMs }
+        : {}),
     };
   }
 

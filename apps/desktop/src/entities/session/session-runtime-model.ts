@@ -57,6 +57,8 @@ export type SessionRuntimeTool = {
   args?: unknown;
   result?: unknown;
   isError?: boolean;
+  // Timestamp of the tool(start) event; absent while only announced.
+  startedAt?: string;
   updatedAt: string;
 };
 
@@ -317,6 +319,11 @@ export function applyAgentRuntimeEvent(
           ? { isError: event.isError }
           : existing?.isError !== undefined
             ? { isError: existing.isError }
+            : {}),
+        ...(existing?.startedAt
+          ? { startedAt: existing.startedAt }
+          : event.phase === "start"
+            ? { startedAt: timestamp }
             : {}),
         updatedAt: timestamp,
       });

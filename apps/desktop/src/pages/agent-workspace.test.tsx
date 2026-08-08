@@ -3054,7 +3054,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("The slice is shipped.")).toBeInTheDocument();
     // Abandoned retry partials never render as chat answers.
     expect(screen.queryByText("Partial answer before retry")).not.toBeInTheDocument();
-    expect(screen.getByText("Tool: read_file")).toBeInTheDocument();
+    expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
@@ -3290,6 +3290,202 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("groups consecutive tool calls into one Astryx group with duration and error state", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-group",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-group:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-group",
+        projectId: "pig-docs",
+        initialPrompt: "Run the checks",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-group",
+      piSessionId: "pi-session-group",
+    };
+
+    const agentEntries = [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${messageId}:part-0`,
+              partType: "tool_call",
+              body: '{"path":"AGENTS.md"}',
+              toolCallId: "call-read",
+            },
+            {
+              partId: `${messageId}:part-1`,
+              partType: "tool_call",
+              body: '{"command":"grep -rn TODO"}',
+              toolCallId: "call-grep",
+            },
+            {
+              partId: `${messageId}:part-2`,
+              partType: "text",
+              body: "Checks are done.",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-read",
+          phase: "start",
+          name: "read_file",
+          args: { path: "AGENTS.md" },
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-read",
+          phase: "end",
+          name: "read_file",
+          result: "agent instructions loaded",
+          isError: false,
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:04.500Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-grep",
+          phase: "start",
+          name: "shell",
+          args: { command: "grep -rn TODO" },
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:04.545Z",
+        event: {
+          type: "tool",
+          runId,
+          turnId,
+          toolCallId: "call-grep",
+          phase: "end",
+          name: "shell",
+          result: "grep: no matches",
+          isError: true,
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 7,
+        timestamp: "2026-07-02T10:00:05.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ];
+
+    for (const entry of agentEntries) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessage = liveChat.querySelector<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    // Both consecutive calls collapse into one group; no standalone rows.
+    const groups = assistantMessage!.querySelectorAll('[data-slot="chat-tool-group"]');
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toHaveAttribute("data-tool-count", "2");
+    expect(assistantMessage!.querySelector('[data-slot="chat-tool"]')).toBeNull();
+
+    // Rich row metadata: target from args, duration from start/end timestamps.
+    expect(groups[0]).toHaveTextContent("read_file");
+    expect(groups[0]).toHaveTextContent("AGENTS.md");
+    expect(groups[0]).toHaveTextContent("1.0s");
+    expect(groups[0]).toHaveTextContent("shell");
+    expect(groups[0]).toHaveTextContent("grep -rn TODO");
+    // Astryx suppresses duration on errored rows; 45ms is unit-tested instead.
+
+    // isError maps to the error status (a11y error text is rendered).
+    expect(within(assistantMessage!).getByText(/grep: no matches/)).toBeInTheDocument();
+  });
+
   it("renders completed Projection data with follow-up composer and without a runtime-unavailable warning", () => {
     const workspace = {
       id: "pig-docs",
@@ -3380,7 +3576,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByTestId("runtime-fallback-banner")).not.toBeInTheDocument();
     expect(screen.getByText("Create a real Pi RPC-backed session")).toBeInTheDocument();
     expect(screen.getByText("Live session is ready.")).toBeInTheDocument();
-    expect(screen.getByText("Tool: read")).toBeInTheDocument();
+    expect(screen.getByText("read")).toBeInTheDocument();
     expect(screen.getByText("read")).toBeInTheDocument();
     expect(screen.queryByText("{\"path\":\"AGENTS.md\"}")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
@@ -4155,7 +4351,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const trace = assistantMessage!.querySelector(
       '[data-slot="chain-of-thought"]',
     );
-    const tool = assistantMessage!.querySelector('[data-slot="chat-tool"]');
+    const tool = assistantMessage!.querySelector('[data-slot="chat-tool-group"]');
     const streamingContent = assistantMessage!.querySelector(
       '[data-testid="stream-markdown-renderer"]',
     );
@@ -4266,7 +4462,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const trace = assistantMessage!.querySelector(
       '[data-slot="chain-of-thought"]',
     );
-    const tool = assistantMessage!.querySelector('[data-slot="chat-tool"]');
+    const tool = assistantMessage!.querySelector('[data-slot="chat-tool-group"]');
 
     expect(trace).toBeInTheDocument();
     expect(within(assistantMessage!).getByText("Thought for 3s")).toBeInTheDocument();
