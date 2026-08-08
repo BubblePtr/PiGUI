@@ -14,6 +14,7 @@ import {
   LayoutAlignLeft,
   ListTree,
   MoreHorizontal,
+  Palette,
   Pencil,
   Plus,
   Settings,
@@ -224,6 +225,18 @@ const traceUsageNavigationItems = [
 ] as const;
 
 const systemNavigationItems = [
+  // Dev-only design gallery entry; DEV folds to false in production builds
+  // so the item never ships.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          label: "Design",
+          to: "/design",
+          icon: Palette,
+          isActive: (pathname: string) => pathname === "/design",
+        },
+      ]
+    : []),
   {
     label: "Settings",
     to: "/settings",
@@ -269,6 +282,10 @@ function getActiveTab(pathname: string) {
 
   if (pathname === "/preflight") {
     return "Preflight";
+  }
+
+  if (pathname === "/design") {
+    return "Design";
   }
 
   return "Settings";

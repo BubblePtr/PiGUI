@@ -27,6 +27,7 @@ import {
   ListTreeIcon,
   Loading03Icon,
   MoreHorizontalIcon,
+  PaintBoardIcon,
   PencilEdit01Icon,
   PuzzleIcon,
   RefreshIcon,
@@ -87,6 +88,7 @@ export const LayoutAlignLeft = iconComponent(LayoutAlignLeftIcon);
 export const ListTree = iconComponent(ListTreeIcon);
 export const LoaderCircle = iconComponent(Loading03Icon);
 export const MoreHorizontal = iconComponent(MoreHorizontalIcon);
+export const Palette = iconComponent(PaintBoardIcon);
 export const Pencil = iconComponent(PencilEdit01Icon);
 export const Plus = iconComponent(AddIcon);
 export const Puzzle = iconComponent(PuzzleIcon);

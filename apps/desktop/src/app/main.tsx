@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
+import { DesignPage } from "@/pages/design";
 import { PreflightPage, preflightStatusQueryKey } from "@/pages/preflight";
 import { SettingsPage } from "@/pages/settings";
 import { SetupPage } from "@/pages/setup";
@@ -33,6 +34,7 @@ function isPreflightExemptPath(pathname: string) {
   // leave the gate without bouncing straight back (S3 E2E / DF-002).
   return (
     pathname === "/preflight" ||
+    pathname === "/design" ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/")
   );
@@ -148,6 +150,14 @@ const preflightRoute = createRoute({
   component: PreflightPage,
 });
 
+// Dev-only design gallery: the DEV flag folds to false in production builds,
+// so the route and the whole page tree-shake out of the bundle.
+const designRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/design",
+  component: DesignPage,
+});
+
 const router = createRouter({
   ...(isElectronRuntime() ? { history: createHashHistory() } : {}),
   routeTree: rootRoute.addChildren([
@@ -158,6 +168,7 @@ const router = createRouter({
     setupRoute,
     settingsRoute,
     preflightRoute,
+    ...(import.meta.env.DEV ? [designRoute] : []),
   ]),
 });
 
