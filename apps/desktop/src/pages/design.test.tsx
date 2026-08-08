@@ -1,9 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DataPaletteSection,
+  DesignPageContent,
   RadiusScaleSection,
   SemanticPaletteSection,
   SpacingScaleSection,
@@ -89,6 +91,40 @@ describe("Design tokens layer", () => {
     ]) {
       expect(within(section).getByText(token)).toBeInTheDocument();
     }
+  });
+});
+
+describe("Design page tabs", () => {
+  it("shows the Tokens tab by default and hides the components layer", () => {
+    render(<DesignPageContent />);
+
+    // Astryx Tab renders as a nav-style button with aria-current, not role=tab.
+    expect(screen.getByRole("button", { name: "Tokens" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("button", { name: "Components" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "PiKpi" })).not.toBeInTheDocument();
+  });
+
+  it("switches to the Components tab and back", async () => {
+    const user = userEvent.setup();
+
+    render(<DesignPageContent />);
+
+    await user.click(screen.getByRole("button", { name: "Components" }));
+
+    expect(screen.getByRole("region", { name: "PiKpi" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Semantic colors" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Tokens" }));
+
+    expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
   });
 });
 
