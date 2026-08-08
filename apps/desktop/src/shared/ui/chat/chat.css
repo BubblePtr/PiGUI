@@ -36,100 +36,11 @@
 
 /* —— Markdown —— */
 
+/* Typography is owned by Astryx Markdown; this wrapper only handles layout
+   inside chat bubbles. */
 .chat-markdown {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: var(--font-size-base);
-  line-height: 1.6;
-}
-
-.chat-markdown > :first-child {
-  margin-top: 0;
-}
-
-.chat-markdown > :last-child {
-  margin-bottom: 0;
-}
-
-.chat-markdown p,
-.chat-markdown ul,
-.chat-markdown ol,
-.chat-markdown blockquote,
-.chat-markdown table {
-  margin-block: var(--spacing-2);
-}
-
-.chat-markdown h1,
-.chat-markdown h2,
-.chat-markdown h3,
-.chat-markdown h4 {
-  margin-block: var(--spacing-4) var(--spacing-2);
-  font-weight: var(--font-weight-semibold);
-}
-
-.chat-markdown ul,
-.chat-markdown ol {
-  padding-inline-start: var(--spacing-6);
-}
-
-.chat-markdown ul {
-  list-style: disc;
-}
-
-.chat-markdown ol {
-  list-style: decimal;
-}
-
-.chat-markdown code {
-  font-family: var(--font-family-code);
-  font-size: var(--font-size-sm);
-  background: var(--color-background-muted);
-  border-radius: var(--radius-inner);
-  padding: var(--spacing-0-5) var(--spacing-1);
-}
-
-.chat-markdown blockquote {
-  border-inline-start: var(--spacing-0-5) solid var(--color-border-emphasized);
-  padding-inline-start: var(--spacing-3);
-  color: var(--color-text-secondary);
-}
-
-.chat-markdown a {
-  color: var(--color-text-accent);
-  text-decoration: underline;
-}
-
-.chat-markdown table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-  border-collapse: collapse;
-}
-
-.chat-markdown th,
-.chat-markdown td {
-  border: var(--border-width) solid var(--color-border);
-  padding: var(--spacing-1) var(--spacing-2);
-  text-align: start;
-}
-
-.chat-markdown__caret {
-  display: inline-block;
-  width: var(--spacing-2);
-  height: 1em;
-  margin-inline-start: var(--spacing-0-5);
-  vertical-align: text-bottom;
-  background: var(--color-text-primary);
-  animation: chat-caret-blink var(--duration-slow) steps(2, jump-none) infinite;
-}
-
-@keyframes chat-caret-blink {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
 }
 
 /* —— Code block —— */

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { GallerySection } from "@/pages/design";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
@@ -214,6 +214,75 @@ const markdownFixture = [
   "| 1     | 2     |",
 ].join("\n");
 
+const streamingMarkdownFixture = [
+  "### Streaming across syntaxes",
+  "",
+  "Chunks arrive with **bold**, _italic_, ~~strikethrough~~, `inline code`,",
+  "and a [link](https://example.com) mid-sentence.",
+  "",
+  "1. Ordered steps reveal one by one",
+  "2. While the parser keeps earlier blocks stable",
+  "",
+  "- [x] Task list item, already done",
+  "- [ ] Still being typed out",
+  "",
+  "> A blockquote lands late enough to watch the incremental fade-in.",
+  "",
+  "```ts",
+  "export function greet(name: string) {",
+  "  return `hi ${name}`;",
+  "}",
+  "```",
+  "",
+  "| Stage | State |",
+  "| ----- | ----- |",
+  "| parse | incremental |",
+  "| paint | fade-in |",
+].join("\n");
+
+const STREAM_CHUNK_CHARS = 24;
+const STREAM_CHUNK_INTERVAL_MS = 60;
+
+/**
+ * Feeds the fixture to ChatStreamMarkdown in timed chunks so the gallery
+ * exercises the real incremental-parse path, with a replay control because
+ * the initial run is usually over before anyone scrolls here.
+ */
+function StreamingMarkdownDemo() {
+  const [run, setRun] = useState(0);
+  const [visibleChars, setVisibleChars] = useState(0);
+  const isStreaming = visibleChars < streamingMarkdownFixture.length;
+
+  useEffect(() => {
+    setVisibleChars(0);
+    const timer = setInterval(() => {
+      setVisibleChars((chars) => {
+        const next = chars + STREAM_CHUNK_CHARS;
+        if (next >= streamingMarkdownFixture.length) {
+          clearInterval(timer);
+          return streamingMarkdownFixture.length;
+        }
+        return next;
+      });
+    }, STREAM_CHUNK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [run]);
+
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-2">
+      <Button
+        label="Replay"
+        size="sm"
+        variant="secondary"
+        onClick={() => setRun((current) => current + 1)}
+      />
+      <ChatStreamMarkdown isStreaming={isStreaming}>
+        {streamingMarkdownFixture.slice(0, visibleChars)}
+      </ChatStreamMarkdown>
+    </div>
+  );
+}
+
 function ChatMarkdownGallery() {
   return (
     <GallerySection title="ChatMarkdown">
@@ -221,10 +290,8 @@ function ChatMarkdownGallery() {
         <Variant caption="static GFM">
           <ChatMarkdown>{markdownFixture}</ChatMarkdown>
         </Variant>
-        <Variant caption="streaming with caret">
-          <ChatStreamMarkdown caret="block" isStreaming>
-            Streaming tokens arrive here
-          </ChatStreamMarkdown>
+        <Variant caption="streaming (chunked delivery, Astryx incremental fade-in)">
+          <StreamingMarkdownDemo />
         </Variant>
       </div>
     </GallerySection>

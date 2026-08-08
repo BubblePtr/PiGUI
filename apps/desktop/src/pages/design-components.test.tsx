@@ -60,6 +60,35 @@ describe("Design components layer", () => {
     }
   });
 
+  it("streams the markdown demo chunk by chunk and replays on demand", async () => {
+    const user = userEvent.setup();
+
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ChatMarkdown" });
+    const stream = within(section).getByTestId("stream-markdown-renderer");
+
+    // The demo feeds the fixture in chunks; it starts streaming on mount and
+    // settles once the whole fixture (including late blockquote/code content)
+    // has arrived.
+    expect(stream).toHaveAttribute("data-is-streaming", "true");
+    await waitFor(
+      () => expect(stream).toHaveAttribute("data-is-streaming", "false"),
+      { timeout: 15_000 },
+    );
+    await waitFor(() => expect(stream).toHaveTextContent("blockquote"), {
+      timeout: 5_000,
+    });
+
+    await user.click(within(section).getByRole("button", { name: "Replay" }));
+
+    expect(stream).toHaveAttribute("data-is-streaming", "true");
+    await waitFor(
+      () => expect(stream).toHaveAttribute("data-is-streaming", "false"),
+      { timeout: 15_000 },
+    );
+  }, 40_000);
+
   it("shows ChatToolGroup single and grouped variants", () => {
     render(<DesignComponentsLayer />);
 

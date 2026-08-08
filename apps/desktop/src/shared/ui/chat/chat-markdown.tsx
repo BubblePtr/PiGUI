@@ -1,39 +1,10 @@
-import type { ComponentProps, ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
-
-const remarkPlugins = [remarkGfm];
+import { Markdown } from "@astryxdesign/core/Markdown";
 
 /**
- * Fenced code blocks get shiki highlighting through ChatCodeBlock; inline code
- * stays a plain <code> so it inherits the surrounding text styles.
+ * Chat prose renders through Astryx Markdown (compact density, per the
+ * official ai-chat template). Fenced code uses the Astryx built-in code
+ * block; ChatCodeBlock stays only for non-markdown surfaces.
  */
-function MarkdownCode({ className, children }: ComponentProps<"code">) {
-  const language = /language-(\w+)/.exec(className ?? "")?.[1];
-
-  if (!language) {
-    return <code className={className}>{children}</code>;
-  }
-
-  return (
-    <ChatCodeBlock
-      code={typeof children === "string" ? children.replace(/\n$/, "") : String(children ?? "")}
-      language={language}
-    />
-  );
-}
-
-// Keep <pre> unstyled: ChatCodeBlock renders its own surface.
-function MarkdownPre({ children }: { children?: ReactNode }) {
-  return <>{children}</>;
-}
-
-const markdownComponents = {
-  code: MarkdownCode,
-  pre: MarkdownPre,
-};
-
 export function ChatMarkdown({
   children,
   className = "",
@@ -47,22 +18,23 @@ export function ChatMarkdown({
       data-slot="chat-markdown"
       data-testid="markdown-renderer"
     >
-      <ReactMarkdown components={markdownComponents} remarkPlugins={remarkPlugins}>
-        {children}
-      </ReactMarkdown>
+      <Markdown density="compact">{children}</Markdown>
     </div>
   );
 }
 
+/**
+ * Streaming variant: Astryx isStreaming does incremental parsing with a
+ * fade-in on new chunks — that animation is the in-progress affordance, so
+ * there is no separate caret.
+ */
 export function ChatStreamMarkdown({
   children,
   isStreaming = false,
-  caret = "block",
   className = "",
 }: {
   children: string;
   isStreaming?: boolean;
-  caret?: "block";
   className?: string;
 }) {
   return (
@@ -72,15 +44,9 @@ export function ChatStreamMarkdown({
       data-slot="chat-stream-markdown"
       data-testid="stream-markdown-renderer"
     >
-      <ReactMarkdown components={markdownComponents} remarkPlugins={remarkPlugins}>
+      <Markdown density="compact" isStreaming={isStreaming}>
         {children}
-      </ReactMarkdown>
-      {isStreaming ? (
-        <span
-          aria-hidden="true"
-          className={`chat-markdown__caret chat-markdown__caret--${caret}`}
-        />
-      ) : null}
+      </Markdown>
     </div>
   );
 }

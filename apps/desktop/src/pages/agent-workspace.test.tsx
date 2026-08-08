@@ -1329,7 +1329,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
     expect(within(liveChat).getByText("Look at the current project")).toBeInTheDocument();
-    expect(within(liveChat).getByText("Pi is contacting the model...")).toBeInTheDocument();
+    // Astryx streaming reveals text progressively inside per-chunk spans, so
+    // assert on the subtree text instead of a single text node.
+    await waitFor(() =>
+      expect(liveChat).toHaveTextContent("Pi is contacting the model"),
+    );
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
     expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.queryByText("Completed")).not.toBeInTheDocument();
@@ -1394,11 +1398,15 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
-    expect(
-      within(liveChat).getByText(
-        "Still waiting for the model response. The provider has not returned a first chunk yet.",
-      ),
-    ).toBeInTheDocument();
+    // Astryx streaming reveals text progressively inside per-chunk spans, so
+    // assert on the subtree text; the reveal needs longer than the default 1s.
+    await waitFor(
+      () =>
+        expect(liveChat).toHaveTextContent(
+          "The provider has not returned a first chunk yet",
+        ),
+      { timeout: 3000 },
+    );
     expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
   });
 
@@ -4157,7 +4165,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses streaming markdown for the collapsed assistant run bubble", () => {
+  it("uses streaming markdown for the collapsed assistant run bubble", async () => {
     const workspace = {
       id: "pig-docs",
       name: "Pig Docs",
@@ -4241,9 +4249,11 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(assistantMessages).toHaveLength(1);
     expect(within(liveChat).queryByTestId("markdown-renderer")).not.toBeInTheDocument();
-    // Real markdown rendering turns `markdown` into an inline <code> node.
-    expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveTextContent(
-      "Streaming markdown now",
+    // Streamed text renders asynchronously through Astryx incremental parsing.
+    await waitFor(() =>
+      expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveTextContent(
+        "Streaming markdown now",
+      ),
     );
     expect(within(liveChat).getByTestId("stream-markdown-renderer")).toHaveAttribute(
       "data-is-streaming",
@@ -4262,7 +4272,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).toBeTruthy();
   });
 
-  it("renders assistant trace events above the visible answer without mixing them into markdown", () => {
+  it("renders assistant trace events above the visible answer without mixing them into markdown", async () => {
     const workspace = {
       id: "pig-docs",
       name: "Pig Docs",
@@ -4364,7 +4374,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(tool).toHaveTextContent("read");
     expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
     expect(tool).not.toHaveTextContent("Agent instructions loaded.");
-    expect(streamingContent).toHaveTextContent("最终回答只保留结论。");
+    await waitFor(() =>
+      expect(streamingContent).toHaveTextContent("最终回答只保留结论。"),
+    );
     expect(streamingContent).not.toHaveTextContent("我需要先检查项目结构。");
     expect(streamingContent).not.toHaveTextContent("Agent instructions loaded.");
     expect(
@@ -4472,7 +4484,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(tool).not.toHaveTextContent("Agent instructions loaded.");
   });
 
-  it("does not show fixture trace steps when a live Projection has no tool calls", () => {
+  it("does not show fixture trace steps when a live Projection has no tool calls", async () => {
     const workspace = {
       id: "pig-docs",
       name: "Pig Docs",
@@ -4539,7 +4551,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveChat = screen.getByLabelText("Live Chat messages");
 
-    expect(within(liveChat).getByText("真实回复")).toBeInTheDocument();
+    expect(await within(liveChat).findByText("真实回复")).toBeInTheDocument();
     expect(within(liveChat).queryByText("Project context loaded")).not.toBeInTheDocument();
     expect(liveChat.querySelector('[data-slot="chain-of-thought"]')).not.toBeInTheDocument();
   });
