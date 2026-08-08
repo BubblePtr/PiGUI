@@ -1953,7 +1953,6 @@ describe("AgentWorkspaceSessionsPage", () => {
       ),
     ).not.toBeInTheDocument();
     expect(draftTitle).toHaveClass("text-center");
-    expect(within(draftComposer).queryByText("HeroUI Pro AI")).not.toBeInTheDocument();
     // The Selector label is only exposed to assistive tech, never as a
     // visible caption above the picker.
     expect(within(draftComposer).getByText("Target Project")).toHaveClass(

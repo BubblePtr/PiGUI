@@ -17,8 +17,8 @@ export type PiBarChartDatum = {
 };
 
 /**
- * Hand-rolled stacked bar chart on Astryx tokens; replaces the HeroUI Pro
- * BarChart (recharts) for the Usage trend. Layout divs are intentional and
+ * Hand-rolled stacked bar chart on Astryx tokens for the Usage trend —
+ * deliberately not a charting library. Layout divs are intentional and
  * contained to this component. Tooltips are rendered per bucket and revealed
  * on hover/focus via primitives.css.
  */
