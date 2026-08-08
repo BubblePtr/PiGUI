@@ -54,7 +54,18 @@
 
 /* —— Conversation —— */
 
+/* The root is a positioning frame; the viewport owns scrolling so the
+   scroll-to-bottom button can float above it without scrolling away. */
 .chat-conversation {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-conversation__viewport {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -64,9 +75,18 @@
   flex-direction: column;
 }
 
-.chat-conversation__scroll-anchor {
-  height: var(--spacing-0-5);
-  flex-shrink: 0;
+.chat-conversation__scroll-button {
+  position: absolute;
+  inset-inline: 0;
+  bottom: var(--spacing-3);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.chat-conversation__scroll-button > * {
+  pointer-events: auto;
 }
 
 /* —— Messages —— */

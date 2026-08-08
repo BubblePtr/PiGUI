@@ -532,7 +532,6 @@ function ChatConversationGallery() {
                 </p>
               ))}
             </ChatConversation.Content>
-            <ChatConversation.ScrollAnchor />
           </ChatConversation>
         </div>
       </Variant>

@@ -3501,7 +3501,7 @@ function LiveSessionColumn({
           <ChatConversation
             aria-label="Live Chat messages"
             className="min-h-0 flex-1"
-            initial="instant"
+            isStreaming={liveMessages.some((message) => message.isStreaming)}
           >
             <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 py-6">
               {liveMessages.map((message) => (
@@ -3518,7 +3518,6 @@ function LiveSessionColumn({
                   timeline={timelineForMessage(message)}
                 />
               ))}
-              <ChatConversation.ScrollAnchor />
             </ChatConversation.Content>
           </ChatConversation>
 
