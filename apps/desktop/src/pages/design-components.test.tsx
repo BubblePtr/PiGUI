@@ -47,10 +47,17 @@ describe("Design components layer", () => {
 
     const section = screen.getByRole("region", { name: "ChatTool" });
 
-    // input-streaming and input-available both label as Running.
-    expect(within(section).getAllByText("Running")).toHaveLength(2);
-    expect(within(section).getByText("Done")).toBeInTheDocument();
-    expect(within(section).getByText("Failed")).toBeInTheDocument();
+    // Astryx renders status as an icon, so assert the wrapper contract instead.
+    for (const state of [
+      "input-streaming",
+      "input-available",
+      "output-available",
+      "output-error",
+    ]) {
+      expect(
+        section.querySelector(`[data-slot="chat-tool"][data-state="${state}"]`),
+      ).toBeInTheDocument();
+    }
   });
 
   it("shows the prompt input across its status matrix", () => {

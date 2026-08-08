@@ -1,5 +1,4 @@
-import { Collapsible } from "@base-ui-components/react/collapsible";
-import { ChevronRight } from "@/shared/ui/icons";
+import { ChatToolCalls, type ChatToolCallStatus } from "@astryxdesign/core";
 
 /**
  * Lifecycle of a tool invocation as rendered in the trace. Mirrors the state
@@ -11,50 +10,38 @@ export type ToolPartState =
   | "output-available"
   | "output-error";
 
-const stateLabels: Record<ToolPartState, string> = {
-  "input-streaming": "Running",
-  "input-available": "Running",
-  "output-available": "Done",
-  "output-error": "Failed",
+const statusMap: Record<ToolPartState, ChatToolCallStatus> = {
+  "input-streaming": "running",
+  "input-available": "running",
+  "output-available": "complete",
+  "output-error": "error",
 };
 
+/**
+ * Thin adapter over Astryx ChatToolCalls in single-call mode. The wrapper div
+ * carries the data-slot/data-state contract page tests assert on; Astryx owns
+ * the row visuals and the expand/collapse interaction (detail stays unmounted
+ * while collapsed).
+ */
 export function ChatTool({
   argsText,
-  defaultExpanded = false,
   output,
   state,
   toolCallId,
   toolName,
-  triggerPrefix = "",
   className = "",
 }: {
   argsText?: string;
-  defaultExpanded?: boolean;
   output?: string;
   state: ToolPartState;
   toolCallId?: string;
   toolName?: string;
-  triggerPrefix?: string;
   className?: string;
 }) {
-  return (
-    <Collapsible.Root
-      className={`chat-tool ${className}`.trim()}
-      data-slot="chat-tool"
-      data-state={state}
-      data-tool-call-id={toolCallId}
-      defaultOpen={defaultExpanded}
-    >
-      <Collapsible.Trigger className="chat-tool__trigger" data-slot="chat-tool-trigger">
-        <ChevronRight aria-hidden="true" className="chat-tool__chevron" size={14} />
-        <span className="chat-tool__name">
-          {triggerPrefix}
-          {toolName}
-        </span>
-        <span className="chat-tool__state">{stateLabels[state]}</span>
-      </Collapsible.Trigger>
-      <Collapsible.Panel className="chat-tool__details" data-slot="chat-tool-details">
-        {argsText ? (
+  const resultDetail =
+    argsText != null || output != null ? (
+      <>
+        {argsText != null ? (
           <pre className="chat-tool__section" data-slot="chat-tool-args">
             {argsText}
           </pre>
@@ -64,7 +51,27 @@ export function ChatTool({
             {output}
           </pre>
         ) : null}
-      </Collapsible.Panel>
-    </Collapsible.Root>
+      </>
+    ) : undefined;
+
+  return (
+    <div
+      className={`chat-tool ${className}`.trim()}
+      data-slot="chat-tool"
+      data-state={state}
+      data-tool-call-id={toolCallId}
+    >
+      <ChatToolCalls
+        calls={[
+          {
+            name: toolName ?? "tool",
+            status: statusMap[state],
+            errorMessage: state === "output-error" ? output : undefined,
+            key: toolCallId,
+            resultDetail,
+          },
+        ]}
+      />
+    </div>
   );
 }

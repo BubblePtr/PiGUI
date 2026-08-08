@@ -3282,9 +3282,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       within(assistantMessages[0]).getByText("Summarize the inspection."),
     ).toBeInTheDocument();
-    expect(within(assistantMessages[0]).getByText("Used tool: shell")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("shell")).toBeInTheDocument();
     expect(within(assistantMessages[0]).queryByText("listed files")).not.toBeInTheDocument();
-    expect(within(assistantMessages[0]).getByText("Used tool: read_file")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("read_file")).toBeInTheDocument();
     expect(
       within(assistantMessages[0]).queryByText("agent instructions loaded"),
     ).not.toBeInTheDocument();
@@ -3381,7 +3381,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("Create a real Pi RPC-backed session")).toBeInTheDocument();
     expect(screen.getByText("Live session is ready.")).toBeInTheDocument();
     expect(screen.getByText("Tool: read")).toBeInTheDocument();
-    expect(screen.getByText("Used tool: read")).toBeInTheDocument();
+    expect(screen.getByText("read")).toBeInTheDocument();
     expect(screen.queryByText("{\"path\":\"AGENTS.md\"}")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -4165,7 +4165,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(assistantMessage!).getByText("Thinking")).toBeInTheDocument();
     expect(within(assistantMessage!).getByText("我需要先检查项目结构。")).toBeInTheDocument();
     expect(tool).toHaveAttribute("data-state", "output-available");
-    expect(tool).toHaveTextContent("Used tool: read");
+    expect(tool).toHaveTextContent("read");
     expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
     expect(tool).not.toHaveTextContent("Agent instructions loaded.");
     expect(streamingContent).toHaveTextContent("最终回答只保留结论。");
@@ -4271,7 +4271,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(trace).toBeInTheDocument();
     expect(within(assistantMessage!).getByText("Thought for 3s")).toBeInTheDocument();
     expect(within(assistantMessage!).getByText("先读项目说明。")).toBeInTheDocument();
-    expect(tool).toHaveTextContent("Used tool: read");
+    expect(tool).toHaveTextContent("read");
     expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
     expect(tool).not.toHaveTextContent("Agent instructions loaded.");
   });
