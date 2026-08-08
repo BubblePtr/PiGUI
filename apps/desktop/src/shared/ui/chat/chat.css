@@ -107,25 +107,10 @@
 
 /* —— Messages —— */
 
+/* Alignment and bubble visuals are owned by Astryx ChatMessage/Bubble;
+   only the layout column, content, and hover actions remain ours. */
 .chat-message {
-  display: flex;
   min-width: 0;
-}
-
-.chat-message--user {
-  justify-content: flex-end;
-}
-
-.chat-message--assistant {
-  justify-content: flex-start;
-}
-
-.chat-message__bubble {
-  max-width: 100%;
-  border-radius: var(--radius-container);
-  background: var(--color-background-muted);
-  padding: var(--spacing-2) var(--spacing-3);
-  color: var(--color-text-primary);
 }
 
 .chat-message__body {
