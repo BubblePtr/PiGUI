@@ -1,43 +1,33 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe("ChatCodeBlock", () => {
-  it("renders the code as plain text before highlighting settles", () => {
+  it("renders code through the Astryx CodeBlock", () => {
     render(<ChatCodeBlock code={'const answer = 42;'} language="ts" />);
 
     const root = screen.getByTestId("chat-code-block");
 
     expect(root).toHaveAttribute("data-slot", "chat-code-block");
+    expect(root.querySelector(".astryx-codeblock")).toBeInTheDocument();
     expect(root).toHaveTextContent("const answer = 42;");
   });
 
-  it("falls back to plain text for unknown languages", async () => {
+  it("renders unknown languages as plain text without erroring", () => {
     render(<ChatCodeBlock code="plain body" language="not-a-language" />);
 
     expect(screen.getByTestId("chat-code-block")).toHaveTextContent("plain body");
-    // The unknown language must never reject into an error surface.
-    await waitFor(() => {
-      expect(screen.getByTestId("chat-code-block")).toHaveTextContent("plain body");
-    });
   });
 
-  it("copies the code to the clipboard", () => {
-    const writeText = vi.fn(async () => {});
+  it("defaults to plaintext when no language is given", () => {
+    render(<ChatCodeBlock code="no language" />);
 
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
+    expect(screen.getByTestId("chat-code-block")).toHaveTextContent("no language");
+  });
 
+  it("exposes the Astryx copy button", () => {
     render(<ChatCodeBlock code="copy me" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
-
-    expect(writeText).toHaveBeenCalledWith("copy me");
+    expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
   });
 });

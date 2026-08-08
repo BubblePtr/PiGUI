@@ -6,7 +6,8 @@ import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { PiKpi } from "@/shared/ui/pi-kpi";
-import { lazy, Suspense, useRef, useState } from "react";
+import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   Bot,
@@ -39,16 +40,6 @@ export type {
 const thinkingPreviewLines = 6;
 const thinkingPreviewChars = 1200;
 const highlightedCodeBlockMaxChars = 4000;
-
-const LazyChatCodeBlock = lazy(async () => {
-  const { ChatCodeBlock } = await import("@/shared/ui/chat/chat-code-block");
-
-  return {
-    default: function HighlightedCodeBlock({ code }: { code: string }) {
-      return <ChatCodeBlock code={code} language="plaintext" />;
-    },
-  };
-});
 
 const roleLabels: Record<MessageRole, string> = {
   user: "User",
@@ -298,11 +289,7 @@ function LogCodeBlock({ children }: { children: string | string[] }) {
     return <PlainLogCodeBlock code={code} />;
   }
 
-  return (
-    <Suspense fallback={<PlainLogCodeBlock code={code} />}>
-      <LazyChatCodeBlock code={code} />
-    </Suspense>
-  );
+  return <ChatCodeBlock code={code} language="plaintext" />;
 }
 
 function SessionPart({ part }: { part: SessionContentPart }) {
