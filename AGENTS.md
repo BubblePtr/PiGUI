@@ -24,6 +24,7 @@ Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root. See `
 
 The dev-only `/design` page (`apps/desktop/src/pages/design.tsx`) is the living registry of the design system. Hard rules:
 
+- **Astryx first — discover before you write.** Before building or extending any UI, run `bunx astryx build "<idea>"` to get a composition kit (closest page template + blocks + components), then `bunx astryx template <name>` / `bunx astryx component <Name>` to study the pieces. Only hand-roll a component in `shared/ui/` when the kit shows Astryx has no equivalent (current known gaps: chain-of-thought, text shimmer, KPI/chart primitives). Full CLI workflow and styling rules: `apps/desktop/AGENTS.md`.
 - **Reusable components live in `apps/desktop/src/shared/ui/` — nowhere else.** Page-level composition stays in `pages/`; if a piece of UI is (or becomes) reusable across pages, extract it to `shared/ui/` first.
 - **Every component added to `shared/ui/` MUST be registered on the Design page in the same PR**, showing all its variants and typical states (loading / empty / error where applicable). Changing a component's variants means updating its Design page entry in the same PR.
 - Token usage goes through the semantic bridge in `apps/desktop/src/app/styles.css` (`--foreground`, `--primary`, …) or raw Astryx first-level tokens — never hard-coded colors/radii/spacing in components.
