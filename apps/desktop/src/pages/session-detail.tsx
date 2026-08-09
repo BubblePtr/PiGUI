@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { PiKpi } from "@/shared/ui/pi-kpi";
 import {
@@ -391,7 +390,7 @@ export function SessionDetailView({
 }) {
   return (
     <article
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6 pt-6"
       data-testid="session-detail-view"
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden">
@@ -477,7 +476,9 @@ export function SessionDetailView({
             </section>
           ) : null}
 
-          <Card className="mt-6 overflow-hidden" padding={0}>
+          {/* Dense data sits flat on the page — the ledger's own group
+              dividers carry the structure, no Card shell. */}
+          <div className="mt-6">
             {isLoading ? (
               <EmptyState className="px-4 py-12" isCompact title="Loading session..." />
             ) : isError ? (
@@ -487,7 +488,7 @@ export function SessionDetailView({
             ) : (
               <SessionTimeline turns={session.turns} />
             )}
-          </Card>
+          </div>
         </div>
       </div>
     </article>

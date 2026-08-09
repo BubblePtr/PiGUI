@@ -1,8 +1,58 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { SessionListPanel, distinctProjects, filterByProject } from "@/pages/session-list";
+import {
+  SessionListPanel,
+  distinctProjects,
+  filterByProject,
+  groupByProject,
+} from "@/pages/session-list";
+import type { SessionSummary } from "@/entities/session/sessions";
+
+const invokeMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/shared/runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/runtime")>();
+
+  return { ...actual, invoke: invokeMock };
+});
+
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+
+  return {
+    ...actual,
+    Link: ({
+      children,
+      className,
+    }: {
+      children: ReactNode;
+      className?: string;
+    }) => <a className={className}>{children}</a>,
+  };
+});
+
+beforeEach(() => {
+  // Default: a never-settling invoke keeps the panel in its loading state.
+  invokeMock.mockReset();
+  invokeMock.mockImplementation(() => new Promise(() => {}));
+});
+
+function makeSummary(overrides: Partial<SessionSummary> & { id: string }): SessionSummary {
+  return {
+    timestamp: "2026-08-09T08:00:00.000Z",
+    project: "alpha",
+    title: { kind: "text", sentence: "Fix the parser." },
+    totalCostUsd: 0.0123,
+    totalTokens: 45_600,
+    primaryModel: "gpt-5",
+    modelBreakdown: [],
+    toolCounts: [],
+    skillCounts: [],
+    ...overrides,
+  };
+}
 
 type Row = { project: string };
 
@@ -52,6 +102,21 @@ function renderWithQueryClient(children: ReactNode) {
   return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
+describe("groupByProject", () => {
+  it("groups sessions by project alphabetically, preserving recency inside a group", () => {
+    const sessions = [
+      makeSummary({ id: "s1", project: "beta" }),
+      makeSummary({ id: "s2", project: "alpha" }),
+      makeSummary({ id: "s3", project: "beta" }),
+    ];
+
+    expect(groupByProject(sessions)).toEqual([
+      { project: "alpha", sessions: [sessions[1]] },
+      { project: "beta", sessions: [sessions[0], sessions[2]] },
+    ]);
+  });
+});
+
 describe("SessionListPanel", () => {
   it("renders the project filter with the Astryx Selector", async () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
@@ -60,11 +125,12 @@ describe("SessionListPanel", () => {
     expect(container.querySelector(".astryx-selector")).toBeInTheDocument();
   });
 
-  it("fits inside a fixed trace workspace without forcing page scroll", async () => {
+  it("is a flat sidebar panel — no Card wrapper — that fits the fixed workspace", async () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
 
     expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
-    expect(container.querySelector(".astryx-card")).toHaveClass(
+    expect(container.querySelector(".astryx-card")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-list-panel")).toHaveClass(
       "h-full",
       "min-h-0",
       "overflow-hidden",
@@ -76,5 +142,27 @@ describe("SessionListPanel", () => {
 
     expect(screen.getByText("Loading sessions...")).toBeInTheDocument();
     expect(container.querySelector(".astryx-empty-state")).toBeInTheDocument();
+  });
+});
+
+describe("SessionListPanel with sessions", () => {
+  it("renders project group headers with counts and tabular-nums cost metadata", async () => {
+    invokeMock.mockResolvedValue([
+      makeSummary({ id: "s1", project: "beta" }),
+      makeSummary({ id: "s2", project: "alpha", totalCostUsd: 0.2, totalTokens: 1_200_000 }),
+      makeSummary({ id: "s3", project: "beta" }),
+    ]);
+
+    renderWithQueryClient(<SessionListPanel />);
+
+    const groups = await screen.findAllByTestId("session-group");
+    expect(groups).toHaveLength(2);
+    expect(within(groups[0]).getByText("alpha")).toBeInTheDocument();
+    expect(within(groups[0]).getByText("1")).toBeInTheDocument();
+    expect(within(groups[1]).getByText("beta")).toBeInTheDocument();
+    expect(within(groups[1]).getByText("2")).toBeInTheDocument();
+
+    const cost = screen.getByText("$0.2000");
+    expect(cost).toHaveClass("tabular-nums", "text-right");
   });
 });

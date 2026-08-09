@@ -8,7 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
-import { TraceIndexPage, TraceWorkspace, getTraceResizableSizes } from "@/pages/trace";
+import { TraceIndexPage, TraceWorkspace } from "@/pages/trace";
 
 vi.mock("./session-list", () => ({
   SessionListPanel: ({ selectedSessionId }: { selectedSessionId?: string }) => (
@@ -96,17 +96,7 @@ function renderTraceIndexPage() {
 }
 
 describe("TraceWorkspace", () => {
-  it("uses percentage panel sizes for the desktop resizable split", () => {
-    expect(getTraceResizableSizes(true)).toEqual({
-      detailDefaultSize: 54,
-      detailMinSize: 40,
-      listDefaultSize: 46,
-      listMaxSize: 55,
-      listMinSize: 38,
-    });
-  });
-
-  it("keeps the trace page fixed with independent list and detail panes", async () => {
+  it("lays the trace out as a fixed-width sidebar finder and a fluid reading pane", async () => {
     const { container } = renderTraceWorkspace();
 
     expect(await screen.findByTestId("mock-trace-detail")).toBeInTheDocument();
@@ -116,28 +106,17 @@ describe("TraceWorkspace", () => {
     );
     const traceWorkspace = screen.getByTestId("trace-workspace");
 
-    expect(traceWorkspace).toHaveClass(
-      "h-full",
-      "min-h-0",
-      "overflow-hidden",
-    );
-    const splitView = traceWorkspace.querySelector<HTMLElement>('[data-slot="resizable"]');
+    expect(traceWorkspace).toHaveClass("h-full", "min-h-0", "overflow-hidden");
 
-    if (!splitView) {
-      throw new Error("Trace split view not found");
-    }
+    const frame = screen.getByTestId("trace-split-view");
+    expect(frame).toHaveClass("h-full", "min-h-0", "flex");
+    // No resizer, no percentage split: the finder has a fixed budget.
+    expect(frame.querySelector('[data-slot="resizable-handle"]')).not.toBeInTheDocument();
 
-    expect(splitView).toHaveClass("h-full", "min-h-0");
-    expect(splitView).not.toHaveClass("grid");
-    expect(splitView.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
-    expect(
-      splitView.querySelector('[data-slot="resizable-handle"]'),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("trace-list-pane")).toHaveClass("min-h-0");
-    expect(screen.getByTestId("trace-detail-pane")).toHaveClass(
-      "min-h-0",
-      "overflow-hidden",
-    );
+    const listPane = screen.getByTestId("trace-list-pane");
+    expect(listPane).toHaveClass("w-80", "shrink-0", "border-r");
+    const detailPane = screen.getByTestId("trace-detail-pane");
+    expect(detailPane).toHaveClass("flex-1", "min-w-0", "min-h-0", "overflow-hidden");
     expect(container.querySelector('[role="main"]')).toBeInTheDocument();
   });
 
