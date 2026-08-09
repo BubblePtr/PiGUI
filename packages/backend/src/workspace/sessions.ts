@@ -267,12 +267,23 @@ export class SessionParser {
 
     const content = effectiveContent(record);
     const texts = textValuesFromContent(content);
+    const isError = effectiveField(record, "isError");
+    // No duration field exists in Pi JSONL; the gap between the assistant
+    // event (which carries the toolCall) and this toolResult event is the
+    // tool's execution time.
+    const callMs = timestampMs(assistantTurn.timestamp);
+    const resultMs = timestampMs(record.timestamp);
 
     assistantTurn.parts.push({
       partType: "toolResult",
       text: texts.length ? texts.join("\n") : undefined,
       name: stringFromUnknown(effectiveField(record, "toolName")),
-      payload: null,
+      isError: typeof isError === "boolean" ? isError : undefined,
+      durationMs:
+        callMs !== undefined && resultMs !== undefined && resultMs >= callMs
+          ? resultMs - callMs
+          : undefined,
+      payload: effectiveMessage(record) ?? record,
     });
 
     return true;
