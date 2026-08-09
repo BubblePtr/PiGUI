@@ -15,6 +15,7 @@ describe("Design components layer", () => {
       "PiKpi",
       "PiBarChart",
       "PiSheet",
+      "PiTraceLedger",
       "DotMatrix",
       "Icons",
       "ChatMessage",
@@ -40,6 +41,24 @@ describe("Design components layer", () => {
     expect(within(section).getByText("layout=inline")).toBeInTheDocument();
     expect(within(section).getByText("with delta")).toBeInTheDocument();
     expect(within(section).getByText("no value")).toBeInTheDocument();
+  });
+
+  it("shows PiTraceLedger row states, expansion, and the empty variant", async () => {
+    const user = userEvent.setup();
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "PiTraceLedger" });
+
+    expect(within(section).getByText("grouped rows — ok / error / running / info")).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="ok"]')).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="error"]')).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="running"]')).toBeInTheDocument();
+    expect(within(section).getByText("empty")).toBeInTheDocument();
+    expect(within(section).getByText("No trace entries.")).toBeInTheDocument();
+
+    expect(within(section).queryByText("3 files changed")).not.toBeInTheDocument();
+    await user.click(within(section).getAllByRole("button", { name: /bash/ })[0]);
+    expect(within(section).getByText("3 files changed")).toBeInTheDocument();
   });
 
   it("shows all four ChatTool states", () => {

@@ -1,24 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Badge } from "@astryxdesign/core/Badge";
-import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { PiKpi } from "@/shared/ui/pi-kpi";
-import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
-import { useRef, useState } from "react";
 import {
-  ArrowLeft,
-  Bot,
-  ChevronDown,
-  ChevronRight,
-  ImageIcon,
-  Settings2,
-  Terminal,
-  User,
-  Wrench,
-} from "@/shared/ui/icons";
+  PiTraceLedger,
+  type TraceLedgerEntry,
+  type TraceLedgerGroup,
+} from "@/shared/ui/pi-trace-ledger";
+import { toolTargetFromArgs } from "@/shared/ui/chat/chat-tool";
+import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
+import { useMemo, useRef } from "react";
+import { ArrowLeft } from "@/shared/ui/icons";
 import { invoke } from "@/shared/runtime";
 import type {
   MessageRole,
@@ -37,9 +31,8 @@ export type {
   SessionDetail,
 } from "@pigui/core";
 
-const thinkingPreviewLines = 6;
-const thinkingPreviewChars = 1200;
 const highlightedCodeBlockMaxChars = 4000;
+const targetMaxChars = 120;
 
 const roleLabels: Record<MessageRole, string> = {
   user: "User",
@@ -118,23 +111,6 @@ function formatValue(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
-function partLabel(partType: string) {
-  switch (partType) {
-    case "thinking":
-      return "Thinking";
-    case "toolCall":
-      return "Tool call";
-    case "toolResult":
-      return "Tool result";
-    case "image":
-      return "Image";
-    case "text":
-      return "Text";
-    default:
-      return partType;
-  }
-}
-
 function firstNonEmptyLine(value: string) {
   return value
     .split(/\r?\n/)
@@ -142,7 +118,7 @@ function firstNonEmptyLine(value: string) {
     .find(Boolean);
 }
 
-function compactText(value: string, maxLength = 180) {
+function compactText(value: string, maxLength = targetMaxChars) {
   const text = value.replace(/\s+/g, " ").trim();
   if (text.length <= maxLength) {
     return text;
@@ -151,127 +127,8 @@ function compactText(value: string, maxLength = 180) {
   return `${text.slice(0, maxLength - 1).trimEnd()}...`;
 }
 
-function partSummary(part: SessionContentPart) {
-  if (part.partType === "toolCall") {
-    return part.name ? `Called ${part.name}` : "Called a tool";
-  }
-
-  if (part.partType === "toolResult") {
-    return part.name ? `Received ${part.name} output` : "Received tool output";
-  }
-
-  if (part.partType === "image") {
-    return payloadString(part, "alt") ?? payloadString(part, "url") ?? "Rendered an image";
-  }
-
-  const text = part.text ? firstNonEmptyLine(part.text) : undefined;
-  if (text) {
-    return compactText(text);
-  }
-
-  return partLabel(part.partType);
-}
-
 function turnLabel(turn: SessionTurn) {
   return turn.kind === "annotation" ? turn.title ?? "Annotation" : roleLabels[turn.role ?? "unknown"];
-}
-
-function turnSummary(turn: SessionTurn) {
-  for (const part of turn.parts) {
-    const summary = partSummary(part);
-    if (summary) {
-      return summary;
-    }
-  }
-
-  return "No content.";
-}
-
-function previewThinking(value: string) {
-  const lines = value.split(/\r?\n/);
-  const linePreview = lines.slice(0, thinkingPreviewLines).join("\n");
-  const preview =
-    linePreview.length > thinkingPreviewChars
-      ? `${linePreview.slice(0, thinkingPreviewChars).trimEnd()}...`
-      : linePreview;
-
-  return {
-    preview,
-    isTruncated: lines.length > thinkingPreviewLines || value.length > preview.length,
-  };
-}
-
-function partFoldLabel(partType: string) {
-  if (partType === "toolCall") {
-    return "input";
-  }
-
-  if (partType === "toolResult") {
-    return "output";
-  }
-
-  return "details";
-}
-
-function RoleIcon({ role }: { role?: MessageRole }) {
-  if (role === "user") {
-    return <User className="size-4" />;
-  }
-  if (role === "assistant") {
-    return <Bot className="size-4" />;
-  }
-  if (role === "toolResult") {
-    return <Terminal className="size-4" />;
-  }
-  return <Settings2 className="size-4" />;
-}
-
-function CostTokenBadge({ usage, cost }: { usage?: TokenUsage; cost?: CostBreakdown }) {
-  if (!usage && !cost) {
-    return null;
-  }
-
-  return (
-    <Badge
-      className="h-auto min-w-0 max-w-full whitespace-normal py-1"
-      variant="gray"
-      label={
-        <span
-          className="flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-tight"
-          data-testid="turn-cost-token-badge-label"
-        >
-          <span className="min-w-0 max-w-full truncate text-foreground">
-            {formatCost(cost?.totalUsd ?? 0)}
-          </span>
-          <span className="min-w-0 max-w-full truncate">
-            {formatTokens(usage?.totalTokens ?? 0)} tokens
-          </span>
-        </span>
-      }
-    />
-  );
-}
-
-function FoldButton({
-  expanded,
-  onClick,
-  children,
-}: {
-  expanded: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <Button
-      aria-expanded={expanded}
-      className="min-h-8 gap-1.5 text-xs"
-      icon={expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-      label={children}
-      size="sm"
-      variant="secondary"
-      onClick={onClick}
-    />
-  );
 }
 
 function PlainLogCodeBlock({ code }: { code: string }) {
@@ -292,145 +149,186 @@ function LogCodeBlock({ children }: { children: string | string[] }) {
   return <ChatCodeBlock code={code} language="plaintext" />;
 }
 
-function SessionPart({ part }: { part: SessionContentPart }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const imageUrl = payloadString(part, "url");
-  const imageAlt = payloadString(part, "alt");
-  const isFoldedByDefault = part.partType === "toolCall" || part.partType === "toolResult";
-  const isThinking = part.partType === "thinking";
-  const body = part.text ?? (isFoldedByDefault && !isExpanded ? "" : formatValue(part.payload));
-  const thinking = isThinking ? previewThinking(body) : undefined;
-  const shouldRenderBody = !isFoldedByDefault || isExpanded;
+/**
+ * Ledger mapping. One tool invocation = one row: the toolCall part opens the
+ * row, the matching toolResult (paired by toolCallId, falling back to call
+ * order) supplies status, duration, and output. Everything else maps 1:1.
+ */
+type ToolRowDraft = {
+  id: string;
+  callId?: string;
+  name?: string;
+  argsText?: string;
+  output?: string;
+  hasResult: boolean;
+  isError?: boolean;
+  durationMs?: number;
+};
 
-  return (
-    <div className="border-t border-border px-4 py-3 first:border-t-0">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-xs font-medium uppercase text-muted">
-          {part.partType === "toolCall" ? <Wrench className="size-3.5" /> : null}
-          {part.partType === "image" ? <ImageIcon className="size-3.5" /> : null}
-          <span>{partLabel(part.partType)}</span>
-          {part.name ? <span className="truncate normal-case text-foreground">{part.name}</span> : null}
-        </div>
+type EntryDraft =
+  | { type: "tool"; tool: ToolRowDraft }
+  | { type: "part"; id: string; part: SessionContentPart };
 
-        {isFoldedByDefault ? (
-          <FoldButton expanded={isExpanded} onClick={() => setIsExpanded((value) => !value)}>
-            {isExpanded ? `Hide ${partFoldLabel(part.partType)}` : `Show ${partFoldLabel(part.partType)}`}
-          </FoldButton>
-        ) : null}
-      </div>
-
-      {part.partType === "toolCall" && shouldRenderBody ? (
-        <LogCodeBlock>
-          {part.name ? `name: ${part.name}\n` : ""}
-          {payloadValue(part, "input") === undefined
-            ? formatValue(part.payload)
-            : `input: ${formatValue(payloadValue(part, "input"))}`}
-        </LogCodeBlock>
-      ) : part.partType === "image" ? (
-        imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={imageAlt ?? "Session image"}
-            className="max-h-56 max-w-full rounded-md border border-border object-contain"
-            loading="lazy"
-          />
-        ) : (
-          <LogCodeBlock>{formatValue(part.payload)}</LogCodeBlock>
-        )
-      ) : isThinking && thinking ? (
-        <>
-          <LogCodeBlock>{isExpanded ? body : thinking.preview}</LogCodeBlock>
-          {thinking.isTruncated ? (
-            <Button
-              aria-expanded={isExpanded}
-              className="mt-2 min-h-8 text-xs"
-              label={isExpanded ? "Collapse thinking" : "Expand all"}
-              size="sm"
-              variant="secondary"
-              onClick={() => setIsExpanded((value) => !value)}
-            />
-          ) : null}
-        </>
-      ) : part.partType === "toolResult" && !shouldRenderBody ? (
-        <div className="rounded-md bg-surface-muted px-3 py-2 text-sm text-muted">
-          Tool output folded.
-        </div>
-      ) : (
-        <LogCodeBlock>{body}</LogCodeBlock>
-      )}
-    </div>
-  );
+function toolArgsText(part: SessionContentPart) {
+  const args = payloadValue(part, "arguments") ?? payloadValue(part, "input");
+  return args === undefined ? undefined : formatValue(args);
 }
 
-export function TimelineTurn({ turn }: { turn: SessionTurn }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const label = turnLabel(turn);
+function draftsFromParts(parts: SessionContentPart[], turnKey: string): EntryDraft[] {
+  const drafts: EntryDraft[] = [];
+  const openToolCalls: ToolRowDraft[] = [];
 
-  return (
-    <li className="grid gap-3 border-b border-border px-4 py-4 md:grid-cols-[10rem_minmax(0,1fr)]">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted">
-          <RoleIcon role={turn.role} />
-        </span>
-        <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">{label}</span>
-            <CostTokenBadge usage={turn.usage} cost={turn.cost} />
-          </div>
-          {turn.model ? (
-            <div className="mt-1 truncate text-xs text-muted">{turn.model}</div>
-          ) : null}
-          {turn.timestamp ? (
-            <time dateTime={turn.timestamp} className="mt-1 block text-xs text-muted">
-              {formatTimestamp(turn.timestamp)}
-            </time>
-          ) : null}
-        </div>
-      </div>
+  parts.forEach((part, index) => {
+    const id = `${turnKey}-${index}`;
 
-      <div className="min-w-0">
-        <Button
-          aria-expanded={isExpanded}
-          className="min-h-12 w-full bg-surface-muted px-4 py-3 text-left text-sm text-foreground"
-          label={turnSummary(turn)}
-          variant="secondary"
-          width="100%"
-          onClick={() => setIsExpanded((value) => !value)}
-        >
-          <span className="flex w-full min-w-0 items-center justify-between gap-3">
-            <span className="min-w-0 truncate">{turnSummary(turn)}</span>
-            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted">
-              {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-              {isExpanded ? "Collapse" : "Expand"}
-            </span>
-          </span>
-        </Button>
+    if (part.partType === "toolCall") {
+      const argsText = toolArgsText(part);
+      const tool: ToolRowDraft = {
+        id,
+        callId: payloadString(part, "id"),
+        name: part.name ?? payloadString(part, "name"),
+        argsText,
+        hasResult: false,
+      };
+      openToolCalls.push(tool);
+      drafts.push({ type: "tool", tool });
+      return;
+    }
 
-        {isExpanded ? (
-          <Card className="mt-2 min-w-0 overflow-hidden" padding={0}>
-            {turn.parts.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-muted">No content.</div>
-            ) : (
-              turn.parts.map((part, index) => (
-                <SessionPart key={`${part.partType}-${index}`} part={part} />
-              ))
-            )}
-          </Card>
-        ) : null}
-      </div>
-    </li>
-  );
+    if (part.partType === "toolResult") {
+      const callId = payloadString(part, "toolCallId");
+      const match =
+        openToolCalls.find((tool) => !tool.hasResult && callId && tool.callId === callId) ??
+        openToolCalls.find((tool) => !tool.hasResult);
+
+      const tool = match ?? {
+        id,
+        name: part.name,
+        hasResult: false,
+      };
+      tool.hasResult = true;
+      tool.output = part.text ?? formatValue(part.payload);
+      tool.isError = part.isError;
+      tool.durationMs = part.durationMs;
+
+      if (!match) {
+        drafts.push({ type: "tool", tool });
+      }
+      return;
+    }
+
+    drafts.push({ type: "part", id, part });
+  });
+
+  return drafts;
+}
+
+function toolEntry(tool: ToolRowDraft): TraceLedgerEntry {
+  const hasDetail = tool.argsText !== undefined || tool.output !== undefined;
+
+  return {
+    id: tool.id,
+    kind: "tool",
+    name: tool.name,
+    target: toolTargetFromArgs(tool.argsText),
+    durationMs: tool.durationMs,
+    status: tool.hasResult ? (tool.isError ? "error" : "ok") : undefined,
+    detail: hasDetail ? (
+      <>
+        {tool.argsText !== undefined ? <LogCodeBlock>{tool.argsText}</LogCodeBlock> : null}
+        {tool.output !== undefined ? <LogCodeBlock>{tool.output}</LogCodeBlock> : null}
+      </>
+    ) : undefined,
+  };
+}
+
+function partEntry(id: string, part: SessionContentPart): TraceLedgerEntry {
+  if (part.partType === "image") {
+    const imageUrl = payloadString(part, "url");
+    const imageAlt = payloadString(part, "alt");
+
+    return {
+      id,
+      kind: "image",
+      target: imageAlt ?? imageUrl,
+      detail: imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={imageAlt ?? "Session image"}
+          className="max-h-56 max-w-full rounded-md border border-border object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <LogCodeBlock>{formatValue(part.payload)}</LogCodeBlock>
+      ),
+    };
+  }
+
+  const text = part.text ?? formatValue(part.payload);
+  const target = text ? compactText(firstNonEmptyLine(text) ?? "") : undefined;
+  const fitsInline = target !== undefined && text.trim() === target;
+  const kind = part.partType === "thinking" ? "think" : part.partType;
+
+  return {
+    id,
+    kind,
+    name: part.name,
+    target,
+    detail: text && !fitsInline ? <LogCodeBlock>{text}</LogCodeBlock> : undefined,
+  };
+}
+
+// The group header already names the annotation ("Model changed"); the row
+// carries a stable generic kind and surfaces the new value in the name column.
+function annotationEntries(turn: SessionTurn, turnKey: string): TraceLedgerEntry[] {
+  return turn.parts.map((part, index) => ({
+    id: `${turnKey}-${index}`,
+    kind: "config",
+    name: turn.model,
+    detail:
+      part.payload === undefined || part.payload === null ? undefined : (
+        <LogCodeBlock>{formatValue(part.payload)}</LogCodeBlock>
+      ),
+  }));
+}
+
+function metaFromTurn(turn: SessionTurn) {
+  if (!turn.usage && !turn.cost) {
+    return undefined;
+  }
+
+  return `${formatCost(turn.cost?.totalUsd ?? 0)} · ${formatTokens(turn.usage?.totalTokens ?? 0)} tokens`;
+}
+
+export function ledgerGroupsFromTurns(turns: SessionTurn[]): TraceLedgerGroup[] {
+  return turns.map((turn, index) => {
+    const turnKey = `${turn.timestamp ?? "turn"}-${index}`;
+
+    return {
+      id: turnKey,
+      label: turnLabel(turn),
+      timestamp: turn.timestamp,
+      meta: metaFromTurn(turn),
+      entries:
+        turn.kind === "annotation"
+          ? annotationEntries(turn, turnKey)
+          : draftsFromParts(turn.parts, turnKey).map((draft) =>
+              draft.type === "tool" ? toolEntry(draft.tool) : partEntry(draft.id, draft.part),
+            ),
+    };
+  });
 }
 
 export function SessionTimeline({ turns }: { turns: SessionTurn[] }) {
+  const groups = useMemo(() => ledgerGroupsFromTurns(turns), [turns]);
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
-    count: turns.length,
+    count: groups.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 116,
-    measureElement: (element) => element.getBoundingClientRect().height || 116,
+    estimateSize: () => 120,
+    measureElement: (element) => element.getBoundingClientRect().height || 120,
     overscan: 6,
-    getItemKey: (index) => `${turns[index].timestamp ?? "turn"}-${index}`,
+    getItemKey: (index) => groups[index].id,
     initialOffset: 0,
     initialRect: { width: 0, height: 720 },
     observeElementRect: (instance, callback) => {
@@ -454,17 +352,15 @@ export function SessionTimeline({ turns }: { turns: SessionTurn[] }) {
 
   return (
     <div ref={parentRef} className="max-h-[72vh] overflow-auto" data-testid="timeline-viewport">
-      <ol
-        className="relative"
-        style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-        }}
-      >
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const turn = turns[virtualRow.index];
-
-          return (
-            <div
+      <PiTraceLedger>
+        <ol
+          className="relative"
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+            <li
               key={virtualRow.key}
               data-index={virtualRow.index}
               ref={rowVirtualizer.measureElement}
@@ -473,11 +369,11 @@ export function SessionTimeline({ turns }: { turns: SessionTurn[] }) {
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              <TimelineTurn turn={turn} />
-            </div>
-          );
-        })}
-      </ol>
+              <PiTraceLedger.Group group={groups[virtualRow.index]} />
+            </li>
+          ))}
+        </ol>
+      </PiTraceLedger>
     </div>
   );
 }
