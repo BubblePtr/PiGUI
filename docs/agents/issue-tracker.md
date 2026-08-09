@@ -1,35 +1,42 @@
-# Issue tracker: in-repo markdown
+# Issue tracker: GitHub Issues + in-repo PRDs
 
-Issues and PRDs for this repo live **in the repo** as markdown under `.scratch/<feature>/`. There is no external issue tracker.
+自 2026-08-09 起,本仓库采用**混合制**:
 
-## Layout
+- **可执行的切片/任务/遗留问题 → GitHub Issues**(`gh issue` 操作),五个 triage 角色以 GitHub label 表达(见 `triage-labels.md`)。
+- **PRD 与决策记录 → 仓库内 markdown**,仍在 `.scratch/<feature>/PRD.md`。长文档、要进版本历史的内容不放 GitHub Issue。
+
+此前(≤2026-08-09)的 issue 以 `.scratch/<feature>/issues[/]` 下的 markdown 存在,保留作历史记录;其中未完成的已迁移为 GitHub Issue,原文件只留指针。
+
+## PRD layout
 
 ```
 .scratch/<feature>/
-├── PRD.md                    # the feature PRD (problem, solution, decisions, scope)
-├── issues.md                 # all slices for the feature in one file, OR
-└── issues/
-    ├── 01-<slug>.md          # one slice per file, dependency-ordered
-    └── 02-<slug>.md
+└── PRD.md    # 问题、方案、决策、范围;执行切片开成 GitHub Issues 并在此处链接
 ```
 
-Either layout is fine: a single `issues.md` with `## Issue N: …` sections, or an `issues/` directory with one numbered file per slice. Slices are independent tracer bullets; order them by dependency.
+PRD 里列切片时直接链 GitHub Issue 编号(`#N`);反过来每个 Issue 的正文第一行链回其 PRD 路径。
 
 ## Issue shape
 
-Each issue/slice is a self-contained implementation brief that carries only what an agent needs to act cold: a link to its PRD, the user stories it covers, what to build, and acceptance criteria. Front matter:
+每个 GitHub Issue 是自足的实施简报,agent 冷启动只靠它就能动手:
 
-```
-Status: <triage role | done>    # triage role while pending; `done` once implemented
-Source PRD: .scratch/<feature>/PRD.md
-```
+- **背景**:一句话 + 指回 `.scratch/<feature>/PRD.md`
+- **要做的事**:实现要点(要动的文件/模块尽量点名)
+- **验收标准**:checklist
+- **阻塞**:`Blocked by #N` 或前置条件
 
-`Status:` carries a triage role (see `triage-labels.md`) while the slice is pending, and `done` once it has shipped. With no external tracker, this line is the only record of execution status — keep it current when a slice lands.
+打上对应 triage label(通常 `ready-for-agent`)。状态流转靠 GitHub 原生机制:PR 描述里写 `Closes #N` 自动关闭,不再手工维护 Status 行。
 
 ## When a skill says "publish to the issue tracker"
 
-Write the issue as markdown under the feature's `.scratch/<feature>/issues[/]` and set its `Status:` to the appropriate triage role (usually `ready-for-agent`). Commit it with the rest of the docs.
+用 `gh issue create` 建 GitHub Issue,按上面的 shape 写正文,打对应 triage label。
 
 ## Dependencies between issues
 
-No parent/child hierarchy. Express a dependency with a "Blocked by: Issue N" note in the issue body and order the files by their numeric prefix; a slice is implicitly blocked until its predecessor is implemented.
+不用 parent/child 层级。在正文里写 `Blocked by #N`;被阻塞的 issue 在前置合并前不动。
+
+## 给 agent 的操作提示
+
+- 列表:`gh issue list --label ready-for-agent`
+- 冷启动读单个:`gh issue view <N>`
+- 需要网络与 `gh` 已认证;离线环境下只读 PRD,不猜 issue 状态。

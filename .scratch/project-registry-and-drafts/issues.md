@@ -1,6 +1,6 @@
 # Project Registry、Project Sidebar 与 Draft 模型 Issues
 
-Status: ready-for-agent
+Status: done(补记 2026-08-09:Project Registry/Add Project/侧栏均已上线于 app-shell,此文件当时未回写状态)
 Source PRD: `.scratch/project-registry-and-drafts/PRD.md`
 Created: 2026-06-30
 

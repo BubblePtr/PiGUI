@@ -1,6 +1,6 @@
 # Triage roles
 
-The skills speak in terms of five canonical triage roles. In this repo they are expressed as the `Status:` value in an issue's front matter (see `issue-tracker.md`) — there is no external label system.
+The skills speak in terms of five canonical triage roles. In this repo they are **GitHub labels** applied to GitHub Issues (see `issue-tracker.md`).
 
 | Role              | Meaning                                  |
 | ----------------- | ---------------------------------------- |
@@ -10,4 +10,6 @@ The skills speak in terms of five canonical triage roles. In this repo they are 
 | `ready-for-human` | Requires human implementation            |
 | `wontfix`         | Will not be actioned                     |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), set the issue's `Status:` to that role.
+When a skill mentions a role (e.g. "apply the AFK-ready triage label"), apply that GitHub label (`gh issue edit <N> --add-label <role>`, removing the previous role label).
+
+Historical note: before 2026-08-09 these roles lived in the `Status:` front matter of in-repo issue markdown under `.scratch/`; those files are kept as archive.

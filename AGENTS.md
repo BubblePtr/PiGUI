@@ -10,11 +10,11 @@ PiGUI is the missing GUI for the Pi coding agent — a visualization host for Pi
 
 ### Issue tracker
 
-Issues and PRDs live **in the repo** as markdown under `.scratch/<feature>/` — no external tracker. PRDs at `.scratch/<feature>/PRD.md`, slices as `issues.md` or `issues/NN-*.md`, status via the `Status:` front matter. See `docs/agents/issue-tracker.md`.
+Hybrid since 2026-08-09: actionable slices/tasks live on **GitHub Issues** (`gh issue`), while PRDs and decision records stay **in the repo** at `.scratch/<feature>/PRD.md`. Pre-migration issue markdown under `.scratch/<feature>/issues[/]` is archive. See `docs/agents/issue-tracker.md`.
 
 ### Triage roles
 
-The default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), expressed as an issue's `Status:` value. See `docs/agents/triage-labels.md`.
+The default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), expressed as GitHub labels on issues. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
