@@ -120,3 +120,43 @@ describe("PiBarChart", () => {
     ).toBeNull();
   });
 });
+
+describe("PiBarChart empty state", () => {
+  it("renders a teaching empty state when there is no data", () => {
+    const { container } = render(
+      <PiBarChart aria-label="Usage trend" data={[]} series={[]} />,
+    );
+
+    const empty = container.querySelector('[data-slot="bar-chart-empty"]');
+    expect(empty).toBeInTheDocument();
+    expect(empty).toHaveTextContent("No data yet");
+    expect(container.querySelectorAll('[data-bucket-key]')).toHaveLength(0);
+  });
+
+  it("uses the provided emptyLabel", () => {
+    const { container } = render(
+      <PiBarChart
+        aria-label="Usage trend"
+        data={[]}
+        emptyLabel="No usage in this range"
+        series={[]}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-slot="bar-chart-empty"]'),
+    ).toHaveTextContent("No usage in this range");
+  });
+
+  it("does not show the empty state when buckets exist", () => {
+    const { container } = render(
+      <PiBarChart
+        aria-label="Usage trend"
+        data={[{ key: "d1", label: "Aug 1", values: { a: 0 } }]}
+        series={[{ key: "a", label: "A", color: "var(--pigui-data-1)" }]}
+      />,
+    );
+
+    expect(container.querySelector('[data-slot="bar-chart-empty"]')).toBeNull();
+  });
+});
