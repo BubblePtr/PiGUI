@@ -339,3 +339,302 @@
   align-items: center;
   color: var(--color-icon-secondary);
 }
+
+/* —— Chain of thought: rail skin —— */
+
+.chain-of-thought-rail {
+  min-width: 0;
+  font-size: var(--font-size-base);
+}
+
+.chain-of-thought-rail__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--size-element-md);
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chain-of-thought-rail__trigger:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.chain-of-thought-rail__trigger-chevron {
+  display: inline-flex;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.chain-of-thought-rail__trigger[data-panel-open] .chain-of-thought-rail__trigger-chevron {
+  transform: rotate(90deg);
+}
+
+.chain-of-thought-rail__panel {
+  margin-block-start: var(--spacing-2);
+}
+
+.chain-of-thought-rail__track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.chain-of-thought-rail__round-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  margin-block-end: var(--spacing-1);
+}
+
+.chain-of-thought-rail__round-label {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-disabled);
+}
+
+.chain-of-thought-rail__nodes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.chain-of-thought-rail__node {
+  position: relative;
+  padding-inline-start: var(--spacing-3);
+  min-width: 0;
+}
+
+/* the rail line — starts just below each node's marker */
+.chain-of-thought-rail__node::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 3.5px;
+  top: 18px;
+  bottom: -8px;
+  width: var(--border-width);
+  background: var(--color-border);
+}
+
+.chain-of-thought-rail__node[data-kind="tool"]::before {
+  top: 22px;
+}
+
+.chain-of-thought-rail__node:last-child::before {
+  display: none;
+}
+
+/* Markers center on their node's first text line: thinking label line
+   (~24px tall, center 12px) vs. tool row (32px centered, center 16px). */
+.chain-of-thought-rail__marker {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-border-emphasized);
+  pointer-events: none;
+}
+
+.chain-of-thought-rail__node[data-kind="tool"] .chain-of-thought-rail__marker {
+  top: 12px;
+}
+
+.chain-of-thought-rail__marker[data-kind="thinking"] {
+  background: transparent;
+  border: var(--border-width) solid var(--color-border-emphasized);
+}
+
+.chain-of-thought-rail__marker[data-state="output-error"] {
+  background: var(--color-danger);
+}
+
+.chain-of-thought-rail__marker[data-state="input-streaming"],
+.chain-of-thought-rail__marker[data-state="input-available"] {
+  background: var(--color-text-secondary);
+  animation: chain-of-thought-rail-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chain-of-thought-rail-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.chain-of-thought-rail__node-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+
+.chain-of-thought-rail__thinking-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.chain-of-thought-rail__thinking-text {
+  margin: var(--spacing-0-5) 0 0;
+  max-width: 65ch;
+  color: var(--color-text-secondary);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.chain-of-thought-rail__node-meta {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-1-5);
+  flex-shrink: 0;
+}
+
+.chain-of-thought-rail__duration {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-disabled);
+  font-variant-numeric: tabular-nums;
+}
+
+.chain-of-thought-rail__tool-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-height: var(--size-element-sm);
+  padding-block: var(--spacing-0-5);
+  border-radius: var(--radius-inner);
+  cursor: pointer;
+  min-width: 0;
+  list-style: none;
+  touch-action: manipulation;
+}
+
+.chain-of-thought-rail__tool-row::-webkit-details-marker {
+  display: none;
+}
+
+.chain-of-thought-rail__tool-row[data-static="true"] {
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  details > .chain-of-thought-rail__tool-row:hover {
+    background: var(--color-overlay-hover);
+    margin-inline: calc(-1 * var(--spacing-1-5));
+    padding-inline: var(--spacing-1-5);
+  }
+}
+
+.chain-of-thought-rail__disclosure {
+  display: inline-flex;
+  color: var(--color-icon-secondary);
+  transition: transform var(--duration-fast) var(--ease-standard);
+  flex-shrink: 0;
+}
+
+.chain-of-thought-rail__disclosure[data-hidden="true"] {
+  visibility: hidden;
+}
+
+details[open] > .chain-of-thought-rail__tool-row .chain-of-thought-rail__disclosure {
+  transform: rotate(90deg);
+}
+
+.chain-of-thought-rail__tool-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.chain-of-thought-rail__tool-target {
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.chain-of-thought-rail__badge {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chain-of-thought-rail__badge[data-tone="error"] {
+  color: var(--color-danger);
+}
+
+.chain-of-thought-rail__badge[data-tone="running"] {
+  color: var(--color-text-secondary);
+}
+
+.chain-of-thought-rail__tool-detail {
+  padding: var(--spacing-1) 0 var(--spacing-1) calc(12px + var(--spacing-1-5));
+}
+
+.chain-of-thought-rail__pre {
+  margin: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  border-radius: var(--radius-inner);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.chain-of-thought-rail__pre::before {
+  content: attr(data-label);
+  display: block;
+  margin-block-end: var(--spacing-0-5);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-disabled);
+  user-select: none;
+}
+
+.chain-of-thought-rail__pre[data-tone="error"] {
+  color: var(--color-danger);
+}
+
+.chain-of-thought-rail__pre + .chain-of-thought-rail__pre {
+  margin-block-start: var(--spacing-1);
+}
+
+/* Scoped scrollbar for payload blocks only (never the page). */
+.chain-of-thought-rail__pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.chain-of-thought-rail__pre::-webkit-scrollbar-thumb {
+  background: var(--color-border-emphasized);
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chain-of-thought-rail__trigger-chevron,
+  .chain-of-thought-rail__disclosure {
+    transition: none;
+  }
+
+  .chain-of-thought-rail__marker {
+    animation: none !important;
+  }
+}
