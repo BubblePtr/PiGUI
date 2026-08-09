@@ -7,6 +7,7 @@ import {
   distinctProjects,
   filterByProjects,
   groupByProject,
+  projectTokenColor,
 } from "@/pages/session-list";
 import type { SessionSummary } from "@/entities/session/sessions";
 
@@ -102,6 +103,16 @@ function renderWithQueryClient(children: ReactNode) {
 
   return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
+
+describe("projectTokenColor", () => {
+  it("assigns a stable palette color per project name", () => {
+    const palette = ["blue", "green", "teal", "cyan", "purple", "pink", "orange", "yellow"];
+
+    expect(projectTokenColor("backend")).toBe(projectTokenColor("backend"));
+    expect(palette).toContain(projectTokenColor("backend"));
+    expect(palette).toContain(projectTokenColor("语音输入法"));
+  });
+});
 
 describe("groupByProject", () => {
   it("groups sessions by project alphabetically, preserving recency inside a group", () => {

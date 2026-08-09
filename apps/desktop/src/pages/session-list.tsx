@@ -38,6 +38,28 @@ export function filterByProjects<T extends { project: string }>(
   return sessions.filter((session) => wanted.has(session.project));
 }
 
+// Color as identity: the same project always hashes to the same Token color,
+// so chips stay recognizable across sessions. Red is excluded — it reads as
+// an error state, not a category.
+const projectTokenColors = [
+  "blue",
+  "green",
+  "teal",
+  "cyan",
+  "purple",
+  "pink",
+  "orange",
+  "yellow",
+] as const;
+
+export function projectTokenColor(project: string): (typeof projectTokenColors)[number] {
+  let hash = 0;
+  for (const char of project) {
+    hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
+  }
+  return projectTokenColors[hash % projectTokenColors.length];
+}
+
 // Ledger-style grouping: projects sorted alphabetically, input order (newest
 // first) preserved inside each group.
 export function groupByProject<T extends { project: string }>(
@@ -218,6 +240,14 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
           isLabelHidden
           label="Filter by projects"
           placeholder="All projects"
+          renderToken={(item, onRemove) => (
+            <Token
+              color={projectTokenColor(item.label)}
+              label={item.label}
+              size="sm"
+              onRemove={onRemove}
+            />
+          )}
           searchSource={projectSource}
           size="sm"
           tokenOverflowBehavior="unfocusedInline"
