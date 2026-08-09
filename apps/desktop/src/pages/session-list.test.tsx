@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import {
   SessionListPanel,
   distinctProjects,
-  filterByProject,
+  filterByProjects,
   groupByProject,
 } from "@/pages/session-list";
 import type { SessionSummary } from "@/entities/session/sessions";
@@ -77,15 +77,16 @@ describe("distinctProjects", () => {
   });
 });
 
-describe("filterByProject", () => {
-  it("returns every session when no project is selected", () => {
-    expect(filterByProject(rows, null)).toHaveLength(rows.length);
+describe("filterByProjects", () => {
+  it("returns every session when no projects are selected", () => {
+    expect(filterByProjects(rows, [])).toHaveLength(rows.length);
   });
 
-  it("keeps only sessions for the selected project, preserving order", () => {
-    expect(filterByProject(rows, "project-beta")).toEqual([
+  it("keeps sessions from any selected project, preserving order", () => {
+    expect(filterByProjects(rows, ["project-beta", "project-gamma"])).toEqual([
       { project: "project-beta" },
       { project: "project-beta" },
+      { project: "project-gamma" },
     ]);
   });
 });
@@ -118,17 +119,21 @@ describe("groupByProject", () => {
 });
 
 describe("SessionListPanel", () => {
-  it("renders the project filter with the Astryx Selector", async () => {
+  it("renders the multi-project filter with the Astryx Tokenizer", async () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
 
-    expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
-    expect(container.querySelector(".astryx-selector")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("combobox", { name: "Filter by projects" }),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".astryx-tokenizer")).toBeInTheDocument();
   });
 
   it("is a flat sidebar panel — no Card wrapper — that fits the fixed workspace", async () => {
     const { container } = renderWithQueryClient(<SessionListPanel />);
 
-    expect(await screen.findByLabelText("Filter by project")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("combobox", { name: "Filter by projects" }),
+    ).toBeInTheDocument();
     expect(container.querySelector(".astryx-card")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-list-panel")).toHaveClass(
       "h-full",

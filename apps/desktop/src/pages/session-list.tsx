@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { Selector } from "@astryxdesign/core/Selector";
 import { Token } from "@astryxdesign/core/Token";
+import { Tokenizer } from "@astryxdesign/core/Tokenizer";
+import { createStaticSource, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useMemo, useState } from "react";
 import { Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
@@ -24,15 +25,17 @@ export function distinctProjects<T extends { project: string }>(sessions: T[]): 
   );
 }
 
-// A null project means "all projects" — the list is shown unfiltered.
-export function filterByProject<T extends { project: string }>(
+// No selected projects means "all projects" — the list is shown unfiltered;
+// otherwise sessions from any selected project pass (union).
+export function filterByProjects<T extends { project: string }>(
   sessions: T[],
-  project: string | null,
+  projects: string[],
 ): T[] {
-  if (!project) {
+  if (projects.length === 0) {
     return sessions;
   }
-  return sessions.filter((session) => session.project === project);
+  const wanted = new Set(projects);
+  return sessions.filter((session) => wanted.has(session.project));
 }
 
 // Ledger-style grouping: projects sorted alphabetically, input order (newest
@@ -168,11 +171,19 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   });
   const { refetch } = sessions;
   const allSessions = sessions.data ?? [];
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [selectedProjects, setSelectedProjects] = useState<SearchableItem[]>([]);
   const projects = useMemo(() => distinctProjects(allSessions), [allSessions]);
+  const projectSource = useMemo(
+    () => createStaticSource(projects.map((project) => ({ id: project, label: project }))),
+    [projects],
+  );
   const sessionRows = useMemo(
-    () => filterByProject(allSessions, selectedProject),
-    [allSessions, selectedProject],
+    () =>
+      filterByProjects(
+        allSessions,
+        selectedProjects.map((item) => item.label),
+      ),
+    [allSessions, selectedProjects],
   );
 
   useRefreshOnWindowFocus(refetch);
@@ -199,18 +210,20 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
           />
         </div>
 
-        {/* "All projects" is the cleared state, not a project — the filter
-            uses the clear affordance instead of a sentinel option. */}
-        <Selector
+        {/* Multi-select filter: chosen projects render as removable token
+            chips; an empty set means "all projects". */}
+        <Tokenizer
           hasClear
+          hasEntriesOnFocus
           isLabelHidden
-          label="Filter by project"
-          options={projects}
+          label="Filter by projects"
           placeholder="All projects"
+          searchSource={projectSource}
           size="sm"
-          value={selectedProject}
+          tokenOverflowBehavior="unfocusedInline"
+          value={selectedProjects}
           width="100%"
-          onChange={(value) => setSelectedProject(value)}
+          onChange={(items) => setSelectedProjects(items)}
         />
       </div>
 
