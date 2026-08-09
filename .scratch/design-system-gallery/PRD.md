@@ -1,6 +1,6 @@
 # PRD: Design Gallery（开发环境组件陈列馆）
 
-Status: ready-for-agent
+Status: done(补记 2026-08-09:/design 页 Tokens/Components 双层已上线并投入使用)
 Feature: design-system-gallery
 Created: 2026-08-08
 

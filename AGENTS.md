@@ -28,5 +28,6 @@ The dev-only `/design` page (`apps/desktop/src/pages/design.tsx`) is the living 
 - **Reusable components live in `apps/desktop/src/shared/ui/` — nowhere else.** Page-level composition stays in `pages/`; if a piece of UI is (or becomes) reusable across pages, extract it to `shared/ui/` first.
 - **Every component added to `shared/ui/` MUST be registered on the Design page in the same PR**, showing all its variants and typical states (loading / empty / error where applicable). Changing a component's variants means updating its Design page entry in the same PR.
 - Token usage goes through the semantic bridge in `apps/desktop/src/app/styles.css` (`--foreground`, `--primary`, …) or raw Astryx first-level tokens — never hard-coded colors/radii/spacing in components.
+- The ledger of self-built components (why each exists, what's planned) is `docs/self-built-ui.md` — reconcile it at the end of any UI work.
 
 PRD: `.scratch/design-system-gallery/PRD.md`.
