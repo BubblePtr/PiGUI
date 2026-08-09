@@ -1,6 +1,6 @@
 # Pi SDK Runtime Driver Spike Issues
 
-Status: ready-for-human
+Status: done(补记 2026-08-09:spike harness 与 pi-sdk-driver/pi-sdk-runtime-adapter 均已落 packages/backend/src/drivers/,此文件当时未回写状态)
 Source PRD: `.scratch/sdk-runtime-driver/PRD.md`
 Created: 2026-07-01
 
