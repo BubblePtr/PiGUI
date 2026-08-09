@@ -199,17 +199,18 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
           />
         </div>
 
+        {/* "All projects" is the cleared state, not a project — the filter
+            uses the clear affordance instead of a sentinel option. */}
         <Selector
+          hasClear
           isLabelHidden
           label="Filter by project"
-          options={[
-            { value: "all", label: "All projects" },
-            ...projects.map((project) => ({ value: project, label: project })),
-          ]}
+          options={projects}
+          placeholder="All projects"
           size="sm"
-          value={selectedProject ?? "all"}
+          value={selectedProject}
           width="100%"
-          onChange={(value) => setSelectedProject(value === "all" ? null : value)}
+          onChange={(value) => setSelectedProject(value)}
         />
       </div>
 
