@@ -185,6 +185,36 @@ describe("backend session parser", () => {
     expectCost(detail.totalCostUsd, 0.03);
   });
 
+  it("carries isError, duration, and raw payload through merged tool results", () => {
+    const detail = parseSession(`{"type":"session","id":"tool-result-fields","timestamp":"2026-06-23T10:00:00.000Z","cwd":"/Users/test/proj"}
+{"type":"message","id":"m1","parentId":null,"timestamp":"2026-06-23T10:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"List files then fail."}]}}
+{"type":"message","id":"m2","parentId":"m1","timestamp":"2026-06-23T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_1","name":"bash","arguments":{"command":"ls src"}}],"model":"gpt-5","stopReason":"toolUse"}}
+{"type":"message","id":"m3","parentId":"m2","timestamp":"2026-06-23T10:00:02.071Z","message":{"role":"toolResult","toolCallId":"call_1","toolName":"bash","content":[{"type":"text","text":"src/main.tsx"}],"isError":false,"timestamp":1750672802071}}
+{"type":"message","id":"m4","parentId":"m3","timestamp":"2026-06-23T10:00:03.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_2","name":"bash","arguments":{"command":"cat missing.txt"}}],"model":"gpt-5","stopReason":"toolUse"}}
+{"type":"message","id":"m5","parentId":"m4","timestamp":"2026-06-23T10:00:05.500Z","message":{"role":"toolResult","toolCallId":"call_2","toolName":"bash","content":[{"type":"text","text":"cat: missing.txt: No such file or directory"}],"isError":true,"timestamp":1750672805500}}`);
+
+    const assistantTurns = detail.turns.filter((turn) => turn.role === "assistant");
+    const okResult = assistantTurns[0].parts.find((part) => part.partType === "toolResult");
+    const failedResult = assistantTurns[1].parts.find((part) => part.partType === "toolResult");
+
+    expect(okResult).toMatchObject({
+      partType: "toolResult",
+      name: "bash",
+      isError: false,
+      durationMs: 71,
+    });
+    expect(failedResult).toMatchObject({
+      partType: "toolResult",
+      name: "bash",
+      isError: true,
+      durationMs: 2500,
+    });
+    expect(okResult?.payload).toMatchObject({
+      toolCallId: "call_1",
+      content: [{ type: "text", text: "src/main.tsx" }],
+    });
+  });
+
   it("classifies command, skill, natural-language, trivial, and unicode titles", () => {
     expect(classifyTitle("/grilling sharpen this plan")).toEqual({
       kind: "command",

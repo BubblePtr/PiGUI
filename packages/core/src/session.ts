@@ -7,6 +7,10 @@ export type SessionContentPart = {
   partType: string;
   text?: string;
   name?: string;
+  // toolResult only: success/failure straight from the JSONL record, and
+  // execution time derived from event timestamps (Pi ships no duration field).
+  isError?: boolean;
+  durationMs?: number;
   payload: unknown;
 };
 
