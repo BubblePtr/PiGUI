@@ -5,6 +5,10 @@ import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
 import { PiSheet } from "@/shared/ui/pi-sheet";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
+import {
+  ChatChainOfThoughtRail,
+  type ChainOfThoughtRailPart,
+} from "@/shared/ui/chat/chat-chain-of-thought-rail";
 import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
 import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
 import { ChatMarkdown, ChatStreamMarkdown } from "@/shared/ui/chat/chat-markdown";
@@ -513,6 +517,84 @@ function ChatChainOfThoughtGallery() {
   );
 }
 
+const railParts: ChainOfThoughtRailPart[] = [
+  {
+    kind: "thinking",
+    id: "rail-t1",
+    durationMs: 8200,
+    text: "The failing assertion says the replay projection dropped the tool_call part after a fork — reading the projection code first.",
+  },
+  {
+    kind: "tool",
+    id: "rail-c1",
+    tool: {
+      toolName: "Read",
+      toolCallId: "rail-call-1",
+      state: "output-available",
+      durationMs: 320,
+      argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
+      output: "77  remapEntryId(part.piEntryId)\n81  part.toolCallId  // never remapped",
+    },
+  },
+  {
+    kind: "tool",
+    id: "rail-c2",
+    tool: {
+      toolName: "Bash",
+      toolCallId: "rail-call-2",
+      state: "output-error",
+      durationMs: 12400,
+      argsText: JSON.stringify({ command: "bun test packages/backend/src/workspace" }),
+      output: "1 tests failed:\n  ✗ replays forked session [4012ms]",
+    },
+  },
+  {
+    kind: "thinking",
+    id: "rail-t2",
+    durationMs: 2100,
+    text: "Root cause confirmed: toolCallId is never remapped on fork. Fixing.",
+  },
+  {
+    kind: "tool",
+    id: "rail-c3",
+    tool: {
+      toolName: "Grep",
+      toolCallId: "rail-call-3",
+      state: "input-streaming",
+      argsText: JSON.stringify({ pattern: "remapToolCallId" }),
+    },
+  },
+];
+
+function ChatChainOfThoughtRailGallery() {
+  return (
+    <GallerySection title="ChatChainOfThoughtRail">
+      <div className="flex max-w-xl flex-col gap-4">
+        <Variant caption="expanded, settled — rounds with done/failed tools">
+          <ChatChainOfThoughtRail
+            defaultExpanded
+            parts={railParts.slice(0, 4)}
+            summary="Thought for 23s · 2 tool calls"
+          />
+        </Variant>
+        <Variant caption="streaming — expanded by default, running tool pulses">
+          <ChatChainOfThoughtRail
+            isStreaming
+            parts={railParts}
+            summary="Thinking…"
+          />
+        </Variant>
+        <Variant caption="collapsed, settled">
+          <ChatChainOfThoughtRail
+            parts={railParts.slice(0, 4)}
+            summary="Thought for 23s · 2 tool calls"
+          />
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
 function ChatConversationGallery() {
   return (
     <GallerySection title="ChatConversation">
@@ -559,6 +641,7 @@ export function DesignComponentsLayer() {
       <ChatPromptInputGallery />
       <ChatPromptSuggestionGallery />
       <ChatChainOfThoughtGallery />
+      <ChatChainOfThoughtRailGallery />
       <ChatConversationGallery />
       <TextShimmerGallery />
     </>
