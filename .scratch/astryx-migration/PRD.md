@@ -1,5 +1,5 @@
 ---
-Status: ready-for-agent
+Status: done(补记 2026-08-09:slice 1-3 与遗留 issue 01 均完成,issue 02 为上游 facebook/astryx#4833 跟踪项)
 ---
 
 # Astryx 设计系统迁移
