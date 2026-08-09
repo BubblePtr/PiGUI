@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { Selector } from "@astryxdesign/core/Selector";
 import { Token } from "@astryxdesign/core/Token";
+import { Tokenizer } from "@astryxdesign/core/Tokenizer";
+import { createStaticSource, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useMemo, useState } from "react";
 import { Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
@@ -25,15 +25,50 @@ export function distinctProjects<T extends { project: string }>(sessions: T[]): 
   );
 }
 
-// A null project means "all projects" — the list is shown unfiltered.
-export function filterByProject<T extends { project: string }>(
+// No selected projects means "all projects" — the list is shown unfiltered;
+// otherwise sessions from any selected project pass (union).
+export function filterByProjects<T extends { project: string }>(
   sessions: T[],
-  project: string | null,
+  projects: string[],
 ): T[] {
-  if (!project) {
+  if (projects.length === 0) {
     return sessions;
   }
-  return sessions.filter((session) => session.project === project);
+  const wanted = new Set(projects);
+  return sessions.filter((session) => wanted.has(session.project));
+}
+
+// Color as identity: the same project always hashes to the same Token color,
+// so chips stay recognizable across sessions. Red is excluded — it reads as
+// an error state, not a category.
+const projectTokenColors = [
+  "blue",
+  "green",
+  "teal",
+  "cyan",
+  "purple",
+  "pink",
+  "orange",
+  "yellow",
+] as const;
+
+export function projectTokenColor(project: string): (typeof projectTokenColors)[number] {
+  let hash = 0;
+  for (const char of project) {
+    hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
+  }
+  return projectTokenColors[hash % projectTokenColors.length];
+}
+
+// Ledger-style grouping: projects sorted alphabetically, input order (newest
+// first) preserved inside each group.
+export function groupByProject<T extends { project: string }>(
+  sessions: T[],
+): { project: string; sessions: T[] }[] {
+  return distinctProjects(sessions).map((project) => ({
+    project,
+    sessions: sessions.filter((session) => session.project === project),
+  }));
 }
 
 function SessionTitle({ title }: { title: Title }) {
@@ -89,30 +124,65 @@ function SessionRow({
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId: session.id }}
-        className={`block border-b border-border px-4 py-3 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
+        className={`block border-b border-separator px-4 py-2 pl-5 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
           selected ? "bg-surface-muted" : "hover:bg-surface-hover"
         }`}
       >
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <SessionTitle title={session.title} />
-            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-              <span className="truncate">{session.project}</span>
-              <span aria-hidden="true">·</span>
-              <time dateTime={session.timestamp} title={formatTimestamp(session.timestamp)}>
-                {relativeTime(session.timestamp)}
-              </time>
-            </div>
+            <time
+              className="mt-1 block text-xs text-muted"
+              dateTime={session.timestamp}
+              title={formatTimestamp(session.timestamp)}
+            >
+              {relativeTime(session.timestamp)}
+            </time>
           </div>
-          <div className="shrink-0 text-right">
-            <div className="text-sm font-semibold text-foreground">
+          <div className="shrink-0">
+            <div className="tabular-nums text-right text-sm font-medium text-foreground">
               {formatCost(session.totalCostUsd)}
             </div>
-            <div className="mt-1 text-xs text-muted">{formatTokens(session.totalTokens)}</div>
+            <div className="mt-1 tabular-nums text-right text-xs text-muted">
+              {formatTokens(session.totalTokens)}
+            </div>
           </div>
         </div>
       </Link>
     </li>
+  );
+}
+
+// Group headers sit a full hierarchy level above rows: sticky uppercase
+// micro-labels with loosened tracking on an opaque background, groups
+// separated by whitespace rather than yet another border weight.
+function SessionGroup({
+  project,
+  sessions,
+  selectedSessionId,
+}: {
+  project: string;
+  sessions: SessionSummary[];
+  selectedSessionId?: string;
+}) {
+  return (
+    <section data-testid="session-group">
+      <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-b border-separator bg-background px-4 py-1.5">
+        <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted">
+          {project}
+        </span>
+        <span className="shrink-0 tabular-nums text-[11px] text-muted">{sessions.length}</span>
+      </header>
+      <ol>
+        {sessions.map((session) => (
+          <SessionRow
+            key={session.id}
+            session={session}
+            selected={session.id === selectedSessionId}
+          />
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -123,17 +193,30 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   });
   const { refetch } = sessions;
   const allSessions = sessions.data ?? [];
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [selectedProjects, setSelectedProjects] = useState<SearchableItem[]>([]);
   const projects = useMemo(() => distinctProjects(allSessions), [allSessions]);
+  const projectSource = useMemo(
+    () => createStaticSource(projects.map((project) => ({ id: project, label: project }))),
+    [projects],
+  );
   const sessionRows = useMemo(
-    () => filterByProject(allSessions, selectedProject),
-    [allSessions, selectedProject],
+    () =>
+      filterByProjects(
+        allSessions,
+        selectedProjects.map((item) => item.label),
+      ),
+    [allSessions, selectedProjects],
   );
 
   useRefreshOnWindowFocus(refetch);
 
+  const groups = useMemo(() => groupByProject(sessionRows), [sessionRows]);
+
   return (
-    <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden" padding={0}>
+    <div
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+      data-testid="session-list-panel"
+    >
       <div className="border-b border-border px-4 py-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -149,17 +232,28 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
           />
         </div>
 
-        <Selector
+        {/* Multi-select filter: chosen projects render as removable token
+            chips; an empty set means "all projects". */}
+        <Tokenizer
+          hasClear
+          hasEntriesOnFocus
           isLabelHidden
-          label="Filter by project"
-          options={[
-            { value: "all", label: "All projects" },
-            ...projects.map((project) => ({ value: project, label: project })),
-          ]}
+          label="Filter by projects"
+          placeholder="All projects"
+          renderToken={(item, onRemove) => (
+            <Token
+              color={projectTokenColor(item.label)}
+              label={item.label}
+              size="sm"
+              onRemove={onRemove}
+            />
+          )}
+          searchSource={projectSource}
           size="sm"
-          value={selectedProject ?? "all"}
+          tokenOverflowBehavior="unfocusedInline"
+          value={selectedProjects}
           width="100%"
-          onChange={(value) => setSelectedProject(value === "all" ? null : value)}
+          onChange={(items) => setSelectedProjects(items)}
         />
       </div>
 
@@ -175,17 +269,16 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
         ) : sessionRows.length === 0 ? (
           <EmptyState className="px-4 py-10" isCompact title="No sessions found." />
         ) : (
-          <ol>
-            {sessionRows.map((session) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                selected={session.id === selectedSessionId}
-              />
-            ))}
-          </ol>
+          groups.map((group) => (
+            <SessionGroup
+              key={group.project}
+              project={group.project}
+              sessions={group.sessions}
+              selectedSessionId={selectedSessionId}
+            />
+          ))
         )}
       </div>
-    </Card>
+    </div>
   );
 }
