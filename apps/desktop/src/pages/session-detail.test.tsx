@@ -190,4 +190,20 @@ describe("SessionDetailView", () => {
     );
     expect(screen.getByTestId("timeline-viewport")).toBeInTheDocument();
   });
+
+  it("keeps a single scroll context and no back navigation", () => {
+    const session = makeLargeSessionDetail(12);
+
+    render(<SessionDetailView session={session} sessionId={session.id} />);
+
+    // The outer scroll body is the only scroller — the ledger viewport must
+    // not nest a second one.
+    expect(screen.getByTestId("timeline-viewport")).not.toHaveClass(
+      "overflow-auto",
+      "max-h-[72vh]",
+    );
+    // The sidebar list is always visible; a back-to-empty-state link is dead
+    // weight.
+    expect(screen.queryByRole("link", { name: /Trace/ })).not.toBeInTheDocument();
+  });
 });

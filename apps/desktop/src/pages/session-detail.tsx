@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { PiKpi } from "@/shared/ui/pi-kpi";
@@ -10,8 +10,7 @@ import {
 } from "@/shared/ui/pi-trace-ledger";
 import { toolTargetFromArgs } from "@/shared/ui/chat/chat-tool";
 import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
-import { useMemo, useRef } from "react";
-import { ArrowLeft } from "@/shared/ui/icons";
+import { useMemo, useRef, type RefObject } from "react";
 import { invoke } from "@/shared/runtime";
 import type {
   MessageRole,
@@ -318,12 +317,23 @@ export function ledgerGroupsFromTurns(turns: SessionTurn[]): TraceLedgerGroup[] 
   });
 }
 
-export function SessionTimeline({ turns }: { turns: SessionTurn[] }) {
+export function SessionTimeline({
+  turns,
+  scrollRef,
+}: {
+  turns: SessionTurn[];
+  /**
+   * The scroll container the virtualizer tracks. The page passes its single
+   * scroll body so the ledger never nests a second scroller; standalone
+   * renders fall back to the component's own wrapper.
+   */
+  scrollRef?: RefObject<HTMLElement | null>;
+}) {
   const groups = useMemo(() => ledgerGroupsFromTurns(turns), [turns]);
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: groups.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => scrollRef?.current ?? parentRef.current,
     estimateSize: () => 120,
     measureElement: (element) => element.getBoundingClientRect().height || 120,
     overscan: 6,
@@ -350,7 +360,7 @@ export function SessionTimeline({ turns }: { turns: SessionTurn[] }) {
   });
 
   return (
-    <div ref={parentRef} className="max-h-[72vh] overflow-auto" data-testid="timeline-viewport">
+    <div ref={parentRef} data-testid="timeline-viewport">
       <PiTraceLedger>
         <ol
           className="relative"
@@ -388,6 +398,8 @@ export function SessionDetailView({
   isLoading?: boolean;
   isError?: boolean;
 }) {
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+
   return (
     <article
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6 pt-6"
@@ -396,13 +408,6 @@ export function SessionDetailView({
       <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden">
         <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
           <div className="min-w-0">
-            <Link
-              to="/"
-              className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted transition hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-              Trace
-            </Link>
             <h1 className="truncate text-xl font-semibold tracking-normal">
               {session?.project ?? "Session"}
             </h1>
@@ -419,6 +424,7 @@ export function SessionDetailView({
         </header>
 
         <div
+          ref={scrollBodyRef}
           className="pigui-scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"
           data-testid="session-detail-scroll-body"
         >
@@ -486,7 +492,7 @@ export function SessionDetailView({
             ) : !session || session.turns.length === 0 ? (
               <EmptyState className="px-4 py-12" isCompact title="No timeline entries found." />
             ) : (
-              <SessionTimeline turns={session.turns} />
+              <SessionTimeline scrollRef={scrollBodyRef} turns={session.turns} />
             )}
           </div>
         </div>
