@@ -16,14 +16,13 @@
 | chat-prompt-suggestion | `shared/ui/chat/` | **在用**(agent-workspace 空 draft 建议卡;2026-08-09 核实,此前误判候删) |
 | pi-kpi / pi-bar-chart / dot-matrix | `shared/ui/` | KPI/图表原语,Astryx 无 chart 系 |
 | pi-sheet | `shared/ui/` | 自建 sheet |
-| pi-trace-ledger | `shared/ui/` | Trace 页台账形态(#82 PR 2);entry 抽象为历史/live 共通,live 接入留待后续 |
+| pi-trace-ledger | `shared/ui/` | Trace 页台账形态(#82 已完结,PR #92/#93/#94);entry 抽象为历史/live 共通,live 接入留待后续 |
 | icons.tsx / primitives.css / chat.css | `shared/ui/` | 图标与样式桥,基础设施 |
 
 ## 二、路线图上将从零写的(已开 issue 跟踪)
 
 | 方向 | Issue | 状态 |
 | --- | --- | --- |
-| Trace 页整体重构(台账 + 会话列表统一) | [#82](https://github.com/BubblePtr/PiGUI/issues/82) | 进行中:PR 1 (#92) 已合,PR 2 (#93) / PR 3 在途 |
 | Plugin surfaces 面板宿主(渲染侧) | [#85](https://github.com/BubblePtr/PiGUI/issues/85) | 被 ADR-0018 协议阻塞 |
 | Embedded browser annotation 覆盖层/工具条 | [#86](https://github.com/BubblePtr/PiGUI/issues/86) | 先立 PRD |
 | 图表原语扩展(折线/面积/热力) | [#87](https://github.com/BubblePtr/PiGUI/issues/87) | 等 usage 需求驱动 |
