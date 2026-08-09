@@ -141,8 +141,8 @@ function SessionGroup({
   selectedSessionId?: string;
 }) {
   return (
-    <section className="pt-3 first:pt-0" data-testid="session-group">
-      <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-b border-separator bg-background px-4 pb-1.5 pt-2">
+    <section data-testid="session-group">
+      <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-b border-separator bg-background px-4 py-1.5">
         <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted">
           {project}
         </span>
