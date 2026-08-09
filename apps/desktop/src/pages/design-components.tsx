@@ -114,6 +114,18 @@ function PiBarChartGallery() {
             />
           </div>
         </Variant>
+        <Variant caption="empty (no data), default and custom label">
+          <div className="flex w-80 flex-col gap-2">
+            <PiBarChart aria-label="Empty demo chart" data={[]} height={96} series={[]} />
+            <PiBarChart
+              aria-label="Empty demo chart with custom label"
+              data={[]}
+              emptyLabel="No usage in this range"
+              height={96}
+              series={[]}
+            />
+          </div>
+        </Variant>
       </VariantRow>
     </GallerySection>
   );
@@ -121,6 +133,7 @@ function PiBarChartGallery() {
 
 function PiSheetGallery() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLongOpen, setIsLongOpen] = useState(false);
 
   return (
     <GallerySection title="PiSheet">
@@ -137,6 +150,29 @@ function PiSheetGallery() {
                 <p className="text-sm text-muted">
                   Slide-in panel body. Escape and backdrop click close it.
                 </p>
+              </PiSheet.Body>
+            </PiSheet.Content>
+          </PiSheet>
+        </Variant>
+        <Variant caption="long content — body scrolls, header stays">
+          <Button
+            label="Open long sheet"
+            variant="secondary"
+            onClick={() => setIsLongOpen(true)}
+          />
+          <PiSheet isOpen={isLongOpen} onOpenChange={setIsLongOpen}>
+            <PiSheet.Content>
+              <PiSheet.Header>
+                <PiSheet.Heading>Long content</PiSheet.Heading>
+                <PiSheet.CloseTrigger />
+              </PiSheet.Header>
+              <PiSheet.Body>
+                {Array.from({ length: 40 }, (_, index) => (
+                  <p className="text-sm text-muted" key={index}>
+                    Row {index + 1} — enough copy to force the body to scroll while
+                    the header stays pinned.
+                  </p>
+                ))}
               </PiSheet.Body>
             </PiSheet.Content>
           </PiSheet>

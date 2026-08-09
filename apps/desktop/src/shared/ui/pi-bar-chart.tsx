@@ -30,6 +30,7 @@ export function PiBarChart({
   barSize = 14,
   tickInterval = 0,
   valueFormatter = (value: number) => String(value),
+  emptyLabel = "No data yet",
   className = "",
 }: {
   "aria-label": string;
@@ -42,6 +43,8 @@ export function PiBarChart({
   /** Recharts-style interval: n ticks are skipped between rendered labels. */
   tickInterval?: number;
   valueFormatter?: (value: number) => string;
+  /** Shown inside the plot when `data` is empty. */
+  emptyLabel?: string;
   className?: string;
 }) {
   const bucketTotals = data.map((datum) =>
@@ -57,6 +60,11 @@ export function PiBarChart({
       role="img"
     >
       <div className="pi-bar-chart__plot" style={{ height }}>
+        {data.length === 0 ? (
+          <span className="pi-bar-chart__empty" data-slot="bar-chart-empty">
+            {emptyLabel}
+          </span>
+        ) : null}
         {data.map((datum, index) => {
           const total = bucketTotals[index];
           const nonZeroSeries = series.filter(

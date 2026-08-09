@@ -248,3 +248,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Empty state keeps the plot's dimensions so data arriving later causes no
+   layout shift; copy explains instead of leaving a blank rectangle. */
+.pi-bar-chart__empty {
+  align-self: center;
+  margin-inline: auto;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-disabled);
+  user-select: none;
+}
