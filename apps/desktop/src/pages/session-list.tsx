@@ -99,7 +99,7 @@ function SessionRow({
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId: session.id }}
-        className={`block border-b border-border px-4 py-2 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
+        className={`block border-b border-separator px-4 py-2 pl-5 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
           selected ? "bg-surface-muted" : "hover:bg-surface-hover"
         }`}
       >
@@ -128,7 +128,9 @@ function SessionRow({
   );
 }
 
-// Ledger-language group header, matching PiTraceLedger's divider style.
+// Group headers sit a full hierarchy level above rows: sticky uppercase
+// micro-labels with loosened tracking on an opaque background, groups
+// separated by whitespace rather than yet another border weight.
 function SessionGroup({
   project,
   sessions,
@@ -139,10 +141,12 @@ function SessionGroup({
   selectedSessionId?: string;
 }) {
   return (
-    <section data-testid="session-group">
-      <header className="flex items-baseline justify-between gap-3 border-b border-border bg-surface-muted/50 px-4 py-1">
-        <span className="truncate text-xs font-semibold text-foreground">{project}</span>
-        <span className="shrink-0 tabular-nums text-xs text-muted">{sessions.length}</span>
+    <section className="pt-3 first:pt-0" data-testid="session-group">
+      <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-b border-separator bg-background px-4 pb-1.5 pt-2">
+        <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted">
+          {project}
+        </span>
+        <span className="shrink-0 tabular-nums text-[11px] text-muted">{sessions.length}</span>
       </header>
       <ol>
         {sessions.map((session) => (

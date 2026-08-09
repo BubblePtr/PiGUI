@@ -162,6 +162,16 @@ describe("SessionListPanel with sessions", () => {
     expect(within(groups[1]).getByText("beta")).toBeInTheDocument();
     expect(within(groups[1]).getByText("2")).toBeInTheDocument();
 
+    // Group headers must read as a different hierarchy level than rows:
+    // sticky uppercase micro-labels on an opaque background.
+    const header = within(groups[0]).getByText("alpha").closest("header");
+    expect(header).toHaveClass("sticky", "top-0", "bg-background");
+    expect(within(groups[0]).getByText("alpha")).toHaveClass(
+      "uppercase",
+      "tracking-wider",
+      "text-muted",
+    );
+
     const cost = screen.getByText("$0.2000");
     expect(cost).toHaveClass("tabular-nums", "text-right");
   });
