@@ -4,6 +4,10 @@ import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
 import { PiSheet } from "@/shared/ui/pi-sheet";
+import {
+  PiTraceLedger,
+  type TraceLedgerGroup,
+} from "@/shared/ui/pi-trace-ledger";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import {
   ChatChainOfThoughtRail,
@@ -178,6 +182,85 @@ function PiSheetGallery() {
           </PiSheet>
         </Variant>
       </VariantRow>
+    </GallerySection>
+  );
+}
+
+const traceLedgerGroups: TraceLedgerGroup[] = [
+  {
+    id: "ledger-g1",
+    label: "Assistant",
+    timestamp: "2026-03-22T14:41:42.000Z",
+    meta: "$0.3301 · 43.8K tokens",
+    entries: [
+      {
+        id: "ledger-e1",
+        kind: "think",
+        target: "The failing assertion says the projection dropped the tool_call part.",
+        detail: (
+          <pre>
+            The failing assertion says the projection dropped the tool_call part
+            after a fork — reading the projection code first.
+          </pre>
+        ),
+      },
+      {
+        id: "ledger-e2",
+        kind: "tool",
+        name: "bash",
+        target: "git diff --stat",
+        durationMs: 340,
+        status: "ok",
+        detail: (
+          <>
+            <pre>{'{"command":"git diff --stat"}'}</pre>
+            <pre>3 files changed</pre>
+          </>
+        ),
+      },
+      {
+        id: "ledger-e3",
+        kind: "tool",
+        name: "edit",
+        target: "src/utils/formatDate.ts",
+        durationMs: 12400,
+        status: "error",
+        detail: <pre>patch failed to apply</pre>,
+      },
+    ],
+  },
+  {
+    id: "ledger-g2",
+    label: "Assistant",
+    timestamp: "2026-03-22T14:42:03.000Z",
+    entries: [
+      { id: "ledger-e4", kind: "text", target: "Done — three files updated." },
+      {
+        id: "ledger-e5",
+        kind: "tool",
+        name: "grep",
+        target: "remapToolCallId",
+        status: "running",
+      },
+    ],
+  },
+];
+
+function PiTraceLedgerGallery() {
+  return (
+    <GallerySection title="PiTraceLedger">
+      <div className="flex max-w-2xl flex-col gap-4">
+        <Variant caption="grouped rows — ok / error / running / info">
+          <div className="rounded-md border border-separator">
+            <PiTraceLedger groups={traceLedgerGroups} />
+          </div>
+        </Variant>
+        <Variant caption="empty">
+          <div className="rounded-md border border-separator">
+            <PiTraceLedger emptyLabel="No trace entries." groups={[]} />
+          </div>
+        </Variant>
+      </div>
     </GallerySection>
   );
 }
@@ -667,6 +750,7 @@ export function DesignComponentsLayer() {
       <PiKpiGallery />
       <PiBarChartGallery />
       <PiSheetGallery />
+      <PiTraceLedgerGallery />
       <DotMatrixGallery />
       <IconsGallery />
       <ChatMessageGallery />

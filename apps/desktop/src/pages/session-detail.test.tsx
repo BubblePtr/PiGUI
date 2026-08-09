@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { makeLargeSessionDetail, largeSessionDetailApproxBytes } from "@/entities/session/session-detail.fixtures";
-import { SessionDetailView, SessionTimeline, TimelineTurn } from "@/pages/session-detail";
+import { SessionDetailView, SessionTimeline } from "@/pages/session-detail";
+import type { SessionTurn } from "@/pages/session-detail";
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -28,87 +29,120 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 describe("SessionTimeline", () => {
-  it("keeps turn cost and token metadata inside a shrinkable badge", () => {
-    render(
-      <TimelineTurn
-        turn={{
-          kind: "message",
-          role: "assistant",
-          timestamp: "2026-03-22T14:41:42.000Z",
-          model: "k2p5",
-          usage: {
-            inputTokens: 21_000,
-            outputTokens: 22_800,
-            cacheReadTokens: 0,
-            cacheWriteTokens: 0,
-            totalTokens: 43_800,
-          },
-          cost: {
-            inputUsd: 0.12,
-            outputUsd: 0.210091,
-            cacheReadUsd: 0,
-            cacheWriteUsd: 0,
-            totalUsd: 0.330091,
-          },
-          parts: [{ partType: "text", text: "Read the current workspace state.", payload: {} }],
-        }}
-      />,
-    );
-
-    const cost = screen.getByText("$0.330091");
-    const tokens = screen.getByText("43.8K tokens");
-    const badge = cost.closest(".astryx-badge");
-    const label = screen.getByTestId("turn-cost-token-badge-label");
-
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass("min-w-0", "max-w-full", "whitespace-normal");
-    expect(label).toHaveClass("min-w-0", "max-w-full", "flex-wrap");
-    expect(cost).toHaveClass("min-w-0", "max-w-full", "truncate");
-    expect(tokens).toHaveClass("min-w-0", "max-w-full", "truncate");
-  });
-
-  it("renders the large fixture as collapsed virtual rows by default", () => {
+  it("renders the large fixture as virtualized ledger groups with heavy payloads unmounted", () => {
     const session = makeLargeSessionDetail();
     const { container } = render(<SessionTimeline turns={session.turns} />);
 
     expect(largeSessionDetailApproxBytes).toBeGreaterThan(8 * 1024 * 1024);
+    expect(container.querySelector('[data-slot="trace-ledger"]')).toBeInTheDocument();
+    expect(screen.getAllByText("Assistant").length).toBeGreaterThan(0);
     expect(screen.getByText("Plan fixture turn 0")).toBeInTheDocument();
     expect(screen.getAllByText(/\$0\.0/).length).toBeGreaterThan(0);
-    expect(screen.queryByText("Inspect the current timeline state.")).not.toBeInTheDocument();
-    expect(screen.queryByText("huge output sentinel 0")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hidden thinking line 0/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/huge output sentinel 0/)).not.toBeInTheDocument();
     expect(container.querySelectorAll("[data-index]").length).toBeLessThan(session.turns.length);
   });
 
-  it("uses half-expanded thinking, folded tools, and inline thumbnails when a turn opens", async () => {
+  it("pairs a toolCall with its result into one ledger row carrying status and duration", () => {
+    const turns: SessionTurn[] = [
+      {
+        kind: "message",
+        role: "assistant",
+        timestamp: "2026-03-22T14:41:42.000Z",
+        model: "gpt-5",
+        parts: [
+          {
+            partType: "toolCall",
+            name: "bash",
+            payload: {
+              type: "toolCall",
+              id: "call_1",
+              name: "bash",
+              arguments: { command: "git diff --stat" },
+            },
+          },
+          {
+            partType: "toolResult",
+            name: "bash",
+            text: "3 files changed",
+            isError: false,
+            durationMs: 340,
+            payload: { toolCallId: "call_1" },
+          },
+          {
+            partType: "toolCall",
+            name: "edit",
+            payload: {
+              type: "toolCall",
+              id: "call_2",
+              name: "edit",
+              arguments: { path: "src/utils/formatDate.ts" },
+            },
+          },
+          {
+            partType: "toolResult",
+            name: "edit",
+            text: "patch failed to apply",
+            isError: true,
+            durationMs: 12400,
+            payload: { toolCallId: "call_2" },
+          },
+        ],
+      },
+    ];
+
+    const { container } = render(<SessionTimeline turns={turns} />);
+
+    const rows = container.querySelectorAll('[data-slot="trace-ledger-row"]');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveAttribute("data-kind", "tool");
+    expect(rows[0]).toHaveAttribute("data-status", "ok");
+    expect(rows[1]).toHaveAttribute("data-status", "error");
+    expect(screen.getByText("git diff --stat")).toBeInTheDocument();
+    expect(screen.getByText("340ms")).toBeInTheDocument();
+    expect(screen.getByText("12.4s")).toBeInTheDocument();
+  });
+
+  it("expands think and tool rows inline to their full payloads", async () => {
     const user = userEvent.setup();
     const session = makeLargeSessionDetail();
     render(<SessionTimeline turns={session.turns} />);
 
-    await user.click(screen.getByRole("button", { name: /Plan fixture turn 0/i }));
-
-    expect(screen.getByText(/Inspect the current timeline state\./)).toBeInTheDocument();
-    expect(screen.queryByText(/Hidden thinking line 0/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Expand all" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.getByRole("button", { name: "Show input" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.getByRole("button", { name: "Show output" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.queryByText(/cat \/tmp\/fixture-0\.txt/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/huge output sentinel 0/)).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Fixture thumbnail 0" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    await user.click(screen.getByRole("button", { name: /Plan fixture turn 0/ }));
     expect(screen.getByText(/Hidden thinking line 0/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Show input" }));
+    await user.click(screen.getAllByRole("button", { name: /read_file/ })[0]);
+    expect(screen.getByText(/huge output sentinel 0/)).toBeInTheDocument();
     expect(screen.getByText(/cat \/tmp\/fixture-0\.txt/)).toBeInTheDocument();
+  });
+
+  it("renders image parts as inline thumbnails in the expanded detail", async () => {
+    const user = userEvent.setup();
+    const session = makeLargeSessionDetail();
+    render(<SessionTimeline turns={session.turns} />);
+
+    expect(screen.queryByRole("img", { name: "Fixture thumbnail 0" })).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /image/ })[0]);
+    expect(screen.getByRole("img", { name: "Fixture thumbnail 0" })).toBeInTheDocument();
+  });
+
+  it("maps annotation turns to a labeled group", () => {
+    const turns: SessionTurn[] = [
+      {
+        kind: "annotation",
+        title: "Model changed",
+        timestamp: "2026-03-22T14:41:42.000Z",
+        model: "gpt-5-codex",
+        parts: [{ partType: "model_change", payload: { model: "gpt-5-codex" } }],
+      },
+    ];
+
+    const { container } = render(<SessionTimeline turns={turns} />);
+
+    expect(screen.getByText("Model changed")).toBeInTheDocument();
+    const row = container.querySelector('[data-slot="trace-ledger-row"]');
+    expect(row).toHaveAttribute("data-kind", "config");
+    expect(screen.getByText("gpt-5-codex")).toBeInTheDocument();
   });
 });
 

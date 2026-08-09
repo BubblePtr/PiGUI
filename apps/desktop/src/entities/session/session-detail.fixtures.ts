@@ -64,6 +64,8 @@ function makeTurn(index: number): SessionTurn {
               partType: "toolResult",
               name: "read_file",
               text: `huge output sentinel ${index}\n${largeOutput}`,
+              isError: false,
+              durationMs: 340 + index,
               payload: {},
             },
             {
