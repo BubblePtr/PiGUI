@@ -4,10 +4,12 @@ import {
   dialog,
   ipcMain,
   MessageChannelMain,
+  nativeImage,
   shell,
   type MessagePortMain,
   utilityProcess,
 } from "electron";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
 
@@ -39,6 +41,43 @@ function preloadPath() {
 
 function backendPath() {
   return join(__dirname, "backend.js");
+}
+
+/**
+ * Packaged apps use Resources/icon.icns via Info.plist.
+ * Dev (`electron-vite` / `bun run dev`) launches Electron.app itself, so Dock
+ * stays on the default atom unless we set it explicitly.
+ *
+ * Repo layout in dev: apps/desktop/out/main → ../../../../build/icon-512.png
+ */
+function applyDevelopmentDockIcon() {
+  if (process.platform !== "darwin" || !app.dock) {
+    return;
+  }
+
+  // Only override when running under the Vite/Electron dev server.
+  if (!process.env.ELECTRON_RENDERER_URL) {
+    return;
+  }
+
+  const candidates = [
+    join(__dirname, "../../../../build/icon-512.png"),
+    join(__dirname, "../../../../build/icon.icns"),
+  ];
+
+  for (const iconPath of candidates) {
+    if (!existsSync(iconPath)) {
+      continue;
+    }
+
+    const image = nativeImage.createFromPath(iconPath);
+    if (image.isEmpty()) {
+      continue;
+    }
+
+    app.dock.setIcon(image);
+    return;
+  }
 }
 
 function createMainWindow() {
@@ -281,6 +320,7 @@ ipcMain.handle(
 );
 
 app.whenReady().then(() => {
+  applyDevelopmentDockIcon();
   startBackendBridge();
   createMainWindow();
 

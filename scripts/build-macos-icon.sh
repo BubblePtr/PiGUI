@@ -36,3 +36,6 @@ cp "$master_png" "$iconset_dir/icon_512x512@2x.png"
 
 iconutil -c icns "$iconset_dir" -o "$root_dir/build/icon.icns"
 
+# PNG for Electron Dock icon during `bun run dev` (app.dock.setIcon).
+cp "$iconset_dir/icon_512x512.png" "$root_dir/build/icon-512.png"
+
