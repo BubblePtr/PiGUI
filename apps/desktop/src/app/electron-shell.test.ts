@@ -32,6 +32,15 @@ describe("Electron shell", () => {
     expect(main).toContain("trafficLightPosition: { x: 16, y: 13 }");
   });
 
+  it("sets the PiGUI Dock icon during electron-vite dev", () => {
+    const main = readProjectFile("apps/desktop/electron/main.ts");
+
+    expect(main).toContain("applyDevelopmentDockIcon");
+    expect(main).toContain("app.dock.setIcon");
+    expect(main).toContain("ELECTRON_RENDERER_URL");
+    expect(main).toContain("build/icon-512.png");
+  });
+
   it("uses hash history for the packaged Electron file URL", () => {
     const renderer = readProjectFile("apps/desktop/src/app/main.tsx");
 
