@@ -288,7 +288,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const promptInput = liveColumn.querySelector('[data-slot="prompt-input"]');
     const composer = liveColumn.querySelector('[data-testid="full-chat-composer"]');
     const liveComposerInput = within(liveColumn).getByPlaceholderText(
-      "What do you want to know?",
+      "Queue the next task…",
     );
     const traceSidebarLabel = within(screen.getByRole("button", { name: "Trace" }))
       .getByText("Trace");
@@ -373,8 +373,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelector(".astryx-chat-composer")).toBeInTheDocument();
     expect(liveColumn.querySelector('[data-slot="prompt-input-textarea"]')).toBeInTheDocument();
     expect(promptInput).toHaveAttribute("data-status", "streaming");
-    expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).not.toBeDisabled();
-    expect(within(liveColumn).getByRole("button", { name: "Steer" })).toBeInTheDocument();
+    expect(within(liveColumn).getByPlaceholderText("Queue the next task…")).not.toBeDisabled();
+    // Queue-first: no composer-level Steer; steering lives on queued rows.
+    expect(within(liveColumn).queryByRole("button", { name: "Steer" })).not.toBeInTheDocument();
     expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(within(liveColumn).queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
     expect(
@@ -1253,16 +1254,21 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     await user.type(
-      screen.getByPlaceholderText("What do you want to know?"),
+      screen.getByPlaceholderText("Queue the next task…"),
       "After this, update the queue tests.",
     );
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     const pendingQueue = await screen.findByTestId("queued-message-list");
 
-    expect(within(pendingQueue).getByText("Queued")).toBeInTheDocument();
     expect(
       within(pendingQueue).getByText("After this, update the queue tests."),
+    ).toBeInTheDocument();
+    // Pending rows carry their own routing actions while the run is active.
+    expect(
+      within(pendingQueue).getByRole("button", {
+        name: "Steer the run with this message",
+      }),
     ).toBeInTheDocument();
     expect(within(liveChat).getAllByText("Keep working on the live run")).toHaveLength(1);
     expect(
@@ -1744,19 +1750,37 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
-    expect(screen.getByRole("button", { name: "Steer" })).toBeInTheDocument();
+    // Queue-first: the composer has no Steer button; submitting queues, and
+    // the queued row carries the Steer action.
+    expect(screen.queryByRole("button", { name: "Steer" })).not.toBeInTheDocument();
 
     await user.type(
-      screen.getByPlaceholderText("What do you want to know?"),
+      screen.getByPlaceholderText("Queue the next task…"),
       "Avoid changing the archive model.",
     );
-    await user.click(screen.getByRole("button", { name: "Steer" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    await user.click(
+      within(pendingQueue).getByRole("button", {
+        name: "Steer the run with this message",
+      }),
+    );
 
     expect(await within(liveChat).findByText("Steer")).toBeInTheDocument();
     expect(
       within(liveChat).getByText("Avoid changing the archive model."),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId("queued-message-list")).not.toBeInTheDocument();
+    // The promoted message leaves the pending queue (kept as a withdrawn row).
+    expect(
+      await within(pendingQueue).findByText("Withdrawn"),
+    ).toBeInTheDocument();
+    expect(
+      within(pendingQueue).queryByRole("button", {
+        name: "Steer the run with this message",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps steer text editable and shows a recoverable error when steer fails", async () => {
@@ -1833,14 +1857,27 @@ describe("AgentWorkspaceSessionsPage", () => {
       />,
     );
 
-    const input = screen.getByPlaceholderText("What do you want to know?");
+    const input = screen.getByPlaceholderText("Queue the next task…");
 
     await user.type(input, "Keep this steer text");
-    await user.click(screen.getByRole("button", { name: "Steer" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    await user.click(
+      within(pendingQueue).getByRole("button", {
+        name: "Steer the run with this message",
+      }),
+    );
+
+    // A failed steer surfaces the error and leaves the row queued and steerable.
     expect(await screen.findByText("Pi rejected steer input.")).toBeInTheDocument();
-    expect(input).toHaveValue("Keep this steer text");
-    expect(getFollowUpDraft("active-session")?.message).toBe("Keep this steer text");
+    expect(within(pendingQueue).getByText("Keep this steer text")).toBeInTheDocument();
+    expect(
+      within(pendingQueue).getByRole("button", {
+        name: "Steer the run with this message",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("opens a global Session Draft from New Session without adding a Project row", async () => {
@@ -2019,7 +2056,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       (await within(liveColumn).findAllByText("Agent Workspace shell")).length,
     ).toBeGreaterThan(0);
-    expect(within(liveColumn).getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+    expect(
+      within(liveColumn).getByPlaceholderText("Queue the next task…"),
+    ).toBeInTheDocument();
   });
 
   it("restores the same global draft after repeated New Session clicks and reload", async () => {
@@ -2322,14 +2361,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     const liveColumn = screen.getByTestId("live-session-column");
 
     await user.type(
-      within(liveColumn).getByPlaceholderText("What do you want to know?"),
+      within(liveColumn).getByPlaceholderText("Queue the next task…"),
       "Queue this follow-up after creation",
     );
     await user.click(within(liveColumn).getByRole("button", { name: "Send" }));
 
     const pendingQueue = await screen.findByTestId("queued-message-list");
 
-    expect(within(pendingQueue).getByText("Queued")).toBeInTheDocument();
     expect(
       within(pendingQueue).getByText("Queue this follow-up after creation"),
     ).toBeInTheDocument();
@@ -3647,7 +3685,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       "Runtime unavailable",
     );
     expect(screen.getByTestId("full-chat-composer")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Queue the next task…")).toBeInTheDocument();
   });
 
   it("uses one composer control for the model list and capability-driven Thinking slider", async () => {

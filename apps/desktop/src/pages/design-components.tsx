@@ -19,6 +19,7 @@ import { ChatMarkdown, ChatStreamMarkdown } from "@/shared/ui/chat/chat-markdown
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatPromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
+import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
 import {
   ChatTool,
   ChatToolGroup,
@@ -572,6 +573,41 @@ function ChatPromptInputGallery() {
   );
 }
 
+const queuedMessageLongBody =
+  "顺便把 usage 页面上那个 KPI 卡片的 loading 骨架也统一一下,现在三个卡片的骨架高度不一致,切换 tab 的时候会跳。另外如果这次改动涉及 chat.css,记得同步更新 /design 页的注册项。";
+
+function ChatQueuedMessageGallery() {
+  return (
+    <GallerySection title="ChatQueuedMessage">
+      <div className="flex max-w-xl flex-col gap-2">
+        <Variant caption="pending while a run is active (Steer + Withdraw)">
+          <ChatQueuedMessage
+            body="Also add a regression test for the reconnect path."
+            onSteer={() => {}}
+            onWithdraw={() => {}}
+          />
+        </Variant>
+        <Variant caption="pending while idle (no Steer)">
+          <ChatQueuedMessage
+            body="Also add a regression test for the reconnect path."
+            onWithdraw={() => {}}
+          />
+        </Variant>
+        <Variant caption="long body truncates to one line (hover for full text)">
+          <ChatQueuedMessage
+            body={queuedMessageLongBody}
+            onSteer={() => {}}
+            onWithdraw={() => {}}
+          />
+        </Variant>
+        <Variant caption="withdrawn">
+          <ChatQueuedMessage body="An earlier follow-up." isWithdrawn />
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
 function ChatPromptSuggestionGallery() {
   return (
     <GallerySection title="ChatPromptSuggestion">
@@ -759,6 +795,7 @@ export function DesignComponentsLayer() {
       <ChatToolGallery />
       <ChatToolGroupGallery />
       <ChatPromptInputGallery />
+      <ChatQueuedMessageGallery />
       <ChatPromptSuggestionGallery />
       <ChatChainOfThoughtGallery />
       <ChatChainOfThoughtRailGallery />

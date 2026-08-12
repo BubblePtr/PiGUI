@@ -14,6 +14,7 @@
 | chat-chain-of-thought-rail | `shared/ui/chat/` | 2026-08-09 原型探索胜出的 Timeline 皮肤(PR #80);接线等 [#81](https://github.com/BubblePtr/PiGUI/issues/81) |
 | text-shimmer | `shared/ui/chat/` | 流式占位闪光 |
 | chat-prompt-suggestion | `shared/ui/chat/` | **在用**(agent-workspace 空 draft 建议卡;2026-08-09 核实,此前误判候删) |
+| chat-queued-message | `shared/ui/chat/` | 等待区 item(queue-first composer,2026-08-12 原型探索胜出);Astryx 无队列概念;决策记录 `.scratch/composer-redesign/PRD.md` |
 | pi-kpi / pi-bar-chart / dot-matrix | `shared/ui/` | KPI/图表原语,Astryx 无 chart 系 |
 | pi-sheet | `shared/ui/` | 自建 sheet |
 | pi-trace-ledger | `shared/ui/` | Trace 页台账形态(#82 已完结,PR #92/#93/#94);entry 抽象为历史/live 共通,live 接入留待后续 |
@@ -28,6 +29,9 @@
 | 图表原语扩展(折线/面积/热力) | [#87](https://github.com/BubblePtr/PiGUI/issues/87) | 等 usage 需求驱动 |
 | Dynamic workflow visualization(图/DAG/时间线) | [#84](https://github.com/BubblePtr/PiGUI/issues/84) | **future,远期**(2026-08-09 降级) |
 | 思维链样式可选项(Compact/Timeline) | [#81](https://github.com/BubblePtr/PiGUI/issues/81) | **future,后置**(被 Appearance 设置页阻塞) |
+| Composer 队列拖拽重排 | [#97](https://github.com/BubblePtr/PiGUI/issues/97) | 被 runtime gateway reorder 能力阻塞 |
+| Composer 附件上传/展示 | [#98](https://github.com/BubblePtr/PiGUI/issues/98) | 被 bridge 附件通道阻塞;渲染侧可全用 Astryx 官方件 |
+| 模型选择器精做(两级 provider→模型菜单) | [#99](https://github.com/BubblePtr/PiGUI/issues/99) | 规格已定,需求细节待补(上下文/fast 模式) |
 
 ## 维护规则
 

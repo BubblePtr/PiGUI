@@ -17,6 +17,7 @@ import {
 } from "@/shared/ui/chat/chat-markdown";
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
+import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
 import {
   ChatToolGroup,
@@ -498,9 +499,12 @@ function AssistantMessageContent({ message }: { message: LiveMessage }) {
 function QueuedMessageList({
   projection,
   onWithdraw,
+  onSteer,
 }: {
   projection: SessionProjection;
   onWithdraw: (queuedMessageId: string) => void;
+  /** Present only while a run is active; queued rows offer Steer then. */
+  onSteer?: (queuedMessageId: string) => void;
 }) {
   const queuedMessages = projection.queuedMessages.filter(
     (queuedMessage) => queuedMessage.status !== "processing",
@@ -512,35 +516,25 @@ function QueuedMessageList({
 
   return (
     <div
-      className="mx-auto mb-3 grid w-full max-w-[44rem] gap-2"
+      className="mx-auto mb-3 grid w-full max-w-[44rem] gap-1.5"
       data-testid="queued-message-list"
     >
       {queuedMessages.map((queuedMessage) => (
-        <div
+        <ChatQueuedMessage
+          body={queuedMessage.body}
+          isWithdrawn={queuedMessage.status === "withdrawn"}
           key={queuedMessage.id}
-          className="rounded-md bg-surface-secondary px-3 py-2 text-sm"
-        >
-          <div className="flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted">
-                {queuedMessage.status === "withdrawn" ? "Withdrawn" : "Queued"}
-              </p>
-              <p className="mt-1 break-words text-foreground">
-                {queuedMessage.body}
-              </p>
-            </div>
-            {queuedMessage.status === "pending" ? (
-              <Button
-                label="Withdraw queued message"
-                size="sm"
-                variant="ghost"
-                onClick={() => onWithdraw(queuedMessage.id)}
-              >
-                Withdraw
-              </Button>
-            ) : null}
-          </div>
-        </div>
+          onSteer={
+            onSteer && queuedMessage.status === "pending"
+              ? () => onSteer(queuedMessage.id)
+              : undefined
+          }
+          onWithdraw={
+            queuedMessage.status === "pending"
+              ? () => onWithdraw(queuedMessage.id)
+              : undefined
+          }
+        />
       ))}
     </div>
   );
@@ -861,17 +855,23 @@ function FullChatComposer({
       setComposerError(errorMessage(error));
     }
   };
-  const submitSteer = async () => {
-    const message = draft.trim();
+  // Queue-first model: the composer always queues while a run is active, and
+  // steering happens from the queued row itself — steer the run with the row's
+  // body, then withdraw the row so the queue reflects what was promoted.
+  // Decision record: .scratch/composer-redesign/PRD.md
+  const steerQueuedMessage = async (queuedMessageId: string) => {
+    const queuedMessage = projection?.queuedMessages.find(
+      (message) => message.id === queuedMessageId,
+    );
 
-    if (!message) {
+    if (!queuedMessage) {
       return;
     }
 
     try {
-      await onSteerSubmit?.(message);
+      await onSteerSubmit?.(queuedMessage.body);
+      await onWithdrawQueuedMessage?.(queuedMessageId);
       setComposerError(null);
-      clearSubmittedDraft();
     } catch (error) {
       setComposerError(errorMessage(error));
     }
@@ -885,6 +885,11 @@ function FullChatComposer({
       {projection ? (
         <QueuedMessageList
           projection={projection}
+          onSteer={
+            queueMode && onSteerSubmit
+              ? (queuedMessageId) => void steerQueuedMessage(queuedMessageId)
+              : undefined
+          }
           onWithdraw={(queuedMessageId) =>
             void onWithdrawQueuedMessage?.(queuedMessageId)
           }
@@ -896,7 +901,6 @@ function FullChatComposer({
         error={composerError}
         footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
         lockInputOnRun={!queueMode}
-        placeholder="What do you want to know?"
         startActions={
           projection?.modelControls && onModelConfigChange ? (
             <ModelThinkingControl
@@ -906,15 +910,8 @@ function FullChatComposer({
             />
           ) : undefined
         }
-        endActions={
-          queueMode ? (
-            <Button
-              label="Steer"
-              size="sm"
-              variant="secondary"
-              onClick={() => void submitSteer()}
-            />
-          ) : undefined
+        placeholder={
+          queueMode ? "Queue the next task…" : "What do you want to know?"
         }
         status={promptStatus}
         value={draft}
@@ -3163,21 +3160,26 @@ function LiveSessionColumn({
     Boolean(liveProjection && isSessionProjectionActive(liveProjection)) &&
     !readOnlyProjection;
   const handleQueueSubmit = async (message: string) => {
-    if (!liveProjection?.piSessionId || !queueMode) {
+    // Base every interaction commit on the freshest projection (ref falls
+    // back to state): steer-then-withdraw runs two commits back to back, and
+    // a stale closure base would clobber the first commit's event.
+    const projection = liveProjectionRef.current ?? liveProjection;
+
+    if (!projection?.piSessionId || !queueMode) {
       return;
     }
 
     const queuedMessage = await getRuntimeBridge().queueFollowUp({
-      piSessionId: liveProjection.piSessionId,
+      piSessionId: projection.piSessionId,
       message,
     });
 
-    commitInteractionProjection(
-      applySessionProjectionEvent(liveProjection, {
-        type: "queued-message-added",
-        queuedMessage,
-      }),
-    );
+    const next = applySessionProjectionEvent(projection, {
+      type: "queued-message-added",
+      queuedMessage,
+    });
+    liveProjectionRef.current = next;
+    commitInteractionProjection(next);
   };
   const handlePromptSubmit = async (message: string) => {
     const projection = liveProjectionRef.current ?? liveProjection;
@@ -3232,39 +3234,43 @@ function LiveSessionColumn({
     );
   };
   const handleWithdrawQueuedMessage = async (queuedMessageId: string) => {
-    if (!liveProjection?.piSessionId) {
+    const projection = liveProjectionRef.current ?? liveProjection;
+
+    if (!projection?.piSessionId) {
       return;
     }
 
     await getRuntimeBridge().withdrawQueuedMessage({
-      piSessionId: liveProjection.piSessionId,
+      piSessionId: projection.piSessionId,
       queuedMessageId,
     });
 
-    commitInteractionProjection(
-      applySessionProjectionEvent(liveProjection, {
-        type: "queued-message-withdrawn",
-        queuedMessageId,
-        occurredAt: new Date().toISOString(),
-      }),
-    );
+    const next = applySessionProjectionEvent(projection, {
+      type: "queued-message-withdrawn",
+      queuedMessageId,
+      occurredAt: new Date().toISOString(),
+    });
+    liveProjectionRef.current = next;
+    commitInteractionProjection(next);
   };
   const handleSteerSubmit = async (message: string) => {
-    if (!liveProjection?.piSessionId || !queueMode) {
+    const projection = liveProjectionRef.current ?? liveProjection;
+
+    if (!projection?.piSessionId || !queueMode) {
       return;
     }
 
     const event = await getRuntimeBridge().steerRun({
-      piSessionId: liveProjection.piSessionId,
+      piSessionId: projection.piSessionId,
       message,
     });
 
-    commitInteractionProjection(
-      applySessionProjectionEvent(liveProjection, {
-        type: "steer-submitted",
-        event,
-      }),
-    );
+    const next = applySessionProjectionEvent(projection, {
+      type: "steer-submitted",
+      event,
+    });
+    liveProjectionRef.current = next;
+    commitInteractionProjection(next);
   };
   const handleStopRun = async () => {
     if (!liveProjection?.piSessionId || !queueMode || stoppingRun) {
