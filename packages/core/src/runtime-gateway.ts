@@ -47,11 +47,19 @@ export type RuntimeThinkingLevel =
   | "high"
   | "xhigh";
 
+export type RuntimeModelInputModality = "text" | "image";
+
 export type RuntimeModelCapability = {
   provider: string;
   modelId: string;
   name: string;
   thinkingLevels: RuntimeThinkingLevel[];
+  /** Context window in tokens; absent when the source doesn't report it. */
+  contextWindow?: number;
+  /** Max output tokens; absent when the source doesn't report it. */
+  maxTokens?: number;
+  /** Supported input modalities; absent when the source doesn't report it. */
+  input?: RuntimeModelInputModality[];
 };
 
 export type RuntimeModelSelection = {

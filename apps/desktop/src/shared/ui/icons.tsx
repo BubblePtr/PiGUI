@@ -18,6 +18,7 @@ import {
   Copy01Icon,
   Delete02Icon,
   FileDiffIcon,
+  FlashIcon,
   Folder01Icon,
   Folder02Icon,
   FolderOpenIcon,
@@ -79,6 +80,7 @@ export const Command = iconComponent(CommandIcon);
 export const Computer = iconComponent(ComputerIcon);
 export const Copy = iconComponent(Copy01Icon);
 export const FileDiff = iconComponent(FileDiffIcon);
+export const Flash = iconComponent(FlashIcon);
 export const FolderClosed = iconComponent(Folder01Icon);
 export const FolderOpen = iconComponent(FolderOpenIcon);
 export const FolderOpenState = iconComponent(Folder02Icon);

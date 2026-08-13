@@ -32,4 +32,34 @@ describe("listAvailableModelControls", () => {
     expect(controls.selected).not.toBeNull();
     expect(controls.models.some((model) => model.provider === "openai")).toBe(true);
   });
+
+  it("passes catalog metadata (context window, max tokens, modalities) through", async () => {
+    const agentDir = await tempAgentDir();
+    await writeFile(
+      join(agentDir, "auth.json"),
+      JSON.stringify({ openai: { type: "api_key", key: "sk-test-openai" } }),
+      "utf8",
+    );
+
+    const controls = await listAvailableModelControls({ agentDir });
+
+    // Every catalog model ships these fields; the mapping must not drop them.
+    expect(
+      controls.models.every(
+        (model) =>
+          typeof model.contextWindow === "number" && model.contextWindow > 0,
+      ),
+    ).toBe(true);
+    expect(
+      controls.models.every(
+        (model) => typeof model.maxTokens === "number" && model.maxTokens > 0,
+      ),
+    ).toBe(true);
+    expect(
+      controls.models.every(
+        (model) =>
+          Array.isArray(model.input) && model.input.includes("text"),
+      ),
+    ).toBe(true);
+  });
 });

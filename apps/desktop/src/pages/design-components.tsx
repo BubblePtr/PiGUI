@@ -26,8 +26,10 @@ import {
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import { Button } from "@astryxdesign/core/Button";
 import * as Icons from "@/shared/ui/icons";
+import type { RuntimeModelControls } from "@pigui/core";
 
 /**
  * Layer 3 of the design gallery: every reusable PiGUI component in
@@ -780,6 +782,89 @@ function TextShimmerGallery() {
   );
 }
 
+const modelSelectorControls: RuntimeModelControls = {
+  models: [
+    {
+      provider: "anthropic",
+      modelId: "claude-fable-5-thinking",
+      name: "Claude Fable 5 Thinking (Extended Context Preview 2026-07)",
+      thinkingLevels: ["off", "low", "medium", "high", "xhigh"],
+      contextWindow: 1_000_000,
+      maxTokens: 64_000,
+      input: ["text", "image"],
+    },
+    {
+      provider: "xai",
+      modelId: "grok-4",
+      name: "Grok 4",
+      thinkingLevels: ["off", "medium", "high", "xhigh"],
+      contextWindow: 256_000,
+      maxTokens: 32_000,
+      input: ["text", "image"],
+    },
+    {
+      provider: "xai",
+      modelId: "grok-4-fast",
+      name: "Grok 4 Fast",
+      thinkingLevels: ["off", "medium", "high"],
+      contextWindow: 256_000,
+      maxTokens: 32_000,
+      input: ["text", "image"],
+    },
+    {
+      provider: "moonshot",
+      modelId: "kimi-k3",
+      name: "Kimi K3",
+      thinkingLevels: ["off"],
+      contextWindow: 256_000,
+      maxTokens: 32_000,
+      input: ["text"],
+    },
+  ],
+  selected: {
+    provider: "xai",
+    modelId: "grok-4",
+    thinkingLevel: "high",
+  },
+};
+
+function ModelSelectorControlGallery() {
+  return (
+    <GallerySection title="ModelSelectorControl">
+      <VariantRow>
+        <Variant caption="default — open for search, flyout, Fast Mode">
+          <ModelSelectorControl
+            controls={modelSelectorControls}
+            isLocked={false}
+            onChange={() => {}}
+          />
+        </Variant>
+        <Variant caption="locked while a run is active">
+          <ModelSelectorControl
+            controls={modelSelectorControls}
+            isLocked
+            onChange={() => {}}
+          />
+        </Variant>
+        <Variant caption="fast variant selected — bolt in the trigger">
+          <ModelSelectorControl
+            controls={{
+              ...modelSelectorControls,
+              selected: {
+                provider: "xai",
+                modelId: "grok-4-fast",
+                thinkingLevel: "medium",
+              },
+            }}
+            isLocked={false}
+            onChange={() => {}}
+          />
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
 export function DesignComponentsLayer() {
   return (
     <>
@@ -801,6 +886,7 @@ export function DesignComponentsLayer() {
       <ChatChainOfThoughtRailGallery />
       <ChatConversationGallery />
       <TextShimmerGallery />
+      <ModelSelectorControlGallery />
     </>
   );
 }

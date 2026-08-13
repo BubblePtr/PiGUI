@@ -28,6 +28,9 @@ export type PublicPiSdkModel = {
   provider: string;
   reasoning: boolean;
   thinkingLevelMap?: Partial<Record<RuntimeThinkingLevel, string | null>>;
+  contextWindow?: number;
+  maxTokens?: number;
+  input?: string[];
 };
 
 export type PublicPiSdkModelRegistry = {
@@ -312,12 +315,33 @@ function thinkingLevelsForModel(model: PublicPiSdkModel): RuntimeThinkingLevel[]
 }
 
 function capabilityFromModel(model: PublicPiSdkModel): RuntimeModelCapability {
-  return {
+  const capability: RuntimeModelCapability = {
     provider: model.provider,
     modelId: model.id,
     name: model.name,
     thinkingLevels: thinkingLevelsForModel(model),
   };
+
+  if (typeof model.contextWindow === "number" && model.contextWindow > 0) {
+    capability.contextWindow = model.contextWindow;
+  }
+
+  if (typeof model.maxTokens === "number" && model.maxTokens > 0) {
+    capability.maxTokens = model.maxTokens;
+  }
+
+  if (Array.isArray(model.input)) {
+    const modalities = model.input.filter(
+      (modality): modality is "text" | "image" =>
+        modality === "text" || modality === "image",
+    );
+
+    if (modalities.length > 0) {
+      capability.input = modalities;
+    }
+  }
+
+  return capability;
 }
 
 function modelControlsFromSession(

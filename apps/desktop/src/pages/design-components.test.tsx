@@ -173,6 +173,21 @@ describe("Design components layer", () => {
     );
   });
 
+  it("registers the ModelSelectorControl with its variants", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ModelSelectorControl" });
+
+    expect(
+      within(section).getByText("locked while a run is active"),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getAllByTestId("model-thinking-trigger").length,
+    ).toBeGreaterThanOrEqual(3);
+    // Fast-selected variant surfaces the fast sibling name in its trigger.
+    expect(within(section).getByText(/Grok 4 Fast · Medium/)).toBeInTheDocument();
+  });
+
   it("is wired into the design page", () => {
     const source = readFileSync(
       join(repoRoot, "apps/desktop/src/pages/design.tsx"),
