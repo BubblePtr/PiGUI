@@ -48,13 +48,37 @@ function capabilityFromRegistryModel(model: {
   provider: string;
   reasoning?: boolean;
   thinkingLevelMap?: Partial<Record<RuntimeThinkingLevel, string | null>>;
+  contextWindow?: number;
+  maxTokens?: number;
+  input?: string[];
 }): RuntimeModelCapability {
-  return {
+  const capability: RuntimeModelCapability = {
     provider: model.provider,
     modelId: model.id,
     name: typeof model.name === "string" && model.name.trim() ? model.name : model.id,
     thinkingLevels: thinkingLevelsForModel(model),
   };
+
+  if (typeof model.contextWindow === "number" && model.contextWindow > 0) {
+    capability.contextWindow = model.contextWindow;
+  }
+
+  if (typeof model.maxTokens === "number" && model.maxTokens > 0) {
+    capability.maxTokens = model.maxTokens;
+  }
+
+  if (Array.isArray(model.input)) {
+    const modalities = model.input.filter(
+      (modality): modality is "text" | "image" =>
+        modality === "text" || modality === "image",
+    );
+
+    if (modalities.length > 0) {
+      capability.input = modalities;
+    }
+  }
+
+  return capability;
 }
 
 function defaultSelection(
@@ -135,6 +159,9 @@ export async function listAvailableModelControls(input: {
         thinkingLevelMap: (model as {
           thinkingLevelMap?: Partial<Record<RuntimeThinkingLevel, string | null>>;
         }).thinkingLevelMap,
+        contextWindow: (model as { contextWindow?: number }).contextWindow,
+        maxTokens: (model as { maxTokens?: number }).maxTokens,
+        input: (model as { input?: string[] }).input,
       }),
     )
     .sort((left, right) => {

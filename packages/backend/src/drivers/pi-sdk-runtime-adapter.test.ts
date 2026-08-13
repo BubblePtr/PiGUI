@@ -748,6 +748,9 @@ describe("Pi SDK public runtime adapter", () => {
         name: "Claude Sonnet 4",
         reasoning: true,
         thinkingLevelMap: { minimal: null, xhigh: "max" },
+        contextWindow: 200_000,
+        maxTokens: 64_000,
+        input: ["text", "image"],
       },
       {
         provider: "openai",
@@ -803,8 +806,13 @@ describe("Pi SDK public runtime adapter", () => {
           modelId: "claude-sonnet-4",
           name: "Claude Sonnet 4",
           thinkingLevels: ["off", "low", "medium", "high", "xhigh"],
+          // Catalog metadata passes through so the selector can show specs.
+          contextWindow: 200_000,
+          maxTokens: 64_000,
+          input: ["text", "image"],
         },
         {
+          // No catalog metadata on the source model: fields stay absent.
           provider: "openai",
           modelId: "gpt-4.1",
           name: "GPT-4.1",

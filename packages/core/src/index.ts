@@ -82,6 +82,7 @@ export {
   type RuntimeGatewayEventInput,
   type RuntimeGatewaySummary,
   type RuntimeThinkingLevel,
+  type RuntimeModelInputModality,
   type RuntimeModelCapability,
   type RuntimeModelSelection,
   type RuntimeModelControls,

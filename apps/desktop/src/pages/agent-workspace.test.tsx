@@ -3766,14 +3766,15 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(trigger).toHaveTextContent("Claude Sonnet 4 · High");
     await user.click(trigger);
     const popover = await screen.findByTestId("model-thinking-popover");
-    const modelList = screen.getByTestId("model-thinking-model-list");
 
-    expect(popover).toHaveClass("w-[18rem]", "gap-5", "p-4");
     expect(screen.getByRole("dialog")).toContainElement(popover);
-    expect(modelList).toHaveClass("pigui-compact-menu-surface");
-    expect(modelList).not.toHaveClass("border", "border-border");
-    expect(await screen.findByRole("slider", { name: "Thinking level" })).toBeInTheDocument();
-    expect(screen.getByText("Medium")).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Search models" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Add Models")).toBeInTheDocument();
+
+    // Selecting another model commits it with the nearest thinking level and
+    // opens its options flyout (vertical Reasoning list).
     await user.click(screen.getByText("Claude Haiku 4"));
 
     await waitFor(() => {
@@ -3786,7 +3787,36 @@ describe("AgentWorkspaceSessionsPage", () => {
       });
     });
     expect(trigger).toHaveTextContent("Claude Haiku 4 · Low");
-    expect(screen.queryByText("Medium")).not.toBeInTheDocument();
+
+    const flyout = await screen.findByRole("group", {
+      name: "Claude Haiku 4 options",
+    });
+
+    expect(flyout).toBeInTheDocument();
+    expect(within(flyout).getByText("Reasoning")).toBeInTheDocument();
+    expect(within(flyout).getByText("Low")).toBeInTheDocument();
+
+    // Picking a reasoning level from the flyout commits model + level.
+    await user.click(screen.getByText("Off"));
+
+    await waitFor(() => {
+      expect(configureModel).toHaveBeenCalledWith({
+        sessionId: "session-model-controls",
+        piSessionId: "pi-session-model-controls",
+        provider: "anthropic",
+        modelId: "claude-haiku-4",
+        thinkingLevel: "off",
+      });
+    });
+    expect(trigger).toHaveTextContent("Claude Haiku 4 · Off");
+
+    // Search narrows the flat list.
+    await user.type(
+      screen.getByRole("textbox", { name: "Search models" }),
+      "sonnet",
+    );
+    expect(screen.getByText("Claude Sonnet 4")).toBeInTheDocument();
+    expect(screen.queryByText("Claude Haiku 4")).not.toBeInTheDocument();
   });
 
   it("renders one assistant bubble for read-only streaming updates with the same message identity", () => {

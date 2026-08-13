@@ -18,6 +18,7 @@
 | pi-kpi / pi-bar-chart / dot-matrix | `shared/ui/` | KPI/图表原语,Astryx 无 chart 系 |
 | pi-sheet | `shared/ui/` | 自建 sheet |
 | pi-trace-ledger | `shared/ui/` | Trace 页台账形态(#82 已完结,PR #92/#93/#94);entry 抽象为历史/live 共通,live 接入留待后续 |
+| model-selector | `shared/ui/model-selector/` | Composer 模型选择器(#99,2026-08-13 原型探索 "Flat" 胜出):扁平搜索列表 + 模型选项飞出层(Reasoning/Fast Mode),safe-triangle 悬停意图;决策记录 `.scratch/model-selector/PRD.md` |
 | icons.tsx / primitives.css / chat.css | `shared/ui/` | 图标与样式桥,基础设施 |
 
 ## 二、路线图上将从零写的(已开 issue 跟踪)
@@ -31,7 +32,8 @@
 | 思维链样式可选项(Compact/Timeline) | [#81](https://github.com/BubblePtr/PiGUI/issues/81) | **future,后置**(被 Appearance 设置页阻塞) |
 | Composer 队列拖拽重排 | [#97](https://github.com/BubblePtr/PiGUI/issues/97) | 被 runtime gateway reorder 能力阻塞 |
 | Composer 附件上传/展示 | [#98](https://github.com/BubblePtr/PiGUI/issues/98) | 被 bridge 附件通道阻塞;渲染侧可全用 Astryx 官方件 |
-| 模型选择器精做(两级 provider→模型菜单) | [#99](https://github.com/BubblePtr/PiGUI/issues/99) | 规格已定,需求细节待补(上下文/fast 模式) |
+| Context usage 指示器(composer 附近) | [#101](https://github.com/BubblePtr/PiGUI/issues/101) | needs-triage;数据源 getContextUsage() 待 gateway 透传 |
+| 设置页可见模型管理(Add Models 落点) | [#102](https://github.com/BubblePtr/PiGUI/issues/102) | future;被 #99 落地解锁 |
 
 ## 维护规则
 

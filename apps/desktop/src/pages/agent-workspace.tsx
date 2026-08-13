@@ -1,9 +1,6 @@
 import { Button } from "@astryxdesign/core/Button";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { Popover } from "@astryxdesign/core/Popover";
 import { ResizeHandle, useResizable } from "@astryxdesign/core/Resizable";
-import { Slider } from "@astryxdesign/core/Slider";
 import {
   SegmentedControl,
   SegmentedControlItem,
@@ -25,6 +22,7 @@ import {
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import { PiSheet } from "@/shared/ui/pi-sheet";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
@@ -38,7 +36,6 @@ import {
   Archive,
   Box,
   Cancel,
-  Check,
   ChevronDown,
   Computer,
   FileDiff,
@@ -540,232 +537,6 @@ function QueuedMessageList({
   );
 }
 
-const thinkingLevelLabels: Record<
-  RuntimeModelSelection["thinkingLevel"],
-  string
-> = {
-  off: "Off",
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "X-High",
-};
-
-const thinkingLevelOrder: RuntimeModelSelection["thinkingLevel"][] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-];
-
-function modelControlKey(provider: string, modelId: string) {
-  return `${provider}\u0000${modelId}`;
-}
-
-function nearestThinkingLevel(
-  current: RuntimeModelSelection["thinkingLevel"],
-  available: RuntimeModelSelection["thinkingLevel"][],
-) {
-  const currentIndex = thinkingLevelOrder.indexOf(current);
-
-  return available.reduce((nearest, candidate) => {
-    const nearestDistance = Math.abs(
-      thinkingLevelOrder.indexOf(nearest) - currentIndex,
-    );
-    const candidateDistance = Math.abs(
-      thinkingLevelOrder.indexOf(candidate) - currentIndex,
-    );
-
-    return candidateDistance < nearestDistance ? candidate : nearest;
-  }, available[0] ?? "off");
-}
-
-function ModelThinkingControl({
-  controls,
-  isLocked,
-  onChange,
-}: {
-  controls: RuntimeModelControls;
-  isLocked: boolean;
-  onChange: (selection: RuntimeModelSelection) => Promise<void> | void;
-}) {
-  const [isPending, setIsPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const selected = controls.selected;
-
-  if (!selected) {
-    return null;
-  }
-
-  const selectedModel = controls.models.find(
-    (model) =>
-      model.provider === selected.provider && model.modelId === selected.modelId,
-  );
-  const thinkingLevels = selectedModel?.thinkingLevels ?? [
-    selected.thinkingLevel,
-  ];
-  const committedSliderValue = Math.max(
-    0,
-    thinkingLevels.indexOf(selected.thinkingLevel),
-  );
-  const [sliderValue, setSliderValue] = useState(committedSliderValue);
-
-  useEffect(() => {
-    setSliderValue(committedSliderValue);
-  }, [committedSliderValue]);
-
-  const submitSelection = async (selection: RuntimeModelSelection) => {
-    if (isLocked || isPending) {
-      return;
-    }
-
-    setIsPending(true);
-
-    try {
-      await onChange(selection);
-      setError(null);
-    } catch (changeError) {
-      setError(
-        changeError instanceof Error
-          ? changeError.message
-          : "Model configuration failed.",
-      );
-    } finally {
-      setIsPending(false);
-    }
-  };
-
-  return (
-    <Popover
-      alignment="start"
-      label="Model and Thinking"
-      placement="above"
-      content={
-        <div
-          className="flex w-[18rem] max-w-[calc(100vw-2rem)] flex-col gap-5 p-4"
-          data-testid="model-thinking-popover"
-        >
-          <div className="flex flex-col gap-3">
-            <span className="text-sm font-medium text-foreground">Model</span>
-            <List
-              aria-label="Model"
-              className="pigui-compact-menu-surface -mx-1 max-h-56 overflow-y-auto"
-              data-testid="model-thinking-model-list"
-              density="compact"
-            >
-              {controls.models.map((model) => {
-                const isSelected =
-                  model.provider === selected.provider &&
-                  model.modelId === selected.modelId;
-
-                return (
-                  <ListItem
-                    className="pigui-compact-menu-item"
-                    description={model.provider}
-                    endContent={
-                      isSelected ? (
-                        <Check
-                          aria-hidden="true"
-                          className="size-4 text-foreground"
-                        />
-                      ) : undefined
-                    }
-                    isDisabled={isLocked || isPending}
-                    isSelected={isSelected}
-                    key={modelControlKey(model.provider, model.modelId)}
-                    label={model.name}
-                    onClick={() => {
-                      if (isSelected || isLocked || isPending) {
-                        return;
-                      }
-
-                      void submitSelection({
-                        provider: model.provider,
-                        modelId: model.modelId,
-                        thinkingLevel: nearestThinkingLevel(
-                          selected.thinkingLevel,
-                          model.thinkingLevels,
-                        ),
-                      });
-                    }}
-                  />
-                );
-              })}
-            </List>
-          </div>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-foreground">Thinking</span>
-              <span className="text-xs text-muted">
-                {thinkingLevelLabels[selected.thinkingLevel]}
-              </span>
-            </div>
-            <Slider
-              formatValue={(value) =>
-                thinkingLevelLabels[thinkingLevels[value] ?? "off"]
-              }
-              isDisabled={isLocked || isPending || thinkingLevels.length < 2}
-              isLabelHidden
-              label="Thinking level"
-              marks={thinkingLevels.map((level, index) => ({
-                value: index,
-                label: thinkingLevelLabels[level],
-              }))}
-              max={Math.max(0, thinkingLevels.length - 1)}
-              min={0}
-              step={1}
-              value={sliderValue}
-              width="100%"
-              onChange={(value: number) => {
-                setSliderValue(value);
-              }}
-              onChangeEnd={(value: number) => {
-                const thinkingLevel = thinkingLevels[value];
-
-                if (!thinkingLevel || thinkingLevel === selected.thinkingLevel) {
-                  setSliderValue(committedSliderValue);
-                  return;
-                }
-
-                void submitSelection({
-                  provider: selected.provider,
-                  modelId: selected.modelId,
-                  thinkingLevel,
-                });
-              }}
-            />
-            {isLocked ? (
-              <span className="text-xs text-muted">Locked while running</span>
-            ) : null}
-            {error ? (
-              <span className="text-xs text-danger" role="status">
-                {error}
-              </span>
-            ) : null}
-          </div>
-        </div>
-      }
-    >
-      <Button
-        className="min-w-0 max-w-[19rem] gap-1.5 px-2 text-muted"
-        data-testid="model-thinking-trigger"
-        isDisabled={!controls.models.length}
-        label="Model and Thinking"
-        size="sm"
-        variant="ghost"
-      >
-        <span className="truncate">
-          {selectedModel?.name ?? selected.modelId} · {thinkingLevelLabels[selected.thinkingLevel]}
-        </span>
-        <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
-      </Button>
-    </Popover>
-  );
-}
-
 function FullChatComposer({
   queueMode = false,
   isStoppingRun = false,
@@ -903,7 +674,7 @@ function FullChatComposer({
         lockInputOnRun={!queueMode}
         startActions={
           projection?.modelControls && onModelConfigChange ? (
-            <ModelThinkingControl
+            <ModelSelectorControl
               controls={projection.modelControls}
               isLocked={queueMode}
               onChange={onModelConfigChange}
@@ -1921,7 +1692,7 @@ function SessionDraftComposer({
             placeholder="Do anything with Pi"
             startActions={
               draftModelControls?.selected ? (
-                <ModelThinkingControl
+                <ModelSelectorControl
                   controls={draftModelControls}
                   isLocked={false}
                   onChange={(selection) => {

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" font-family="-apple-system, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <filter id="panelShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#000000" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowHead" markerWidth="9" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="600" fill="#f5f5f4"/>
+
+  <text x="60" y="52" font-size="23" font-weight="700" fill="#171717">Safe Triangle 安全三角区</text>
+  <text x="60" y="78" font-size="13.5" fill="#737373">二级菜单的悬停意图判定（macOS 菜单 / Amazon mega dropdown / menu-aim）</text>
+
+  <!-- level-1 menu -->
+  <g filter="url(#panelShadow)">
+    <rect x="60" y="130" width="230" height="280" rx="14" fill="#ffffff" stroke="#00000014"/>
+  </g>
+  <g font-size="15">
+    <text x="84" y="177" fill="#171717">Claude Opus 5</text>
+    <text x="84" y="223" fill="#171717">Gemini 3.5 Pro</text>
+    <rect x="72" y="240" width="206" height="34" rx="8" fill="#f0f0ef"/>
+    <text x="84" y="263" font-weight="600" fill="#171717">Grok 4.6</text>
+    <text x="84" y="314" fill="#737373">DeepSeek V4</text>
+    <text x="84" y="360" fill="#737373">Kimi K3 Max</text>
+  </g>
+  <g stroke="#a3a3a3" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M262 165 l6 7 -6 7"/>
+    <path d="M262 211 l6 7 -6 7"/>
+    <path d="M262 250 l6 7 -6 7"/>
+    <path d="M262 302 l6 7 -6 7"/>
+    <path d="M262 348 l6 7 -6 7"/>
+  </g>
+
+  <!-- flyout -->
+  <g filter="url(#panelShadow)">
+    <rect x="470" y="150" width="250" height="270" rx="14" fill="#ffffff" stroke="#00000014"/>
+  </g>
+  <g>
+    <text x="494" y="186" font-size="15" font-weight="600" fill="#171717">Grok 4.6</text>
+    <text x="494" y="208" font-size="12" fill="#737373">256K ctx · 32K out</text>
+    <line x1="470" y1="222" x2="720" y2="222" stroke="#00000012"/>
+    <text x="494" y="246" font-size="12" fill="#737373">Reasoning</text>
+    <text x="494" y="274" font-size="14" fill="#171717">Off</text>
+    <text x="494" y="304" font-size="14" fill="#171717">Medium</text>
+    <rect x="482" y="316" width="226" height="30" rx="7" fill="#f0f0ef"/>
+    <text x="494" y="336" font-size="14" font-weight="600" fill="#171717">High ✓</text>
+    <text x="494" y="368" font-size="14" fill="#171717">X-High</text>
+    <line x1="470" y1="382" x2="720" y2="382" stroke="#00000012"/>
+    <text x="494" y="404" font-size="13" fill="#171717">⚡ Fast Mode</text>
+  </g>
+
+  <!-- safe triangle: apex = cursor, base = flyout near edge (padded) -->
+  <path d="M250 257 L470 142 L470 428 Z" fill="#f59e0b" fill-opacity="0.14"
+        stroke="#f59e0b" stroke-width="2" stroke-dasharray="7 5" stroke-linejoin="round"/>
+
+  <!-- real travel path -->
+  <path d="M260 258 C 330 244, 392 224, 452 200" fill="none" stroke="#2563eb"
+        stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#arrowHead)"/>
+  <text x="500" y="140" font-size="13" fill="#2563eb">真实移动路径：斜向奔向二级菜单</text>
+
+  <!-- triangle label, inside the fill -->
+  <text x="318" y="302" font-size="14" font-weight="600" fill="#b45309">安全三角区</text>
+
+  <!-- cursor glyph at apex -->
+  <g transform="translate(243,249)">
+    <path d="M0,0 L0,17 L4.5,13.5 L7.5,20 L10.5,18.5 L7.5,12 L13,12 Z"
+          fill="#171717" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/>
+  </g>
+
+  <!-- apex annotation, below the menu panel -->
+  <line x1="245" y1="272" x2="172" y2="438" stroke="#a3a3a3" stroke-width="1.2"/>
+  <text x="66" y="458" font-size="13" fill="#404040">光标位置 = 三角形顶点（取 ~200ms 前的轨迹点）</text>
+
+  <!-- flyout annotation -->
+  <line x1="720" y1="180" x2="762" y2="180" stroke="#a3a3a3" stroke-width="1.2"/>
+  <text x="770" y="184" font-size="13" fill="#404040">二级菜单</text>
+  <text x="770" y="202" font-size="12" fill="#a3a3a3">底边 = 近边 + 8px 余量</text>
+
+  <!-- rules -->
+  <g transform="translate(60, 508)">
+    <circle cx="8" cy="8" r="5" fill="#f59e0b" fill-opacity="0.5" stroke="#f59e0b"/>
+    <text x="24" y="13" font-size="14" fill="#171717">指针在三角形内 → 判定为“正在赶往二级菜单”：不切换悬停行、不关闭菜单</text>
+    <circle cx="8" cy="40" r="5" fill="#ffffff" stroke="#a3a3a3"/>
+    <text x="24" y="45" font-size="14" fill="#171717">指针离开三角形，或在某一行上停下 → 立即响应新的悬停行，无固定延迟</text>
+  </g>
+</svg>
