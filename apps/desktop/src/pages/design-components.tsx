@@ -27,6 +27,8 @@ import {
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
+import { ComposerAttachmentDrawer } from "@/shared/ui/composer-attachments/composer-attachment-drawer";
+import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-insert-menu";
 import { Button } from "@astryxdesign/core/Button";
 import * as Icons from "@/shared/ui/icons";
 import type { RuntimeModelControls } from "@pigui/core";
@@ -828,6 +830,87 @@ const modelSelectorControls: RuntimeModelControls = {
   },
 };
 
+const galleryThumb =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+function ComposerInsertMenuGallery() {
+  return (
+    <GallerySection title="ComposerInsertMenu">
+      <VariantRow>
+        <Variant caption="files and commands">
+          <ComposerInsertMenu onAttach={() => {}} onInsert={() => {}} />
+        </Variant>
+        <Variant caption="with skills and plugins">
+          <ComposerInsertMenu
+            plugins={[{ name: "browser" }]}
+            skills={[{ name: "review-pr" }]}
+            onAttach={() => {}}
+            onInsert={() => {}}
+          />
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+function ComposerAttachmentDrawerGallery() {
+  return (
+    <GallerySection title="ComposerAttachmentDrawer">
+      <VariantRow>
+        <Variant caption="images and text files">
+          <div className="w-96">
+            <ChatPromptInput
+              drawer={
+                <ComposerAttachmentDrawer
+                  items={[
+                    {
+                      id: "img",
+                      kind: "image",
+                      name: "shot.png",
+                      src: galleryThumb,
+                    },
+                    {
+                      id: "txt",
+                      kind: "text",
+                      name: "notes.md",
+                    },
+                  ]}
+                  onRemove={() => {}}
+                />
+              }
+              hasAttachments
+              placeholder="Ask anything"
+              value=""
+              onSubmit={() => {}}
+              onValueChange={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="text files only">
+          <div className="w-96">
+            <ChatPromptInput
+              drawer={
+                <ComposerAttachmentDrawer
+                  items={[
+                    { id: "a", kind: "text", name: "chat-prompt-input.tsx" },
+                    { id: "b", kind: "text", name: "very-long-path-name.md" },
+                  ]}
+                  onRemove={() => {}}
+                />
+              }
+              hasAttachments
+              placeholder="Ask anything"
+              value=""
+              onSubmit={() => {}}
+              onValueChange={() => {}}
+            />
+          </div>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
 function ModelSelectorControlGallery() {
   return (
     <GallerySection title="ModelSelectorControl">
@@ -887,6 +970,8 @@ export function DesignComponentsLayer() {
       <ChatConversationGallery />
       <TextShimmerGallery />
       <ModelSelectorControlGallery />
+      <ComposerInsertMenuGallery />
+      <ComposerAttachmentDrawerGallery />
     </>
   );
 }

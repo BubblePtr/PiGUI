@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { type ReactNode } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ChatPromptInput } from "@/shared/ui/chat/chat-prompt-input";
@@ -8,30 +9,39 @@ function renderPromptInput({
   status,
   allowSubmitWhileRunning,
   lockInputOnRun,
+  hasAttachments,
+  drawer,
   onSubmit = () => {},
   onStop,
   onValueChange = () => {},
+  onFiles,
   error,
 }: {
   value?: string;
   status?: "ready" | "submitted" | "streaming" | "error";
   allowSubmitWhileRunning?: boolean;
   lockInputOnRun?: boolean;
+  hasAttachments?: boolean;
+  drawer?: ReactNode;
   onSubmit?: () => void;
   onStop?: () => void;
   onValueChange?: (value: string) => void;
+  onFiles?: (files: File[]) => void;
   error?: string;
 } = {}) {
   return render(
     <ChatPromptInput
       allowSubmitWhileRunning={allowSubmitWhileRunning}
+      drawer={drawer}
       error={error}
       footer="footer text"
+      hasAttachments={hasAttachments}
       lockInputOnRun={lockInputOnRun}
       placeholder="Type here"
       startActions={<span>start</span>}
       status={status}
       value={value}
+      onFiles={onFiles}
       onStop={onStop}
       onSubmit={onSubmit}
       onValueChange={onValueChange}
@@ -170,5 +180,35 @@ describe("ChatPromptInput", () => {
     await user.type(screen.getByPlaceholderText("Type here"), "a");
 
     expect(onValueChange).toHaveBeenCalledWith("a");
+  });
+
+  it("renders a drawer above the input", () => {
+    renderPromptInput({ drawer: <div>2 attachments</div> });
+
+    expect(screen.getByText("2 attachments")).toBeInTheDocument();
+  });
+
+  it("submits an empty value when attachments are present", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+
+    renderPromptInput({ hasAttachments: true, onSubmit });
+
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards pasted files", () => {
+    const onFiles = vi.fn();
+    const image = new File(["png"], "shot.png", { type: "image/png" });
+
+    renderPromptInput({ onFiles });
+
+    fireEvent.paste(screen.getByPlaceholderText("Type here"), {
+      clipboardData: { files: [image] },
+    });
+
+    expect(onFiles).toHaveBeenCalledWith([image]);
   });
 });

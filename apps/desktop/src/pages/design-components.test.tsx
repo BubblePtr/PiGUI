@@ -27,6 +27,8 @@ describe("Design components layer", () => {
       "ChatChainOfThought",
       "ChatConversation",
       "TextShimmer",
+      "ComposerInsertMenu",
+      "ComposerAttachmentDrawer",
     ]) {
       expect(screen.getByRole("region", { name })).toBeInTheDocument();
     }
@@ -171,6 +173,23 @@ describe("Design components layer", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+
+  it("registers the composer insert menu and attachment drawer", () => {
+    render(<DesignComponentsLayer />);
+
+    expect(
+      screen.getByRole("region", { name: "ComposerInsertMenu" }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "ComposerInsertMenu" })).getByText(
+        "with skills and plugins",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "ComposerAttachmentDrawer" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("notes.md")).toBeInTheDocument();
   });
 
   it("registers the ModelSelectorControl with its variants", () => {
