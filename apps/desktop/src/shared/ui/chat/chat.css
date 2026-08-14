@@ -273,6 +273,10 @@
   min-width: 0;
 }
 
+.prompt-input[data-drop] .astryx-chat-composer {
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
 .prompt-input__textarea {
   width: 100%;
   min-height: var(--size-element-md);

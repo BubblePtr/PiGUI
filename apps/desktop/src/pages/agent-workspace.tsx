@@ -23,6 +23,15 @@ import {
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
+import {
+  ComposerAttachmentDrawer,
+  ComposerInsertMenu,
+  buildPromptWithAttachments,
+  insertIntoDraft,
+  useComposerAttachments,
+  useComposerInsertCatalog,
+  useFilePicker,
+} from "@/shared/ui/composer-attachments";
 import { PiSheet } from "@/shared/ui/pi-sheet";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
@@ -563,12 +572,17 @@ function FullChatComposer({
     sessionId ? getFollowUpDraft(sessionId)?.message ?? "" : "",
   );
   const [composerError, setComposerError] = useState<string | null>(null);
+  // Shelf drawer + footer Add-to-prompt menu. Images stay local until the
+  // runtime accepts file parts. Decision: .scratch/composer-attachments/PRD.md
+  const attachments = useComposerAttachments();
+  const catalog = useComposerInsertCatalog();
+  const picker = useFilePicker(attachments.addFiles);
   const isStopAction = queueMode && !draft.trim();
   const promptStatus = isStoppingRun
     ? "submitted"
     : queueMode
       ? "streaming"
-      : composerError
+      : composerError || attachments.error
         ? "error"
         : "ready";
   const errorMessage = (error: unknown) =>
@@ -597,19 +611,22 @@ function FullChatComposer({
   useEffect(() => {
     setDraft(sessionId ? getFollowUpDraft(sessionId)?.message ?? "" : "");
     setComposerError(null);
-  }, [sessionId]);
+    attachments.clear();
+  }, [sessionId, attachments.clear]);
 
   const submitDraft = async () => {
-    const message = draft.trim();
+    const built = await buildPromptWithAttachments(draft, attachments.items);
 
-    if (!message) {
+    if (!built.ok) {
+      setComposerError(built.error);
       return;
     }
 
     if (queueMode) {
       try {
-        await onQueueSubmit?.(message);
+        await onQueueSubmit?.(built.prompt);
         setComposerError(null);
+        attachments.clear();
         clearSubmittedDraft();
       } catch (error) {
         setComposerError(errorMessage(error));
@@ -619,8 +636,9 @@ function FullChatComposer({
     }
 
     try {
-      await onPromptSubmit?.(message);
+      await onPromptSubmit?.(built.prompt);
       setComposerError(null);
+      attachments.clear();
       clearSubmittedDraft();
     } catch (error) {
       setComposerError(errorMessage(error));
@@ -669,23 +687,40 @@ function FullChatComposer({
       <PromptInput
         allowSubmitWhileRunning={queueMode}
         className="mx-auto w-full max-w-[44rem]"
-        error={composerError}
+        drawer={
+          <ComposerAttachmentDrawer
+            items={attachments.items}
+            onRemove={attachments.remove}
+          />
+        }
+        error={attachments.error ?? composerError}
         footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
+        hasAttachments={attachments.items.length > 0}
         lockInputOnRun={!queueMode}
         startActions={
-          projection?.modelControls && onModelConfigChange ? (
-            <ModelSelectorControl
-              controls={projection.modelControls}
-              isLocked={queueMode}
-              onChange={onModelConfigChange}
+          <>
+            {picker.input}
+            <ComposerInsertMenu
+              plugins={catalog.plugins}
+              skills={catalog.skills}
+              onAttach={picker.open}
+              onInsert={(text) => updateDraft(insertIntoDraft(draft, text))}
             />
-          ) : undefined
+            {projection?.modelControls && onModelConfigChange ? (
+              <ModelSelectorControl
+                controls={projection.modelControls}
+                isLocked={queueMode}
+                onChange={onModelConfigChange}
+              />
+            ) : null}
+          </>
         }
         placeholder={
           queueMode ? "Queue the next task…" : "What do you want to know?"
         }
         status={promptStatus}
         value={draft}
+        onFiles={attachments.addFiles}
         onStop={onStopRun ? () => void onStopRun() : undefined}
         onSubmit={submitDraft}
         onValueChange={updateDraft}
@@ -1602,6 +1637,9 @@ function SessionDraftComposer({
     useProviderAuthStatus();
   const [draftModelControls, setDraftModelControls] =
     useState<RuntimeModelControls | null>(null);
+  const attachments = useComposerAttachments();
+  const catalog = useComposerInsertCatalog();
+  const picker = useFilePicker(attachments.addFiles);
 
   useEffect(() => {
     if (providerAuthLoading || !providersConfigured) {
@@ -1632,13 +1670,7 @@ function SessionDraftComposer({
     setTargetError(false);
     onDraftChange(prompt);
   };
-  const submitDraft = () => {
-    const prompt = draft.prompt.trim();
-
-    if (!prompt) {
-      return;
-    }
-
+  const submitDraft = async () => {
     if (!providerAuthLoading && !providersConfigured) {
       return;
     }
@@ -1648,14 +1680,25 @@ function SessionDraftComposer({
       return;
     }
 
+    const built = await buildPromptWithAttachments(
+      draft.prompt,
+      attachments.items,
+    );
+
+    if (!built.ok) {
+      attachments.setError(built.error);
+      return;
+    }
+
     onDraftSubmit({
       projectId: draft.projectId,
-      prompt: draft.prompt,
+      prompt: built.prompt,
       checkoutMode: selectedCheckoutMode,
       ...(draftModelControls?.selected
         ? { modelSelection: draftModelControls.selected }
         : {}),
     });
+    attachments.clear();
   };
 
   if (!providerAuthLoading && !providersConfigured) {
@@ -1689,26 +1732,46 @@ function SessionDraftComposer({
         <div className="flex w-full flex-col gap-3">
           <PromptInput
             className="w-full"
+            drawer={
+              <ComposerAttachmentDrawer
+                items={attachments.items}
+                onRemove={attachments.remove}
+              />
+            }
+            error={attachments.error}
+            hasAttachments={attachments.items.length > 0}
             placeholder="Do anything with Pi"
             startActions={
-              draftModelControls?.selected ? (
-                <ModelSelectorControl
-                  controls={draftModelControls}
-                  isLocked={false}
-                  onChange={(selection) => {
-                    setDraftModelControls((current) =>
-                      current
-                        ? {
-                            ...current,
-                            selected: selection,
-                          }
-                        : current,
-                    );
-                  }}
+              <>
+                {picker.input}
+                <ComposerInsertMenu
+                  plugins={catalog.plugins}
+                  skills={catalog.skills}
+                  onAttach={picker.open}
+                  onInsert={(text) =>
+                    onDraftChange(insertIntoDraft(draft.prompt, text))
+                  }
                 />
-              ) : undefined
+                {draftModelControls?.selected ? (
+                  <ModelSelectorControl
+                    controls={draftModelControls}
+                    isLocked={false}
+                    onChange={(selection) => {
+                      setDraftModelControls((current) =>
+                        current
+                          ? {
+                              ...current,
+                              selected: selection,
+                            }
+                          : current,
+                      );
+                    }}
+                  />
+                ) : null}
+              </>
             }
             value={draft.prompt}
+            onFiles={attachments.addFiles}
             onSubmit={submitDraft}
             onValueChange={onDraftChange}
           />

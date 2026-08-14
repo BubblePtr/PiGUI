@@ -59,6 +59,7 @@ Shift(运行态模式切换)、Relay(queue-first)。用户在真实 dev server �
   顶边 accent 指示线),但 PiRuntimeBridge 无 reorder 能力,Pi 拥有队列
   真相,本地假重排会在 projection 刷新时漂移。等 runtime gateway 补
   reorder 后按本规格实现。
-- **附件上传/展示**:Astryx 件齐全(FileInput/ChatComposerDrawer/
-  Token/Thumbnail),但 bridge 无附件通道。
+- **附件上传/展示**:呈现与入口已另案定稿并落地,见
+  `.scratch/composer-attachments/PRD.md` 与 [#98](https://github.com/BubblePtr/PiGUI/issues/98)。
+  图片发送仍等 bridge 附件通道。
 - **模型选择器精做**:上述规格 + 上下文窗口展示、fast 模式等。

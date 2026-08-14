@@ -1,8 +1,11 @@
 import {
+  type ClipboardEvent,
+  type DragEvent,
   type KeyboardEvent,
   type ReactNode,
   useEffect,
   useRef,
+  useState,
 } from "react";
 import {
   ChatComposer,
@@ -19,9 +22,11 @@ export type PromptInputStatus = "ready" | "submitted" | "streaming" | "error";
  */
 function PromptTextArea({
   disabled = false,
+  onFiles,
   onSubmitRequest,
 }: {
   disabled?: boolean;
+  onFiles?: (files: File[]) => void;
   onSubmitRequest: () => void;
 }) {
   const context = useChatComposerContext();
@@ -75,6 +80,17 @@ function PromptTextArea({
     onSubmitRequest();
   };
 
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = [...(event.clipboardData?.files ?? [])];
+
+    if (!files.length || !onFiles) {
+      return;
+    }
+
+    event.preventDefault();
+    onFiles(files);
+  };
+
   return (
     <textarea
       ref={textareaRef}
@@ -89,6 +105,7 @@ function PromptTextArea({
         autosize();
       }}
       onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
     />
   );
 }
@@ -107,11 +124,14 @@ export function ChatPromptInput({
   lockInputOnRun = false,
   startActions,
   endActions,
+  drawer,
   footer,
   error,
+  hasAttachments = false,
   onSubmit,
   onStop,
   onValueChange,
+  onFiles,
 }: {
   value: string;
   status?: PromptInputStatus;
@@ -121,16 +141,22 @@ export function ChatPromptInput({
   lockInputOnRun?: boolean;
   startActions?: ReactNode;
   endActions?: ReactNode;
+  drawer?: ReactNode;
   footer?: ReactNode;
   error?: string | null;
+  hasAttachments?: boolean;
   onSubmit?: () => void;
   onStop?: () => void;
   onValueChange?: (value: string) => void;
+  onFiles?: (files: File[]) => void;
 }) {
   const isRunning = status === "streaming" || status === "submitted";
   const isStopShown = isRunning && !value.trim() && Boolean(onStop);
   const canSubmit =
-    Boolean(value.trim()) && (!isRunning || allowSubmitWhileRunning);
+    (Boolean(value.trim()) || hasAttachments) &&
+    (!isRunning || allowSubmitWhileRunning);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
 
   const handleSubmit = () => {
     if (!canSubmit) {
@@ -140,18 +166,69 @@ export function ChatPromptInput({
     onSubmit?.();
   };
 
+  const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!onFiles) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  };
+
+  const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!onFiles) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepth.current -= 1;
+
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setDragging(false);
+    }
+  };
+
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!onFiles) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!onFiles) {
+      return;
+    }
+
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    onFiles([...event.dataTransfer.files]);
+  };
+
   return (
     <div
       className={`prompt-input ${className}`.trim()}
+      data-drop={dragging ? "" : undefined}
       data-slot="prompt-input"
       data-status={status}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
       <ChatComposer
+        drawer={drawer}
         elevation="none"
         footerActions={startActions}
         input={
           <PromptTextArea
             disabled={lockInputOnRun && isRunning}
+            onFiles={onFiles}
             onSubmitRequest={handleSubmit}
           />
         }
