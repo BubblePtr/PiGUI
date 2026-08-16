@@ -26,11 +26,10 @@ Issue: [#98](https://github.com/BubblePtr/PiGUI/issues/98) · 前身见 `.scratc
 
 - 呈现与入口:抽屉、+ 菜单、拖放、粘贴、文件选择。
 - 文本附件发送:把文件内容内联进仍是 `string` 的 prompt,再走现有 `sendInitialPrompt` / `queueFollowUp` / 建 session。
-- 图片附件:可以选中、预览、移除;**发送仍被协议挡住**。有图片时提交失败并提示,不假装发出去。通道工作留在 #98。
+- 图片附件:选中、预览、移除,并通过 Gateway `send_prompt` / `queue_follow_up` / `steer_run` 的 `images` 通道送到 Pi(`ImageContent`:`mimeType` + base64 `data`)。合成 user echo 与 runtime `image` part 用于 Live Chat 回放。
 - 斜杠命令先内置 `/compact`、`/clear`(Pi 实有命令)。Skills / Plugins 读配置库存;空则不渲染该分组。
 
 ## 明确不在本轮
 
-- Bridge / Gateway / 事件模型的 image/file part。
 - 附件写入工作区或持久化进 follow-up draft。
 - 斜杠命令 / Skills / 插件的 typeahead 或完整目录浏览器。

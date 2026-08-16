@@ -242,8 +242,12 @@ function toolEntry(tool: ToolRowDraft): TraceLedgerEntry {
 
 function partEntry(id: string, part: SessionContentPart): TraceLedgerEntry {
   if (part.partType === "image") {
-    const imageUrl = payloadString(part, "url");
-    const imageAlt = payloadString(part, "alt");
+    const imageUrl =
+      payloadString(part, "url") ??
+      (payloadString(part, "data") && payloadString(part, "mimeType")
+        ? `data:${payloadString(part, "mimeType")};base64,${payloadString(part, "data")}`
+        : undefined);
+    const imageAlt = payloadString(part, "alt") ?? payloadString(part, "name");
 
     return {
       id,

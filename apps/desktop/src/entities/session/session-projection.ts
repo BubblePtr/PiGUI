@@ -403,6 +403,7 @@ function runtimeModelAfterLegacyEvent(
       role: event.role,
       title: event.title,
       body: event.body,
+      images: event.images,
       messageId: event.messageId,
       piEntryId: event.piEntryId,
       timestamp: event.timestamp,

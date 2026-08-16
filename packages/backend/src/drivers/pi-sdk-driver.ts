@@ -4,6 +4,7 @@ import type {
   RuntimeGatewaySummary,
   RuntimeModelControls,
   RuntimeModelSelection,
+  RuntimePromptImage,
 } from "@pigui/core";
 import type {
   CreateRuntimeSessionInput,
@@ -44,10 +45,13 @@ export type PiSdkSessionRuntime = {
    * with journal/projection entries already written (DF-008).
    */
   seedPromptCount?: number;
-  sendPrompt(prompt: string): Promise<void>;
-  queueFollowUp?(message: string): Promise<PiSdkQueuedMessage>;
+  sendPrompt(prompt: string, images?: RuntimePromptImage[]): Promise<void>;
+  queueFollowUp?(
+    message: string,
+    images?: RuntimePromptImage[],
+  ): Promise<PiSdkQueuedMessage>;
   withdrawQueuedMessage?(queuedMessageId: string): Promise<PiSdkQueuedMessage>;
-  steerRun?(message: string): Promise<void>;
+  steerRun?(message: string, images?: RuntimePromptImage[]): Promise<void>;
   stopRun?(): Promise<void>;
   configureModel?(selection: RuntimeModelSelection): Promise<RuntimeModelControls>;
   getSnapshot?(): Promise<PiSdkSnapshotPatch>;
@@ -284,7 +288,11 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
       const boundaryPromise = runtime.waitForNextUserMessageBoundary?.();
 
       promptCounts.set(input.piSessionId, promptIndex + 1);
-      const promptTask = runtime.sendPrompt(input.prompt).catch((error) => {
+      const promptTask = (
+        input.images?.length
+          ? runtime.sendPrompt(input.prompt, input.images)
+          : runtime.sendPrompt(input.prompt)
+      ).catch((error) => {
         emit({
           piSessionId: input.piSessionId,
           type: "error",
@@ -311,6 +319,7 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
           kind: "message",
           role: "user",
           body: input.prompt,
+          ...(input.images?.length ? { images: input.images } : {}),
           bodyFormat: "full",
           messageId: `pi-sdk:${input.piSessionId}:user:${promptIndex}`,
           ...(boundary?.piEntryId ? { piEntryId: boundary.piEntryId } : {}),
@@ -326,7 +335,9 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
         unsupported("queue_follow_up", "the injected SDK runtime has no queueFollowUp adapter");
       }
 
-      return runtime.queueFollowUp(input.message);
+      return input.images?.length
+        ? runtime.queueFollowUp(input.message, input.images)
+        : runtime.queueFollowUp(input.message);
     },
 
     async withdrawQueuedMessage(input) {
@@ -349,7 +360,9 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
         unsupported("steer_run", "the injected SDK runtime has no steerRun adapter");
       }
 
-      await runtime.steerRun(input.message);
+      await (input.images?.length
+        ? runtime.steerRun(input.message, input.images)
+        : runtime.steerRun(input.message));
 
       return {
         piSessionId: input.piSessionId,
@@ -359,6 +372,7 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
           role: "user",
           title: "Steer",
           body: input.message,
+          ...(input.images?.length ? { images: input.images } : {}),
         },
       };
     },

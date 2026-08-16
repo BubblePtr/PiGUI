@@ -4,11 +4,14 @@
 
 import { createAgentRuntimeEventNormalizer } from "../gateway/agent-runtime-event-normalizer";
 import type {
+  RuntimeGatewayQueuedMessage,
   RuntimeModelCapability,
   RuntimeModelControls,
   RuntimeModelSelection,
+  RuntimePromptImage,
   RuntimeThinkingLevel,
 } from "@pigui/core";
+import { toPiImageContent } from "@pigui/core";
 import type {
   PiSdkRuntimeFactory,
   PiSdkRuntimeForker,
@@ -50,9 +53,9 @@ export type PublicPiSdkAgentSession = {
       errorMessage?: string;
     };
   };
-  prompt(prompt: string): Promise<void>;
-  followUp?(message: string): Promise<void>;
-  steer?(message: string): Promise<void>;
+  prompt(text: string, options?: { images?: ReturnType<typeof toPiImageContent>[] }): Promise<void>;
+  followUp?(message: string, images?: ReturnType<typeof toPiImageContent>[]): Promise<void>;
+  steer?(message: string, images?: ReturnType<typeof toPiImageContent>[]): Promise<void>;
   abort(): Promise<void>;
   dispose(): void;
   subscribe(listener: (event: unknown) => void): () => void;
@@ -556,6 +559,10 @@ export function createPublicPiSdkRuntimeForker(
   };
 }
 
+function piImagesFromPrompt(images?: RuntimePromptImage[]) {
+  return images?.length ? images.map(toPiImageContent) : undefined;
+}
+
 function createPublicPiSdkRuntime(context: {
   input:
     | CreateRuntimeSessionInput
@@ -582,15 +589,7 @@ function createPublicPiSdkRuntime(context: {
     let promptCompleted = false;
     let stopped = false;
     let queuedSequence = 0;
-    const queuedMessages = new Map<string, {
-      id: string;
-      piSessionId: string;
-      body: string;
-      status: "pending" | "processing" | "withdrawn";
-      createdAt: string;
-      processingStartedAt?: string;
-      withdrawnAt?: string;
-    }>();
+    const queuedMessages = new Map<string, RuntimeGatewayQueuedMessage>();
     const runtime: PiSdkSessionRuntime = {
       piSessionId: session.sessionId,
       runtimeId: `pi-sdk:${context.input.sessionId}`,
@@ -613,9 +612,16 @@ function createPublicPiSdkRuntime(context: {
           userBoundaryWaiters.push(resolve);
         });
       },
-      async sendPrompt(prompt) {
+      async sendPrompt(prompt, images) {
         normalizer.noteRunTrigger("prompt");
-        await session.prompt(prompt);
+        const piImages = piImagesFromPrompt(images);
+
+        if (piImages) {
+          await session.prompt(prompt, { images: piImages });
+        } else {
+          await session.prompt(prompt);
+        }
+
         promptCompleted = true;
       },
       async stopRun() {
@@ -669,18 +675,26 @@ function createPublicPiSdkRuntime(context: {
     };
 
     if (session.followUp) {
-      runtime.queueFollowUp = async (message) => {
+      runtime.queueFollowUp = async (message, images) => {
         const queuedMessage = {
           id: `pi-sdk:${session.sessionId}:queued:${queuedSequence}`,
           piSessionId: session.sessionId,
           body: message,
+          ...(images?.length ? { images } : {}),
           status: "pending" as const,
           createdAt: now(),
         };
+        const piImages = piImagesFromPrompt(images);
 
         queuedSequence += 1;
         normalizer.noteRunTrigger("follow_up");
-        await session.followUp?.(message);
+
+        if (piImages) {
+          await session.followUp?.(message, piImages);
+        } else {
+          await session.followUp?.(message);
+        }
+
         queuedMessages.set(queuedMessage.id, queuedMessage);
 
         return queuedMessage;
@@ -711,7 +725,19 @@ function createPublicPiSdkRuntime(context: {
             continue;
           }
 
-          await session.followUp?.(followUp);
+          const stored = [...queuedMessages.values()].find(
+            (item) =>
+              item.status === "pending" &&
+              item.id !== queuedMessageId &&
+              item.body === followUp,
+          );
+          const piImages = piImagesFromPrompt(stored?.images);
+
+          if (piImages) {
+            await session.followUp?.(followUp, piImages);
+          } else {
+            await session.followUp?.(followUp);
+          }
         }
 
         if (!removedFollowUp) {
@@ -733,8 +759,14 @@ function createPublicPiSdkRuntime(context: {
     }
 
     if (session.steer) {
-      runtime.steerRun = async (message) => {
-        await session.steer?.(message);
+      runtime.steerRun = async (message, images) => {
+        const piImages = piImagesFromPrompt(images);
+
+        if (piImages) {
+          await session.steer?.(message, piImages);
+        } else {
+          await session.steer?.(message);
+        }
       };
     }
 

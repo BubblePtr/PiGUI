@@ -145,6 +145,27 @@ describe("ChatPromptInput", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("keeps Send while running when attachments are present", async () => {
+    const onStop = vi.fn();
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+
+    renderPromptInput({
+      value: "",
+      status: "streaming",
+      allowSubmitWhileRunning: true,
+      hasAttachments: true,
+      lockInputOnRun: false,
+      onStop,
+      onSubmit,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
   it("submits while running when a value is present and submits are allowed", async () => {
     const onStop = vi.fn();
     const onSubmit = vi.fn();

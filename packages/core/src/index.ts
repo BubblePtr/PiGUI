@@ -74,6 +74,14 @@ export {
 } from "./agent-runtime-event";
 
 export {
+  parseRuntimePromptImages,
+  promptImageDataUrl,
+  toPiImageContent,
+  clonePromptImages,
+  type RuntimePromptImage,
+} from "./prompt-image";
+
+export {
   createRuntimeGatewaySequencer,
   type RuntimeGatewayRequest,
   type RuntimeGatewayResponse,

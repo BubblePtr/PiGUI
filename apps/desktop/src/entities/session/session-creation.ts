@@ -1,4 +1,4 @@
-import type { RuntimeModelSelection } from "@pigui/core";
+import type { RuntimeModelSelection, RuntimePromptImage } from "@pigui/core";
 import type { SessionDraft } from "@/entities/session/session-drafts";
 import { PiRuntimeBridgeError, type PiRuntimeBridge } from "@/entities/runtime/pi-runtime-bridge";
 import {
@@ -32,6 +32,8 @@ export type CreateSessionFromDraftInput = {
   project: ProjectSessionCreationTarget;
   /** Optional model chosen on the draft composer before the session exists (DF-011). */
   modelSelection?: RuntimeModelSelection;
+  /** Image attachments for the first prompt; not persisted on the text draft. */
+  images?: RuntimePromptImage[];
   executionMode?: "foreground" | "background";
   now?: () => string;
   idFactory?: () => string;
@@ -124,7 +126,10 @@ export async function createSessionFromDraft(
   let projection = createSessionProjection({
     id: idFactory(),
     projectId: draftProjectId,
-    initialPrompt: input.draft.prompt,
+    initialPrompt:
+      input.draft.prompt.trim() ||
+      input.images?.[0]?.name ||
+      "Attached image",
     createdAt: now(),
   });
 
@@ -235,6 +240,7 @@ export async function createSessionFromDraft(
     const accepted = await input.bridge.sendInitialPrompt({
       piSessionId: piState.piSessionId,
       prompt: input.draft.prompt,
+      ...(input.images?.length ? { images: input.images } : {}),
     });
 
     commit(

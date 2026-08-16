@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ATTACHMENT_REJECT_COPY,
-  IMAGE_SEND_COPY,
+  IMAGE_ATTACHMENT_LIMIT_BYTES,
+  IMAGE_TOO_LARGE_COPY,
   TEXT_ATTACHMENT_LIMIT_BYTES,
   TEXT_TOO_LARGE_COPY,
   buildPromptWithAttachments,
@@ -69,6 +70,7 @@ describe("buildPromptWithAttachments", () => {
     await expect(buildPromptWithAttachments("  hello  ", [])).resolves.toEqual({
       ok: true,
       prompt: "hello",
+      images: [],
     });
   });
 
@@ -86,6 +88,7 @@ describe("buildPromptWithAttachments", () => {
     expect(result).toEqual({
       ok: true,
       prompt: "look at this\n\n[Attached file: notes.md]\n\n```\nline\n```",
+      images: [],
     });
   });
 
@@ -107,20 +110,70 @@ describe("buildPromptWithAttachments", () => {
     }
   });
 
-  it("refuses to send images", async () => {
+  it("encodes images as prompt attachments instead of inlining them", async () => {
+    const result = await buildPromptWithAttachments("see this", [
+      {
+        id: "1",
+        kind: "image",
+        name: "shot.png",
+        sizeLabel: "1 KB",
+        file: file("shot.png", "image/png", "pixels"),
+      },
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      prompt: "see this",
+      images: [
+        {
+          mimeType: "image/png",
+          data: btoa("pixels"),
+          name: "shot.png",
+        },
+      ],
+    });
+  });
+
+  it("allows an image-only prompt", async () => {
+    const result = await buildPromptWithAttachments("   ", [
+      {
+        id: "1",
+        kind: "image",
+        name: "shot.png",
+        sizeLabel: "1 KB",
+        file: file("shot.png", "image/png", "pixels"),
+      },
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      prompt: "",
+      images: [
+        {
+          mimeType: "image/png",
+          data: btoa("pixels"),
+          name: "shot.png",
+        },
+      ],
+    });
+  });
+
+  it("refuses oversized images", async () => {
+    const body = "x".repeat(IMAGE_ATTACHMENT_LIMIT_BYTES + 1);
+
     await expect(
       buildPromptWithAttachments("see this", [
         {
           id: "1",
           kind: "image",
-          name: "shot.png",
-          sizeLabel: "1 KB",
-          file: file("shot.png", "image/png"),
+          name: "huge.png",
+          sizeLabel: "9 MB",
+          file: file("huge.png", "image/png", body),
         },
       ]),
     ).resolves.toEqual({
       ok: false,
-      error: IMAGE_SEND_COPY,
+      error: IMAGE_TOO_LARGE_COPY,
     });
   });
 

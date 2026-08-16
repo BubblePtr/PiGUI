@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { shouldJournalRuntimeEvent } from "./agent-runtime-event";
+import { shouldJournalRuntimeEvent, surfaceForMessagePart } from "./agent-runtime-event";
+
+describe("surfaceForMessagePart", () => {
+  it("routes text and image parts to chat, thinking and tool calls to trace", () => {
+    expect(surfaceForMessagePart("text")).toBe("chat");
+    expect(surfaceForMessagePart("image")).toBe("chat");
+    expect(surfaceForMessagePart("thinking")).toBe("trace");
+    expect(surfaceForMessagePart("tool_call")).toBe("trace");
+  });
+});
+
 
 // The Session Event Journal is the physical form of replay: boundary events
 // only, never the streaming delta hot path. This predicate is the single

@@ -126,6 +126,36 @@ describe("SessionTimeline", () => {
     expect(screen.getByRole("img", { name: "Fixture thumbnail 0" })).toBeInTheDocument();
   });
 
+  it("renders Pi jsonl image parts that use data and mimeType", async () => {
+    const user = userEvent.setup();
+    const turns: SessionTurn[] = [
+      {
+        kind: "message",
+        role: "assistant",
+        timestamp: "2026-03-22T14:41:42.000Z",
+        parts: [
+          {
+            partType: "image",
+            payload: {
+              mimeType: "image/png",
+              data: "abc",
+              name: "shot.png",
+            },
+          },
+        ],
+      },
+    ];
+
+    render(<SessionTimeline turns={turns} />);
+
+    await user.click(screen.getByRole("button", { name: /image/ }));
+
+    expect(screen.getByRole("img", { name: "shot.png" })).toHaveAttribute(
+      "src",
+      "data:image/png;base64,abc",
+    );
+  });
+
   it("maps annotation turns to a labeled group", () => {
     const turns: SessionTurn[] = [
       {

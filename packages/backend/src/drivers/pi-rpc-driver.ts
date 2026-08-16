@@ -3,7 +3,9 @@ import type {
   PiRpcTransport,
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
+  RuntimePromptImage,
 } from "@pigui/core";
+import { toPiImageContent } from "@pigui/core";
 import {
   createAgentRuntimeEventNormalizer,
   type AgentRuntimeEventNormalizer,
@@ -53,6 +55,10 @@ function statusFromRpcState(state: unknown): RuntimeGatewaySnapshot["status"] {
   }
 
   return state.isStreaming ? "running" : "idle";
+}
+
+function rpcImages(images?: RuntimePromptImage[]) {
+  return images?.length ? images.map(toPiImageContent) : undefined;
 }
 
 function queuedMessageIdFromResponse(response: PiRpcResponse, fallback: string) {
@@ -165,11 +171,13 @@ export function createPiRpcProcessDriver(
 
     async sendPrompt(input) {
       normalizers.get(input.piSessionId)?.noteRunTrigger("prompt");
+      const images = rpcImages(input.images);
 
       const response = await options.transport.send({
         id: nextRequestId(),
         type: "prompt",
         message: input.prompt,
+        ...(images ? { images } : {}),
       });
 
       if (!response.success) {
@@ -183,6 +191,7 @@ export function createPiRpcProcessDriver(
           kind: "message",
           role: "user",
           body: input.prompt,
+          ...(input.images?.length ? { images: input.images } : {}),
         },
       };
     },
@@ -191,11 +200,13 @@ export function createPiRpcProcessDriver(
       normalizers.get(input.piSessionId)?.noteRunTrigger("follow_up");
 
       const requestId = nextRequestId();
+      const images = rpcImages(input.images);
       const response = await options.transport.send({
         id: requestId,
         type: "prompt",
         message: input.message,
         streamingBehavior: "followUp",
+        ...(images ? { images } : {}),
       });
 
       if (!response.success) {
@@ -206,6 +217,7 @@ export function createPiRpcProcessDriver(
         id: queuedMessageIdFromResponse(response, `queued-${requestId}`),
         piSessionId: input.piSessionId,
         body: input.message,
+        ...(input.images?.length ? { images: input.images } : {}),
         status: "pending",
         createdAt: now(),
       };
@@ -233,10 +245,12 @@ export function createPiRpcProcessDriver(
     },
 
     async steerRun(input) {
+      const images = rpcImages(input.images);
       const response = await options.transport.send({
         id: nextRequestId(),
         type: "steer",
         message: input.message,
+        ...(images ? { images } : {}),
       });
 
       if (!response.success) {
@@ -251,6 +265,7 @@ export function createPiRpcProcessDriver(
           role: "user",
           title: "Steer",
           body: input.message,
+          ...(input.images?.length ? { images: input.images } : {}),
         },
       };
     },

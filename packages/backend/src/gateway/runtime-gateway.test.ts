@@ -248,6 +248,108 @@ describe("Runtime Gateway service", () => {
     ]);
   });
 
+  it("forwards image attachments on send_prompt, queue_follow_up, and steer_run", async () => {
+    const driver = createFakeRuntimeDriver();
+    const sendPrompt = vi.spyOn(driver, "sendPrompt");
+    const queueFollowUp = vi.spyOn(driver, "queueFollowUp");
+    const steerRun = vi.spyOn(driver, "steerRun");
+    const service = createRuntimeGatewayService({
+      driver,
+      now: () => "2026-06-29T12:00:00.000Z",
+      idFactory: () => "evt-fixed",
+    });
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: {
+        sessionId: "app-session-1",
+        projectId: "pig",
+        cwd: "/repo",
+      },
+    });
+    await service.handleRequest({
+      id: "req-prompt",
+      method: "send_prompt",
+      params: {
+        piSessionId: "pi-session-1",
+        prompt: "Look at this",
+        images,
+      },
+    });
+    await service.handleRequest({
+      id: "req-queue",
+      method: "queue_follow_up",
+      params: {
+        piSessionId: "pi-session-1",
+        message: "And then?",
+        images,
+      },
+    });
+    await service.handleRequest({
+      id: "req-steer",
+      method: "steer_run",
+      params: {
+        piSessionId: "pi-session-1",
+        message: "Focus on the screenshot",
+        images,
+      },
+    });
+
+    expect(sendPrompt).toHaveBeenCalledWith({
+      piSessionId: "pi-session-1",
+      prompt: "Look at this",
+      images,
+    });
+    expect(queueFollowUp).toHaveBeenCalledWith({
+      piSessionId: "pi-session-1",
+      message: "And then?",
+      images,
+    });
+    expect(steerRun).toHaveBeenCalledWith({
+      piSessionId: "pi-session-1",
+      message: "Focus on the screenshot",
+      images,
+    });
+  });
+
+  it("accepts an image-only send_prompt", async () => {
+    const driver = createFakeRuntimeDriver();
+    const sendPrompt = vi.spyOn(driver, "sendPrompt");
+    const service = createRuntimeGatewayService({
+      driver,
+      now: () => "2026-06-29T12:00:00.000Z",
+      idFactory: () => "evt-fixed",
+    });
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: {
+        sessionId: "app-session-1",
+        projectId: "pig",
+        cwd: "/repo",
+      },
+    });
+    await service.handleRequest({
+      id: "req-prompt",
+      method: "send_prompt",
+      params: {
+        piSessionId: "pi-session-1",
+        prompt: "",
+        images,
+      },
+    });
+
+    expect(sendPrompt).toHaveBeenCalledWith({
+      piSessionId: "pi-session-1",
+      prompt: "",
+      images,
+    });
+  });
+
   it("serves the journaled boundary events from get_runtime_snapshot, without streaming deltas", async () => {
     const driver = createFakeRuntimeDriver();
     let idCounter = 0;

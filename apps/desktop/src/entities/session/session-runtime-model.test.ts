@@ -410,6 +410,31 @@ describe("session runtime model", () => {
     expect(remirrored.order).toHaveLength(2);
   });
 
+  it("mirrors image parts from a Gateway-minted user echo", () => {
+    const model = addLegacyChatEventToModel(createSessionRuntimeModel(), {
+      id: "user-echo-image",
+      kind: "message",
+      role: "user",
+      body: "Look at this",
+      messageId: "pi-sdk:pi-session-1:user:1",
+      timestamp: "2026-07-02T10:00:00.600Z",
+      images: [{ mimeType: "image/png", data: "abc", name: "shot.png" }],
+    });
+
+    expect(model.messages.get("pi-sdk:pi-session-1:user:1")).toMatchObject({
+      role: "user",
+      parts: [
+        { partType: "text", body: "Look at this" },
+        {
+          partType: "image",
+          body: "data:image/png;base64,abc",
+          done: true,
+          name: "shot.png",
+        },
+      ],
+    });
+  });
+
   it("keeps distinct user turns when synthetic user:0 is reused with a new piEntryId (DF-008)", () => {
     let model = createSessionRuntimeModel();
 

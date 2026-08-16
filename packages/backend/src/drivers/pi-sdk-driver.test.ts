@@ -133,6 +133,22 @@ describe("Pi SDK driver", () => {
     });
     expect(sendPrompt).toHaveBeenCalledWith("Build through SDK");
     expect(stopRun).toHaveBeenCalled();
+
+    await expect(
+      driver.sendPrompt({
+        piSessionId: "pi-sdk-session-1",
+        prompt: "Look at this",
+        images: [{ mimeType: "image/png", data: "abc", name: "shot.png" }],
+      }),
+    ).resolves.toMatchObject({
+      payload: {
+        body: "Look at this",
+        images: [{ mimeType: "image/png", data: "abc", name: "shot.png" }],
+      },
+    });
+    expect(sendPrompt).toHaveBeenCalledWith("Look at this", [
+      { mimeType: "image/png", data: "abc", name: "shot.png" },
+    ]);
     expect(events).toEqual([
       {
         piSessionId: "pi-sdk-session-1",
@@ -464,6 +480,21 @@ describe("Pi SDK driver", () => {
     expect(queueFollowUp).toHaveBeenCalledWith("Queue through SDK");
     expect(withdrawQueuedMessage).toHaveBeenCalledWith("queued-1");
     expect(steerRun).toHaveBeenCalledWith("Steer through SDK");
+
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+
+    await driver.queueFollowUp({
+      piSessionId: "pi-sdk-session-1",
+      message: "Queue with image",
+      images,
+    });
+    await driver.steerRun({
+      piSessionId: "pi-sdk-session-1",
+      message: "Steer with image",
+      images,
+    });
+    expect(queueFollowUp).toHaveBeenCalledWith("Queue with image", images);
+    expect(steerRun).toHaveBeenCalledWith("Steer with image", images);
   });
 
   it("emits prompt failures as visible runtime errors instead of hidden status events", async () => {

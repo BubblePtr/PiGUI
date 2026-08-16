@@ -61,5 +61,5 @@ Shift(运行态模式切换)、Relay(queue-first)。用户在真实 dev server �
   reorder 后按本规格实现。
 - **附件上传/展示**:呈现与入口已另案定稿并落地,见
   `.scratch/composer-attachments/PRD.md` 与 [#98](https://github.com/BubblePtr/PiGUI/issues/98)。
-  图片发送仍等 bridge 附件通道。
+  图片随 prompt 走 Gateway `images` 通道送到 Pi。
 - **模型选择器精做**:上述规格 + 上下文窗口展示、fast 模式等。

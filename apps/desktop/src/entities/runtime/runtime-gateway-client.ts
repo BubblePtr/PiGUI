@@ -5,6 +5,7 @@ import type {
   RuntimeGatewaySummary,
   RuntimeModelControls,
 } from "@pigui/core";
+import { clonePromptImages, parseRuntimePromptImages } from "@pigui/core";
 import type { BackendRpcEvent } from "@pigui/backend";
 import {
   PiRuntimeBridgeError,
@@ -178,6 +179,12 @@ function runtimeEventFromEnvelope(envelope: RuntimeGatewayEventEnvelope): PiRunt
     event.phase = phase;
   }
 
+  const images = parseRuntimePromptImages(payload.images);
+
+  if (images.length) {
+    event.images = images;
+  }
+
   return event;
 }
 
@@ -224,7 +231,7 @@ function createAgentEventCompatMapper(): AgentEventCompatMapper {
 
       // tool_call parts stay hidden here: the tool execution events carry the
       // legacy tool-call/tool-result projection.
-      if (partType === "tool_call" || !messageId || !partId) {
+      if (partType === "tool_call" || partType === "image" || !messageId || !partId) {
         return null;
       }
 
@@ -448,11 +455,26 @@ function cloneRuntimeEvent(event: PiRuntimeEvent): PiRuntimeEvent {
     cloned.derivedFromAgentEvent = true;
   }
 
+  const images = clonePromptImages(event.images);
+
+  if (images) {
+    cloned.images = images;
+  }
+
   return cloned;
 }
 
 function cloneQueuedMessage(message: PiQueuedMessage): PiQueuedMessage {
-  return { ...message };
+  const cloned: PiQueuedMessage = { ...message };
+  const images = clonePromptImages(message.images);
+
+  if (images) {
+    cloned.images = images;
+  } else {
+    delete cloned.images;
+  }
+
+  return cloned;
 }
 
 function queuedMessageFromGateway(message: RuntimeGatewayQueuedMessage): PiQueuedMessage {
@@ -463,6 +485,11 @@ function queuedMessageFromGateway(message: RuntimeGatewayQueuedMessage): PiQueue
     status: message.status,
     createdAt: message.createdAt,
   };
+  const images = clonePromptImages(message.images);
+
+  if (images) {
+    queued.images = images;
+  }
 
   if (message.processingStartedAt) {
     queued.processingStartedAt = message.processingStartedAt;
@@ -691,6 +718,7 @@ export function createRuntimeGatewayClient(
           {
             piSessionId: input.piSessionId,
             prompt: input.prompt,
+            ...(input.images?.length ? { images: input.images } : {}),
           },
           {
             piSessionId: input.piSessionId,
@@ -722,6 +750,7 @@ export function createRuntimeGatewayClient(
           await invoke<RuntimeGatewayQueuedMessage>("queue_follow_up", {
             piSessionId: input.piSessionId,
             message: input.message,
+            ...(input.images?.length ? { images: input.images } : {}),
           }),
         );
 
@@ -763,6 +792,7 @@ export function createRuntimeGatewayClient(
           {
             piSessionId: input.piSessionId,
             message: input.message,
+            ...(input.images?.length ? { images: input.images } : {}),
           },
           {
             piSessionId: input.piSessionId,
