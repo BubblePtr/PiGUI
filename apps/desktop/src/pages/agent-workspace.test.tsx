@@ -3106,6 +3106,83 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
+  it("renders image parts from a Gateway-minted user echo", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Look at this",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "user-echo-1",
+        piSessionId: "pi-session-model",
+        kind: "message",
+        role: "user",
+        body: "Look at this",
+        messageId: "pi-sdk:pi-session-model:user:0",
+        images: [{ mimeType: "image/png", data: "abc", name: "shot.png" }],
+        timestamp: "2026-07-02T10:00:00.500Z",
+      },
+    });
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    expect(screen.getByText("Look at this")).toBeInTheDocument();
+    expect(screen.getByAltText("shot.png")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,abc",
+    );
+  });
+
   it("collapses structured runtime turn messages and attaches their trace to the final assistant answer", () => {
     const workspace = {
       id: "pig-docs",

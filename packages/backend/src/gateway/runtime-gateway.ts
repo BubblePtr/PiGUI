@@ -7,8 +7,13 @@ import type {
   RuntimeGatewaySnapshot,
   RuntimeModelControls,
   RuntimeModelSelection,
+  RuntimePromptImage,
 } from "@pigui/core";
-import { createRuntimeGatewaySequencer, shouldJournalRuntimeEvent } from "@pigui/core";
+import {
+  createRuntimeGatewaySequencer,
+  parseRuntimePromptImages,
+  shouldJournalRuntimeEvent,
+} from "@pigui/core";
 import {
   copiedSessionEventInputsForFork,
   forkMarkerEventInput,
@@ -55,11 +60,13 @@ export type ForkRuntimeSessionResult = {
 export type SendPromptInput = {
   piSessionId: string;
   prompt: string;
+  images?: RuntimePromptImage[];
 };
 
 export type QueueFollowUpInput = {
   piSessionId: string;
   message: string;
+  images?: RuntimePromptImage[];
 };
 
 export type WithdrawQueuedMessageInput = {
@@ -70,6 +77,7 @@ export type WithdrawQueuedMessageInput = {
 export type SteerRunInput = {
   piSessionId: string;
   message: string;
+  images?: RuntimePromptImage[];
 };
 
 export type StopRunInput = {
@@ -326,37 +334,48 @@ async function dispatchRuntimeGatewayRequest(input: {
         ...(result.selectedText ? { selectedText: result.selectedText } : {}),
       };
     }
-    case "send_prompt":
+    case "send_prompt": {
+      const prompt = parsePromptText(params.prompt, params.images, "prompt");
       await setProjectionInitialPrompt({
         store: input.projections,
         sessionId: input.resolveSessionId(requiredString(params.piSessionId, "piSessionId")),
         piSessionId: requiredString(params.piSessionId, "piSessionId"),
-        prompt: requiredString(params.prompt, "prompt"),
+        prompt: prompt.text || prompt.images[0]?.name || "Attached image",
       });
 
       return input.emit(
         await input.driver.sendPrompt({
           piSessionId: requiredString(params.piSessionId, "piSessionId"),
-          prompt: requiredString(params.prompt, "prompt"),
+          prompt: prompt.text,
+          ...(prompt.images.length ? { images: prompt.images } : {}),
         }),
       );
-    case "queue_follow_up":
+    }
+    case "queue_follow_up": {
+      const followUp = parsePromptText(params.message, params.images, "message");
+
       return input.driver.queueFollowUp({
         piSessionId: requiredString(params.piSessionId, "piSessionId"),
-        message: requiredString(params.message, "message"),
+        message: followUp.text,
+        ...(followUp.images.length ? { images: followUp.images } : {}),
       });
+    }
     case "withdraw_queued_message":
       return input.driver.withdrawQueuedMessage({
         piSessionId: requiredString(params.piSessionId, "piSessionId"),
         queuedMessageId: requiredString(params.queuedMessageId, "queuedMessageId"),
       });
-    case "steer_run":
+    case "steer_run": {
+      const steer = parsePromptText(params.message, params.images, "message");
+
       return input.emit(
         await input.driver.steerRun({
           piSessionId: requiredString(params.piSessionId, "piSessionId"),
-          message: requiredString(params.message, "message"),
+          message: steer.text,
+          ...(steer.images.length ? { images: steer.images } : {}),
         }),
       );
+    }
     case "stop_run":
       return input.emit(
         await input.driver.stopRun({
@@ -776,6 +795,21 @@ function requiredString(value: unknown, name: string) {
   }
 
   return value;
+}
+
+function parsePromptText(
+  text: unknown,
+  images: unknown,
+  fieldName: "prompt" | "message",
+): { text: string; images: RuntimePromptImage[] } {
+  const parsedImages = parseRuntimePromptImages(images);
+  const parsedText = typeof text === "string" ? text : "";
+
+  if (!parsedText.trim() && parsedImages.length === 0) {
+    throw new Error(`${fieldName} is required`);
+  }
+
+  return { text: parsedText, images: parsedImages };
 }
 
 function requiredThinkingLevel(value: unknown) {

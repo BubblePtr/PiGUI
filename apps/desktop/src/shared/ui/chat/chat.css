@@ -127,6 +127,13 @@
   overflow-wrap: anywhere;
 }
 
+.chat-message__images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--spacing-1);
+}
+
 /* Markdown handles its own block flow; undo the pre-wrap default. */
 .chat-message__content:has(> .chat-markdown) {
   white-space: normal;

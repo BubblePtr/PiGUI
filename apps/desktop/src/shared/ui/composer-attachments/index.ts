@@ -1,7 +1,10 @@
 export {
   ATTACHMENT_REJECT_COPY,
   FILE_ACCEPT,
-  IMAGE_SEND_COPY,
+  IMAGE_ATTACHMENT_LIMIT_BYTES,
+  IMAGE_TOO_LARGE_COPY,
+  TEXT_ATTACHMENT_LIMIT_BYTES,
+  TEXT_TOO_LARGE_COPY,
   buildPromptWithAttachments,
   classifyFile,
   insertIntoDraft,

@@ -634,6 +634,41 @@ describe("Pi SDK public runtime adapter", () => {
     expect(session.abort).toHaveBeenCalledTimes(1);
   });
 
+  it("passes image attachments through prompt, follow-up, and steer", async () => {
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      followUp: vi.fn(async () => {}),
+      steer: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: {
+        createAgentSession: vi.fn(async () => ({ session })),
+      },
+      now: () => "2026-07-01T00:00:00.000Z",
+    });
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+    const piImages = [{ type: "image" as const, mimeType: "image/png", data: "abc" }];
+
+    await runtime.sendPrompt("Look at this", images);
+    await runtime.queueFollowUp?.("And then?", images);
+    await runtime.steerRun?.("Focus on the screenshot", images);
+
+    expect(session.prompt).toHaveBeenCalledWith("Look at this", { images: piImages });
+    expect(session.followUp).toHaveBeenCalledWith("And then?", piImages);
+    expect(session.steer).toHaveBeenCalledWith("Focus on the screenshot", piImages);
+  });
+
   it("does not report a queued message withdrawn when the SDK queue no longer contains it", async () => {
     const session = {
       sessionId: "sdk-session-1",

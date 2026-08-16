@@ -190,6 +190,54 @@ describe("Session Creation state machine", () => {
     ]);
   });
 
+  it("forwards image attachments on the first prompt and mirrors them into the runtime model", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+
+    const result = await createSessionFromDraft({
+      bridge: createInMemoryPiRuntimeBridge({
+        now: () => "2026-06-26T08:00:03.000Z",
+      }),
+      projections,
+      draft: {
+        projectId: "pig",
+        prompt: "Look at this",
+        updatedAt: "2026-06-26T08:00:00.000Z",
+      },
+      project: {
+        id: "pig",
+        projectRoot: "/Users/void/code/opensource/Pig",
+      },
+      images,
+      now: () => "2026-06-26T08:00:00.000Z",
+      idFactory: () => "session-image",
+    });
+
+    if (!result.ok) {
+      throw new Error("expected session creation to succeed");
+    }
+
+    expect(result.projection.runtimeEvents[0]).toMatchObject({
+      kind: "message",
+      role: "user",
+      body: "Look at this",
+      images,
+    });
+    expect(
+      [...result.projection.runtimeModel.messages.values()][0],
+    ).toMatchObject({
+      role: "user",
+      parts: [
+        { partType: "text", body: "Look at this" },
+        {
+          partType: "image",
+          body: "data:image/png;base64,abc",
+          name: "shot.png",
+        },
+      ],
+    });
+  });
+
   it("keeps Session Projection in sync with the Pi RPC Runtime Event Stream", async () => {
     const projections = createInMemorySessionProjectionStore();
     const transport = createFakePiRpcTransport({

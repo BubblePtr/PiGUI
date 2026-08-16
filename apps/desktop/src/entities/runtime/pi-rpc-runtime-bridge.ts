@@ -371,6 +371,15 @@ export function createPiRpcRuntimeBridge(
         id: requestId,
         type: "prompt",
         message: input.prompt,
+        ...(input.images?.length
+          ? {
+              images: input.images.map((image) => ({
+                type: "image",
+                mimeType: image.mimeType,
+                data: image.data,
+              })),
+            }
+          : {}),
       });
 
       if (!response.success) {
@@ -386,6 +395,7 @@ export function createPiRpcRuntimeBridge(
         kind: "message",
         role: "user",
         body: input.prompt,
+        ...(input.images?.length ? { images: input.images } : {}),
         timestamp: now(),
       };
 
@@ -416,6 +426,15 @@ export function createPiRpcRuntimeBridge(
         type: "prompt",
         message: input.message,
         streamingBehavior: "followUp",
+        ...(input.images?.length
+          ? {
+              images: input.images.map((image) => ({
+                type: "image",
+                mimeType: image.mimeType,
+                data: image.data,
+              })),
+            }
+          : {}),
       });
 
       if (!response.success) {
@@ -429,6 +448,7 @@ export function createPiRpcRuntimeBridge(
         id: queuedMessageIdFromResponse(response, `queued-${requestId}`),
         piSessionId: input.piSessionId,
         body: input.message,
+        ...(input.images?.length ? { images: input.images } : {}),
         status: "pending",
         createdAt: now(),
       };
@@ -494,6 +514,15 @@ export function createPiRpcRuntimeBridge(
         id: requestId,
         type: "steer",
         message: input.message,
+        ...(input.images?.length
+          ? {
+              images: input.images.map((image) => ({
+                type: "image",
+                mimeType: image.mimeType,
+                data: image.data,
+              })),
+            }
+          : {}),
       });
 
       if (!response.success) {
@@ -510,6 +539,7 @@ export function createPiRpcRuntimeBridge(
         role: "user",
         title: "Steer",
         body: input.message,
+        ...(input.images?.length ? { images: input.images } : {}),
         timestamp: now(),
       };
 

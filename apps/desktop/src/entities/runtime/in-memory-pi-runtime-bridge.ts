@@ -125,6 +125,7 @@ export function createInMemoryPiRuntimeBridge(
         kind: "message",
         role: "user",
         body: input.prompt,
+        ...(input.images?.length ? { images: input.images } : {}),
         timestamp: now(),
       };
 
@@ -154,6 +155,7 @@ export function createInMemoryPiRuntimeBridge(
         id: `queued-message-${queuedMessageCounter}`,
         piSessionId: input.piSessionId,
         body: input.message,
+        ...(input.images?.length ? { images: input.images } : {}),
         status: "pending",
         createdAt: now(),
       };
@@ -213,6 +215,7 @@ export function createInMemoryPiRuntimeBridge(
         role: "user",
         title: "Steer",
         body: input.message,
+        ...(input.images?.length ? { images: input.images } : {}),
         timestamp: now(),
       };
 

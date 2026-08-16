@@ -18,7 +18,7 @@ export type AgentRunTrigger = "prompt" | "steer" | "follow_up" | "unknown";
 
 export type AgentRunOutcome = "completed" | "aborted" | "failed";
 
-export type AgentMessagePartType = "text" | "thinking" | "tool_call";
+export type AgentMessagePartType = "text" | "thinking" | "tool_call" | "image";
 
 export type AgentStatusCode =
   | "retrying"
@@ -142,7 +142,7 @@ export type AgentRuntimeEvent =
 // re-derive placement; policy changes happen here only.
 
 export function surfaceForMessagePart(partType: AgentMessagePartType): "chat" | "trace" {
-  return partType === "text" ? "chat" : "trace";
+  return partType === "text" || partType === "image" ? "chat" : "trace";
 }
 
 // Session Event Journal boundary filter — the single source of truth for

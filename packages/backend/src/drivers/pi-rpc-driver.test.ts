@@ -227,4 +227,59 @@ describe("Pi RPC process driver", () => {
     });
     expect(observedEvents).toEqual([]);
   });
+
+  it("forwards image attachments on prompt, follow-up, and steer RPC commands", async () => {
+    const transport = createFakePiRpcTransport({
+      sessionId: "pi-session-rpc",
+      now: () => "2026-07-01T08:00:00.000Z",
+    });
+    const driver = createPiRpcProcessDriver({
+      transport,
+      now: () => "2026-07-01T08:00:00.000Z",
+    });
+    const snapshot = await driver.createSession({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+    const piImages = [{ type: "image", mimeType: "image/png", data: "abc" }];
+
+    await driver.sendPrompt({
+      piSessionId: snapshot.piSessionId,
+      prompt: "Look at this",
+      images,
+    });
+    await driver.queueFollowUp({
+      piSessionId: snapshot.piSessionId,
+      message: "And then?",
+      images,
+    });
+    await driver.steerRun({
+      piSessionId: snapshot.piSessionId,
+      message: "Focus on the screenshot",
+      images,
+    });
+
+    expect(transport.commands).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "prompt",
+          message: "Look at this",
+          images: piImages,
+        }),
+        expect.objectContaining({
+          type: "prompt",
+          message: "And then?",
+          streamingBehavior: "followUp",
+          images: piImages,
+        }),
+        expect.objectContaining({
+          type: "steer",
+          message: "Focus on the screenshot",
+          images: piImages,
+        }),
+      ]),
+    );
+  });
 });

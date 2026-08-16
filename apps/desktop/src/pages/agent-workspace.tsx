@@ -35,7 +35,9 @@ import {
 import { PiSheet } from "@/shared/ui/pi-sheet";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
-import type { SessionChangedFile, SessionChanges } from "@pigui/core";
+import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pigui/core";
+import { promptImageDataUrl } from "@pigui/core";
+import { Thumbnail } from "@astryxdesign/core/Thumbnail";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
 import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-state";
 import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
@@ -128,6 +130,7 @@ type LiveMessage = {
   id: string;
   role: "user" | "assistant";
   body: string;
+  images?: { src: string; name?: string }[];
   runId?: string;
   piEntryId?: string;
   controlLabel?: string;
@@ -234,6 +237,7 @@ export type SessionDraftSubmitEvent = {
   prompt: string;
   checkoutMode: SessionDraftCheckoutMode;
   modelSelection?: RuntimeModelSelection;
+  images?: RuntimePromptImage[];
 };
 
 type SessionCreatorInput = Omit<
@@ -339,32 +343,52 @@ function LiveChatMessage({
     return (
       <ChatMessage.User>
         <div className="flex flex-col items-end gap-1">
-          <ChatMessage.Bubble>
-            {message.controlLabel ? (
-              <p className="mb-1 text-xs font-medium text-muted">
-                {message.controlLabel}
-              </p>
-            ) : null}
-            <ChatMessage.Content>{message.body}</ChatMessage.Content>
-          </ChatMessage.Bubble>
-          <ChatMessageActions className="shrink-0">
-            <ChatMessageActions.Copy
-              aria-label="Copy"
-              tooltip="Copy"
-              onPress={() => {
-                void navigator.clipboard?.writeText(message.body);
-              }}
-            />
-            {canFork ? (
-              <ChatMessage.Action
-                aria-label="Fork from message"
-                tooltip="Fork from message"
-                onPress={() => onForkMessage?.(message)}
-              >
-                <GitBranch className="size-4" />
-              </ChatMessage.Action>
-            ) : null}
-          </ChatMessageActions>
+          {message.images?.length ? (
+            <div className="chat-message__images">
+              {message.images.map((image, index) => (
+                <Thumbnail
+                  key={`${message.id}-image-${index}`}
+                  alt={image.name ?? "Attached image"}
+                  label={image.name ?? "Attached image"}
+                  src={image.src}
+                />
+              ))}
+            </div>
+          ) : null}
+          {message.body || message.controlLabel ? (
+            <ChatMessage.Bubble>
+              {message.controlLabel ? (
+                <p className="mb-1 text-xs font-medium text-muted">
+                  {message.controlLabel}
+                </p>
+              ) : null}
+              {message.body ? (
+                <ChatMessage.Content>{message.body}</ChatMessage.Content>
+              ) : null}
+            </ChatMessage.Bubble>
+          ) : null}
+          {message.body || canFork ? (
+            <ChatMessageActions className="shrink-0">
+              {message.body ? (
+                <ChatMessageActions.Copy
+                  aria-label="Copy"
+                  tooltip="Copy"
+                  onPress={() => {
+                    void navigator.clipboard?.writeText(message.body);
+                  }}
+                />
+              ) : null}
+              {canFork ? (
+                <ChatMessage.Action
+                  aria-label="Fork from message"
+                  tooltip="Fork from message"
+                  onPress={() => onForkMessage?.(message)}
+                >
+                  <GitBranch className="size-4" />
+                </ChatMessage.Action>
+              ) : null}
+            </ChatMessageActions>
+          ) : null}
         </div>
       </ChatMessage.User>
     );
@@ -527,7 +551,7 @@ function QueuedMessageList({
     >
       {queuedMessages.map((queuedMessage) => (
         <ChatQueuedMessage
-          body={queuedMessage.body}
+          body={queuedMessage.body || queuedMessage.images?.[0]?.name || "Attached image"}
           isWithdrawn={queuedMessage.status === "withdrawn"}
           key={queuedMessage.id}
           onSteer={
@@ -560,11 +584,11 @@ function FullChatComposer({
   queueMode?: boolean;
   isStoppingRun?: boolean;
   projection?: SessionProjection | null;
-  onPromptSubmit?: (message: string) => Promise<void> | void;
-  onQueueSubmit?: (message: string) => Promise<void> | void;
+  onPromptSubmit?: (message: string, images?: RuntimePromptImage[]) => Promise<void> | void;
+  onQueueSubmit?: (message: string, images?: RuntimePromptImage[]) => Promise<void> | void;
   onWithdrawQueuedMessage?: (queuedMessageId: string) => Promise<void> | void;
   onStopRun?: () => Promise<void> | void;
-  onSteerSubmit?: (message: string) => Promise<void> | void;
+  onSteerSubmit?: (message: string, images?: RuntimePromptImage[]) => Promise<void> | void;
   onModelConfigChange?: (selection: RuntimeModelSelection) => Promise<void> | void;
 }) {
   const sessionId = projection?.id ?? null;
@@ -572,12 +596,11 @@ function FullChatComposer({
     sessionId ? getFollowUpDraft(sessionId)?.message ?? "" : "",
   );
   const [composerError, setComposerError] = useState<string | null>(null);
-  // Shelf drawer + footer Add-to-prompt menu. Images stay local until the
-  // runtime accepts file parts. Decision: .scratch/composer-attachments/PRD.md
+  // Shelf drawer + footer Add-to-prompt menu. Images ride send_prompt /
+  // queue_follow_up / steer_run. Decision: .scratch/composer-attachments/PRD.md
   const attachments = useComposerAttachments();
   const catalog = useComposerInsertCatalog();
   const picker = useFilePicker(attachments.addFiles);
-  const isStopAction = queueMode && !draft.trim();
   const promptStatus = isStoppingRun
     ? "submitted"
     : queueMode
@@ -624,7 +647,7 @@ function FullChatComposer({
 
     if (queueMode) {
       try {
-        await onQueueSubmit?.(built.prompt);
+        await onQueueSubmit?.(built.prompt, built.images);
         setComposerError(null);
         attachments.clear();
         clearSubmittedDraft();
@@ -636,7 +659,7 @@ function FullChatComposer({
     }
 
     try {
-      await onPromptSubmit?.(built.prompt);
+      await onPromptSubmit?.(built.prompt, built.images);
       setComposerError(null);
       attachments.clear();
       clearSubmittedDraft();
@@ -658,7 +681,7 @@ function FullChatComposer({
     }
 
     try {
-      await onSteerSubmit?.(queuedMessage.body);
+      await onSteerSubmit?.(queuedMessage.body, queuedMessage.images);
       await onWithdrawQueuedMessage?.(queuedMessageId);
       setComposerError(null);
     } catch (error) {
@@ -742,6 +765,22 @@ function chatTextFromModelMessage(message: SessionRuntimeMessage) {
     .filter((part) => part.partType === "text")
     .map((part) => part.body)
     .join("");
+}
+
+function chatImagesFromModelMessage(message: SessionRuntimeMessage) {
+  return message.parts
+    .filter((part) => part.partType === "image" && part.body)
+    .map((part) => ({
+      src: part.body,
+      ...(part.name ? { name: part.name } : {}),
+    }));
+}
+
+function liveImagesFromPrompt(images?: RuntimePromptImage[]) {
+  return images?.map((image) => ({
+    src: promptImageDataUrl(image),
+    name: image.name,
+  }));
 }
 
 function orderedRuntimeModelAssistantMessageIds(
@@ -880,6 +919,9 @@ function appendProcessingQueuedFollowUpsAsUserMessages(
       id: `queued-processing-${queuedMessage.id}`,
       role: "user" as const,
       body: queuedMessage.body,
+      ...(queuedMessage.images?.length
+        ? { images: liveImagesFromPrompt(queuedMessage.images) }
+        : {}),
     })),
   ];
 }
@@ -928,9 +970,10 @@ function liveMessagesFromRuntimeModel(
     }
 
     const body = chatTextFromModelMessage(message);
+    const images = chatImagesFromModelMessage(message);
     const isStreaming = streamingAllowed && message.phase === "streaming";
 
-    if (!body && !message.controlLabel && !isStreaming) {
+    if (!body && !images.length && !message.controlLabel && !isStreaming) {
       continue;
     }
 
@@ -938,6 +981,7 @@ function liveMessagesFromRuntimeModel(
       id: message.messageId,
       role: message.role,
       body,
+      ...(images.length ? { images } : {}),
       ...(message.runId ? { runId: message.runId } : {}),
       ...(message.piEntryId ? { piEntryId: message.piEntryId } : {}),
       ...(message.controlLabel ? { controlLabel: message.controlLabel } : {}),
@@ -1161,6 +1205,9 @@ function liveMessagesFromProjection(
               ? "assistant"
               : "assistant",
         body: event.body,
+        ...(event.images?.length
+          ? { images: liveImagesFromPrompt(event.images) }
+          : {}),
         ...(event.piEntryId ? { piEntryId: event.piEntryId } : {}),
         controlLabel:
           event.kind === "control" ||
@@ -1694,6 +1741,7 @@ function SessionDraftComposer({
       projectId: draft.projectId,
       prompt: built.prompt,
       checkoutMode: selectedCheckoutMode,
+      ...(built.images.length ? { images: built.images } : {}),
       ...(draftModelControls?.selected
         ? { modelSelection: draftModelControls.selected }
         : {}),
@@ -2832,7 +2880,10 @@ function LiveSessionColumn({
     const targetRepoRoot = usingRegistryProjects ? undefined : workspace.repoRoot;
 
     const result = await sessionCreator({
-      draft,
+      draft: {
+        ...draft,
+        prompt: event.prompt,
+      },
       project: {
         id: targetProject.id,
         repoRoot: targetRepoRoot,
@@ -2840,6 +2891,7 @@ function LiveSessionColumn({
       },
       executionMode: checkoutModeToExecutionMode(event.checkoutMode),
       ...(event.modelSelection ? { modelSelection: event.modelSelection } : {}),
+      ...(event.images?.length ? { images: event.images } : {}),
       onProjectionChange: (projection) => {
         setCreationProjection(projection);
         onProjectionChange?.(projection);
@@ -2993,7 +3045,10 @@ function LiveSessionColumn({
     Boolean(liveProjection?.piSessionId) &&
     Boolean(liveProjection && isSessionProjectionActive(liveProjection)) &&
     !readOnlyProjection;
-  const handleQueueSubmit = async (message: string) => {
+  const handleQueueSubmit = async (
+    message: string,
+    images?: RuntimePromptImage[],
+  ) => {
     // Base every interaction commit on the freshest projection (ref falls
     // back to state): steer-then-withdraw runs two commits back to back, and
     // a stale closure base would clobber the first commit's event.
@@ -3006,6 +3061,7 @@ function LiveSessionColumn({
     const queuedMessage = await getRuntimeBridge().queueFollowUp({
       piSessionId: projection.piSessionId,
       message,
+      ...(images?.length ? { images } : {}),
     });
 
     const next = applySessionProjectionEvent(projection, {
@@ -3015,7 +3071,10 @@ function LiveSessionColumn({
     liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
-  const handlePromptSubmit = async (message: string) => {
+  const handlePromptSubmit = async (
+    message: string,
+    images?: RuntimePromptImage[],
+  ) => {
     const projection = liveProjectionRef.current ?? liveProjection;
 
     if (!projection?.piSessionId || readOnlyProjection) {
@@ -3031,6 +3090,7 @@ function LiveSessionColumn({
     const accepted = await getRuntimeBridge().sendInitialPrompt({
       piSessionId: projection.piSessionId,
       prompt: message,
+      ...(images?.length ? { images } : {}),
     });
 
     const next = applySessionProjectionEvent(projection, {
@@ -3087,7 +3147,10 @@ function LiveSessionColumn({
     liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
-  const handleSteerSubmit = async (message: string) => {
+  const handleSteerSubmit = async (
+    message: string,
+    images?: RuntimePromptImage[],
+  ) => {
     const projection = liveProjectionRef.current ?? liveProjection;
 
     if (!projection?.piSessionId || !queueMode) {
@@ -3097,6 +3160,7 @@ function LiveSessionColumn({
     const event = await getRuntimeBridge().steerRun({
       piSessionId: projection.piSessionId,
       message,
+      ...(images?.length ? { images } : {}),
     });
 
     const next = applySessionProjectionEvent(projection, {

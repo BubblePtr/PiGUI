@@ -151,7 +151,7 @@ export function ChatPromptInput({
   onFiles?: (files: File[]) => void;
 }) {
   const isRunning = status === "streaming" || status === "submitted";
-  const isStopShown = isRunning && !value.trim() && Boolean(onStop);
+  const isStopShown = isRunning && !value.trim() && !hasAttachments && Boolean(onStop);
   const canSubmit =
     (Boolean(value.trim()) || hasAttachments) &&
     (!isRunning || allowSubmitWhileRunning);

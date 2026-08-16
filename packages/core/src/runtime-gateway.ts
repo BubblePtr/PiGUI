@@ -1,3 +1,5 @@
+import type { RuntimePromptImage } from "./prompt-image";
+
 export type RuntimeGatewayRequest = {
   id: string;
   method: string;
@@ -92,6 +94,7 @@ export type RuntimeGatewayQueuedMessage = {
   id: string;
   piSessionId: string;
   body: string;
+  images?: RuntimePromptImage[];
   status: "pending" | "processing" | "withdrawn";
   createdAt: string;
   processingStartedAt?: string;

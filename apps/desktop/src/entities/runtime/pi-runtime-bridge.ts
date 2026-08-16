@@ -13,6 +13,7 @@ import type {
   AgentRuntimeEvent,
   RuntimeModelControls,
   RuntimeModelSelection,
+  RuntimePromptImage,
 } from "@pigui/core";
 
 export type { RuntimeModelControls, RuntimeModelSelection } from "@pigui/core";
@@ -93,6 +94,7 @@ export type PiRuntimeEvent = {
   role?: "user" | "assistant";
   title?: string;
   body: string;
+  images?: RuntimePromptImage[];
   bodyFormat?: "full" | "delta";
   phase?: "partial" | "delta" | "final";
   timestamp: string;
@@ -108,6 +110,7 @@ export type PiQueuedMessage = {
   id: string;
   piSessionId: string;
   body: string;
+  images?: RuntimePromptImage[];
   status: PiQueuedMessageStatus;
   createdAt: string;
   processingStartedAt?: string;
@@ -159,11 +162,13 @@ export type CreatePiSessionStateInput = {
 export type SendInitialPromptInput = {
   piSessionId: string;
   prompt: string;
+  images?: RuntimePromptImage[];
 };
 
 export type QueueFollowUpInput = {
   piSessionId: string;
   message: string;
+  images?: RuntimePromptImage[];
 };
 
 export type WithdrawQueuedMessageInput = {
@@ -174,6 +179,7 @@ export type WithdrawQueuedMessageInput = {
 export type SteerRunInput = {
   piSessionId: string;
   message: string;
+  images?: RuntimePromptImage[];
 };
 
 export type AbortRunInput = {

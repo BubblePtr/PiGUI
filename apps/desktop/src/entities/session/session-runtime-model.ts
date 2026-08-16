@@ -8,7 +8,9 @@ import type {
   AgentRuntimeEvent,
   AgentRunOutcome,
   AgentRunTrigger,
+  RuntimePromptImage,
 } from "@pigui/core";
+import { promptImageDataUrl } from "@pigui/core";
 import type { SessionStatus } from "./session-projection";
 
 export type SessionRuntimeRun = {
@@ -25,6 +27,7 @@ export type SessionRuntimeMessagePart = {
   body: string;
   done: boolean;
   toolCallId?: string;
+  name?: string;
 };
 
 export type SessionRuntimeMessage = {
@@ -119,6 +122,44 @@ function withOrderEntry(
   return order.some((existing) => existing.kind === entry.kind && existing.id === entry.id)
     ? order
     : [...order, entry];
+}
+
+function legacyPartsFromEcho(
+  messageId: string,
+  body: string,
+  images?: RuntimePromptImage[],
+): SessionRuntimeMessagePart[] {
+  const parts: SessionRuntimeMessagePart[] = [];
+
+  if (body) {
+    parts.push({
+      partId: `${messageId}:legacy`,
+      partType: "text",
+      body,
+      done: true,
+    });
+  }
+
+  for (const [index, image] of (images ?? []).entries()) {
+    parts.push({
+      partId: `${messageId}:image-${index}`,
+      partType: "image",
+      body: promptImageDataUrl(image),
+      done: true,
+      ...(image.name ? { name: image.name } : {}),
+    });
+  }
+
+  if (parts.length === 0) {
+    parts.push({
+      partId: `${messageId}:legacy`,
+      partType: "text",
+      body: "",
+      done: true,
+    });
+  }
+
+  return parts;
 }
 
 function upsertPart(
@@ -381,6 +422,7 @@ export type LegacyChatEventInput = {
   role?: "user" | "assistant";
   title?: string;
   body: string;
+  images?: RuntimePromptImage[];
   messageId?: string;
   piEntryId?: string;
   timestamp: string;
@@ -426,14 +468,7 @@ export function addLegacyChatEventToModel(
     ...(stored?.turnId ? { turnId: stored.turnId } : {}),
     phase: "final",
     ...(controlLabel ? { controlLabel } : {}),
-    parts: [
-      {
-        partId: `${messageId}:legacy`,
-        partType: "text",
-        body: input.body,
-        done: true,
-      },
-    ],
+    parts: legacyPartsFromEcho(messageId, input.body, input.images),
     updatedAt: input.timestamp,
   });
 

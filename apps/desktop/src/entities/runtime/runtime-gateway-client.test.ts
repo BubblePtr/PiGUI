@@ -465,6 +465,127 @@ describe("Runtime Gateway client", () => {
     });
   });
 
+  it("forwards image attachments on send_prompt, queue, and steer", async () => {
+    const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const images = [{ mimeType: "image/png", data: "abc", name: "shot.png" }];
+    const snapshot: RuntimeGatewaySnapshot = {
+      sessionId: "session-1",
+      runtimeId: "pi-rpc:session-1",
+      piSessionId: "pi-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+      status: "idle",
+      events: [],
+      updatedAt: "2026-06-29T12:00:00.000Z",
+    };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>(command: string, args?: Record<string, unknown>) => {
+        invocations.push({ command, args });
+
+        if (command === "create_session") {
+          return snapshot as T;
+        }
+
+        if (command === "send_prompt") {
+          return {
+            id: "evt-user",
+            seq: 1,
+            sessionId: "session-1",
+            piSessionId: "pi-session-1",
+            type: "message_update",
+            ts: "2026-06-29T12:00:02.000Z",
+            payload: {
+              kind: "message",
+              role: "user",
+              body: args?.prompt,
+              images: args?.images,
+            },
+          } as T;
+        }
+
+        if (command === "queue_follow_up") {
+          return {
+            id: "queued-1",
+            piSessionId: "pi-session-1",
+            body: args?.message,
+            images: args?.images,
+            status: "pending",
+            createdAt: "2026-06-29T12:00:03.000Z",
+          } as T;
+        }
+
+        if (command === "steer_run") {
+          return {
+            id: "evt-steer",
+            seq: 2,
+            sessionId: "session-1",
+            piSessionId: "pi-session-1",
+            type: "control",
+            ts: "2026-06-29T12:00:04.000Z",
+            payload: {
+              kind: "control",
+              role: "user",
+              title: "Steer",
+              body: args?.message,
+              images: args?.images,
+            },
+          } as T;
+        }
+
+        throw new Error(`unexpected command ${command}`);
+      },
+    });
+
+    await client.startRuntime({
+      sessionId: "session-1",
+      projectId: "pig",
+      checkout: {
+        mode: "foreground-local",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig",
+      },
+    });
+    const accepted = await client.sendInitialPrompt({
+      piSessionId: "pi-session-1",
+      prompt: "Look at this",
+      images,
+    });
+    const queued = await client.queueFollowUp({
+      piSessionId: "pi-session-1",
+      message: "And then?",
+      images,
+    });
+    const steered = await client.steerRun({
+      piSessionId: "pi-session-1",
+      message: "Focus on the screenshot",
+      images,
+    });
+
+    expect(invocations).toEqual(
+      expect.arrayContaining([
+        {
+          command: "send_prompt",
+          args: { piSessionId: "pi-session-1", prompt: "Look at this", images },
+        },
+        {
+          command: "queue_follow_up",
+          args: { piSessionId: "pi-session-1", message: "And then?", images },
+        },
+        {
+          command: "steer_run",
+          args: {
+            piSessionId: "pi-session-1",
+            message: "Focus on the screenshot",
+            images,
+          },
+        },
+      ]),
+    );
+    expect(accepted.event.images).toEqual(images);
+    expect(queued.images).toEqual(images);
+    expect(steered.images).toEqual(images);
+  });
+
   it("preserves Gateway message identity metadata for streaming updates", async () => {
     const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
     const snapshot: RuntimeGatewaySnapshot = {
