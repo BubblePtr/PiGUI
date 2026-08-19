@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -174,5 +174,41 @@ describe("SessionDetailView (Trace Cockpit)", () => {
       />,
     );
     expect(screen.getByText("No timeline entries found.")).toBeInTheDocument();
+  });
+
+  it("does not steal arrow keys on empty, loading, or error views", () => {
+    const { rerender } = render(<SessionDetailView isLoading sessionId="s" />);
+    const down = new KeyboardEvent("keydown", { key: "ArrowDown", cancelable: true });
+    document.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(false);
+
+    rerender(<SessionDetailView isError sessionId="s" />);
+    const up = new KeyboardEvent("keydown", { key: "ArrowUp", cancelable: true });
+    document.dispatchEvent(up);
+    expect(up.defaultPrevented).toBe(false);
+
+    rerender(
+      <SessionDetailView
+        session={{ ...makeLargeSessionDetail(0), turns: [] }}
+        sessionId="s"
+      />,
+    );
+    const empty = new KeyboardEvent("keydown", { key: "ArrowDown", cancelable: true });
+    document.dispatchEvent(empty);
+    expect(empty.defaultPrevented).toBe(false);
+  });
+
+  it("scrolls a virtualized run into the ledger when the strip jumps to it", async () => {
+    const user = userEvent.setup();
+    const session = makeLargeSessionDetail();
+    const { container } = render(<SessionDetailView session={session} sessionId={session.id} />);
+
+    expect(container.querySelector('[data-index="63"]')).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("option", { name: /Run 64 / })[0]);
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-index="63"]')).toBeInTheDocument();
+    });
   });
 });

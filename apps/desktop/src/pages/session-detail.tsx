@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@/shared/runtime";
 import {
   buildTraceRuns,
@@ -134,6 +134,11 @@ export function SessionDetailView({
   const stepRefs = useRef(new Map<string, HTMLButtonElement>());
   const turnRefs = useRef(new Map<number, HTMLDivElement>());
   const resizeState = useRef<{ startX: number; startWidth: number } | undefined>(undefined);
+  // Pin the jump target in the virtual window. scrollToIndex clamps to 0 when
+  // the scroller has no layout yet (jsdom, first paint), so scrollIntoView
+  // would otherwise have nothing to find.
+  const pendingRevealIndex = useRef<number | null>(null);
+  const [, setRevealGeneration] = useState(0);
 
   const allSteps = useMemo(() => turns.flatMap((turn) => turn.steps), [turns]);
   const visibleSteps = useMemo(
@@ -168,42 +173,6 @@ export function SessionDetailView({
   function isRunDimmed(runIndex: number) {
     return focusRange !== undefined && (runIndex < focusRange[0] || runIndex > focusRange[1]);
   }
-
-  // ArrowUp/ArrowDown walk the visible steps, respecting filter and focus.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-        return;
-      }
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      setSelectedStepId((currentId) => {
-        const index = walkableSteps.findIndex((step) => step.id === currentId);
-        const nextIndex =
-          index === -1
-            ? 0
-            : Math.min(
-                Math.max(index + (event.key === "ArrowDown" ? 1 : -1), 0),
-                walkableSteps.length - 1,
-              );
-        const next = walkableSteps[nextIndex];
-        if (!next) {
-          return currentId;
-        }
-        stepRefs.current.get(next.id)?.scrollIntoView({ block: "nearest" });
-        return next.id;
-      });
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [walkableSteps]);
 
   // Inspector resize: pointer-drag on the divider, double-click collapses.
   function startResize(event: React.PointerEvent<HTMLDivElement>) {
@@ -257,7 +226,79 @@ export function SessionDetailView({
       observer.observe(element);
       return () => observer.disconnect();
     },
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+      const pinned = pendingRevealIndex.current;
+      if (pinned !== null && pinned >= 0 && pinned < range.count && !indexes.includes(pinned)) {
+        indexes.push(pinned);
+        indexes.sort((a, b) => a - b);
+      }
+      return indexes;
+    },
   });
+
+  const revealLedgerTarget = useCallback(
+    (input: { runIndex: number; stepId?: string; turnIndex?: number }) => {
+      const virtualIndex = visibleRuns.findIndex((run) => run.index === input.runIndex);
+      if (virtualIndex >= 0) {
+        pendingRevealIndex.current = virtualIndex;
+        setRevealGeneration((generation) => generation + 1);
+        rowVirtualizer.scrollToIndex(virtualIndex, { align: "start" });
+      }
+      requestAnimationFrame(() => {
+        if (input.stepId) {
+          stepRefs.current.get(input.stepId)?.scrollIntoView?.({ block: "nearest" });
+          return;
+        }
+        if (input.turnIndex !== undefined) {
+          turnRefs.current.get(input.turnIndex)?.scrollIntoView?.({ block: "start" });
+        }
+      });
+    },
+    [rowVirtualizer, visibleRuns],
+  );
+
+  // ArrowUp/ArrowDown walk the visible steps, respecting filter and focus.
+  // Empty/loading views have no walkable steps — leave page scroll alone.
+  useEffect(() => {
+    if (walkableSteps.length === 0) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)
+      ) {
+        return;
+      }
+      const index = walkableSteps.findIndex((step) => step.id === selectedStepId);
+      const nextIndex =
+        index === -1
+          ? 0
+          : Math.min(
+              Math.max(index + (event.key === "ArrowDown" ? 1 : -1), 0),
+              walkableSteps.length - 1,
+            );
+      const next = walkableSteps[nextIndex];
+      if (!next) {
+        return;
+      }
+      event.preventDefault();
+      revealLedgerTarget({
+        runIndex: turns[next.turnIndex].runIndex,
+        stepId: next.id,
+      });
+      setSelectedStepId(next.id);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [revealLedgerTarget, selectedStepId, turns, walkableSteps]);
 
   if (isLoading || isError || !session || session.turns.length === 0) {
     return (
@@ -308,16 +349,23 @@ export function SessionDetailView({
               if (range) {
                 const firstTurn = turns.find((turn) => turn.runIndex === range[0]);
                 if (firstTurn) {
-                  turnRefs.current.get(firstTurn.index)?.scrollIntoView({ block: "start" });
+                  revealLedgerTarget({
+                    runIndex: range[0],
+                    turnIndex: firstTurn.index,
+                  });
                 }
               }
             }}
             onSelect={(turnIndex, stepId) => {
-              turnRefs.current.get(turnIndex)?.scrollIntoView({ block: "start" });
               const target =
                 stepId && visibleIds.has(stepId)
                   ? stepId
                   : turns[turnIndex].steps.find((step) => visibleIds.has(step.id))?.id;
+              revealLedgerTarget({
+                runIndex: turns[turnIndex].runIndex,
+                stepId: target,
+                turnIndex,
+              });
               if (target) {
                 setSelectedStepId(target);
               }
