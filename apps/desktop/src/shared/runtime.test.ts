@@ -76,6 +76,9 @@ describe("renderer runtime bridge", () => {
       skills: [],
       promptTemplates: [],
     });
+    await expect(invoke("resolve_tool_schemas", { names: ["bash"] })).resolves.toEqual({
+      schemas: {},
+    });
     await expect(
       invoke<SessionDetail>("get_session_detail", { id: "dev-fixture-pig-jun24" }),
     ).resolves.toEqual(

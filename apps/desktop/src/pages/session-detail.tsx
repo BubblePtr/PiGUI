@@ -1,25 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { PiKpi } from "@/shared/ui/pi-kpi";
-import {
-  PiTraceLedger,
-  type TraceLedgerEntry,
-  type TraceLedgerGroup,
-} from "@/shared/ui/pi-trace-ledger";
-import { toolTargetFromArgs } from "@/shared/ui/chat/chat-tool";
-import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
-import { useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@/shared/runtime";
-import type {
-  MessageRole,
-  SessionContentPart,
-  TokenUsage,
-  CostBreakdown,
-  SessionTurn,
-  SessionDetail,
-} from "@pigui/core";
+import {
+  buildTraceRuns,
+  buildTraceTurns,
+  emptyTraceFilter,
+  isTraceFilterActive,
+  traceStepMatches,
+  type TraceFilter,
+  type TraceStep,
+} from "@/entities/session/trace-model";
+import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
+import {
+  PiTraceInspector,
+  type TraceInspectorTab,
+  type TraceToolSchema,
+} from "@/shared/ui/pi-trace-inspector";
+import { PiTraceStrip, type RunRange, type StripWidthMode } from "@/shared/ui/pi-trace-strip";
+import type { RuntimeToolSchemas, SessionDetail, SessionTurn } from "@pigui/core";
 
 export type {
   SessionContentPart,
@@ -29,35 +30,7 @@ export type {
   SessionDetail,
 } from "@pigui/core";
 
-const highlightedCodeBlockMaxChars = 4000;
-const targetMaxChars = 120;
-
-const roleLabels: Record<MessageRole, string> = {
-  user: "User",
-  assistant: "Assistant",
-  toolResult: "Tool result",
-  unknown: "Message",
-};
-
-function formatTimestamp(value?: string) {
-  if (!value) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "medium",
-  }).format(new Date(value));
-}
-
-function formatCost(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 6,
-  }).format(value);
-}
+const filterableKinds = ["tool", "think", "text", "image", "config"];
 
 function formatTokens(value: number) {
   return new Intl.NumberFormat(undefined, {
@@ -66,282 +39,174 @@ function formatTokens(value: number) {
   }).format(value);
 }
 
-function formatDuration(seconds?: number) {
-  if (seconds === undefined) {
-    return "Unknown";
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  if (minutes === 0) {
-    return `${remainder}s`;
-  }
-
-  return `${minutes}m ${remainder}s`;
+function formatCost(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function getSessionDetail(sessionId: string) {
   return invoke<SessionDetail>("get_session_detail", { id: sessionId });
 }
 
-function payloadValue(part: SessionContentPart, key: string) {
-  if (!part.payload || typeof part.payload !== "object") {
-    return undefined;
+function getToolSchemas(piSessionId: string, names: string[]) {
+  return invoke<RuntimeToolSchemas>("resolve_tool_schemas", {
+    piSessionId,
+    names,
+  });
+}
+
+function toolNamesFromSession(session?: SessionDetail) {
+  const names = new Set<string>();
+
+  for (const turn of session?.turns ?? []) {
+    for (const part of turn.parts) {
+      if (part.partType === "toolCall" && part.name) {
+        names.add(part.name);
+      }
+    }
   }
 
-  return (part.payload as Record<string, unknown>)[key];
+  return [...names].sort();
 }
 
-function payloadString(part: SessionContentPart, key: string) {
-  const value = payloadValue(part, key);
-  return typeof value === "string" ? value : undefined;
-}
-
-function formatValue(value: unknown) {
-  if (value === undefined) {
-    return "";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return JSON.stringify(value, null, 2);
-}
-
-function firstNonEmptyLine(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-}
-
-function compactText(value: string, maxLength = targetMaxChars) {
-  const text = value.replace(/\s+/g, " ").trim();
-  if (text.length <= maxLength) {
-    return text;
-  }
-
-  return `${text.slice(0, maxLength - 1).trimEnd()}...`;
-}
-
-function turnLabel(turn: SessionTurn) {
-  return turn.kind === "annotation" ? turn.title ?? "Annotation" : roleLabels[turn.role ?? "unknown"];
-}
-
-function PlainLogCodeBlock({ code }: { code: string }) {
+function FilterChip({
+  label,
+  isActive,
+  onToggle,
+}: {
+  label: string;
+  isActive: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-surface-muted px-3 py-2 text-sm leading-6 text-foreground">
-      {code}
-    </pre>
+    <button
+      aria-pressed={isActive}
+      className={`cursor-pointer rounded-full border px-2 py-0.5 font-mono text-[11px] transition-colors ${
+        isActive
+          ? "border-transparent bg-foreground text-background"
+          : "border-border text-muted hover:bg-surface-hover hover:text-foreground"
+      }`}
+      type="button"
+      onClick={onToggle}
+    >
+      {label}
+    </button>
   );
 }
 
-function LogCodeBlock({ children }: { children: string | string[] }) {
-  const code = Array.isArray(children) ? children.join("") : children;
-
-  if (code.length > highlightedCodeBlockMaxChars) {
-    return <PlainLogCodeBlock code={code} />;
-  }
-
-  return <ChatCodeBlock code={code} language="plaintext" />;
-}
-
 /**
- * Ledger mapping. One tool invocation = one row: the toolCall part opens the
- * row, the matching toolResult (paired by toolCallId, falling back to call
- * order) supplies status, duration, and output. Everything else maps 1:1.
+ * The Trace Cockpit: Strip (overview band) + filter bar + Ledger (left,
+ * virtualized by Active Run) + Inspector (right, resizable). Interaction
+ * semantics: Strip brush = focus (dims, never filters); the filter bar =
+ * true filter (rows drop out); the Playhead (selected step, ↑/↓) walks the
+ * visible steps inside the focused range.
  */
-type ToolRowDraft = {
-  id: string;
-  callId?: string;
-  name?: string;
-  argsText?: string;
-  output?: string;
-  hasResult: boolean;
-  isError?: boolean;
-  durationMs?: number;
-};
-
-type EntryDraft =
-  | { type: "tool"; tool: ToolRowDraft }
-  | { type: "part"; id: string; part: SessionContentPart };
-
-function toolArgsText(part: SessionContentPart) {
-  const args = payloadValue(part, "arguments") ?? payloadValue(part, "input");
-  return args === undefined ? undefined : formatValue(args);
-}
-
-function draftsFromParts(parts: SessionContentPart[], turnKey: string): EntryDraft[] {
-  const drafts: EntryDraft[] = [];
-  const openToolCalls: ToolRowDraft[] = [];
-
-  parts.forEach((part, index) => {
-    const id = `${turnKey}-${index}`;
-
-    if (part.partType === "toolCall") {
-      const argsText = toolArgsText(part);
-      const tool: ToolRowDraft = {
-        id,
-        callId: payloadString(part, "id"),
-        name: part.name ?? payloadString(part, "name"),
-        argsText,
-        hasResult: false,
-      };
-      openToolCalls.push(tool);
-      drafts.push({ type: "tool", tool });
-      return;
-    }
-
-    if (part.partType === "toolResult") {
-      const callId = payloadString(part, "toolCallId");
-      const match =
-        openToolCalls.find((tool) => !tool.hasResult && callId && tool.callId === callId) ??
-        openToolCalls.find((tool) => !tool.hasResult);
-
-      const tool = match ?? {
-        id,
-        name: part.name,
-        hasResult: false,
-      };
-      tool.hasResult = true;
-      tool.output = part.text ?? formatValue(part.payload);
-      tool.isError = part.isError;
-      tool.durationMs = part.durationMs;
-
-      if (!match) {
-        drafts.push({ type: "tool", tool });
-      }
-      return;
-    }
-
-    drafts.push({ type: "part", id, part });
-  });
-
-  return drafts;
-}
-
-function toolEntry(tool: ToolRowDraft): TraceLedgerEntry {
-  const hasDetail = tool.argsText !== undefined || tool.output !== undefined;
-
-  return {
-    id: tool.id,
-    kind: "tool",
-    name: tool.name,
-    target: toolTargetFromArgs(tool.argsText),
-    durationMs: tool.durationMs,
-    status: tool.hasResult ? (tool.isError ? "error" : "ok") : undefined,
-    detail: hasDetail ? (
-      <>
-        {tool.argsText !== undefined ? <LogCodeBlock>{tool.argsText}</LogCodeBlock> : null}
-        {tool.output !== undefined ? <LogCodeBlock>{tool.output}</LogCodeBlock> : null}
-      </>
-    ) : undefined,
-  };
-}
-
-function partEntry(id: string, part: SessionContentPart): TraceLedgerEntry {
-  if (part.partType === "image") {
-    const imageUrl =
-      payloadString(part, "url") ??
-      (payloadString(part, "data") && payloadString(part, "mimeType")
-        ? `data:${payloadString(part, "mimeType")};base64,${payloadString(part, "data")}`
-        : undefined);
-    const imageAlt = payloadString(part, "alt") ?? payloadString(part, "name");
-
-    return {
-      id,
-      kind: "image",
-      target: imageAlt ?? imageUrl,
-      detail: imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={imageAlt ?? "Session image"}
-          className="max-h-56 max-w-full rounded-md border border-border object-contain"
-          loading="lazy"
-        />
-      ) : (
-        <LogCodeBlock>{formatValue(part.payload)}</LogCodeBlock>
-      ),
-    };
-  }
-
-  const text = part.text ?? formatValue(part.payload);
-  const target = text ? compactText(firstNonEmptyLine(text) ?? "") : undefined;
-  const fitsInline = target !== undefined && text.trim() === target;
-  const kind = part.partType === "thinking" ? "think" : part.partType;
-
-  return {
-    id,
-    kind,
-    name: part.name,
-    target,
-    detail: text && !fitsInline ? <LogCodeBlock>{text}</LogCodeBlock> : undefined,
-  };
-}
-
-// The group header already names the annotation ("Model changed"); the row
-// carries a stable generic kind and surfaces the new value in the name column.
-function annotationEntries(turn: SessionTurn, turnKey: string): TraceLedgerEntry[] {
-  return turn.parts.map((part, index) => ({
-    id: `${turnKey}-${index}`,
-    kind: "config",
-    name: turn.model,
-    detail:
-      part.payload === undefined || part.payload === null ? undefined : (
-        <LogCodeBlock>{formatValue(part.payload)}</LogCodeBlock>
-      ),
-  }));
-}
-
-function metaFromTurn(turn: SessionTurn) {
-  if (!turn.usage && !turn.cost) {
-    return undefined;
-  }
-
-  return `${formatCost(turn.cost?.totalUsd ?? 0)} · ${formatTokens(turn.usage?.totalTokens ?? 0)} tokens`;
-}
-
-export function ledgerGroupsFromTurns(turns: SessionTurn[]): TraceLedgerGroup[] {
-  return turns.map((turn, index) => {
-    const turnKey = `${turn.timestamp ?? "turn"}-${index}`;
-
-    return {
-      id: turnKey,
-      label: turnLabel(turn),
-      timestamp: turn.timestamp,
-      meta: metaFromTurn(turn),
-      entries:
-        turn.kind === "annotation"
-          ? annotationEntries(turn, turnKey)
-          : draftsFromParts(turn.parts, turnKey).map((draft) =>
-              draft.type === "tool" ? toolEntry(draft.tool) : partEntry(draft.id, draft.part),
-            ),
-    };
-  });
-}
-
-export function SessionTimeline({
-  turns,
-  scrollRef,
+export function SessionDetailView({
+  session,
+  sessionId,
+  isLoading = false,
+  isError = false,
+  toolSchemas,
 }: {
-  turns: SessionTurn[];
-  /**
-   * The scroll container the virtualizer tracks. The page passes its single
-   * scroll body so the ledger never nests a second scroller; standalone
-   * renders fall back to the component's own wrapper.
-   */
-  scrollRef?: RefObject<HTMLElement | null>;
+  session?: SessionDetail;
+  sessionId: string;
+  isLoading?: boolean;
+  isError?: boolean;
+  toolSchemas?: Record<string, TraceToolSchema>;
 }) {
-  const groups = useMemo(() => ledgerGroupsFromTurns(turns), [turns]);
-  const parentRef = useRef<HTMLDivElement>(null);
+  const turns = useMemo(() => buildTraceTurns(session?.turns ?? []), [session?.turns]);
+  const runs = useMemo(() => buildTraceRuns(turns), [turns]);
+
+  const [filter, setFilter] = useState<TraceFilter>(emptyTraceFilter);
+  // Video-editing semantics: the brushed range focuses (dims the rest); it
+  // does not filter rows out. Kept separate from the true filters.
+  const [focusRange, setFocusRange] = useState<RunRange | undefined>(undefined);
+  const [stripWidthMode, setStripWidthMode] = useState<StripWidthMode>("steps");
+  const [selectedStepId, setSelectedStepId] = useState<string | undefined>(undefined);
+  const [tab, setTab] = useState<TraceInspectorTab>("Summary");
+  const [inspectorWidth, setInspectorWidth] = useState(384);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+  const stepRefs = useRef(new Map<string, HTMLButtonElement>());
+  const turnRefs = useRef(new Map<number, HTMLDivElement>());
+  const resizeState = useRef<{ startX: number; startWidth: number } | undefined>(undefined);
+  // Pin the jump target in the virtual window. scrollToIndex clamps to 0 when
+  // the scroller has no layout yet (jsdom, first paint), so scrollIntoView
+  // would otherwise have nothing to find.
+  const pendingRevealIndex = useRef<number | null>(null);
+  const [, setRevealGeneration] = useState(0);
+
+  const allSteps = useMemo(() => turns.flatMap((turn) => turn.steps), [turns]);
+  const visibleSteps = useMemo(
+    () => allSteps.filter((step) => traceStepMatches(step, filter)),
+    [allSteps, filter],
+  );
+  const visibleIds = useMemo(() => new Set(visibleSteps.map((step) => step.id)), [visibleSteps]);
+  const stepFilter = useMemo(
+    () => (step: TraceStep) => visibleIds.has(step.id),
+    [visibleIds],
+  );
+  // The Playhead walks inside the focused run range when one is brushed.
+  const walkableSteps = useMemo(
+    () =>
+      focusRange
+        ? visibleSteps.filter((step) => {
+            const runIndex = turns[step.turnIndex].runIndex;
+            return runIndex >= focusRange[0] && runIndex <= focusRange[1];
+          })
+        : visibleSteps,
+    [visibleSteps, focusRange, turns],
+  );
+
+  const visibleRuns = useMemo(
+    () => runs.filter((run) => run.turns.some((turn) => turn.steps.some(stepFilter))),
+    [runs, stepFilter],
+  );
+
+  const selectedStep = allSteps.find((step) => step.id === selectedStepId);
+  const selectedTurn = selectedStep ? turns[selectedStep.turnIndex] : undefined;
+
+  function isRunDimmed(runIndex: number) {
+    return focusRange !== undefined && (runIndex < focusRange[0] || runIndex > focusRange[1]);
+  }
+
+  // Inspector resize: pointer-drag on the divider, double-click collapses.
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    resizeState.current = { startX: event.clientX, startWidth: inspectorWidth };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointer events (tests, automation) have no active pointer.
+    }
+  }
+
+  function moveResize(event: React.PointerEvent<HTMLDivElement>) {
+    const state = resizeState.current;
+    if (!state) {
+      return;
+    }
+    const delta = state.startX - event.clientX;
+    setInspectorWidth(Math.min(640, Math.max(280, state.startWidth + delta)));
+    if (isInspectorCollapsed) {
+      setIsInspectorCollapsed(false);
+    }
+  }
+
+  function endResize() {
+    resizeState.current = undefined;
+  }
+
   const rowVirtualizer = useVirtualizer({
-    count: groups.length,
-    getScrollElement: () => scrollRef?.current ?? parentRef.current,
-    estimateSize: () => 120,
-    measureElement: (element) => element.getBoundingClientRect().height || 120,
-    overscan: 6,
-    getItemKey: (index) => groups[index].id,
+    count: visibleRuns.length,
+    getScrollElement: () => scrollBodyRef.current,
+    estimateSize: () => 160,
+    measureElement: (element) => element.getBoundingClientRect().height || 160,
+    overscan: 4,
+    getItemKey: (index) => visibleRuns[index].index,
     initialOffset: 0,
     initialRect: { width: 0, height: 720 },
     observeElementRect: (instance, callback) => {
@@ -361,145 +226,307 @@ export function SessionTimeline({
       observer.observe(element);
       return () => observer.disconnect();
     },
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+      const pinned = pendingRevealIndex.current;
+      if (pinned !== null && pinned >= 0 && pinned < range.count && !indexes.includes(pinned)) {
+        indexes.push(pinned);
+        indexes.sort((a, b) => a - b);
+      }
+      return indexes;
+    },
   });
 
-  return (
-    <div ref={parentRef} data-testid="timeline-viewport">
-      <PiTraceLedger>
-        <ol
-          className="relative"
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => (
-            <li
-              key={virtualRow.key}
-              data-index={virtualRow.index}
-              ref={rowVirtualizer.measureElement}
-              className="absolute left-0 top-0 w-full"
-              style={{
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <PiTraceLedger.Group group={groups[virtualRow.index]} />
-            </li>
-          ))}
-        </ol>
-      </PiTraceLedger>
-    </div>
+  const revealLedgerTarget = useCallback(
+    (input: { runIndex: number; stepId?: string; turnIndex?: number }) => {
+      const virtualIndex = visibleRuns.findIndex((run) => run.index === input.runIndex);
+      if (virtualIndex >= 0) {
+        pendingRevealIndex.current = virtualIndex;
+        setRevealGeneration((generation) => generation + 1);
+        rowVirtualizer.scrollToIndex(virtualIndex, { align: "start" });
+      }
+      requestAnimationFrame(() => {
+        if (input.stepId) {
+          stepRefs.current.get(input.stepId)?.scrollIntoView?.({ block: "nearest" });
+          return;
+        }
+        if (input.turnIndex !== undefined) {
+          turnRefs.current.get(input.turnIndex)?.scrollIntoView?.({ block: "start" });
+        }
+      });
+    },
+    [rowVirtualizer, visibleRuns],
   );
-}
 
-export function SessionDetailView({
-  session,
-  sessionId,
-  isLoading = false,
-  isError = false,
-}: {
-  session?: SessionDetail;
-  sessionId: string;
-  isLoading?: boolean;
-  isError?: boolean;
-}) {
-  const scrollBodyRef = useRef<HTMLDivElement>(null);
+  // ArrowUp/ArrowDown walk the visible steps, respecting filter and focus.
+  // Empty/loading views have no walkable steps — leave page scroll alone.
+  useEffect(() => {
+    if (walkableSteps.length === 0) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)
+      ) {
+        return;
+      }
+      const index = walkableSteps.findIndex((step) => step.id === selectedStepId);
+      const nextIndex =
+        index === -1
+          ? 0
+          : Math.min(
+              Math.max(index + (event.key === "ArrowDown" ? 1 : -1), 0),
+              walkableSteps.length - 1,
+            );
+      const next = walkableSteps[nextIndex];
+      if (!next) {
+        return;
+      }
+      event.preventDefault();
+      revealLedgerTarget({
+        runIndex: turns[next.turnIndex].runIndex,
+        stepId: next.id,
+      });
+      setSelectedStepId(next.id);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [revealLedgerTarget, selectedStepId, turns, walkableSteps]);
+
+  if (isLoading || isError || !session || session.turns.length === 0) {
+    return (
+      <article
+        className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+        data-testid="session-detail-view"
+      >
+        <EmptyState
+          className="px-4 py-12"
+          isCompact
+          title={
+            isLoading
+              ? "Loading session..."
+              : isError
+                ? "Could not read this session."
+                : "No timeline entries found."
+          }
+        />
+      </article>
+    );
+  }
 
   return (
     <article
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-6 pt-6"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="session-detail-view"
     >
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden">
-        <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold tracking-normal">
-              {session?.project ?? "Session"}
-            </h1>
-            <p className="mt-1 truncate text-sm text-muted">{sessionId}</p>
+      <header className="shrink-0 border-b border-border px-5 pt-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <div className="flex min-w-0 items-baseline gap-3">
+            <h1 className="truncate text-base font-semibold">{session.project}</h1>
+            <span className="truncate font-mono text-xs text-muted">{sessionId}</span>
           </div>
-          {session ? (
-            <time
-              dateTime={session.timestamp}
-              className="shrink-0 text-sm font-medium text-muted"
-            >
-              {formatTimestamp(session.timestamp)}
-            </time>
-          ) : null}
-        </header>
+          <p className="shrink-0 text-xs tabular-nums text-muted" data-slot="trace-tally">
+            {formatCost(session.totalCostUsd)} · {formatTokens(session.totalTokens)} tokens ·{" "}
+            {runs.length} runs
+          </p>
+        </div>
+        {/* Full-bleed strip band: edge-to-edge, bounded by full-width rules. */}
+        <div className="-mx-5 mt-3 border-t border-border bg-surface-muted/25 px-5 py-2">
+          <PiTraceStrip
+            activeStepId={selectedStepId}
+            selectedRange={focusRange}
+            turns={turns}
+            widthMode={stripWidthMode}
+            onBrush={(range) => {
+              setFocusRange(range);
+              if (range) {
+                const firstTurn = turns.find((turn) => turn.runIndex === range[0]);
+                if (firstTurn) {
+                  revealLedgerTarget({
+                    runIndex: range[0],
+                    turnIndex: firstTurn.index,
+                  });
+                }
+              }
+            }}
+            onSelect={(turnIndex, stepId) => {
+              const target =
+                stepId && visibleIds.has(stepId)
+                  ? stepId
+                  : turns[turnIndex].steps.find((step) => visibleIds.has(step.id))?.id;
+              revealLedgerTarget({
+                runIndex: turns[turnIndex].runIndex,
+                stepId: target,
+                turnIndex,
+              });
+              if (target) {
+                setSelectedStepId(target);
+              }
+            }}
+            onWidthModeChange={setStripWidthMode}
+          />
+        </div>
+      </header>
+
+      <div
+        className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-5 py-2"
+        data-slot="trace-filter-bar"
+      >
+        <input
+          className="h-6 w-48 rounded border border-border bg-surface px-2 font-mono text-xs text-foreground outline-none placeholder:text-muted focus-visible:border-primary"
+          placeholder="Filter steps…"
+          type="search"
+          value={filter.query}
+          onChange={(event) => setFilter((current) => ({ ...current, query: event.target.value }))}
+        />
+        <span aria-hidden="true" className="h-4 w-px bg-border" />
+        {filterableKinds.map((kind) => (
+          <FilterChip
+            isActive={filter.kinds.has(kind)}
+            key={kind}
+            label={kind}
+            onToggle={() =>
+              setFilter((current) => {
+                const kinds = new Set(current.kinds);
+                if (kinds.has(kind)) {
+                  kinds.delete(kind);
+                } else {
+                  kinds.add(kind);
+                }
+                return { ...current, kinds };
+              })
+            }
+          />
+        ))}
+        <span aria-hidden="true" className="h-4 w-px bg-border" />
+        <FilterChip
+          isActive={filter.errorsOnly}
+          label="errors"
+          onToggle={() =>
+            setFilter((current) => ({ ...current, errorsOnly: !current.errorsOnly }))
+          }
+        />
+        {focusRange ? (
+          <FilterChip
+            isActive
+            label={`focus runs ${focusRange[0] + 1}–${focusRange[1] + 1} ✕`}
+            onToggle={() => setFocusRange(undefined)}
+          />
+        ) : null}
+        {isTraceFilterActive(filter) || focusRange ? (
+          <button
+            className="cursor-pointer font-mono text-[11px] text-muted underline-offset-2 transition-colors hover:text-foreground hover:underline"
+            type="button"
+            onClick={() => {
+              setFilter(emptyTraceFilter);
+              setFocusRange(undefined);
+            }}
+          >
+            clear
+          </button>
+        ) : null}
+        <span className="ml-auto font-mono text-[11px] tabular-nums text-muted">
+          {visibleSteps.length} / {allSteps.length} steps
+        </span>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <div
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-24"
+          data-testid="session-detail-scroll-body"
+          ref={scrollBodyRef}
+        >
+          {visibleSteps.length === 0 ? (
+            <p className="px-4 py-10 text-center font-mono text-xs text-muted">
+              No steps match the current filters.
+            </p>
+          ) : (
+            <PiTraceLedger>
+              <ol
+                className="relative"
+                data-testid="timeline-viewport"
+                style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const run = visibleRuns[virtualRow.index];
+                  return (
+                    <li
+                      className="absolute left-0 top-0 w-full"
+                      data-index={virtualRow.index}
+                      key={virtualRow.key}
+                      ref={rowVirtualizer.measureElement}
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                      <PiTraceLedger.Run
+                        isDimmed={isRunDimmed(run.index)}
+                        registerStepRef={(stepId, element) => {
+                          if (element) {
+                            stepRefs.current.set(stepId, element);
+                          } else {
+                            stepRefs.current.delete(stepId);
+                          }
+                        }}
+                        registerTurnRef={(turnIndex, element) => {
+                          if (element) {
+                            turnRefs.current.set(turnIndex, element);
+                          } else {
+                            turnRefs.current.delete(turnIndex);
+                          }
+                        }}
+                        run={run}
+                        selectedStepId={selectedStepId}
+                        stepFilter={stepFilter}
+                        onSelectStep={setSelectedStepId}
+                      />
+                    </li>
+                  );
+                })}
+              </ol>
+            </PiTraceLedger>
+          )}
+        </div>
 
         <div
-          ref={scrollBodyRef}
-          className="pigui-scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"
-          data-testid="session-detail-scroll-body"
-        >
-          {session ? (
-            <section className="mt-6">
-              <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-border pb-3">
-                <h2 className="text-sm font-semibold uppercase text-muted">Summary</h2>
-                <span className="text-xs font-medium text-muted">Cost shown as API list price</span>
-              </div>
-              <div
-                className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4"
-                data-testid="session-summary-grid"
-              >
-                <PiKpi
-                  formatOptions={{
-                    style: "currency",
-                    currency: "USD",
-                    minimumFractionDigits: 4,
-                    maximumFractionDigits: 6,
-                  }}
-                  label="Total cost"
-                  layout="inline"
-                  value={session.totalCostUsd}
-                  valueClassName="min-w-0 max-w-full truncate text-right"
-                />
-                <PiKpi
-                  formatOptions={{ notation: "compact", maximumFractionDigits: 1 }}
-                  label="Total tokens"
-                  layout="inline"
-                  value={session.totalTokens}
-                  valueClassName="min-w-0 max-w-full truncate text-right"
-                />
-                <PiKpi
-                  label="Primary model"
-                  layout="inline"
-                  valueClassName="min-w-0 max-w-full truncate text-right"
-                  valueTestId="session-primary-model-value"
-                >
-                  {session.primaryModel ?? "Unknown model"}
-                </PiKpi>
-                <PiKpi
-                  label="Turns"
-                  layout="inline"
-                  value={session.turnCount}
-                  valueClassName="min-w-0 max-w-full truncate text-right"
-                />
-                <PiKpi
-                  label="Duration"
-                  layout="inline"
-                  valueClassName="min-w-0 max-w-full truncate text-right"
-                >
-                  {formatDuration(session.durationSeconds)}
-                </PiKpi>
-              </div>
-            </section>
-          ) : null}
+          aria-label="Resize inspector"
+          className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary"
+          data-slot="trace-inspector-handle"
+          role="separator"
+          title="Drag to resize · double-click to collapse"
+          onDoubleClick={() => setIsInspectorCollapsed((value) => !value)}
+          onPointerDown={startResize}
+          onPointerMove={moveResize}
+          onPointerUp={endResize}
+        />
 
-          {/* Dense data sits flat on the page — the ledger's own group
-              dividers carry the structure, no Card shell. */}
-          <div className="mt-6">
-            {isLoading ? (
-              <EmptyState className="px-4 py-12" isCompact title="Loading session..." />
-            ) : isError ? (
-              <EmptyState className="px-4 py-12" isCompact title="Could not read this session." />
-            ) : !session || session.turns.length === 0 ? (
-              <EmptyState className="px-4 py-12" isCompact title="No timeline entries found." />
+        {isInspectorCollapsed ? null : (
+          <aside className="shrink-0 bg-surface" style={{ width: inspectorWidth }}>
+            {selectedStep && selectedTurn ? (
+              <PiTraceInspector
+                schema={selectedStep.name ? toolSchemas?.[selectedStep.name] : undefined}
+                step={selectedStep}
+                tab={tab}
+                turn={selectedTurn}
+                onClose={() => setSelectedStepId(undefined)}
+                onTabChange={setTab}
+              />
             ) : (
-              <SessionTimeline scrollRef={scrollBodyRef} turns={session.turns} />
+              <div className="flex h-full items-center justify-center px-6">
+                <p className="text-center text-xs leading-5 text-muted">
+                  Select a step to inspect it.
+                  <br />
+                  Use ↑ / ↓ to walk the trace.
+                </p>
+              </div>
             )}
-          </div>
-        </div>
+          </aside>
+        )}
       </div>
     </article>
   );
@@ -511,6 +538,14 @@ export function SessionDetailPage() {
     queryKey: ["session-detail", sessionId],
     queryFn: () => getSessionDetail(sessionId),
   });
+  const toolNames = useMemo(() => toolNamesFromSession(detail.data), [detail.data]);
+  const schemas = useQuery({
+    queryKey: ["tool-schemas", sessionId, toolNames],
+    // Analyze /sessions/:id is the Pi JSONL session id — the same identity
+    // the Gateway uses as piSessionId for a live runtime.
+    queryFn: () => getToolSchemas(sessionId, toolNames),
+    enabled: toolNames.length > 0,
+  });
 
   return (
     <SessionDetailView
@@ -518,6 +553,11 @@ export function SessionDetailPage() {
       sessionId={sessionId}
       isLoading={detail.isLoading}
       isError={detail.isError}
+      toolSchemas={schemas.data?.schemas}
     />
   );
 }
+
+// Kept for callers that imported the timeline directly; the Cockpit view is
+// now the only timeline rendering.
+export type { SessionTurn as SessionTimelineTurn };

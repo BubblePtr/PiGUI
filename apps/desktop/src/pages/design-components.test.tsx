@@ -16,6 +16,8 @@ describe("Design components layer", () => {
       "PiBarChart",
       "PiSheet",
       "PiTraceLedger",
+      "PiTraceStrip",
+      "PiTraceInspector",
       "DotMatrix",
       "Icons",
       "ChatMessage",
@@ -45,22 +47,33 @@ describe("Design components layer", () => {
     expect(within(section).getByText("no value")).toBeInTheDocument();
   });
 
-  it("shows PiTraceLedger row states, expansion, and the empty variant", async () => {
-    const user = userEvent.setup();
+  it("shows the Cockpit ledger: run headers, row states, focus dim, and empty variant", () => {
     render(<DesignComponentsLayer />);
 
     const section = screen.getByRole("region", { name: "PiTraceLedger" });
 
-    expect(within(section).getByText("grouped rows — ok / error / running / info")).toBeInTheDocument();
+    expect(within(section).getAllByText(/Run #/).length).toBeGreaterThan(0);
     expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="ok"]')).toBeInTheDocument();
     expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="error"]')).toBeInTheDocument();
     expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="running"]')).toBeInTheDocument();
-    expect(within(section).getByText("empty")).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trace-turn-boundary"]')).toBeInTheDocument();
+    expect(section.querySelector("[data-focus-dimmed]")).toBeInTheDocument();
     expect(within(section).getByText("No trace entries.")).toBeInTheDocument();
+    // Rows never expand inline — result previews render, full payloads don't.
+    expect(within(section).getAllByText("3 files changed").length).toBeGreaterThan(0);
+  });
 
-    expect(within(section).queryByText("3 files changed")).not.toBeInTheDocument();
-    await user.click(within(section).getAllByRole("button", { name: /bash/ })[0]);
-    expect(within(section).getByText("3 files changed")).toBeInTheDocument();
+  it("shows the Strip swimlanes and the Inspector states", () => {
+    render(<DesignComponentsLayer />);
+
+    const strip = screen.getByRole("region", { name: "PiTraceStrip" });
+    expect(strip.querySelector('[data-slot="trace-strip"]')).toBeInTheDocument();
+    expect(within(strip).getByRole("button", { name: "Steps" })).toBeInTheDocument();
+    expect(within(strip).getByRole("button", { name: "Time" })).toBeInTheDocument();
+
+    const inspector = screen.getByRole("region", { name: "PiTraceInspector" });
+    expect(within(inspector).getAllByRole("tab", { name: "Schema" }).length).toBeGreaterThan(0);
+    expect(within(inspector).getByText(/Run a shell command/)).toBeInTheDocument();
   });
 
   it("shows all four ChatTool states", () => {

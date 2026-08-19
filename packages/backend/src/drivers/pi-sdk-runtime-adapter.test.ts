@@ -952,4 +952,47 @@ describe("Pi SDK public runtime adapter", () => {
     });
   });
 
+  it("reads current tool definitions from the live SDK registry", async () => {
+    const bashSchema = {
+      type: "object",
+      properties: { command: { type: "string" } },
+      required: ["command"],
+    };
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+      getToolDefinition: vi.fn((name: string) =>
+        name === "bash"
+          ? {
+              name: "bash",
+              description: "Execute a shell command",
+              parameters: bashSchema,
+            }
+          : undefined,
+      ),
+    };
+    const runtime = await createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+    })({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/repo",
+    });
+
+    await expect(runtime.resolveToolSchemas?.(["bash", "gone_tool"])).resolves.toEqual({
+      schemas: {
+        bash: {
+          description: "Execute a shell command",
+          parameters: bashSchema,
+        },
+      },
+    });
+    expect(session.getToolDefinition).toHaveBeenCalledWith("bash");
+    expect(session.getToolDefinition).toHaveBeenCalledWith("gone_tool");
+  });
 });

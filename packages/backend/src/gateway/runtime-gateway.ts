@@ -8,6 +8,7 @@ import type {
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimePromptImage,
+  RuntimeToolSchemas,
 } from "@pigui/core";
 import {
   createRuntimeGatewaySequencer,
@@ -88,6 +89,11 @@ export type ConfigureRuntimeModelInput = RuntimeModelSelection & {
   piSessionId: string;
 };
 
+export type ResolveToolSchemasInput = {
+  piSessionId: string;
+  names: string[];
+};
+
 export type PiRuntimeDriver = {
   createSession(input: CreateRuntimeSessionInput): Promise<RuntimeGatewaySnapshot>;
   resumeSession(input: ResumeRuntimeSessionInput): Promise<RuntimeGatewaySnapshot>;
@@ -98,6 +104,7 @@ export type PiRuntimeDriver = {
   steerRun(input: SteerRunInput): Promise<RuntimeGatewayDriverEvent>;
   stopRun(input: StopRunInput): Promise<RuntimeGatewayDriverEvent>;
   configureModel?(input: ConfigureRuntimeModelInput): Promise<RuntimeModelControls>;
+  resolveToolSchemas?(input: ResolveToolSchemasInput): Promise<RuntimeToolSchemas>;
   getSnapshot(piSessionId: string): Promise<RuntimeGatewaySnapshot>;
   onEvent(listener: (event: RuntimeGatewayDriverEvent) => void): () => void;
 };
@@ -433,6 +440,16 @@ async function dispatchRuntimeGatewayRequest(input: {
         sessionId: requiredString(params.sessionId, "sessionId"),
         archivedAt: input.now(),
       });
+    case "resolve_tool_schemas": {
+      const piSessionId = requiredString(params.piSessionId, "piSessionId");
+      const names = requiredStringArray(params.names, "names");
+
+      if (!input.driver.resolveToolSchemas) {
+        return { schemas: {} };
+      }
+
+      return input.driver.resolveToolSchemas({ piSessionId, names });
+    }
     case "get_runtime_snapshot": {
       const piSessionId = requiredString(params.piSessionId, "piSessionId");
       const journaled = (await input.journal?.read(piSessionId)) ?? [];
@@ -791,6 +808,14 @@ function paramsRecord(params: unknown) {
 
 function requiredString(value: unknown, name: string) {
   if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${name} is required`);
+  }
+
+  return value;
+}
+
+function requiredStringArray(value: unknown, name: string) {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
     throw new Error(`${name} is required`);
   }
 

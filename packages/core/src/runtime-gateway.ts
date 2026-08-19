@@ -75,6 +75,16 @@ export type RuntimeModelControls = {
   selected: RuntimeModelSelection | null;
 };
 
+/** Current-runtime tool definition. Absent names are omitted, not invented. */
+export type RuntimeToolSchema = {
+  description: string;
+  parameters: unknown;
+};
+
+export type RuntimeToolSchemas = {
+  schemas: Record<string, RuntimeToolSchema>;
+};
+
 export type RuntimeGatewaySnapshot = {
   sessionId: string;
   runtimeId: string;

@@ -40,6 +40,30 @@ _Avoid_: Composer-only project, selected session project, cwd override, expanded
 一次 Pi 交互的事后运行记录，展示消息、thinking、工具调用、token 和成本。它属于 Analyze 视角的分析材料，不是 Project 下的交互入口本身。
 _Avoid_: Session, workspace, chat
 
+**Trace Cockpit**:
+Session Trace 的仪表盘式呈现形态：Strip、Tally、Ledger、Inspector 四个面板加 Playhead 游标的组合，对标 DevTools Network 面板的"概览带 + 请求表 + 详情栏"解剖。它是 Analyze 视角下阅读单条 Session Trace 的界面结构，不是 Live Session View。
+_Avoid_: Live chat, log viewer, dashboard
+
+**Strip**:
+Trace Cockpit 顶部的会话概览带，Input / Model / Tools 三条泳道：色块以"段"为粒度（user 输入、连续的模型输出、连续的工具执行各成一段），按角色点亮各自泳道，错误段变红。悬停显示游标竖线用于精确定位，点击跳到对应步骤，拖拽框选出以 Active Run 为单位的聚焦选区（视频轨语义：选区外压暗，不过滤），并投影 Playhead 的当前位置。支持等宽与按时长加权两种列宽。回答"这条 Session 整体长什么样、错误在哪、我在哪"。
+_Avoid_: Timeline, minimap, progress bar, per-turn column
+
+**Tally**:
+Trace Cockpit 中的成本与规模汇总行（总成本、总 token、Turn 数）。它承载 cost and token truth 的汇总视图，是只读陈述，不是筛选器。
+_Avoid_: KPI grid, summary card, filter bar
+
+**Ledger**:
+Trace Cockpit 左侧的单行步骤台账：每个事件（tool/think/text/image/config）一行，两级分组——顶层按 Active Run（一次 user 输入及其后续全部 Turn 为一组，编号 Run #N），组内按消息（user 输入 / assistant Turn / 注解）细分并带角色标识。行永不内联展开，展开语义由 Inspector 承担。密度恒定、失败醒目是它的核心承诺。
+_Avoid_: Chat list, message stream, expandable rows, per-message numbering
+
+**Inspector**:
+Trace Cockpit 右侧的步骤详情栏，按 Summary / Payload / Result / Schema / Timing 分 tab 呈现 Playhead 所指步骤的完整材料。大体量 payload 只在这里展开，不进 Ledger。Schema 显示工具的声明式定义（描述 + 参数 JSON Schema），由 Runtime Gateway 按工具名向运行时解析，不来自 Session Trace 本身；工具未注册或定义已漂移时显示不可用状态。
+_Avoid_: Inline detail, modal, sidebar
+
+**Playhead**:
+Trace Cockpit 中当前被检视的步骤位置：Ledger 中的选中行、键盘上下移动的游标，以及 Strip 上的位置投影是同一个概念。它暗示 Session Trace 是可回放的时间序列。
+_Avoid_: Selection, cursor, focus row
+
 **Session**:
 Project 下的一条 Pi Chat，代表一个已提交、可运行、可恢复、可归档的交互工作单元。实现上，一个 Session 对应一个 Agent Run 及其 Execution Checkout，并持续沉淀 Session Trace。Session 的运行真相属于 Pi Runtime；PiGUI 保存的是用于 UI、索引和生命周期管理的 Session Projection。
 _Avoid_: Task, workspace, trace-only session, draft prompt

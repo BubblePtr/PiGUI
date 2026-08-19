@@ -633,4 +633,54 @@ describe("Pi SDK driver", () => {
     ).rejects.toThrow("Model and Thinking cannot change while a run is active.");
     expect(configureModel).toHaveBeenCalledTimes(1);
   });
+
+  it("resolves tool schemas from a live SDK runtime and returns none without one", async () => {
+    const bashSchema = {
+      description: "Execute a shell command",
+      parameters: {
+        type: "object",
+        properties: { command: { type: "string" } },
+        required: ["command"],
+      },
+    };
+    const runtime: PiSdkSessionRuntime = {
+      piSessionId: "pi-sdk-session-1",
+      sendPrompt: vi.fn(async () => {}),
+      resolveToolSchemas: vi.fn(async (names) => {
+        const schemas: Record<string, typeof bashSchema> = {};
+
+        if (names.includes("bash")) {
+          schemas.bash = bashSchema;
+        }
+
+        return { schemas };
+      }),
+    };
+    const driver = createPiSdkDriver({
+      runtimeFactory: vi.fn(async () => runtime),
+    });
+
+    await expect(
+      driver.resolveToolSchemas?.({
+        piSessionId: "pi-sdk-session-1",
+        names: ["bash"],
+      }),
+    ).resolves.toEqual({ schemas: {} });
+
+    await driver.createSession({
+      sessionId: "session-1",
+      projectId: "pig",
+      cwd: "/repo",
+    });
+
+    await expect(
+      driver.resolveToolSchemas?.({
+        piSessionId: "pi-sdk-session-1",
+        names: ["bash", "gone_tool"],
+      }),
+    ).resolves.toEqual({
+      schemas: { bash: bashSchema },
+    });
+    expect(runtime.resolveToolSchemas).toHaveBeenCalledWith(["bash", "gone_tool"]);
+  });
 });
