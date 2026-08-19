@@ -1,148 +1,167 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
-import {
-  PiTraceLedger,
-  type TraceLedgerEntry,
-  type TraceLedgerGroup,
-} from "@/shared/ui/pi-trace-ledger";
+import { describe, expect, it, vi } from "vitest";
+import type { SessionTurn } from "@pigui/core";
+import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
+import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
 
-const toolOk: TraceLedgerEntry = {
-  id: "e1",
-  kind: "tool",
-  name: "bash",
-  target: "git diff --stat",
-  durationMs: 340,
-  status: "ok",
-  detail: (
-    <>
-      <pre data-label="args">{'{"command":"git diff --stat"}'}</pre>
-      <pre data-label="output">3 files changed</pre>
-    </>
-  ),
-};
-
-const toolFailed: TraceLedgerEntry = {
-  id: "e2",
-  kind: "tool",
-  name: "edit",
-  target: "src/utils/formatDate.ts",
-  durationMs: 12400,
-  status: "error",
-  detail: <pre data-label="output">patch failed to apply</pre>,
-};
-
-const thinking: TraceLedgerEntry = {
-  id: "e3",
-  kind: "think",
-  target: "Root cause confirmed, fixing.",
-  detail: <pre data-label="thinking">Root cause confirmed: toolCallId is never remapped on fork.</pre>,
-};
-
-const bareText: TraceLedgerEntry = {
-  id: "e4",
-  kind: "text",
-  target: "Done — three files updated.",
-};
-
-const running: TraceLedgerEntry = {
-  id: "e5",
-  kind: "tool",
-  name: "grep",
-  target: "remapToolCallId",
-  status: "running",
-};
-
-const groups: TraceLedgerGroup[] = [
+const sessionTurns: SessionTurn[] = [
   {
-    id: "g1",
-    label: "Assistant",
-    timestamp: "2026-03-22T14:41:42.000Z",
-    meta: "$0.3301 · 43.8K tokens",
-    entries: [thinking, toolOk, toolFailed],
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T14:41:00.000Z",
+    parts: [{ partType: "text", text: "Fix the failing formatter test.", payload: {} }],
   },
   {
-    id: "g2",
-    label: "Assistant",
-    entries: [bareText, running],
+    kind: "message",
+    role: "assistant",
+    timestamp: "2026-03-22T14:41:42.000Z",
+    model: "gpt-5-codex",
+    usage: {
+      inputTokens: 40_000,
+      outputTokens: 3_800,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 43_800,
+    },
+    cost: { inputUsd: 0.2, outputUsd: 0.13, cacheReadUsd: 0, cacheWriteUsd: 0, totalUsd: 0.3301 },
+    parts: [
+      { partType: "thinking", text: "Root cause confirmed, fixing.", payload: {} },
+      {
+        partType: "toolCall",
+        name: "bash",
+        payload: { id: "c1", arguments: { command: "git diff --stat" } },
+      },
+      {
+        partType: "toolResult",
+        name: "bash",
+        text: "3 files changed",
+        isError: false,
+        durationMs: 340,
+        payload: { toolCallId: "c1" },
+      },
+      {
+        partType: "toolCall",
+        name: "edit",
+        payload: { id: "c2", arguments: { path: "src/utils/formatDate.ts" } },
+      },
+      {
+        partType: "toolResult",
+        name: "edit",
+        text: "patch failed to apply",
+        isError: true,
+        durationMs: 12_400,
+        payload: { toolCallId: "c2" },
+      },
+      {
+        partType: "toolCall",
+        name: "grep",
+        payload: { id: "c3", arguments: { pattern: "remapToolCallId" } },
+      },
+      { partType: "text", text: "Done — three files updated.", payload: {} },
+    ],
   },
 ];
 
-describe("PiTraceLedger", () => {
-  it("renders groups as dividers with label and meta, entries as ledger rows", () => {
-    const { container } = render(<PiTraceLedger groups={groups} />);
+function renderLedger() {
+  const runs = buildTraceRuns(buildTraceTurns(sessionTurns));
+  const onSelectStep = vi.fn();
+  const utils = render(<PiTraceLedger runs={runs} onSelectStep={onSelectStep} />);
+  return { runs, onSelectStep, ...utils };
+}
 
-    expect(container.querySelector('[data-slot="trace-ledger"]')).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="trace-ledger-group"]')).toHaveLength(2);
-    expect(screen.getAllByText("Assistant")).toHaveLength(2);
-    expect(screen.getByText("$0.3301 · 43.8K tokens")).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="trace-ledger-row"]')).toHaveLength(5);
+describe("PiTraceLedger", () => {
+  it("groups steps under sticky Run headers with run tokens", () => {
+    const { container } = renderLedger();
+
+    expect(container.querySelectorAll('[data-slot="trace-ledger-run"]')).toHaveLength(1);
+    expect(screen.getByText("Run #1")).toBeInTheDocument();
+    expect(screen.getByText("43.8K tok")).toBeInTheDocument();
   });
 
-  it("marks rows with kind and status, and shows the matching glyph", () => {
-    const { container } = render(<PiTraceLedger groups={groups} />);
+  it("marks a Turn boundary dot for each assistant message, none for user input", () => {
+    const { container } = renderLedger();
+
+    expect(container.querySelectorAll('[data-slot="trace-turn-boundary"]')).toHaveLength(1);
+  });
+
+  it("renders rows as badge + request → result with status and duration", () => {
+    const { container } = renderLedger();
 
     const rows = container.querySelectorAll('[data-slot="trace-ledger-row"]');
-    expect(rows[1]).toHaveAttribute("data-kind", "tool");
-    expect(rows[1]).toHaveAttribute("data-status", "ok");
-    expect(rows[2]).toHaveAttribute("data-status", "error");
-    expect(rows[4]).toHaveAttribute("data-status", "running");
+    expect(rows).toHaveLength(6);
 
-    expect(rows[1].querySelector('[data-slot="trace-ledger-glyph"]')).toHaveTextContent("✓");
-    expect(rows[2].querySelector('[data-slot="trace-ledger-glyph"]')).toHaveTextContent("✕");
-    expect(rows[4].querySelector('[data-slot="trace-ledger-glyph"]')).toHaveTextContent("●");
-  });
+    const badges = [...container.querySelectorAll('[data-slot="trace-step-badge"]')].map(
+      (badge) => badge.textContent,
+    );
+    expect(badges).toEqual(["user", "assistant", "tool", "tool", "tool", "assistant"]);
 
-  it("shows kind, name, target, and right-aligned formatted duration per row", () => {
-    render(<PiTraceLedger groups={groups} />);
-
-    expect(screen.getByText("bash")).toBeInTheDocument();
-    expect(screen.getByText("git diff --stat")).toBeInTheDocument();
+    expect(screen.getByText('{"command":"git diff --stat"}')).toBeInTheDocument();
+    expect(screen.getByText("3 files changed")).toBeInTheDocument();
+    expect(screen.getByText("patch failed to apply")).toBeInTheDocument();
     expect(screen.getByText("340ms")).toBeInTheDocument();
     expect(screen.getByText("12.4s")).toBeInTheDocument();
-    expect(screen.getByText("think")).toBeInTheDocument();
-    expect(screen.getByText("Root cause confirmed, fixing.")).toBeInTheDocument();
   });
 
-  it("keeps detail unmounted until the row is expanded, then mounts it inline", async () => {
+  it("exposes kind and tool status as data attributes", () => {
+    const { container } = renderLedger();
+
+    const toolRows = container.querySelectorAll('[data-kind="tool"]');
+    expect(toolRows[0]).toHaveAttribute("data-status", "ok");
+    expect(toolRows[1]).toHaveAttribute("data-status", "error");
+    expect(toolRows[2]).toHaveAttribute("data-status", "running");
+  });
+
+  it("never expands inline: clicking a row selects it for the Inspector", async () => {
     const user = userEvent.setup();
-    render(<PiTraceLedger groups={groups} />);
+    const { onSelectStep, container } = renderLedger();
 
-    expect(screen.queryByText("3 files changed")).not.toBeInTheDocument();
-
-    const row = screen.getByRole("button", { name: /bash/ });
-    expect(row).toHaveAttribute("aria-expanded", "false");
+    const row = screen.getByRole("button", { name: /git diff --stat/ });
+    expect(row).not.toHaveAttribute("aria-expanded");
 
     await user.click(row);
-    expect(row).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("3 files changed")).toBeInTheDocument();
-
-    await user.click(row);
-    expect(screen.queryByText("3 files changed")).not.toBeInTheDocument();
+    expect(onSelectStep).toHaveBeenCalledWith("t1-s1");
+    // Full output stays out of the ledger DOM regardless of selection.
+    expect(container.textContent).not.toContain("aria-expanded");
   });
 
-  it("renders detail-less rows as static (no disclosure affordance)", () => {
-    render(<PiTraceLedger groups={groups} />);
+  it("marks the Playhead row via selectedStepId", () => {
+    const runs = buildTraceRuns(buildTraceTurns(sessionTurns));
+    const { container } = render(<PiTraceLedger runs={runs} selectedStepId="t1-s1" />);
 
-    const staticRow = screen.getByText("Done — three files updated.").closest(
-      '[data-slot="trace-ledger-row"]',
+    const playhead = container.querySelector("[data-playhead]");
+    expect(playhead).not.toBeNull();
+    expect(playhead).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("drops steps failing stepFilter and dims runs outside the focus range", () => {
+    const runs = buildTraceRuns(buildTraceTurns(sessionTurns));
+    const { container } = render(
+      <PiTraceLedger
+        isDimmed
+        runs={runs}
+        stepFilter={(step) => step.kind === "tool"}
+      />,
     );
-    expect(staticRow?.querySelector("button")).not.toBeInTheDocument();
+
+    expect(container.querySelectorAll('[data-slot="trace-ledger-row"]')).toHaveLength(3);
+    expect(container.querySelector("[data-focus-dimmed]")).not.toBeNull();
   });
 
-  it("exposes Group standalone so pages can virtualize by group", () => {
+  it("exposes Run standalone so pages can virtualize by Active Run", () => {
+    const runs = buildTraceRuns(buildTraceTurns(sessionTurns));
     const { container } = render(
       <PiTraceLedger>
-        <PiTraceLedger.Group group={groups[0]} />
+        <PiTraceLedger.Run run={runs[0]} />
       </PiTraceLedger>,
     );
 
-    expect(container.querySelectorAll('[data-slot="trace-ledger-group"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-slot="trace-ledger-row"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-slot="trace-ledger-run"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="trace-ledger-row"]')).toHaveLength(6);
   });
 
-  it("renders an empty state label when there are no groups", () => {
-    render(<PiTraceLedger emptyLabel="No timeline entries found." groups={[]} />);
+  it("renders an empty state label when there are no runs", () => {
+    render(<PiTraceLedger emptyLabel="No timeline entries found." runs={[]} />);
 
     expect(screen.getByText("No timeline entries found.")).toBeInTheDocument();
   });

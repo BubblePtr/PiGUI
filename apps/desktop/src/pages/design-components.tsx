@@ -4,10 +4,14 @@ import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
 import { PiSheet } from "@/shared/ui/pi-sheet";
+import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
 import {
-  PiTraceLedger,
-  type TraceLedgerGroup,
-} from "@/shared/ui/pi-trace-ledger";
+  PiTraceInspector,
+  type TraceInspectorTab,
+} from "@/shared/ui/pi-trace-inspector";
+import { PiTraceStrip, type StripWidthMode } from "@/shared/ui/pi-trace-strip";
+import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
+import type { SessionTurn } from "@pigui/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import {
   ChatChainOfThoughtRail,
@@ -191,81 +195,202 @@ function PiSheetGallery() {
   );
 }
 
-const traceLedgerGroups: TraceLedgerGroup[] = [
+// Shared trace fixture for the Cockpit trio (Strip / Ledger / Inspector):
+// two Active Runs, an annotation, an error, a running call, an image.
+const traceSessionTurns: SessionTurn[] = [
   {
-    id: "ledger-g1",
-    label: "Assistant",
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T14:41:00.000Z",
+    parts: [{ partType: "text", text: "Fix the failing formatter test.", payload: {} }],
+  },
+  {
+    kind: "message",
+    role: "assistant",
     timestamp: "2026-03-22T14:41:42.000Z",
-    meta: "$0.3301 · 43.8K tokens",
-    entries: [
+    model: "gpt-5-codex",
+    usage: {
+      inputTokens: 40_000,
+      outputTokens: 3_800,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 43_800,
+    },
+    cost: { inputUsd: 0.2, outputUsd: 0.13, cacheReadUsd: 0, cacheWriteUsd: 0, totalUsd: 0.3301 },
+    parts: [
       {
-        id: "ledger-e1",
-        kind: "think",
-        target: "The failing assertion says the projection dropped the tool_call part.",
-        detail: (
-          <pre>
-            The failing assertion says the projection dropped the tool_call part
-            after a fork — reading the projection code first.
-          </pre>
-        ),
+        partType: "thinking",
+        text: "The failing assertion says the projection dropped the tool_call part after a fork.",
+        payload: {},
       },
       {
-        id: "ledger-e2",
-        kind: "tool",
+        partType: "toolCall",
         name: "bash",
-        target: "git diff --stat",
-        durationMs: 340,
-        status: "ok",
-        detail: (
-          <>
-            <pre>{'{"command":"git diff --stat"}'}</pre>
-            <pre>3 files changed</pre>
-          </>
-        ),
+        payload: { id: "c1", arguments: { command: "git diff --stat" } },
       },
       {
-        id: "ledger-e3",
-        kind: "tool",
-        name: "edit",
-        target: "src/utils/formatDate.ts",
-        durationMs: 12400,
-        status: "error",
-        detail: <pre>patch failed to apply</pre>,
+        partType: "toolResult",
+        name: "bash",
+        text: "3 files changed",
+        isError: false,
+        durationMs: 340,
+        payload: { toolCallId: "c1" },
       },
+      {
+        partType: "toolCall",
+        name: "edit",
+        payload: { id: "c2", arguments: { path: "src/utils/formatDate.ts" } },
+      },
+      {
+        partType: "toolResult",
+        name: "edit",
+        text: "patch failed to apply",
+        isError: true,
+        durationMs: 12_400,
+        payload: { toolCallId: "c2" },
+      },
+      { partType: "text", text: "Patch conflict — retrying with a narrower edit.", payload: {} },
     ],
   },
   {
-    id: "ledger-g2",
-    label: "Assistant",
-    timestamp: "2026-03-22T14:42:03.000Z",
-    entries: [
-      { id: "ledger-e4", kind: "text", target: "Done — three files updated." },
+    kind: "annotation",
+    title: "Model changed",
+    timestamp: "2026-03-22T14:42:00.000Z",
+    model: "claude-fable-5",
+    parts: [{ partType: "model_change", payload: { model: "claude-fable-5" } }],
+  },
+  {
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T14:42:30.000Z",
+    parts: [{ partType: "text", text: "继续，把格式化函数的回归测试补上。", payload: {} }],
+  },
+  {
+    kind: "message",
+    role: "assistant",
+    timestamp: "2026-03-22T14:43:03.000Z",
+    model: "claude-fable-5",
+    usage: {
+      inputTokens: 51_000,
+      outputTokens: 900,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 51_900,
+    },
+    cost: { inputUsd: 0.24, outputUsd: 0.04, cacheReadUsd: 0, cacheWriteUsd: 0, totalUsd: 0.28 },
+    parts: [
       {
-        id: "ledger-e5",
-        kind: "tool",
+        partType: "toolCall",
         name: "grep",
-        target: "remapToolCallId",
-        status: "running",
+        payload: { id: "c3", arguments: { pattern: "remapToolCallId" } },
       },
     ],
   },
 ];
 
+const traceTurns = buildTraceTurns(traceSessionTurns);
+const traceRuns = buildTraceRuns(traceTurns);
+
 function PiTraceLedgerGallery() {
+  const [selectedStepId, setSelectedStepId] = useState<string | undefined>("t1-s1");
+
   return (
     <GallerySection title="PiTraceLedger">
-      <div className="flex max-w-2xl flex-col gap-4">
-        <Variant caption="grouped rows — ok / error / running / info">
+      <div className="flex max-w-3xl flex-col gap-4">
+        <Variant caption="Run headers + Turn boundary dots + badge rows (request → result); click moves the Playhead, rows never expand">
           <div className="rounded-md border border-separator">
-            <PiTraceLedger groups={traceLedgerGroups} />
+            <PiTraceLedger
+              runs={traceRuns}
+              selectedStepId={selectedStepId}
+              onSelectStep={setSelectedStepId}
+            />
+          </div>
+        </Variant>
+        <Variant caption="focus-dimmed run (Strip brush semantics) + filtered to tool steps">
+          <div className="rounded-md border border-separator">
+            <PiTraceLedger
+              isDimmed
+              runs={[traceRuns[0]]}
+              stepFilter={(step) => step.kind === "tool"}
+            />
           </div>
         </Variant>
         <Variant caption="empty">
           <div className="rounded-md border border-separator">
-            <PiTraceLedger emptyLabel="No trace entries." groups={[]} />
+            <PiTraceLedger emptyLabel="No trace entries." runs={[]} />
           </div>
         </Variant>
       </div>
+    </GallerySection>
+  );
+}
+
+function PiTraceStripGallery() {
+  const [widthMode, setWidthMode] = useState<StripWidthMode>("steps");
+  const [range, setRange] = useState<[number, number] | undefined>([0, 0]);
+  const [activeStepId, setActiveStepId] = useState<string | undefined>(undefined);
+
+  return (
+    <GallerySection title="PiTraceStrip">
+      <div className="flex max-w-3xl flex-col gap-4">
+        <Variant caption="Input / Model / Tools swimlanes · hover = scrub cursor · drag = run brush (selection box + dimming) · Steps/Time width modes">
+          <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
+            <PiTraceStrip
+              activeStepId={activeStepId}
+              selectedRange={range}
+              turns={traceTurns}
+              widthMode={widthMode}
+              onBrush={setRange}
+              onSelect={(_, stepId) => setActiveStepId(stepId)}
+              onWidthModeChange={setWidthMode}
+            />
+          </div>
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
+function PiTraceInspectorGallery() {
+  const errorStep = traceTurns[1].steps.find((step) => step.isError);
+  const [tab, setTab] = useState<TraceInspectorTab>("Summary");
+
+  return (
+    <GallerySection title="PiTraceInspector">
+      <VariantRow>
+        <Variant caption="error tool step — Summary/Payload/Result tabs; Schema shows the honest unavailable state">
+          <div className="h-96 w-96 overflow-hidden rounded-md border border-separator">
+            {errorStep ? (
+              <PiTraceInspector
+                step={errorStep}
+                tab={tab}
+                turn={traceTurns[1]}
+                onClose={() => {}}
+                onTabChange={setTab}
+              />
+            ) : null}
+          </div>
+        </Variant>
+        <Variant caption="tool step with a resolved Schema (Gateway capability)">
+          <div className="h-96 w-96 overflow-hidden rounded-md border border-separator">
+            <PiTraceInspector
+              schema={{
+                description: "Run a shell command inside the execution checkout.",
+                parameters: {
+                  type: "object",
+                  properties: { command: { type: "string" } },
+                  required: ["command"],
+                },
+              }}
+              step={traceTurns[1].steps[1]}
+              tab="Schema"
+              turn={traceTurns[1]}
+              onClose={() => {}}
+              onTabChange={() => {}}
+            />
+          </div>
+        </Variant>
+      </VariantRow>
     </GallerySection>
   );
 }
@@ -955,6 +1080,8 @@ export function DesignComponentsLayer() {
       <PiBarChartGallery />
       <PiSheetGallery />
       <PiTraceLedgerGallery />
+      <PiTraceStripGallery />
+      <PiTraceInspectorGallery />
       <DotMatrixGallery />
       <IconsGallery />
       <ChatMessageGallery />
