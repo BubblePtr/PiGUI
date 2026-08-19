@@ -186,6 +186,49 @@ describe("backend service", () => {
     });
   });
 
+  it("routes tool schema resolution through the Runtime Gateway", async () => {
+    const bashSchema = {
+      description: "Execute a shell command",
+      parameters: {
+        type: "object",
+        properties: { command: { type: "string" } },
+        required: ["command"],
+      },
+    };
+    const resolveToolSchemas = vi.fn(async () => ({
+      schemas: { bash: bashSchema },
+    }));
+    const runtimeDriver = {
+      resolveToolSchemas,
+      onEvent: vi.fn(() => () => {}),
+    } as unknown as PiRuntimeDriver;
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      runtimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      sessionProjectionStore: createInMemorySessionProjectionStore(),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-schemas",
+        method: "resolve_tool_schemas",
+        params: {
+          piSessionId: "pi-session-1",
+          names: ["bash", "gone_tool"],
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-schemas",
+      result: { schemas: { bash: bashSchema } },
+    });
+    expect(resolveToolSchemas).toHaveBeenCalledWith({
+      piSessionId: "pi-session-1",
+      names: ["bash", "gone_tool"],
+    });
+  });
+
   it("handles query commands through request/response envelopes", async () => {
     const service = createBackendService({
       agentDir: fixtureAgentDir(),

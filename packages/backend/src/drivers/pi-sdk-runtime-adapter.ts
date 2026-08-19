@@ -10,6 +10,7 @@ import type {
   RuntimeModelSelection,
   RuntimePromptImage,
   RuntimeThinkingLevel,
+  RuntimeToolSchema,
 } from "@pigui/core";
 import { toPiImageContent } from "@pigui/core";
 import type {
@@ -84,6 +85,12 @@ export type PublicPiSdkAgentSession = {
   cycleThinkingLevel?(): unknown;
   getAvailableThinkingLevels?(): unknown[];
   supportsThinking?(): boolean;
+  getToolDefinition?(name: string):
+    | {
+        description?: unknown;
+        parameters?: unknown;
+      }
+    | undefined;
 };
 
 export type PublicPiSdkSessionManager = {
@@ -439,6 +446,35 @@ function summaryFromSession(session: PublicPiSdkAgentSession) {
   return undefined;
 }
 
+function schemasFromSession(session: PublicPiSdkAgentSession, names: string[]) {
+  const schemas: Record<string, RuntimeToolSchema> = {};
+
+  for (const name of names) {
+    const schema = toolSchemaFromDefinition(session.getToolDefinition?.(name));
+
+    if (schema) {
+      schemas[name] = schema;
+    }
+  }
+
+  return schemas;
+}
+
+function toolSchemaFromDefinition(value: unknown): RuntimeToolSchema | undefined {
+  if (!isRecord(value) || typeof value.description !== "string") {
+    return undefined;
+  }
+
+  try {
+    return {
+      description: value.description,
+      parameters: JSON.parse(JSON.stringify(value.parameters ?? {})),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function statusFromSession(input: {
   session: PublicPiSdkAgentSession;
   promptCompleted: boolean;
@@ -638,6 +674,9 @@ function createPublicPiSdkRuntime(context: {
       },
       async configureModel(selection) {
         return configureSessionModel(session, selection);
+      },
+      async resolveToolSchemas(names) {
+        return { schemas: schemasFromSession(session, names) };
       },
       onEvent(listener) {
         return session.subscribe((event) => {

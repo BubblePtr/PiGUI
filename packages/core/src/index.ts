@@ -96,6 +96,8 @@ export {
   type RuntimeModelControls,
   type RuntimeGatewaySnapshot,
   type RuntimeGatewayQueuedMessage,
+  type RuntimeToolSchema,
+  type RuntimeToolSchemas,
   type RuntimeGatewaySequencer,
   type RuntimeGatewaySequencerOptions,
 } from "./runtime-gateway";

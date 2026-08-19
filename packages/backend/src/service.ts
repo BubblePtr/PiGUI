@@ -414,6 +414,7 @@ function isRuntimeGatewayMethod(method: string) {
     method === "steer_run" ||
     method === "stop_run" ||
     method === "configure_model" ||
+    method === "resolve_tool_schemas" ||
     method === "archive_session" ||
     method === "get_runtime_snapshot"
   );

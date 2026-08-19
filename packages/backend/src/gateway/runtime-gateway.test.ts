@@ -1285,4 +1285,70 @@ describe("Runtime Gateway service", () => {
 
     expect(list).toHaveBeenCalledTimes(listCallsAfterFirstPrompt);
   });
+
+  it("resolves current-runtime tool schemas by name and omits unregistered tools", async () => {
+    const bashSchema = {
+      description: "Execute a shell command",
+      parameters: {
+        type: "object",
+        properties: { command: { type: "string" } },
+        required: ["command"],
+      },
+    };
+    const driver = createFakeRuntimeDriver();
+    driver.resolveToolSchemas = async (input) => {
+      const schemas: Record<string, typeof bashSchema> = {};
+
+      if (input.names.includes("bash")) {
+        schemas.bash = bashSchema;
+      }
+
+      return { schemas };
+    };
+    const service = createRuntimeGatewayService({ driver });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-schemas",
+        method: "resolve_tool_schemas",
+        params: {
+          piSessionId: "pi-session-1",
+          names: ["bash", "gone_tool"],
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-schemas",
+      result: {
+        schemas: {
+          bash: bashSchema,
+        },
+      },
+    });
+  });
+
+  it("returns no schemas when the driver cannot read a live tool registry", async () => {
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-schemas",
+        method: "resolve_tool_schemas",
+        params: {
+          piSessionId: "pi-session-1",
+          names: ["bash"],
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-schemas",
+      result: { schemas: {} },
+    });
+  });
 });

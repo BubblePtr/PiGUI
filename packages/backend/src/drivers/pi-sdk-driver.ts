@@ -5,6 +5,7 @@ import type {
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimePromptImage,
+  RuntimeToolSchemas,
 } from "@pigui/core";
 import type {
   CreateRuntimeSessionInput,
@@ -54,6 +55,7 @@ export type PiSdkSessionRuntime = {
   steerRun?(message: string, images?: RuntimePromptImage[]): Promise<void>;
   stopRun?(): Promise<void>;
   configureModel?(selection: RuntimeModelSelection): Promise<RuntimeModelControls>;
+  resolveToolSchemas?(names: string[]): Promise<RuntimeToolSchemas>;
   getSnapshot?(): Promise<PiSdkSnapshotPatch>;
   getLeafId?(): string | null;
   waitForNextUserMessageBoundary?(): Promise<PiSdkUserMessageBoundary>;
@@ -443,6 +445,16 @@ export function createPiSdkDriver(options: PiSdkDriverOptions = {}): PiRuntimeDr
       snapshots.set(input.piSessionId, nextSnapshot);
 
       return cloneModelControls(modelControls);
+    },
+
+    async resolveToolSchemas(input) {
+      const runtime = runtimes.get(input.piSessionId);
+
+      if (!runtime?.resolveToolSchemas) {
+        return { schemas: {} };
+      }
+
+      return runtime.resolveToolSchemas(input.names);
     },
 
     async getSnapshot(piSessionId) {
