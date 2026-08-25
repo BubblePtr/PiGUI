@@ -340,6 +340,12 @@ async function readPatch(input: {
     .filter((path): path is string => Boolean(path))
     .map(literalPathspec);
   const untracked = input.entry.kind === "untracked" || !input.hasHead;
+  // The renderer parses these patches with @pierre/diffs, whose header regex only
+  // accepts `diff --git a/... b/...`. Git otherwise honours the user's config and
+  // emits `c/`+`w/` under diff.mnemonicPrefix, `1/`+`2/` under --no-index, or no
+  // prefix at all under diff.noprefix — each of which fails to parse. Pin the
+  // prefixes so the patch shape never depends on developer git config.
+  const prefixArgs = ["--src-prefix=a/", "--dst-prefix=b/"];
   const baseArgs = untracked
     ? [
         "diff",
@@ -347,6 +353,7 @@ async function readPatch(input: {
         "--no-ext-diff",
         "--no-textconv",
         "--no-color",
+        ...prefixArgs,
         "--unified=3",
         "--",
         "/dev/null",
@@ -358,6 +365,7 @@ async function readPatch(input: {
         "--no-textconv",
         "--find-renames",
         "--no-color",
+        ...prefixArgs,
         "--unified=3",
         "HEAD",
         "--",
