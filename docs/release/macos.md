@@ -18,7 +18,7 @@ bun run build:icon:mac
 
 ```bash
 bun run package:mac:unsigned
-bun run test:e2e:packaged
+bun run test:e2e:packaged:mac
 ```
 
 这个产物仅用于本机验证，不能对外分发。E2E 会从 `dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI` 启动真实 bundle，覆盖主进程、preload、renderer、ASAR 内 backend utility process、持久化、Git diff 和 Pi SDK 模型控制。
@@ -93,7 +93,7 @@ codesign --verify --deep --strict --verbose=2 dist/mac-arm64/PiGUI.app
 xcrun stapler validate dist/mac-arm64/PiGUI.app
 spctl --assess --type execute --verbose=2 dist/mac-arm64/PiGUI.app
 hdiutil verify dist/PiGUI-*-arm64.dmg
-bun run test:e2e:packaged
+bun run test:e2e:packaged:mac
 ```
 
 最终产物位于 `dist/PiGUI-<version>-arm64.dmg`。只有签名、公证、staple、Gatekeeper 和 packaged-app E2E 全部通过后，DMG 才可发布。

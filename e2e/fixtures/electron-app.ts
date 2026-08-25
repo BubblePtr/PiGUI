@@ -12,6 +12,14 @@ const repositoryRoot = path.resolve(currentDirectory, "..", "..");
 const projectRegistryStorageKey = "pigui.projectRegistry.v1";
 const execFileAsync = promisify(execFile);
 const packagedExecutable = process.env.PIGUI_E2E_EXECUTABLE;
+/**
+ * Extra Electron switches, space separated. Needed on Linux to run under Xvfb:
+ * `ELECTRON_OZONE_PLATFORM_HINT` is ignored, only `--ozone-platform=x11` works,
+ * and a tiling Wayland compositor otherwise overrides every setSize() call.
+ */
+const extraElectronArgs = (process.env.PIGUI_E2E_ELECTRON_ARGS ?? "")
+  .split(" ")
+  .filter(Boolean);
 
 export type E2EProject = {
   id: string;
@@ -268,6 +276,7 @@ export async function launchPiGUI(
         ? []
         : [path.join(repositoryRoot, "apps/desktop/out/main/main.js")]),
       `--user-data-dir=${profileDirectory}`,
+      ...extraElectronArgs,
     ],
     env: {
       ...stringEnvironment(),

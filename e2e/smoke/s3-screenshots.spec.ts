@@ -13,7 +13,7 @@ test.describe("DF-011 draft model trigger screenshots", () => {
       await testApp.resizeWindow(1280, 840);
 
       // Open draft composer
-      await testApp.window.getByRole("row", { name: "New Session", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "New Session", exact: true }).click();
       await expect(testApp.window.getByRole("textbox")).toBeVisible();
 
       // Model trigger should be present in draft (DF-011 fix)

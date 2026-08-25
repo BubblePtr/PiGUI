@@ -41,3 +41,25 @@ dmg:
       y: 220
       type: link
       path: /Applications
+
+linux:
+  # Point at the icns so electron-builder derives the full hicolor set
+  # (16→512); a single PNG would install only that one size.
+  icon: build/icon.icns
+  # Without this, electron-builder falls back to the workspace package name
+  # (`@pigui/desktop` → `@piguidesktop`); see app-builder-lib linuxPackager.
+  executableName: pigui
+  # Electron derives app_id / WM_CLASS from `desktopName` in the app package.json;
+  # syncing keeps the installed .desktop filename and StartupWMClass matching, so
+  # Wayland/X11 compositors associate the running window with the launcher entry.
+  syncDesktopName: true
+  maintainer: BubblePtr <102268132+BubblePtr@users.noreply.github.com>
+  category: Development
+  synopsis: The missing GUI for the Pi coding agent
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64

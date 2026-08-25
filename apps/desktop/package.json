@@ -4,6 +4,7 @@
   "private": true,
   "description": "The missing GUI for Pi Agent.",
   "author": "BubblePtr",
+  "desktopName": "pigui.desktop",
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
