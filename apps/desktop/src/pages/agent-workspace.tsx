@@ -3552,8 +3552,14 @@ export function AgentWorkspaceSessionsView({
               <ResizeHandle
                 className="mx-2"
                 direction="horizontal"
+                hasDivider
                 isReversed
                 label="Resize Session changes"
+                // Astryx 0.3.0 `hitAreaOffsetX` carries a `-50%` Y translate meant
+                // for vertical handles, so a side-biased pill shifts the grab zone
+                // up by half its height and only the divider's top half is
+                // draggable. Centering the pill skips that offset entirely.
+                pillPlacement="center"
                 resizable={asideResizable.props}
               />
               <div
