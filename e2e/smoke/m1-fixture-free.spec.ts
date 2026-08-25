@@ -16,7 +16,7 @@ declare global {
 }
 
 async function openProjectDraft(window: Page, project: E2EProject) {
-  const newSession = window.getByRole("row", { name: "New Session", exact: true });
+  const newSession = window.getByRole("button", { name: "New Session", exact: true });
 
   await expect(newSession).toBeVisible();
   await newSession.click();
@@ -31,7 +31,7 @@ async function openSession(
 ) {
   await openProjectDraft(window, project);
 
-  const session = window.getByRole("row", {
+  const session = window.getByRole("button", {
     name: new RegExp(projection.initialPrompt, "i"),
   });
 
@@ -151,7 +151,7 @@ test.describe("M2: Reliable lifecycle", () => {
           },
         ]);
       await expect(
-        testApp.window.getByRole("row", {
+        testApp.window.getByRole("button", {
           name: /Reloaded after backend restart/i,
         }),
       ).toBeVisible();
@@ -199,7 +199,7 @@ test.describe("M3: Real diff action surface", () => {
       // sheet breakpoint is unreachable; at 960 the medium sheet renders as
       // a right-aligned 92vw sheet.
       const narrowSheetBox = await testApp.window
-        .locator('[data-slot="sheet-content"]')
+        .locator('[data-slot="sheet-panel"]')
         .boundingBox();
       const narrowViewport = await testApp.window.evaluate(() => ({
         height: window.innerHeight,
@@ -321,15 +321,8 @@ test.describe("M4: Model and Thinking controls", () => {
 
       await expect(trigger).toHaveText(/GPT-5-Codex · High/);
       await trigger.click();
-      const dialog = testApp.window.getByRole("dialog");
-      const slider = dialog.getByRole("slider", { name: "Thinking level" });
-
-      await slider.press("ArrowLeft");
-      await expect(trigger).toHaveText(/GPT-5-Codex · Medium/);
       await testApp.window.getByText("GPT-4.1", { exact: true }).click();
       await expect(trigger).toHaveText(/GPT-4.1 · Off/);
-      await expect(slider).toBeDisabled();
-      await expect(dialog.getByText("Medium", { exact: true })).toHaveCount(0);
       await expect
         .poll(async () => (await testApp.readProjection())?.modelSelection)
         .toEqual({

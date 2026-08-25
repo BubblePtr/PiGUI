@@ -5,8 +5,17 @@ import {
   type E2ESessionProjection,
 } from "../fixtures/electron-app";
 
+// Astryx renders the Settings tab set as <nav aria-label="Tabs"> + buttons,
+// not role="tab". Scope through the nav so "Subscription" cannot also match
+// the "Login with subscription" buttons on the cards below.
+function settingsTab(window: import("@playwright/test").Page, name: string) {
+  return window
+    .getByRole("navigation", { name: "Tabs" })
+    .getByRole("button", { name, exact: true });
+}
+
 async function openProjectDraft(window: import("@playwright/test").Page, project: E2EProject) {
-  const newSession = window.getByRole("row", { name: "New Session", exact: true });
+  const newSession = window.getByRole("button", { name: "New Session", exact: true });
   await expect(newSession).toBeVisible();
   await newSession.click();
   await expect(window.getByRole("textbox")).toBeVisible();
@@ -18,7 +27,7 @@ async function openSession(
   projection: E2ESessionProjection,
 ) {
   await openProjectDraft(window, project);
-  const session = window.getByRole("row", {
+  const session = window.getByRole("button", {
     name: new RegExp(projection.initialPrompt, "i"),
   });
   await expect(session).toBeVisible();
@@ -33,19 +42,19 @@ test.describe("S3: Provider Settings (DF-002)", () => {
 
     try {
       // Navigate to Settings via the sidebar row
-      await testApp.window.getByRole("row", { name: "Settings" }).click();
+      await testApp.window.getByRole("button", { name: "Settings" }).click();
       await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
 
       // Tab structure exists
       await expect(
-        testApp.window.getByRole("tab", { name: "Subscription" }),
+        settingsTab(testApp.window, "Subscription"),
       ).toBeVisible();
       await expect(
-        testApp.window.getByRole("tab", { name: "API Key" }),
+        settingsTab(testApp.window, "API Key"),
       ).toBeVisible();
 
       // API Key tab: OpenAI / Anthropic / DeepSeek / Grok (xAI) cards + brand icons
-      await testApp.window.getByRole("tab", { name: "API Key" }).click();
+      await settingsTab(testApp.window, "API Key").click();
       for (const provider of ["openai", "anthropic", "deepseek", "xai"]) {
         await expect(
           testApp.window.getByTestId(`provider-api-key-${provider}`),
@@ -56,7 +65,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
       }
 
       // Subscription tab: only OpenAI / Anthropic (OAuth providers)
-      await testApp.window.getByRole("tab", { name: "Subscription" }).click();
+      await settingsTab(testApp.window, "Subscription").click();
       await expect(
         testApp.window.getByTestId("provider-subscription-openai"),
       ).toBeVisible();
@@ -85,7 +94,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
 
     try {
       // Open draft composer without any auth -> hard gate
-      await testApp.window.getByRole("row", { name: "New Session", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "New Session", exact: true }).click();
 
       const gate = testApp.window.getByTestId("session-draft-no-models-gate");
       await expect(gate).toBeVisible();
@@ -97,7 +106,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
       await gate.getByRole("button", { name: /Open Provider Settings/i }).click();
       await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
       await expect(
-        testApp.window.getByRole("tab", { name: "API Key" }),
+        settingsTab(testApp.window, "API Key"),
       ).toBeVisible();
     } finally {
       await testApp.close();
@@ -125,7 +134,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
       await testApp.window.getByRole("button", { name: /Configure providers/i }).click();
       await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
       await expect(
-        testApp.window.getByRole("tab", { name: "API Key" }),
+        settingsTab(testApp.window, "API Key"),
       ).toBeVisible();
     } finally {
       await testApp.close();
@@ -140,7 +149,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
 
     try {
       // Draft composer (no session selected) must NOT show the no-models gate
-      await testApp.window.getByRole("row", { name: "New Session", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "New Session", exact: true }).click();
       await expect(testApp.window.getByTestId("session-draft-no-models-gate")).toHaveCount(0);
 
       // Open the seeded session: model/thinking trigger is available with models
@@ -158,7 +167,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
       await expect(testApp.window.getByTestId("model-thinking-popover")).toBeVisible();
       const modelItems = testApp.window
         .getByTestId("model-thinking-model-list")
-        .locator('[role="option"]');
+        .getByRole("listitem");
       await expect(modelItems.first()).toBeVisible();
       const count = await modelItems.count();
       expect(count).toBeGreaterThanOrEqual(1);
