@@ -78,6 +78,21 @@ function toolNamesFromSession(session?: SessionDetail) {
   return [...names].sort();
 }
 
+function stepIdsInSegmentRange(segments: StripSegment[], range: SegmentRange) {
+  const ids: string[] = [];
+  for (let index = range[0]; index <= range[1]; index += 1) {
+    ids.push(...(segments[index]?.stepIds ?? []));
+  }
+  return ids;
+}
+
+function playheadInFocusedSteps(stepIds: string[], visibleIds: Set<string>, preferred?: string) {
+  if (preferred && stepIds.includes(preferred) && visibleIds.has(preferred)) {
+    return preferred;
+  }
+  return stepIds.find((id) => visibleIds.has(id)) ?? preferred ?? stepIds[0];
+}
+
 function focusChipLabel(segments: StripSegment[], range: SegmentRange) {
   const start = segments[range[0]];
   if (!start) {
@@ -179,7 +194,7 @@ export function SessionDetailView({
         ids.add(stepId);
       }
     }
-    return ids;
+    return ids.size > 0 ? ids : undefined;
   }, [focusRange, segments]);
   const walkableSteps = useMemo(
     () =>
@@ -381,20 +396,28 @@ export function SessionDetailView({
             widthMode={stripWidthMode}
             onBrush={(range) => {
               setFocusRange(range);
-              const segment = range ? segments[range[0]] : undefined;
+              if (!range) {
+                return;
+              }
+              const segment = segments[range[0]];
+              const target = playheadInFocusedSteps(stepIdsInSegmentRange(segments, range), visibleIds);
               if (segment) {
                 revealLedgerTarget({
                   runIndex: segment.runIndex,
-                  stepId: segment.stepIds[0],
+                  stepId: target,
                   turnIndex: segment.turnIndex,
                 });
               }
+              if (target) {
+                setSelectedStepId(target);
+              }
             }}
             onSelect={(turnIndex, stepId) => {
-              const target =
-                stepId && visibleIds.has(stepId)
-                  ? stepId
-                  : turns[turnIndex].steps.find((step) => visibleIds.has(step.id))?.id;
+              const segment = segments.find(
+                (entry) =>
+                  entry.turnIndex === turnIndex && (stepId === undefined || entry.stepIds.includes(stepId)),
+              );
+              const target = playheadInFocusedSteps(segment?.stepIds ?? [], visibleIds, stepId);
               revealLedgerTarget({
                 runIndex: turns[turnIndex].runIndex,
                 stepId: target,

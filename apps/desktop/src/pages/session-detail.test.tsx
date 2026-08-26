@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -7,6 +7,67 @@ import {
   largeSessionDetailApproxBytes,
 } from "@/entities/session/session-detail.fixtures";
 import { SessionDetailView } from "@/pages/session-detail";
+import type { SessionDetail, SessionTurn } from "@pigui/core";
+
+function layoutStripColumns(container: HTMLElement) {
+  const columns = [...container.querySelectorAll<HTMLElement>("[data-strip-col]")];
+  columns.forEach((column, index) => {
+    vi.spyOn(column, "getBoundingClientRect").mockReturnValue({
+      x: index * 40,
+      y: 0,
+      left: index * 40,
+      right: (index + 1) * 40,
+      top: 0,
+      bottom: 24,
+      width: 40,
+      height: 24,
+      toJSON: () => ({}),
+    });
+  });
+}
+
+function emptyModelSegmentSession(): SessionDetail {
+  const turns: SessionTurn[] = [
+    {
+      kind: "message",
+      role: "user",
+      timestamp: "2026-01-05T15:00:00.000Z",
+      parts: [{ partType: "text", text: "Hello", payload: {} }],
+    },
+    {
+      kind: "message",
+      role: "assistant",
+      timestamp: "2026-01-05T15:00:10.000Z",
+      parts: [],
+    },
+    {
+      kind: "message",
+      role: "user",
+      timestamp: "2026-01-05T15:01:00.000Z",
+      parts: [{ partType: "text", text: "Continue", payload: {} }],
+    },
+    {
+      kind: "message",
+      role: "assistant",
+      timestamp: "2026-01-05T15:01:20.000Z",
+      parts: [
+        { partType: "thinking", text: "Next step is a tool call.", payload: {} },
+        { partType: "toolCall", name: "bash", payload: { id: "c1", arguments: { command: "ls" } } },
+      ],
+    },
+  ];
+  return {
+    id: "empty-segment-session",
+    timestamp: "2026-01-05T15:00:00.000Z",
+    project: "fixture-project",
+    totalCostUsd: 0,
+    totalTokens: 0,
+    primaryModel: "gpt-5-codex",
+    turnCount: turns.length,
+    durationSeconds: 80,
+    turns,
+  };
+}
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -213,6 +274,54 @@ describe("SessionDetailView (Trace Cockpit)", () => {
     expect(
       ledger?.querySelectorAll('[data-slot="trace-ledger-row"]:not([data-focus-dimmed])').length,
     ).toBeGreaterThan(0);
+  });
+
+  it("keeps the Playhead on the clicked swimlane when the filter hides that block", async () => {
+    const user = userEvent.setup();
+    const session = makeLargeSessionDetail(2);
+    render(<SessionDetailView session={session} sessionId={session.id} />);
+
+    await user.click(screen.getByRole("button", { name: "think" }));
+    await user.click(screen.getAllByRole("option", { name: "Run 1 tools" })[0]);
+
+    expect(screen.getByRole("button", { name: /focus #1 tools/ })).toBeInTheDocument();
+    const inspector = document.querySelector('[data-slot="trace-inspector"]');
+    expect(inspector).not.toBeNull();
+    expect(within(inspector as HTMLElement).getByRole("heading", { name: "read_file" })).toBeInTheDocument();
+  });
+
+  it("moves the Playhead onto the brushed range", async () => {
+    const session = makeLargeSessionDetail(2);
+    const { container } = render(<SessionDetailView session={session} sessionId={session.id} />);
+    layoutStripColumns(container);
+
+    const track = screen.getByRole("listbox", { name: "Session activity segments" });
+    const tools = screen.getAllByRole("option", { name: "Run 1 tools" })[0];
+    const toolsLeft = tools.getBoundingClientRect().left + 8;
+
+    fireEvent.pointerDown(track, { clientX: 8, clientY: 8, pointerId: 1 });
+    fireEvent.pointerMove(track, { clientX: toolsLeft, clientY: 8, pointerId: 1 });
+    fireEvent.pointerUp(track, { clientX: toolsLeft, clientY: 8, pointerId: 1 });
+
+    expect(screen.getByRole("heading", { name: /think|read_file/ })).toBeInTheDocument();
+    expect(container.querySelector("[data-playhead]")).toBeInTheDocument();
+  });
+
+  it("does not dim the whole ledger when the focused segment has no steps", async () => {
+    const user = userEvent.setup();
+    render(<SessionDetailView session={emptyModelSegmentSession()} sessionId="empty-seg" />);
+
+    await user.click(screen.getByRole("option", { name: "Run 1 model" }));
+
+    expect(screen.getByRole("button", { name: /focus #1 model/ })).toBeInTheDocument();
+    const ledger = document.querySelector('[data-slot="trace-ledger"]');
+    expect(
+      ledger?.querySelectorAll('[data-slot="trace-ledger-row"]:not([data-focus-dimmed])').length,
+    ).toBeGreaterThan(0);
+
+    const down = new KeyboardEvent("keydown", { key: "ArrowDown", cancelable: true });
+    document.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
   });
 
   it("scrolls a virtualized run into the ledger when the strip jumps to it", async () => {
