@@ -1,20 +1,21 @@
 // The Strip (Trace Cockpit overview band): Input / Model / Tools swimlanes
 // where every column is a segment — a user input, a stretch of model output,
 // or a stretch of consecutive tool calls — so the lanes never overlap on one
-// column. Click jumps, drag brushes an Active-Run range (focus semantics: the
-// page dims, never filters), hover shows a scrub cursor. Column widths track
-// step count ("steps") or measured/estimated time ("duration"). Validated in
-// the trace-cockpit prototype round (2026-08-18).
+// column. Click selects that block and jumps the Playhead; drag brushes a
+// contiguous segment range (focus semantics: the page dims, never filters);
+// hover shows a scrub cursor. Column widths track step count ("steps") or
+// measured/estimated time ("duration"). Validated in the trace-cockpit
+// prototype round (2026-08-18).
 import { useLayoutEffect, useRef, useState } from "react";
 import type { TraceTurn } from "@/entities/session/trace-model";
 
-/** Inclusive Active-Run index range (a run = input + its model/tool turns). */
-export type RunRange = [number, number];
+/** Inclusive strip-column range (one column = one swimlane block). */
+export type SegmentRange = [number, number];
 export type StripWidthMode = "steps" | "duration";
 
-type StripLane = "input" | "model" | "tools";
+export type StripLane = "input" | "model" | "tools";
 
-type StripSegment = {
+export type StripSegment = {
   turnIndex: number;
   runIndex: number;
   lane: StripLane;
@@ -169,15 +170,15 @@ export function PiTraceStrip({
   activeStepId?: string;
   /** Called with the segment's turn index and its first step id. */
   onSelect: (turnIndex: number, stepId?: string) => void;
-  selectedRange?: RunRange;
-  onBrush?: (range: RunRange | undefined) => void;
+  selectedRange?: SegmentRange;
+  onBrush?: (range: SegmentRange | undefined) => void;
   widthMode: StripWidthMode;
   onWidthModeChange: (mode: StripWidthMode) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragStart = useRef<number | undefined>(undefined);
+  const dragOrigin = useRef<{ index: number; x: number; y: number } | undefined>(undefined);
   const didDrag = useRef(false);
-  const [dragPreview, setDragPreview] = useState<RunRange | undefined>(undefined);
+  const [dragPreview, setDragPreview] = useState<SegmentRange | undefined>(undefined);
   const [cursor, setCursor] = useState<{ x: number; index: number } | undefined>(undefined);
 
   const segments = stripSegmentsFromTurns(turns);
@@ -197,22 +198,20 @@ export function PiTraceStrip({
     return columns.length - 1;
   }
 
-  function runRangeFromSegments(a: number, b: number): RunRange {
-    const [start, end] = a <= b ? [a, b] : [b, a];
-    return [segments[start].runIndex, segments[end].runIndex];
+  function segmentRange(a: number, b: number): SegmentRange {
+    return a <= b ? [a, b] : [b, a];
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (!onBrush) {
       return;
     }
-    dragStart.current = segmentIndexFromClientX(event.clientX);
+    dragOrigin.current = {
+      index: segmentIndexFromClientX(event.clientX),
+      x: event.clientX,
+      y: event.clientY,
+    };
     didDrag.current = false;
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Synthetic pointer events (tests, automation) have no active pointer.
-    }
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
@@ -224,35 +223,50 @@ export function PiTraceStrip({
         index: segmentIndexFromClientX(event.clientX),
       });
     }
-    if (!onBrush || dragStart.current === undefined) {
+    if (!onBrush || dragOrigin.current === undefined) {
       return;
     }
-    const index = segmentIndexFromClientX(event.clientX);
-    if (index !== dragStart.current) {
+    if (!didDrag.current) {
+      const dx = event.clientX - dragOrigin.current.x;
+      const dy = event.clientY - dragOrigin.current.y;
+      // Narrow columns are often 2px; treat jitter under 4px as a click, not a brush.
+      if (dx * dx + dy * dy < 16) {
+        return;
+      }
       didDrag.current = true;
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Synthetic pointer events (tests, automation) have no active pointer.
+      }
     }
-    if (didDrag.current) {
-      setDragPreview(runRangeFromSegments(dragStart.current, index));
-    }
+    const index = segmentIndexFromClientX(event.clientX);
+    setDragPreview(segmentRange(dragOrigin.current.index, index));
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    if (!onBrush || dragStart.current === undefined) {
+    if (!onBrush || dragOrigin.current === undefined) {
       return;
     }
-    const index = segmentIndexFromClientX(event.clientX);
     if (didDrag.current) {
-      onBrush(runRangeFromSegments(dragStart.current, index));
+      const index = segmentIndexFromClientX(event.clientX);
+      onBrush(segmentRange(dragOrigin.current.index, index));
     }
-    dragStart.current = undefined;
+    dragOrigin.current = undefined;
     setDragPreview(undefined);
+    // Keep didDrag through the trailing click, then clear so the next click works
+    // even if that click event never arrives (pointer captured away from the button).
+    queueMicrotask(() => {
+      didDrag.current = false;
+    });
   }
 
   const highlightRange = dragPreview ?? selectedRange;
 
-  function isDimmed(runIndex: number) {
+  function isDimmed(segmentIndex: number) {
     return (
-      highlightRange !== undefined && (runIndex < highlightRange[0] || runIndex > highlightRange[1])
+      highlightRange !== undefined &&
+      (segmentIndex < highlightRange[0] || segmentIndex > highlightRange[1])
     );
   }
 
@@ -268,12 +282,9 @@ export function PiTraceStrip({
         return;
       }
       const columns = Array.from(track.querySelectorAll<HTMLElement>("[data-strip-col]"));
-      const inRange = columns.filter((_, i) => {
-        const runIndex = segments[i]?.runIndex;
-        return (
-          runIndex !== undefined && runIndex >= highlightRange[0] && runIndex <= highlightRange[1]
-        );
-      });
+      const inRange = columns.filter(
+        (_, i) => i >= highlightRange[0] && i <= highlightRange[1],
+      );
       const first = inRange[0];
       const last = inRange[inRange.length - 1];
       if (!first || !last) {
@@ -318,7 +329,7 @@ export function PiTraceStrip({
       >
         {segments.map((segment, index) => {
           const isActive = activeStepId !== undefined && segment.stepIds.includes(activeStepId);
-          const dimmed = isDimmed(segment.runIndex);
+          const dimmed = isDimmed(index);
           const fill = segment.hasError
             ? "var(--danger)"
             : segment.isAnnotation
@@ -334,6 +345,7 @@ export function PiTraceStrip({
               aria-label={`Run ${segment.runIndex + 1} ${segment.lane}${segment.hasError ? " (has error)" : ""}`}
               title={`#${segment.runIndex + 1} ${segment.label} · ${segment.lane}${segment.toolCount ? ` · ${segment.toolCount} tools` : ""}${segment.hasError ? " · error" : ""} · ${Math.round(segment.durationSec)}s`}
               data-strip-col=""
+              data-focus-dimmed={dimmed ? "" : undefined}
               className="group relative flex min-w-[2px] cursor-pointer flex-col gap-px"
               style={{
                 // Steps mode: width tracks activity volume (36 collapsed tool
@@ -347,11 +359,14 @@ export function PiTraceStrip({
                 opacity: dimmed ? 0.15 : 1,
               }}
               onClick={() => {
-                // A completed drag must not also fire the click-jump.
+                // A completed drag must not also fire the click-select.
                 if (didDrag.current) {
                   didDrag.current = false;
                   return;
                 }
+                // Brush first so the page can dim the range, then jump the
+                // Playhead to this segment (overrides the range's first turn).
+                onBrush?.([index, index]);
                 onSelect(segment.turnIndex, segment.stepIds[0]);
               }}
             >
@@ -361,7 +376,7 @@ export function PiTraceStrip({
                   className="h-[8px] w-full rounded-[1px]"
                   key={laneIndex}
                   style={{
-                    background: laneOf[segment.lane] === laneIndex ? fill : "var(--surface-muted)",
+                    background: laneOf[segment.lane] === laneIndex ? fill : "transparent",
                     opacity:
                       laneOf[segment.lane] === laneIndex
                         ? segment.lane === "tools" && !segment.hasError

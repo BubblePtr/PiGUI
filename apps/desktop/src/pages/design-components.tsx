@@ -9,7 +9,12 @@ import {
   PiTraceInspector,
   type TraceInspectorTab,
 } from "@/shared/ui/pi-trace-inspector";
-import { PiTraceStrip, type StripWidthMode } from "@/shared/ui/pi-trace-strip";
+import {
+  PiTraceStrip,
+  stripSegmentsFromTurns,
+  type SegmentRange,
+  type StripWidthMode,
+} from "@/shared/ui/pi-trace-strip";
 import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
 import type { SessionTurn } from "@pigui/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
@@ -195,8 +200,29 @@ function PiSheetGallery() {
   );
 }
 
+function galleryUsage(inputTokens: number, outputTokens: number) {
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    totalTokens: inputTokens + outputTokens,
+  };
+}
+
+function galleryCost(totalUsd: number) {
+  return {
+    inputUsd: totalUsd * 0.6,
+    outputUsd: totalUsd * 0.4,
+    cacheReadUsd: 0,
+    cacheWriteUsd: 0,
+    totalUsd,
+  };
+}
+
 // Shared trace fixture for the Cockpit trio (Strip / Ledger / Inspector):
-// two Active Runs, an annotation, an error, a running call, an image.
+// four Active Runs plus an annotation — enough columns that focusing one
+// swimlane block makes the outside dimming obvious.
 const traceSessionTurns: SessionTurn[] = [
   {
     kind: "message",
@@ -286,6 +312,94 @@ const traceSessionTurns: SessionTurn[] = [
       },
     ],
   },
+  {
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T14:44:00.000Z",
+    parts: [{ partType: "text", text: "也把日期 helper 的时区边界补上。", payload: {} }],
+  },
+  {
+    kind: "message",
+    role: "assistant",
+    timestamp: "2026-03-22T14:44:28.000Z",
+    model: "claude-fable-5",
+    usage: galleryUsage(62_000, 1_400),
+    cost: galleryCost(0.31),
+    parts: [
+      { partType: "thinking", text: "Need the existing helper and its tests first.", payload: {} },
+      {
+        partType: "toolCall",
+        name: "read_file",
+        payload: { id: "c4", arguments: { path: "src/utils/formatDate.ts" } },
+      },
+      {
+        partType: "toolResult",
+        name: "read_file",
+        text: "export function formatDate(value: Date) { return value.toISOString(); }",
+        isError: false,
+        durationMs: 180,
+        payload: { toolCallId: "c4" },
+      },
+      {
+        partType: "toolCall",
+        name: "read_file",
+        payload: { id: "c5", arguments: { path: "src/utils/formatDate.test.ts" } },
+      },
+      {
+        partType: "toolResult",
+        name: "read_file",
+        text: "it('formats UTC', () => { expect(formatDate(d)).toBe('…'); });",
+        isError: false,
+        durationMs: 90,
+        payload: { toolCallId: "c5" },
+      },
+      { partType: "text", text: "Helper is UTC-only. Adding an explicit timezone argument.", payload: {} },
+    ],
+  },
+  {
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T14:45:10.000Z",
+    parts: [{ partType: "text", text: "跑一下测试，确认没把旧调用方弄坏。", payload: {} }],
+  },
+  {
+    kind: "message",
+    role: "assistant",
+    timestamp: "2026-03-22T14:45:40.000Z",
+    model: "claude-fable-5",
+    usage: galleryUsage(64_200, 2_100),
+    cost: galleryCost(0.36),
+    parts: [
+      { partType: "thinking", text: "Patch the helper, then run the focused test file.", payload: {} },
+      {
+        partType: "toolCall",
+        name: "edit",
+        payload: { id: "c6", arguments: { path: "src/utils/formatDate.ts" } },
+      },
+      {
+        partType: "toolResult",
+        name: "edit",
+        text: "updated formatDate to accept timeZone",
+        isError: false,
+        durationMs: 40,
+        payload: { toolCallId: "c6" },
+      },
+      {
+        partType: "toolCall",
+        name: "bash",
+        payload: { id: "c7", arguments: { command: "bun test src/utils/formatDate.test.ts" } },
+      },
+      {
+        partType: "toolResult",
+        name: "bash",
+        text: "4 pass, 0 fail",
+        isError: false,
+        durationMs: 2_800,
+        payload: { toolCallId: "c7" },
+      },
+      { partType: "text", text: "Tests are green. Ready to ship the helper + the original formatter fix.", payload: {} },
+    ],
+  },
 ];
 
 const traceTurns = buildTraceTurns(traceSessionTurns);
@@ -306,12 +420,11 @@ function PiTraceLedgerGallery() {
             />
           </div>
         </Variant>
-        <Variant caption="focus-dimmed run (Strip brush semantics) + filtered to tool steps">
+        <Variant caption="focus-dimmed rows outside a tools block (same Run stays, other steps grey)">
           <div className="rounded-md border border-separator">
             <PiTraceLedger
-              isDimmed
-              runs={[traceRuns[0]]}
-              stepFilter={(step) => step.kind === "tool"}
+              runs={traceRuns}
+              isStepDimmed={(step) => step.kind !== "tool"}
             />
           </div>
         </Variant>
@@ -325,15 +438,30 @@ function PiTraceLedgerGallery() {
   );
 }
 
+const galleryStripSegments = stripSegmentsFromTurns(traceTurns);
+const defaultGalleryFocus: SegmentRange = (() => {
+  const midTools = galleryStripSegments.findIndex(
+    (segment, index) => segment.lane === "tools" && index > 3,
+  );
+  return midTools >= 0 ? [midTools, midTools] : [1, 1];
+})();
+
 function PiTraceStripGallery() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("steps");
-  const [range, setRange] = useState<[number, number] | undefined>([0, 0]);
-  const [activeStepId, setActiveStepId] = useState<string | undefined>(undefined);
+  const [range, setRange] = useState<SegmentRange | undefined>(defaultGalleryFocus);
+  const [activeStepId, setActiveStepId] = useState<string | undefined>(
+    galleryStripSegments[defaultGalleryFocus[0]]?.stepIds[0],
+  );
+  const focusedStepIds = new Set(
+    (range ? galleryStripSegments.slice(range[0], range[1] + 1) : []).flatMap(
+      (segment) => segment.stepIds,
+    ),
+  );
 
   return (
     <GallerySection title="PiTraceStrip">
       <div className="flex max-w-3xl flex-col gap-4">
-        <Variant caption="Input / Model / Tools swimlanes · hover = scrub cursor · drag = run brush (selection box + dimming) · Steps/Time width modes">
+        <Variant caption="Input / Model / Tools swimlanes · hover = scrub cursor · click = one block · drag = contiguous blocks · columns outside the box dim">
           <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
             <PiTraceStrip
               activeStepId={activeStepId}
@@ -343,6 +471,14 @@ function PiTraceStripGallery() {
               onBrush={setRange}
               onSelect={(_, stepId) => setActiveStepId(stepId)}
               onWidthModeChange={setWidthMode}
+            />
+          </div>
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-separator">
+            <PiTraceLedger
+              runs={traceRuns}
+              selectedStepId={activeStepId}
+              isStepDimmed={range ? (step) => !focusedStepIds.has(step.id) : undefined}
+              onSelectStep={setActiveStepId}
             />
           </div>
         </Variant>

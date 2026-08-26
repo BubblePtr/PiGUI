@@ -134,6 +134,24 @@ describe("PiTraceLedger", () => {
     expect(playhead).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("dims individual rows outside the focused swimlane block", () => {
+    const runs = buildTraceRuns(buildTraceTurns(sessionTurns));
+    const { container } = render(
+      <PiTraceLedger
+        runs={runs}
+        isStepDimmed={(step) => step.kind !== "tool"}
+      />,
+    );
+
+    const rows = [...container.querySelectorAll('[data-slot="trace-ledger-row"]')];
+    const dimmed = rows.filter((row) => row.hasAttribute("data-focus-dimmed"));
+    const lit = rows.filter((row) => !row.hasAttribute("data-focus-dimmed"));
+
+    expect(dimmed.length).toBeGreaterThan(0);
+    expect(lit.length).toBeGreaterThan(0);
+    expect(lit.every((row) => row.getAttribute("data-kind") === "tool")).toBe(true);
+  });
+
   it("drops steps failing stepFilter and dims runs outside the focus range", () => {
     const runs = buildTraceRuns(buildTraceTurns(sessionTurns));
     const { container } = render(

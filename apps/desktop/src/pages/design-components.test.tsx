@@ -70,6 +70,7 @@ describe("Design components layer", () => {
     expect(strip.querySelector('[data-slot="trace-strip"]')).toBeInTheDocument();
     expect(within(strip).getByRole("button", { name: "Steps" })).toBeInTheDocument();
     expect(within(strip).getByRole("button", { name: "Time" })).toBeInTheDocument();
+    expect(strip.querySelectorAll("[data-strip-col][data-focus-dimmed]").length).toBeGreaterThan(2);
 
     const inspector = screen.getByRole("region", { name: "PiTraceInspector" });
     expect(within(inspector).getAllByRole("tab", { name: "Schema" }).length).toBeGreaterThan(0);
