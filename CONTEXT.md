@@ -45,7 +45,7 @@ Session Trace 的仪表盘式呈现形态：Strip、Tally、Ledger、Inspector �
 _Avoid_: Live chat, log viewer, dashboard
 
 **Strip**:
-Trace Cockpit 顶部的会话概览带，Input / Model / Tools 三条泳道：色块以"段"为粒度（user 输入、连续的模型输出、连续的工具执行各成一段），按角色点亮各自泳道，错误段变红。悬停显示游标竖线用于精确定位，点击跳到对应步骤，拖拽框选出以 Active Run 为单位的聚焦选区（视频轨语义：选区外压暗，不过滤），并投影 Playhead 的当前位置。支持等宽与按时长加权两种列宽。回答"这条 Session 整体长什么样、错误在哪、我在哪"。
+Trace Cockpit 顶部的会话概览带，Input / Model / Tools 三条泳道：色块以"段"为粒度（user 输入、连续的模型输出、连续的工具执行各成一段），按角色点亮各自泳道，错误段变红。悬停显示游标竖线用于精确定位，单击选中该泳道块并跳到对应步骤，拖拽框选连续段作为聚焦选区（视频轨语义：选区外压暗，不过滤，不外扩成整段 Active Run），并投影 Playhead 的当前位置。支持等宽与按时长加权两种列宽。回答"这条 Session 整体长什么样、错误在哪、我在哪"。
 _Avoid_: Timeline, minimap, progress bar, per-turn column
 
 **Tally**:

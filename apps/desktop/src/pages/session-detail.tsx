@@ -19,7 +19,13 @@ import {
   type TraceInspectorTab,
   type TraceToolSchema,
 } from "@/shared/ui/pi-trace-inspector";
-import { PiTraceStrip, type RunRange, type StripWidthMode } from "@/shared/ui/pi-trace-strip";
+import {
+  PiTraceStrip,
+  stripSegmentsFromTurns,
+  type SegmentRange,
+  type StripSegment,
+  type StripWidthMode,
+} from "@/shared/ui/pi-trace-strip";
 import type { RuntimeToolSchemas, SessionDetail, SessionTurn } from "@pigui/core";
 
 export type {
@@ -72,6 +78,17 @@ function toolNamesFromSession(session?: SessionDetail) {
   return [...names].sort();
 }
 
+function focusChipLabel(segments: StripSegment[], range: SegmentRange) {
+  const start = segments[range[0]];
+  if (!start) {
+    return "focus ✕";
+  }
+  if (range[0] === range[1]) {
+    return `focus #${start.runIndex + 1} ${start.lane} ✕`;
+  }
+  return `focus ${range[1] - range[0] + 1} segments ✕`;
+}
+
 function FilterChip({
   label,
   isActive,
@@ -102,7 +119,7 @@ function FilterChip({
  * virtualized by Active Run) + Inspector (right, resizable). Interaction
  * semantics: Strip brush = focus (dims, never filters); the filter bar =
  * true filter (rows drop out); the Playhead (selected step, ↑/↓) walks the
- * visible steps inside the focused range.
+ * visible steps inside the focused segment range.
  */
 export function SessionDetailView({
   session,
@@ -119,11 +136,12 @@ export function SessionDetailView({
 }) {
   const turns = useMemo(() => buildTraceTurns(session?.turns ?? []), [session?.turns]);
   const runs = useMemo(() => buildTraceRuns(turns), [turns]);
+  const segments = useMemo(() => stripSegmentsFromTurns(turns), [turns]);
 
   const [filter, setFilter] = useState<TraceFilter>(emptyTraceFilter);
-  // Video-editing semantics: the brushed range focuses (dims the rest); it
-  // does not filter rows out. Kept separate from the true filters.
-  const [focusRange, setFocusRange] = useState<RunRange | undefined>(undefined);
+  // Video-editing semantics: the brushed segment range focuses (dims the
+  // rest); it does not filter rows out. Kept separate from the true filters.
+  const [focusRange, setFocusRange] = useState<SegmentRange | undefined>(undefined);
   const [stripWidthMode, setStripWidthMode] = useState<StripWidthMode>("steps");
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>(undefined);
   const [tab, setTab] = useState<TraceInspectorTab>("Summary");
@@ -150,16 +168,25 @@ export function SessionDetailView({
     () => (step: TraceStep) => visibleIds.has(step.id),
     [visibleIds],
   );
-  // The Playhead walks inside the focused run range when one is brushed.
+  // The Playhead walks the steps inside the focused segment range.
+  const focusedStepIds = useMemo(() => {
+    if (!focusRange) {
+      return undefined;
+    }
+    const ids = new Set<string>();
+    for (let index = focusRange[0]; index <= focusRange[1]; index += 1) {
+      for (const stepId of segments[index]?.stepIds ?? []) {
+        ids.add(stepId);
+      }
+    }
+    return ids;
+  }, [focusRange, segments]);
   const walkableSteps = useMemo(
     () =>
-      focusRange
-        ? visibleSteps.filter((step) => {
-            const runIndex = turns[step.turnIndex].runIndex;
-            return runIndex >= focusRange[0] && runIndex <= focusRange[1];
-          })
+      focusedStepIds
+        ? visibleSteps.filter((step) => focusedStepIds.has(step.id))
         : visibleSteps,
-    [visibleSteps, focusRange, turns],
+    [visibleSteps, focusedStepIds],
   );
 
   const visibleRuns = useMemo(
@@ -171,7 +198,15 @@ export function SessionDetailView({
   const selectedTurn = selectedStep ? turns[selectedStep.turnIndex] : undefined;
 
   function isRunDimmed(runIndex: number) {
-    return focusRange !== undefined && (runIndex < focusRange[0] || runIndex > focusRange[1]);
+    if (!focusRange) {
+      return false;
+    }
+    for (let index = focusRange[0]; index <= focusRange[1]; index += 1) {
+      if (segments[index]?.runIndex === runIndex) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // Inspector resize: pointer-drag on the divider, double-click collapses.
@@ -346,14 +381,13 @@ export function SessionDetailView({
             widthMode={stripWidthMode}
             onBrush={(range) => {
               setFocusRange(range);
-              if (range) {
-                const firstTurn = turns.find((turn) => turn.runIndex === range[0]);
-                if (firstTurn) {
-                  revealLedgerTarget({
-                    runIndex: range[0],
-                    turnIndex: firstTurn.index,
-                  });
-                }
+              const segment = range ? segments[range[0]] : undefined;
+              if (segment) {
+                revealLedgerTarget({
+                  runIndex: segment.runIndex,
+                  stepId: segment.stepIds[0],
+                  turnIndex: segment.turnIndex,
+                });
               }
             }}
             onSelect={(turnIndex, stepId) => {
@@ -416,7 +450,7 @@ export function SessionDetailView({
         {focusRange ? (
           <FilterChip
             isActive
-            label={`focus runs ${focusRange[0] + 1}–${focusRange[1] + 1} ✕`}
+            label={focusChipLabel(segments, focusRange)}
             onToggle={() => setFocusRange(undefined)}
           />
         ) : null}
@@ -466,6 +500,11 @@ export function SessionDetailView({
                     >
                       <PiTraceLedger.Run
                         isDimmed={isRunDimmed(run.index)}
+                        isStepDimmed={
+                          focusedStepIds && !isRunDimmed(run.index)
+                            ? (step) => !focusedStepIds.has(step.id)
+                            : undefined
+                        }
                         registerStepRef={(stepId, element) => {
                           if (element) {
                             stepRefs.current.set(stepId, element);

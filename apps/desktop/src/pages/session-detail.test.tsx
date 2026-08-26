@@ -198,6 +198,23 @@ describe("SessionDetailView (Trace Cockpit)", () => {
     expect(empty.defaultPrevented).toBe(false);
   });
 
+  it("focuses a single swimlane block when a strip segment is clicked", async () => {
+    const user = userEvent.setup();
+    const session = makeLargeSessionDetail(4);
+    const { container } = render(<SessionDetailView session={session} sessionId={session.id} />);
+
+    await user.click(screen.getAllByRole("option", { name: "Run 1 tools" })[0]);
+
+    expect(screen.getByRole("button", { name: /focus #1 tools/ })).toBeInTheDocument();
+    const ledger = container.querySelector('[data-slot="trace-ledger"]');
+    expect(
+      ledger?.querySelectorAll('[data-slot="trace-ledger-row"][data-focus-dimmed]').length,
+    ).toBeGreaterThan(0);
+    expect(
+      ledger?.querySelectorAll('[data-slot="trace-ledger-row"]:not([data-focus-dimmed])').length,
+    ).toBeGreaterThan(0);
+  });
+
   it("scrolls a virtualized run into the ledger when the strip jumps to it", async () => {
     const user = userEvent.setup();
     const session = makeLargeSessionDetail();

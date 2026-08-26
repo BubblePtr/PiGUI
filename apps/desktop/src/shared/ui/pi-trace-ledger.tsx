@@ -116,12 +116,14 @@ function LedgerRow({
   step,
   role,
   isSelected,
+  isDimmed = false,
   onSelect,
   rowRef,
 }: {
   step: TraceStep;
   role: TraceRole;
   isSelected: boolean;
+  isDimmed?: boolean;
   onSelect?: (stepId: string) => void;
   rowRef?: (stepId: string, element: HTMLButtonElement | null) => void;
 }) {
@@ -146,9 +148,10 @@ function LedgerRow({
       data-kind={step.kind}
       data-status={step.kind === "tool" ? (step.isRunning ? "running" : step.isError ? "error" : "ok") : undefined}
       data-playhead={isSelected ? "" : undefined}
+      data-focus-dimmed={isDimmed ? "" : undefined}
       className={`grid w-full min-w-0 cursor-pointer grid-cols-[5.5rem_minmax(0,1fr)_3.5rem] items-baseline gap-x-2 border-l-2 py-1 pl-2 pr-3 text-left font-mono text-xs leading-6 transition-colors ${
         isSelected ? "border-primary bg-surface-muted" : "border-transparent hover:bg-surface-hover"
-      }`}
+      } ${isDimmed ? "opacity-30" : ""}`.trim()}
       ref={(element) => rowRef?.(step.id, element)}
       type="button"
       onClick={() => onSelect?.(step.id)}
@@ -201,6 +204,8 @@ export type PiTraceLedgerRunProps = {
   onSelectStep?: (stepId: string) => void;
   /** Focus semantics (Strip brush): dimmed runs stay rendered, greyed out. */
   isDimmed?: boolean;
+  /** Focus semantics: dim rows outside the selected swimlane block. */
+  isStepDimmed?: (step: TraceStep) => boolean;
   /** True filter: steps not passing it drop out of the ledger. */
   stepFilter?: (step: TraceStep) => boolean;
   registerStepRef?: (stepId: string, element: HTMLButtonElement | null) => void;
@@ -212,6 +217,7 @@ function Run({
   selectedStepId,
   onSelectStep,
   isDimmed = false,
+  isStepDimmed,
   stepFilter,
   registerStepRef,
   registerTurnRef,
@@ -267,6 +273,7 @@ function Run({
           ) : null}
           {steps.map((step) => (
             <LedgerRow
+              isDimmed={isStepDimmed?.(step) ?? false}
               isSelected={step.id === selectedStepId}
               key={step.id}
               role={turn.role}
