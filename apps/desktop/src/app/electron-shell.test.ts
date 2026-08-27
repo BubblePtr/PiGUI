@@ -30,6 +30,17 @@ describe("Electron shell", () => {
     expect(main).toContain("nodeIntegration: false");
     expect(main).toContain('titleBarStyle: "hidden"');
     expect(main).toContain("trafficLightPosition: { x: 16, y: 13 }");
+    expect(main).toContain("transparent: true");
+    expect(main).toContain('vibrancy: "under-window"');
+    expect(main).toContain('backgroundColor: "#00000000"');
+    expect(main).toContain('process.platform === "darwin"');
+  });
+
+  it("marks the document for sidebar vibrancy only on macOS", () => {
+    const preload = readProjectFile("apps/desktop/electron/preload.ts");
+
+    expect(preload).toContain('process.platform === "darwin"');
+    expect(preload).toContain('data-pigui-vibrancy');
   });
 
   it("sets the PiGUI Dock icon during electron-vite dev", () => {

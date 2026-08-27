@@ -31,3 +31,12 @@ const api: PiGUIRendererApi = {
 };
 
 contextBridge.exposeInMainWorld("pigui", api);
+
+function markMacVibrancyDocument() {
+  if (process.platform === "darwin") {
+    document.documentElement.setAttribute("data-pigui-vibrancy", "");
+  }
+}
+
+markMacVibrancyDocument();
+window.addEventListener("DOMContentLoaded", markMacVibrancyDocument);

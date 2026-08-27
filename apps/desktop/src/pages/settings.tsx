@@ -226,7 +226,7 @@ export function SettingsPage() {
 
   return (
     <AppFrame>
-      <main className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-10 text-foreground">
+      <main className="h-full min-h-0 overflow-y-auto bg-surface px-6 py-10 text-foreground">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
           <header className="space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted">

@@ -1133,7 +1133,7 @@ export function AppFrame({
         data-testid="app-frame-content"
       >
         <div aria-hidden="true" className="h-10 shrink-0" />
-        <div className="min-h-0 min-w-0 flex-1">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       </div>
     </>
   );
