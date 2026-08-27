@@ -3425,7 +3425,6 @@ export function AgentWorkspaceSessionsView({
   onDraftSubmit = () => {},
   sessionCreator,
   checkoutManager,
-  hasActiveSession,
   runtimeBridge,
   sessionProjection,
   clockNowMs,
@@ -3440,7 +3439,6 @@ export function AgentWorkspaceSessionsView({
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
   sessionCreator?: SessionCreator;
   checkoutManager?: ExecutionCheckoutManager;
-  hasActiveSession?: boolean;
   runtimeBridge?: PiRuntimeBridge;
   sessionProjection?: SessionProjection | null;
   clockNowMs?: number;
@@ -3469,17 +3467,12 @@ export function AgentWorkspaceSessionsView({
     }),
   );
   const activeCheckoutManager = checkoutManager ?? defaultCheckoutManager;
-  const shouldRecommendManagedCheckout =
-    hasActiveSession ??
-    Boolean(sessionProjection && isSessionProjectionActive(sessionProjection));
   const defaultSessionCreator: SessionCreator = (input: SessionCreatorInput) =>
     createSessionFromDraft({
       ...input,
       bridge: getActiveRuntimeBridge(),
       checkoutManager: activeCheckoutManager,
-      executionMode:
-        input.executionMode ??
-        (shouldRecommendManagedCheckout ? "background" : "foreground"),
+      executionMode: input.executionMode ?? "foreground",
       projections: defaultProjectionStore,
     });
   const liveSession = (
@@ -3491,9 +3484,7 @@ export function AgentWorkspaceSessionsView({
       sessionCreator={sessionCreator ?? defaultSessionCreator}
       checkoutManager={activeCheckoutManager}
       getRuntimeBridge={getActiveRuntimeBridge}
-      recommendedCheckoutMode={
-        shouldRecommendManagedCheckout ? "worktree" : "local"
-      }
+      recommendedCheckoutMode="local"
       sessionProjection={sessionProjection}
       clockNowMs={clockNowMs}
       onProjectionChange={onProjectionChange}
@@ -3791,7 +3782,6 @@ export function AgentWorkspaceSessionsPage() {
         runtimeBridge={runtimeBridge}
         runtimeGeneration={backendGeneration}
         sessionProjection={selectedSessionProjection}
-        hasActiveSession={sessionProjections.some(isSessionProjectionActive)}
         onProjectionChange={handleProjectionChange}
         onLatestMessageRendered={handleLatestMessageRendered}
       />

@@ -2378,7 +2378,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("recommends a managed checkout for Session Draft creation when another Session is active", async () => {
+  it("defaults Session Draft checkout to local and still creates a managed worktree when chosen", async () => {
     const user = userEvent.setup();
     const projections: Array<ReturnType<typeof createSessionProjection>> = [];
     const createdWorktrees: string[] = [];
@@ -2454,7 +2454,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(screen.getByTestId("checkout-strategy-trigger")).toHaveTextContent(
-      "Worktree",
+      "Local",
     );
     await user.click(screen.getByTestId("checkout-strategy-trigger"));
     const localCheckoutOption = await screen.findByRole("option", { name: "Local" });
@@ -2567,6 +2567,10 @@ describe("AgentWorkspaceSessionsPage", () => {
           projections.push(projection);
         }}
       />,
+    );
+
+    expect(screen.getByTestId("checkout-strategy-trigger")).toHaveTextContent(
+      "Local",
     );
 
     await user.click(screen.getByTestId("checkout-strategy-trigger"));

@@ -270,8 +270,8 @@
 
 /* —— Prompt input ——
    Shell, slot layout, send/stop button, and error status are owned by
-   Astryx ChatComposer; only the native textarea and the neutral footer
-   hint remain ours. */
+   Astryx ChatComposer; only the native textarea, body padding, the
+   input-to-footer gap, and the neutral footer hint remain ours. */
 
 .prompt-input {
   display: flex;
@@ -280,8 +280,27 @@
   min-width: 0;
 }
 
+.prompt-input .astryx-chat-composer {
+  /* Default --spacing-3 minus the 1px inset border reads as 11px.
+     One step down so the chrome sits closer to the edge. */
+  --_chat-composer-padding: var(--spacing-2);
+  /* Astryx pairs --radius-chat (28) with --spacing-3 (12) so the 32px
+     send button stays a circle: 28 − 12 = 16. Padding dropped one step,
+     so the shell must follow: outer = padding + half the md button. */
+  --_chat-composer-radius: calc(
+    var(--_chat-composer-padding) + var(--size-element-md) / 2
+  );
+}
+
 .prompt-input[data-drop] .astryx-chat-composer {
   box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+/* Astryx balanced density uses --spacing-2 between the input and the
+   footer chrome. One step up so the placeholder and model selector
+   don't sit on the same visual band. */
+.prompt-input .astryx-chat-composer > div:has(.prompt-input__textarea) {
+  gap: var(--spacing-3);
 }
 
 .prompt-input__textarea {
@@ -299,8 +318,12 @@
   padding: var(--spacing-1) var(--spacing-1-5);
 }
 
+/* Hint copy recedes below composer chrome (model selector uses
+   --color-text-secondary via text-muted). Opacity is reset so Firefox
+   does not further fade the token color. */
 .prompt-input__textarea::placeholder {
-  color: var(--color-text-secondary);
+  color: var(--color-text-disabled);
+  opacity: 1;
 }
 
 .prompt-input__textarea:disabled {
