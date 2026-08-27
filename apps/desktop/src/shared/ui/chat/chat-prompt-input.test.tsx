@@ -1,6 +1,8 @@
 import { type ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { ChatPromptInput } from "@/shared/ui/chat/chat-prompt-input";
 
@@ -231,5 +233,64 @@ describe("ChatPromptInput", () => {
     });
 
     expect(onFiles).toHaveBeenCalledWith([image]);
+  });
+
+  it("recedes the empty-state placeholder below composer chrome", () => {
+    const css = readFileSync(
+      join(process.cwd(), "apps/desktop/src/shared/ui/chat/chat.css"),
+      "utf8",
+    );
+    const trigger = readFileSync(
+      join(
+        process.cwd(),
+        "apps/desktop/src/shared/ui/model-selector/model-selector-control.tsx",
+      ),
+      "utf8",
+    );
+
+    // Model selector sits on --color-text-secondary via text-muted; the
+    // placeholder must use the next weaker Astryx step so the hint recedes.
+    expect(trigger).toMatch(
+      /className="[^"]*text-muted[^"]*"[\s\S]*?data-testid="model-thinking-trigger"/,
+    );
+    expect(css).toMatch(
+      /\.prompt-input__textarea::placeholder\s*\{[^}]*color:\s*var\(--color-text-disabled\)/,
+    );
+  });
+
+  it("separates the input from the model-selector row by one extra spacing step", () => {
+    const css = readFileSync(
+      join(process.cwd(), "apps/desktop/src/shared/ui/chat/chat.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /\.astryx-chat-composer\s*>\s*div:has\(\.prompt-input__textarea\)\s*\{[^}]*gap:\s*var\(--spacing-3\)/,
+    );
+  });
+
+  it("tightens ChatComposer body padding by one spacing step", () => {
+    const css = readFileSync(
+      join(process.cwd(), "apps/desktop/src/shared/ui/chat/chat.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /\.prompt-input\s+\.astryx-chat-composer\s*\{[^}]*--_chat-composer-padding:\s*var\(--spacing-2\)/,
+    );
+  });
+
+  it("keeps the composer radius concentric with the circular send button", () => {
+    const css = readFileSync(
+      join(process.cwd(), "apps/desktop/src/shared/ui/chat/chat.css"),
+      "utf8",
+    );
+
+    // Astryx: inner button radius = outer − padding. The md send button is
+    // --size-element-md (32px), so a circle is half that. Outer must be
+    // padding + that half, or the corner gutter pinches.
+    expect(css).toMatch(
+      /\.prompt-input\s+\.astryx-chat-composer\s*\{[^}]*--_chat-composer-radius:\s*calc\(\s*var\(--_chat-composer-padding\)\s*\+\s*var\(--size-element-md\)\s*\/\s*2\s*\)/,
+    );
   });
 });
