@@ -1216,7 +1216,7 @@ describe("AppFrame", () => {
     expect(screen.getByTestId("app-frame-content")).not.toHaveClass("bg-background");
   });
 
-  it("uses the wash AppShell variant so sidenav and content share the body canvas", async () => {
+  it("keeps a transparent sidebar separate from the elevated content surface", async () => {
     renderAppFrame("/");
 
     await screen.findByText("Main content");
@@ -1225,17 +1225,19 @@ describe("AppFrame", () => {
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
     expect(shellRoot).not.toBeNull();
-    expect(shellRoot).toHaveAttribute("data-variant", "wash");
+    expect(shellRoot).toHaveAttribute("data-variant", "elevated");
     expect(shellRoot).not.toHaveClass("bg-background");
-    expect(source).toContain('variant="wash"');
-    expect(source).not.toContain('variant="elevated"');
-    // Sidebar lets native vibrancy through; the main column stays opaque wash.
+    expect(source).toContain('variant="elevated"');
+    expect(source).not.toContain('variant="wash"');
+    // Vibrancy (transparent sidebar) is macOS-only; other platforms keep an
+    // opaque wash nav so the content surface still contrasts.
+    expect(styles).toContain("html[data-pigui-vibrancy]");
     expect(styles).toContain("--pigui-sidebar-wash-alpha:");
     expect(styles).toContain(
       "color-mix(in srgb, var(--color-background-body) var(--pigui-sidebar-wash-alpha), transparent)",
     );
     expect(styles).toContain('.pigui-app-layout [role="main"]');
-    expect(styles).toContain("background-color: var(--background);");
+    expect(styles).toContain("background-color: var(--surface);");
     // Sticky titlebar/footer must not inherit another semi-transparent wash
     // or they composite into a second slab over the scrollable middle.
     expect(styles).toContain(".pigui-app-sidenav > div:not(#\\#):not(#\\#):not(#\\#)");

@@ -90,7 +90,6 @@ body,
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  background-color: transparent;
 }
 
 html {
@@ -386,9 +385,16 @@ body {
   transition: width 200ms ease;
 }
 
-/* Wash canvas is transparent so macOS sidebar vibrancy can show through.
-   The main column stays opaque; the sidenav keeps a light body tint. */
-.pigui-app-layout.astryx-app-shell:not(#\#):not(#\#):not(#\#) {
+/* macOS only: let under-window vibrancy show through the sidebar.
+   Content stays an opaque elevated surface so the two columns stay distinct.
+   Non-mac keeps Astryx elevated (opaque wash nav, surface content). */
+html[data-pigui-vibrancy],
+html[data-pigui-vibrancy] body,
+html[data-pigui-vibrancy] #root {
+  background-color: transparent;
+}
+
+html[data-pigui-vibrancy] .pigui-app-layout.astryx-app-shell:not(#\#):not(#\#):not(#\#) {
   background-color: transparent;
 }
 
@@ -396,13 +402,13 @@ body {
    inherit, which composites a second semi-transparent slab over the
    scrollable middle — keep descendants transparent so the three zones
    share a single layer. */
-.pigui-app-layout .astryx-app-shell-sidenav:not(#\#):not(#\#):not(#\#) {
+html[data-pigui-vibrancy] .pigui-app-layout .astryx-app-shell-sidenav:not(#\#):not(#\#):not(#\#) {
   background-color: color-mix(in srgb, var(--color-background-body) var(--pigui-sidebar-wash-alpha), transparent);
 }
 
-.pigui-app-layout .astryx-side-nav:not(#\#):not(#\#):not(#\#),
-.pigui-app-sidenav:not(#\#):not(#\#):not(#\#),
-.pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
+html[data-pigui-vibrancy] .pigui-app-layout .astryx-side-nav:not(#\#):not(#\#):not(#\#),
+html[data-pigui-vibrancy] .pigui-app-sidenav:not(#\#):not(#\#):not(#\#),
+html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
   background-color: transparent;
 }
 
@@ -411,7 +417,7 @@ body {
 }
 
 .pigui-app-layout [role="main"]:not(#\#):not(#\#):not(#\#) {
-  background-color: var(--background);
+  background-color: var(--surface);
 }
 
 @media (prefers-reduced-motion: reduce) {

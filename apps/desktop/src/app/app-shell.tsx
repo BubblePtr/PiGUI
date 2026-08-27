@@ -1157,7 +1157,7 @@ export function AppFrame({
       contentPadding={0}
       data-sidebar-animating={sidebarAnimating ? "true" : undefined}
       mobileNav={false}
-      variant="wash"
+      variant="elevated"
       sideNav={
         // Offcanvas on purpose: an Agentic Developer Environment has no use
         // for Astryx's 48px icon rail, so closed means fully removed.
