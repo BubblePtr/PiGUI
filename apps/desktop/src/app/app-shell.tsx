@@ -1133,7 +1133,7 @@ export function AppFrame({
         data-testid="app-frame-content"
       >
         <div aria-hidden="true" className="h-10 shrink-0" />
-        <div className="min-h-0 min-w-0 flex-1">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       </div>
     </>
   );
@@ -1157,7 +1157,7 @@ export function AppFrame({
       contentPadding={0}
       data-sidebar-animating={sidebarAnimating ? "true" : undefined}
       mobileNav={false}
-      variant="elevated"
+      variant="wash"
       sideNav={
         // Offcanvas on purpose: an Agentic Developer Environment has no use
         // for Astryx's 48px icon rail, so closed means fully removed.

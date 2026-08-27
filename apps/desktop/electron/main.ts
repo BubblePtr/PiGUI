@@ -89,6 +89,16 @@ function createMainWindow() {
     title: "PiGUI",
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 13 },
+    ...(process.platform === "darwin"
+      ? {
+          // Transparent web contents are required for vibrancy to show through
+          // CSS; `sidebar` material is too dense to read as glass.
+          transparent: true,
+          vibrancy: "under-window" as const,
+          visualEffectState: "followWindow" as const,
+          backgroundColor: "#00000000",
+        }
+      : {}),
     webPreferences: {
       preload: preloadPath(),
       contextIsolation: true,

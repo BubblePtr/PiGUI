@@ -1169,6 +1169,13 @@ describe("AppFrame", () => {
     expect(styles).toContain("flex: 0 0 auto;");
     expect(styles).toContain(".pigui-project-expansion-indicator {");
     expect(styles).toContain("width: var(--pigui-sidebar-icon-size);");
+    // Astryx nests children at --spacing-6; that extra indent plus the glyph
+    // slot parks short labels like "No chats" near the row center. Zero it
+    // so the session glyph column matches the project folder column.
+    expect(styles).toContain(
+      ".pigui-sidenav-row-with-actions [role=\"group\"] > div:not(#\\#):not(#\\#):not(#\\#)",
+    );
+    expect(styles).toContain("padding-inline-start: 0;");
   });
 
   it("uses the Astryx resizable separator without transparent overrides", async () => {
@@ -1209,15 +1216,29 @@ describe("AppFrame", () => {
     expect(screen.getByTestId("app-frame-content")).not.toHaveClass("bg-background");
   });
 
-  it("lets the elevated AppShell variant paint the sidenav wash", async () => {
+  it("uses the wash AppShell variant so sidenav and content share the body canvas", async () => {
     renderAppFrame("/");
 
     await screen.findByText("Main content");
     const shellRoot = document.querySelector(".astryx-app-shell");
+    const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/app-shell.tsx"), "utf8");
+    const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
     expect(shellRoot).not.toBeNull();
-    expect(shellRoot).toHaveAttribute("data-variant", "elevated");
+    expect(shellRoot).toHaveAttribute("data-variant", "wash");
     expect(shellRoot).not.toHaveClass("bg-background");
+    expect(source).toContain('variant="wash"');
+    expect(source).not.toContain('variant="elevated"');
+    // Sidebar lets native vibrancy through; the main column stays opaque wash.
+    expect(styles).toContain("--pigui-sidebar-wash-alpha:");
+    expect(styles).toContain(
+      "color-mix(in srgb, var(--color-background-body) var(--pigui-sidebar-wash-alpha), transparent)",
+    );
+    expect(styles).toContain('.pigui-app-layout [role="main"]');
+    expect(styles).toContain("background-color: var(--background);");
+    // Sticky titlebar/footer must not inherit another semi-transparent wash
+    // or they composite into a second slab over the scrollable middle.
+    expect(styles).toContain(".pigui-app-sidenav > div:not(#\\#):not(#\\#):not(#\\#)");
   });
 
   it("disables document-level elastic overscroll", () => {
