@@ -1,6 +1,11 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, isAbsolute, join } from "node:path";
 import { describe, expect, it } from "vitest";
+
+const desktopRequire = createRequire(
+  join(process.cwd(), "apps/desktop/package.json"),
+);
 
 const repoRoot = process.cwd();
 
@@ -15,6 +20,14 @@ function sourceFilesUnder(path: string): string[] {
 
     return /\.(ts|tsx)$/.test(entry) ? [childPath] : [];
   });
+}
+
+function resolveLocalFontPath(fromFile: string, fontUrl: string): string {
+  if (isAbsolute(fontUrl) || fontUrl.startsWith(".")) {
+    return join(dirname(fromFile), fontUrl);
+  }
+
+  return desktopRequire.resolve(fontUrl);
 }
 
 describe("Design system integration", () => {
@@ -60,6 +73,32 @@ describe("Design system integration", () => {
     // Astryx surfaces keep the theme's own stack: no body/heading overrides.
     expect(styles).not.toContain("--font-family-body:");
     expect(styles).not.toContain("--font-family-heading:");
+  });
+
+  it("ships Figtree as a local woff2 so the Astryx stack resolves offline", () => {
+    const stylesPath = join(repoRoot, "apps/desktop/src/app/styles.css");
+    const styles = readFileSync(stylesPath, "utf8");
+    const figtreeFaces = [
+      ...styles.matchAll(/@font-face\s*\{([\s\S]*?)\}/g),
+    ].filter((match) => /font-family:\s*["']?Figtree["']?\s*;/.test(match[1]));
+
+    expect(figtreeFaces.length).toBeGreaterThan(0);
+
+    const woff2Urls = figtreeFaces.flatMap((match) =>
+      [...match[1].matchAll(/url\((['"]?)([^)'"]+\.woff2)\1\)/g)].map(
+        (urlMatch) => urlMatch[2],
+      ),
+    );
+
+    expect(woff2Urls.length).toBeGreaterThan(0);
+
+    for (const fontUrl of woff2Urls) {
+      expect(fontUrl).not.toMatch(/^https?:\/\//);
+      expect(existsSync(resolveLocalFontPath(stylesPath, fontUrl))).toBe(true);
+    }
+
+    expect(styles).not.toContain(["fonts", "googleapis", "com"].join("."));
+    expect(styles).not.toContain(["fonts", "gstatic", "com"].join("."));
   });
 
   it("bridges the PiGUI semantic tokens onto Astryx first-level tokens", () => {

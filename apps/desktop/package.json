@@ -21,6 +21,7 @@
     "@astryxdesign/core": "^0.3.0",
     "@astryxdesign/theme-neutral": "^0.3.0",
     "@base-ui-components/react": "^1.0.0-rc.0",
+    "@fontsource-variable/figtree": "^5.3.0",
     "@stylexjs/stylex": "^0.19.0"
   }
 }
