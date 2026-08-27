@@ -33,6 +33,12 @@ const providerBrands: Record<ProviderAuthId, ProviderBrand> = {
     foreground: OpenAI.colorPrimary || "#000000",
     ring: "0 0 0 1px rgba(0,0,0,0.12)",
   },
+  "openai-codex": {
+    Mono: OpenAI,
+    background: "#ffffff",
+    foreground: OpenAI.colorPrimary || "#000000",
+    ring: "0 0 0 1px rgba(0,0,0,0.12)",
+  },
   anthropic: {
     Mono: Anthropic,
     // LobeHub Anthropic avatar pair: cream surface + near-black mark.

@@ -43,6 +43,7 @@ const thinkingLevelLabels: Record<RuntimeThinkingLevel, string> = {
   medium: "Medium",
   high: "High",
   xhigh: "X-High",
+  max: "Max",
 };
 
 /*

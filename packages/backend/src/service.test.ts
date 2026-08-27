@@ -11,6 +11,11 @@ import type { PiRuntimeDriver } from "./gateway/runtime-gateway";
 const createAgentSession = vi.hoisted(() => vi.fn());
 const sessionManagerOpen = vi.hoisted(() => vi.fn());
 const sessionManagerListAll = vi.hoisted(() => vi.fn(async () => []));
+const registerBunOAuthFlows = vi.hoisted(() => vi.fn());
+
+vi.mock("@earendil-works/pi-ai/bun-oauth", () => ({
+  registerBunOAuthFlows,
+}));
 
 vi.mock("@earendil-works/pi-coding-agent", () => ({
   createAgentSession,
@@ -101,12 +106,23 @@ describe("backend service", () => {
     sessionManagerOpen.mockReset();
     sessionManagerListAll.mockReset();
     sessionManagerListAll.mockResolvedValue([]);
+    registerBunOAuthFlows.mockClear();
   });
 
   afterEach(async () => {
     await Promise.all(
       tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
     );
+  });
+
+  it("registers the statically bundled OAuth flows so subscription auth resolves in the bundle", () => {
+    // Pi 0.84 lazy-loads OAuth flows via a variable import specifier that the
+    // backend bundler cannot follow; without registration the runtime chunk
+    // path is missing and Codex/Anthropic subscription auth fails at request
+    // time. The composition root must register the bundled flows.
+    createBackendService({ agentDir: fixtureAgentDir() });
+
+    expect(registerBunOAuthFlows).toHaveBeenCalled();
   });
 
   it("routes model configuration through the Runtime Gateway", async () => {

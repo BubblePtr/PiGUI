@@ -1,9 +1,11 @@
 // Provider auth service — list/set/remove API keys and OAuth login/logout
-// through Pi AuthStorage (same auth.json as preflight and runtime).
+// through Pi ModelRuntime (same auth.json as preflight and runtime). Pi 0.84
+// moved auth orchestration from AuthStorage into ModelRuntime; credentials
+// persist to auth.json and the runtime snapshot stays in sync.
 
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { AuthStorage } from "@earendil-works/pi-coding-agent";
+import { ModelRuntime, readStoredCredential } from "@earendil-works/pi-coding-agent";
 import {
   PROVIDER_AUTH_CATALOG,
   type ProviderAuthId,
@@ -12,24 +14,32 @@ import {
   type ProviderAuthStatusReport,
 } from "@pigui/core";
 
+type RuntimeInstance = Awaited<ReturnType<typeof ModelRuntime.create>>;
+type AuthInteraction = Parameters<RuntimeInstance["login"]>[2];
+type AuthPrompt = Parameters<AuthInteraction["prompt"]>[0];
+type AuthEvent = Parameters<AuthInteraction["notify"]>[0];
+type StoredCredential = ReturnType<typeof readStoredCredential>;
+
+/** Minimal runtime surface so tests can substitute a stub. */
+export type ProviderAuthRuntime = Pick<
+  RuntimeInstance,
+  "getProviderAuthStatus" | "login" | "logout" | "refresh"
+>;
+
 export type ProviderAuthService = {
-  listStatus(): ProviderAuthStatusReport;
-  setApiKey(providerId: ProviderAuthId, apiKey: string): ProviderAuthStatusReport;
-  remove(providerId: ProviderAuthId): ProviderAuthStatusReport;
+  listStatus(): Promise<ProviderAuthStatusReport>;
+  setApiKey(providerId: ProviderAuthId, apiKey: string): Promise<ProviderAuthStatusReport>;
+  remove(providerId: ProviderAuthId): Promise<ProviderAuthStatusReport>;
   loginOAuth(providerId: ProviderAuthId): Promise<ProviderAuthStatusReport>;
-  logout(providerId: ProviderAuthId): ProviderAuthStatusReport;
+  logout(providerId: ProviderAuthId): Promise<ProviderAuthStatusReport>;
 };
 
 export type ProviderAuthServiceOptions = {
   agentDir: string;
-  /** Override AuthStorage for tests. */
-  authStorage?: AuthStorage;
   openExternalUrl?: (url: string) => void | Promise<void>;
+  /** Override runtime creation for tests. */
+  createRuntime?: () => Promise<ProviderAuthRuntime>;
 };
-
-function authPathFor(agentDir: string) {
-  return join(agentDir, "auth.json");
-}
 
 function maskKey(key: string): string {
   const trimmed = key.trim();
@@ -55,9 +65,7 @@ function openUrlDefault(url: string) {
   spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
 }
 
-function modeFromCredential(
-  credential: ReturnType<AuthStorage["get"]>,
-): ProviderAuthMode {
+function modeFromCredential(credential: StoredCredential): ProviderAuthMode {
   if (!credential) {
     return "none";
   }
@@ -73,9 +81,7 @@ function modeFromCredential(
   return "none";
 }
 
-function keyHintFromCredential(
-  credential: ReturnType<AuthStorage["get"]>,
-): string | undefined {
+function keyHintFromCredential(credential: StoredCredential): string | undefined {
   if (!credential) {
     return undefined;
   }
@@ -100,20 +106,40 @@ function assertKnownProvider(providerId: string): asserts providerId is Provider
   }
 }
 
+/** A prompt that never settles: browser/device-code flows race a manual-code
+ * prompt against the callback server. PiGUI has no paste box, so we pend and
+ * let the browser callback (or device-code poll) win. */
+function pendPrompt(): Promise<string> {
+  return new Promise<string>(() => {});
+}
+
 export function createProviderAuthService(
   options: ProviderAuthServiceOptions,
 ): ProviderAuthService {
-  const authPath = authPathFor(options.agentDir);
-  const storage = options.authStorage ?? AuthStorage.create(authPath);
+  const authPath = join(options.agentDir, "auth.json");
+  const modelsPath = join(options.agentDir, "models.json");
   const openExternal = options.openExternalUrl ?? openUrlDefault;
+  const createRuntime =
+    options.createRuntime ??
+    (() =>
+      ModelRuntime.create({
+        authPath,
+        modelsPath,
+        allowModelNetwork: false,
+      }));
 
-  const listStatus = (): ProviderAuthStatusReport => {
-    storage.reload();
+  let runtimePromise: Promise<ProviderAuthRuntime> | null = null;
+  const getRuntime = () => (runtimePromise ??= createRuntime());
+
+  const listStatus = async (): Promise<ProviderAuthStatusReport> => {
+    const runtime = await getRuntime();
+    // Re-read auth.json so logins done in the Pi TUI while PiGUI is open show up.
+    await runtime.refresh({ allowNetwork: false }).catch(() => {});
 
     const providers: ProviderAuthStatusItem[] = PROVIDER_AUTH_CATALOG.map((entry) => {
-      const credential = storage.get(entry.id);
+      const credential = readStoredCredential(entry.id, authPath);
       const mode = modeFromCredential(credential);
-      const status = storage.getAuthStatus(entry.id);
+      const status = runtime.getProviderAuthStatus(entry.id);
       const keyHint = keyHintFromCredential(credential);
 
       return {
@@ -122,7 +148,7 @@ export function createProviderAuthService(
         supportsApiKey: entry.supportsApiKey,
         supportsOAuth: entry.supportsOAuth,
         mode,
-        configured: mode !== "none" || status.configured,
+        configured: status.configured || mode !== "none",
         ...(keyHint ? { keyHint } : {}),
         ...(status.label ? { statusLabel: status.label } : {}),
       };
@@ -139,7 +165,7 @@ export function createProviderAuthService(
   return {
     listStatus,
 
-    setApiKey(providerId, apiKey) {
+    async setApiKey(providerId, apiKey) {
       assertKnownProvider(providerId);
       const entry = PROVIDER_AUTH_CATALOG.find((item) => item.id === providerId)!;
 
@@ -152,15 +178,21 @@ export function createProviderAuthService(
         throw new Error("API key must not be empty.");
       }
 
-      storage.reload();
-      storage.set(providerId, { type: "api_key", key: trimmed });
+      const runtime = await getRuntime();
+      // API-key "login" is a stored-credential write: the provider's apiKey
+      // login prompt returns the key, which ModelRuntime persists to auth.json.
+      await runtime.login(providerId, "api_key", {
+        prompt: (prompt: AuthPrompt) =>
+          prompt.type === "secret" ? Promise.resolve(trimmed) : pendPrompt(),
+        notify: () => {},
+      });
       return listStatus();
     },
 
-    remove(providerId) {
+    async remove(providerId) {
       assertKnownProvider(providerId);
-      storage.reload();
-      storage.remove(providerId);
+      const runtime = await getRuntime();
+      await runtime.logout(providerId);
       return listStatus();
     },
 
@@ -172,35 +204,35 @@ export function createProviderAuthService(
         throw new Error(`Provider "${providerId}" does not support subscription login.`);
       }
 
-      storage.reload();
+      const runtime = await getRuntime();
+      await runtime.login(providerId, "oauth", {
+        prompt: (prompt: AuthPrompt) => {
+          // Codex asks browser vs device-code; GUI always takes the browser flow.
+          if (prompt.type === "select") {
+            const browser = prompt.options.find((option) => option.id === "browser");
+            if (browser) {
+              return Promise.resolve(browser.id);
+            }
+          }
 
-      await storage.login(providerId, {
-        onAuth: (info) => {
-          void openExternal(info.url);
+          return pendPrompt();
         },
-        onDeviceCode: (info) => {
-          void openExternal(info.verificationUri);
+        notify: (event: AuthEvent) => {
+          if (event.type === "auth_url") {
+            void openExternal(event.url);
+          } else if (event.type === "device_code") {
+            void openExternal(event.verificationUri);
+          }
         },
-        onPrompt: async (prompt) => {
-          throw new Error(
-            `Provider "${providerId}" login requires interactive input (${prompt.message}). Complete this login in the Pi TUI for now, or use an API key.`,
-          );
-        },
-        onSelect: async () => {
-          throw new Error(
-            `Provider "${providerId}" login requires an interactive selection. Complete this login in the Pi TUI for now, or use an API key.`,
-          );
-        },
-        onProgress: () => {},
       });
 
       return listStatus();
     },
 
-    logout(providerId) {
+    async logout(providerId) {
       assertKnownProvider(providerId);
-      storage.reload();
-      storage.logout(providerId);
+      const runtime = await getRuntime();
+      await runtime.logout(providerId);
       return listStatus();
     },
   };

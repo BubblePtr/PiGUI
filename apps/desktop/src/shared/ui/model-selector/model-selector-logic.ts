@@ -65,6 +65,7 @@ const thinkingLevelOrder: RuntimeThinkingLevel[] = [
   "medium",
   "high",
   "xhigh",
+  "max",
 ];
 
 /**

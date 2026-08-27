@@ -3,9 +3,11 @@ import type {
   PiRpcCommand,
   PiRpcTransport,
   PiRpcTransportStartInput,
+  ProviderAuthId,
   RuntimeGatewayEventEnvelope,
 } from "@pigui/core";
 import * as piSdk from "@earendil-works/pi-coding-agent";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { buildConfigInventory } from "./workspace/config";
 import {
   createEnvironmentPreflightReader,
@@ -92,6 +94,11 @@ export type BackendServiceOptions = {
 };
 
 export function createBackendService(options: BackendServiceOptions = {}): BackendService {
+  // Pi 0.84 lazy-loads OAuth flows through a variable import specifier that
+  // bundlers cannot follow; in the bundled backend the runtime chunk path does
+  // not exist, so Codex/Anthropic subscription auth fails at request time.
+  // Register the statically bundled flows so the lazy loaders resolve locally.
+  registerBunOAuthFlows();
   const agentDir = options.agentDir ?? resolveAgentDir();
   const dataDir = options.dataDir ?? resolveDataDir();
   const sessionCache = options.sessionCache ?? createSessionIndexCache();
@@ -242,36 +249,20 @@ async function dispatchRequest(input: {
       return input.providerAuth.listStatus();
     case "set_provider_api_key":
       return input.providerAuth.setApiKey(
-        requiredString(params.providerId, "providerId") as
-          | "openai"
-          | "anthropic"
-          | "deepseek"
-          | "xai",
+        requiredString(params.providerId, "providerId") as ProviderAuthId,
         requiredString(params.apiKey, "apiKey"),
       );
     case "remove_provider_auth":
       return input.providerAuth.remove(
-        requiredString(params.providerId, "providerId") as
-          | "openai"
-          | "anthropic"
-          | "deepseek"
-          | "xai",
+        requiredString(params.providerId, "providerId") as ProviderAuthId,
       );
     case "login_provider_oauth":
       return input.providerAuth.loginOAuth(
-        requiredString(params.providerId, "providerId") as
-          | "openai"
-          | "anthropic"
-          | "deepseek"
-          | "xai",
+        requiredString(params.providerId, "providerId") as ProviderAuthId,
       );
     case "logout_provider_auth":
       return input.providerAuth.logout(
-        requiredString(params.providerId, "providerId") as
-          | "openai"
-          | "anthropic"
-          | "deepseek"
-          | "xai",
+        requiredString(params.providerId, "providerId") as ProviderAuthId,
       );
     case "list_available_model_controls":
       return listAvailableModelControls({ agentDir: input.agentDir });

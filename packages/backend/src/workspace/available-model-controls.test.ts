@@ -33,6 +33,30 @@ describe("listAvailableModelControls", () => {
     expect(controls.models.some((model) => model.provider === "openai")).toBe(true);
   });
 
+  it("lists Codex subscription models from openai-codex OAuth in auth.json", async () => {
+    const agentDir = await tempAgentDir();
+    await writeFile(
+      join(agentDir, "auth.json"),
+      JSON.stringify({
+        "openai-codex": {
+          type: "oauth",
+          access: "sk-codex-access-ae1d",
+          refresh: "refresh-token",
+          expires: Date.now() + 60_000,
+          accountId: "acct_1",
+        },
+      }),
+      "utf8",
+    );
+
+    const controls = await listAvailableModelControls({ agentDir });
+
+    expect(controls.models.some((model) => model.provider === "openai-codex")).toBe(
+      true,
+    );
+    expect(controls.selected).not.toBeNull();
+  });
+
   it("passes catalog metadata (context window, max tokens, modalities) through", async () => {
     const agentDir = await tempAgentDir();
     await writeFile(

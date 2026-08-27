@@ -208,7 +208,7 @@ export async function launchPiGUI(
               sessionFile: piSessionFile,
               modelSelection: {
                 provider: "openai",
-                modelId: "gpt-5-codex",
+                modelId: "gpt-5.5",
                 thinkingLevel: "high" as const,
               },
             }

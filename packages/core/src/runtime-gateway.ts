@@ -47,7 +47,8 @@ export type RuntimeThinkingLevel =
   | "low"
   | "medium"
   | "high"
-  | "xhigh";
+  | "xhigh"
+  | "max";
 
 export type RuntimeModelInputModality = "text" | "image";
 
