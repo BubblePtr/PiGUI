@@ -41,6 +41,7 @@ import {
 } from "@/entities/session/session-projection";
 import { createSessionRuntimeModel } from "@/entities/session/session-runtime-model";
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
+import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 
 // The app shell renders the sidebar with Astryx SideNav: rows are buttons,
@@ -2089,6 +2090,75 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
+  it("restores the last selected model on a new Session Draft", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [];
+      }
+
+      if (command === "list_provider_auth_status") {
+        return {
+          agentDir: "",
+          authPath: "",
+          configuredCount: 1,
+          providers: [],
+        };
+      }
+
+      if (command === "list_available_model_controls") {
+        return {
+          models: [
+            {
+              provider: "deepseek",
+              modelId: "deepseek-chat",
+              name: "DeepSeek Chat",
+              thinkingLevels: ["off"],
+            },
+            {
+              provider: "openai-codex",
+              modelId: "gpt-5.6-sol",
+              name: "GPT-5.6 SOL",
+              thinkingLevels: ["off", "low", "medium", "high"],
+            },
+          ],
+          selected: {
+            provider: "deepseek",
+            modelId: "deepseek-chat",
+            thinkingLevel: "off",
+          },
+        };
+      }
+
+      if (command === "get_config_inventory") {
+        return {
+          skills: [],
+          extensions: [],
+          packages: [],
+          promptTemplates: [],
+        };
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+    saveLastModelSelection({
+      provider: "openai-codex",
+      modelId: "gpt-5.6-sol",
+      thinkingLevel: "high",
+    });
+    saveSessionDraft(pigProjectPath, "");
+
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+
+    expect(await screen.findByTestId("model-thinking-trigger")).toHaveTextContent(
+      "GPT-5.6 SOL · High",
+    );
+  });
+
   it("submits the draft through Session Creation, clears the draft, and shows the first runtime event", async () => {
     const user = userEvent.setup();
     const onDraftSubmit = vi.fn();
@@ -3890,6 +3960,11 @@ describe("AgentWorkspaceSessionsPage", () => {
       });
     });
     expect(trigger).toHaveTextContent("Claude Haiku 4 · Off");
+    expect(getLastModelSelection()).toEqual({
+      provider: "anthropic",
+      modelId: "claude-haiku-4",
+      thinkingLevel: "off",
+    });
 
     // Search narrows the flat list.
     await user.type(

@@ -65,6 +65,11 @@ function renderAppFrame(
     path: "/usage",
     component: () => null,
   });
+  const traceRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/trace",
+    component: () => null,
+  });
   const projectSessionsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/projects/$projectId/sessions",
@@ -86,6 +91,7 @@ function renderAppFrame(
       indexRoute,
       sessionRoute,
       usageRoute,
+      traceRoute,
       projectSessionsRoute,
       setupRoute,
       settingsRoute,
@@ -667,7 +673,7 @@ describe("AppFrame", () => {
   });
 
   it("renders Trace and Usage as first-level side nav items", async () => {
-    renderAppFrame("/");
+    renderAppFrame("/trace");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const traceUsageNavigation = screen.getByRole("group", {
@@ -768,7 +774,7 @@ describe("AppFrame", () => {
   });
 
   it("keeps titlebar controls on the native traffic-light center line", async () => {
-    const { container } = renderAppFrame("/");
+    const { container } = renderAppFrame("/trace");
     const mainSource = readFileSync(join(process.cwd(), "apps/desktop/electron/main.ts"), "utf8");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
@@ -830,7 +836,7 @@ describe("AppFrame", () => {
   });
 
   it("uses only blank titlebar space as window drag regions", async () => {
-    const { container } = renderAppFrame("/");
+    const { container } = renderAppFrame("/trace");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: "Collapse sidebar" });

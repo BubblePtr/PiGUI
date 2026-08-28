@@ -11,6 +11,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { AppLandingPage } from "@/pages/app-landing";
 import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
 import { PreflightPage, preflightStatusQueryKey } from "@/pages/preflight";
 import { SettingsPage } from "@/pages/settings";
@@ -110,6 +111,12 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  component: AppLandingPage,
+});
+
+const traceIndexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/trace",
   component: TraceIndexPage,
 });
 
@@ -169,6 +176,7 @@ const router = createRouter({
   ...(isElectronRuntime() ? { history: createHashHistory() } : {}),
   routeTree: rootRoute.addChildren([
     indexRoute,
+    traceIndexRoute,
     sessionDetailRoute,
     usageRoute,
     projectSessionsRoute,

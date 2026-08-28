@@ -122,8 +122,15 @@ import {
   getSessionChanges,
 } from "@/entities/session/sessions";
 import {
+  getLastModelSelection,
+  mostRecentSessionModelSelection,
+  overlayPreferredModel,
+  saveLastModelSelection,
+} from "@/entities/session/last-model-preference";
+import {
   sessionProjectionFromPersistedProjection,
   useSessionProjections,
+  useSessionProjectionsOptional,
 } from "@/entities/session/use-session-projections";
 
 type LiveMessage = {
@@ -1684,6 +1691,13 @@ function SessionDraftComposer({
     useProviderAuthStatus();
   const [draftModelControls, setDraftModelControls] =
     useState<RuntimeModelControls | null>(null);
+  const sessionProjectionsStore = useSessionProjectionsOptional();
+  const recentSessionModel = mostRecentSessionModelSelection(
+    sessionProjectionsStore?.sessionProjections ?? [],
+  );
+  const recentSessionModelKey = recentSessionModel
+    ? `${recentSessionModel.provider}:${recentSessionModel.modelId}:${recentSessionModel.thinkingLevel}`
+    : "";
   const attachments = useComposerAttachments();
   const catalog = useComposerInsertCatalog();
   const picker = useFilePicker(attachments.addFiles);
@@ -1699,7 +1713,12 @@ function SessionDraftComposer({
     void invoke<RuntimeModelControls>("list_available_model_controls")
       .then((controls) => {
         if (!cancelled) {
-          setDraftModelControls(controls);
+          setDraftModelControls(
+            overlayPreferredModel(controls, [
+              getLastModelSelection(),
+              recentSessionModel,
+            ]),
+          );
         }
       })
       .catch(() => {
@@ -1711,7 +1730,7 @@ function SessionDraftComposer({
     return () => {
       cancelled = true;
     };
-  }, [providerAuthLoading, providersConfigured]);
+  }, [providerAuthLoading, providersConfigured, recentSessionModelKey]);
 
   const applySuggestedPrompt = (prompt: string) => {
     setTargetError(false);
@@ -1805,6 +1824,7 @@ function SessionDraftComposer({
                     controls={draftModelControls}
                     isLocked={false}
                     onChange={(selection) => {
+                      saveLastModelSelection(selection);
                       setDraftModelControls((current) =>
                         current
                           ? {
@@ -3118,6 +3138,10 @@ function LiveSessionColumn({
       piSessionId: liveProjection.piSessionId,
       ...selection,
     });
+
+    if (modelControls.selected) {
+      saveLastModelSelection(modelControls.selected);
+    }
 
     commitInteractionProjection(
       applySessionProjectionEvent(liveProjection, {
