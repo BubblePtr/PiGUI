@@ -2,7 +2,12 @@
 // Credentials live in Pi's auth.json via AuthStorage; this package only
 // defines the IPC-facing status shape (never raw secrets).
 
-export type ProviderAuthId = "openai" | "anthropic" | "deepseek" | "xai";
+export type ProviderAuthId =
+  | "openai"
+  | "openai-codex"
+  | "anthropic"
+  | "deepseek"
+  | "xai";
 
 export type ProviderAuthMode = "none" | "api_key" | "oauth";
 
@@ -31,7 +36,14 @@ export const PROVIDER_AUTH_CATALOG: ReadonlyArray<{
   supportsApiKey: boolean;
   supportsOAuth: boolean;
 }> = [
-  { id: "openai", label: "OpenAI", supportsApiKey: true, supportsOAuth: true },
+  { id: "openai", label: "OpenAI", supportsApiKey: true, supportsOAuth: false },
+  // Pi stores ChatGPT Plus/Pro / Codex OAuth under this key, not `openai`.
+  {
+    id: "openai-codex",
+    label: "ChatGPT / Codex",
+    supportsApiKey: false,
+    supportsOAuth: true,
+  },
   {
     id: "anthropic",
     label: "Anthropic",

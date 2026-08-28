@@ -952,6 +952,62 @@ describe("Pi SDK public runtime adapter", () => {
     });
   });
 
+  it("falls back to the session default model when the persisted selection is unavailable", async () => {
+    // Pi removes/renames models over time (e.g. gpt-5-codex). Resume must not
+    // hard-fail on a stale persisted selection — keep the session's own model.
+    const sessionDefault = {
+      provider: "openai",
+      id: "gpt-5.5",
+      name: "GPT-5.5",
+      reasoning: true,
+    };
+    const sessionManager = {
+      getCwd: () => "/repo",
+      getSessionFile: () => "/sessions/pi-session-stale.jsonl",
+    };
+    const session = {
+      sessionId: "pi-session-stale",
+      isStreaming: false,
+      messages: [],
+      model: sessionDefault,
+      thinkingLevel: "medium",
+      modelRegistry: {
+        getAvailable: () => [sessionDefault],
+        find: () => undefined, // persisted model no longer exists
+      },
+      setModel: vi.fn(async () => {}),
+      setThinkingLevel: vi.fn(),
+      sessionManager,
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtime = await createPublicPiSdkRuntimeResumer({
+      sdk: {
+        createAgentSession: vi.fn(async () => ({ session })),
+        SessionManager: { open: () => sessionManager },
+      },
+    })({
+      sessionId: "app-session-stale",
+      projectId: "pig",
+      piSessionId: "pi-session-stale",
+      cwd: "/repo",
+      sessionFile: "/sessions/pi-session-stale.jsonl",
+      modelSelection: {
+        provider: "openai",
+        modelId: "gpt-5-codex",
+        thinkingLevel: "high",
+      },
+    });
+
+    expect(runtime.modelControls?.selected).toEqual({
+      provider: "openai",
+      modelId: "gpt-5.5",
+      thinkingLevel: "medium",
+    });
+  });
+
   it("reads current tool definitions from the live SDK registry", async () => {
     const bashSchema = {
       type: "object",

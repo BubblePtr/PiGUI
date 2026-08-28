@@ -539,6 +539,43 @@ describe("Runtime Gateway service", () => {
     ]);
   });
 
+  it("accepts the max thinking level on configure_model", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      projections,
+    });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-max", projectId: "pig", cwd: "/repo" },
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-configure-max",
+        method: "configure_model",
+        params: {
+          sessionId: "app-session-max",
+          piSessionId: "pi-session-1",
+          provider: "deepseek",
+          modelId: "deepseek-v4-pro",
+          thinkingLevel: "max",
+        },
+      }),
+    ).resolves.toMatchObject({
+      id: "req-configure-max",
+      result: {
+        selected: {
+          provider: "deepseek",
+          modelId: "deepseek-v4-pro",
+          thinkingLevel: "max",
+        },
+      },
+    });
+  });
+
   it("persists one validated model pair and restores it on a cold resume", async () => {
     const projections = createInMemorySessionProjectionStore();
     const firstService = createRuntimeGatewayService({

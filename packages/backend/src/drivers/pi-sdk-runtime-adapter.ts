@@ -42,6 +42,16 @@ export type PublicPiSdkModelRegistry = {
   find(provider: string, modelId: string): PublicPiSdkModel | undefined;
 };
 
+/**
+ * Pi 0.84 replaced the per-session ModelRegistry with a ModelRuntime.
+ * The adapter reads models from `modelRuntime` when present and falls back to
+ * the legacy `modelRegistry` surface so existing test doubles keep working.
+ */
+export type PublicPiSdkModelRuntime = {
+  getAvailableSnapshot?(): readonly PublicPiSdkModel[];
+  getModel?(provider: string, modelId: string): PublicPiSdkModel | undefined;
+};
+
 export type PublicPiSdkAgentSession = {
   sessionId: string;
   isStreaming: boolean;
@@ -49,6 +59,7 @@ export type PublicPiSdkAgentSession = {
   model?: unknown;
   thinkingLevel?: unknown;
   modelRegistry?: PublicPiSdkModelRegistry;
+  modelRuntime?: PublicPiSdkModelRuntime;
   agent?: {
     state?: {
       errorMessage?: string;
@@ -302,6 +313,7 @@ const thinkingLevelOrder: RuntimeThinkingLevel[] = [
   "medium",
   "high",
   "xhigh",
+  "max",
 ];
 
 function isThinkingLevel(value: unknown): value is RuntimeThinkingLevel {
@@ -320,7 +332,8 @@ function thinkingLevelsForModel(model: PublicPiSdkModel): RuntimeThinkingLevel[]
       return false;
     }
 
-    return level !== "xhigh" || mapped !== undefined;
+    // xhigh/max are opt-in per model: only offered when explicitly mapped.
+    return (level !== "xhigh" && level !== "max") || mapped !== undefined;
   });
 }
 
@@ -354,10 +367,31 @@ function capabilityFromModel(model: PublicPiSdkModel): RuntimeModelCapability {
   return capability;
 }
 
+function availableModelsFromSession(
+  session: PublicPiSdkAgentSession,
+): readonly PublicPiSdkModel[] {
+  return (
+    session.modelRuntime?.getAvailableSnapshot?.() ??
+    session.modelRegistry?.getAvailable() ??
+    []
+  );
+}
+
+function findSessionModel(
+  session: PublicPiSdkAgentSession,
+  provider: string,
+  modelId: string,
+): PublicPiSdkModel | undefined {
+  return (
+    session.modelRuntime?.getModel?.(provider, modelId) ??
+    session.modelRegistry?.find(provider, modelId)
+  );
+}
+
 function modelControlsFromSession(
   session: PublicPiSdkAgentSession,
 ): RuntimeModelControls | undefined {
-  const availableModels = session.modelRegistry?.getAvailable() ?? [];
+  const availableModels = availableModelsFromSession(session);
   const currentProvider = modelProvider(session.model);
   const currentModelId = modelId(session.model);
 
@@ -388,11 +422,12 @@ async function configureSessionModel(
     throw new Error("Model and Thinking cannot change while a run is active.");
   }
 
-  const model = session.modelRegistry?.find(selection.provider, selection.modelId);
+  const availableModels = availableModelsFromSession(session);
+  const model = findSessionModel(session, selection.provider, selection.modelId);
 
   if (
     !model ||
-    !session.modelRegistry?.getAvailable().some(
+    !availableModels.some(
       (available) =>
         available.provider === selection.provider &&
         available.id === selection.modelId,
@@ -528,7 +563,10 @@ export function createPublicPiSdkRuntimeResumer(
     });
 
     if (input.modelSelection) {
-      await configureSessionModel(session, input.modelSelection);
+      // The persisted selection may reference a model Pi has since removed or
+      // renamed (e.g. gpt-5-codex). Resume must not hard-fail — keep whatever
+      // model the session itself restored.
+      await configureSessionModel(session, input.modelSelection).catch(() => {});
     }
 
     return createPublicPiSdkRuntime({

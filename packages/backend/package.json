@@ -11,7 +11,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.2",
+    "@earendil-works/pi-ai": "^0.84.3",
+    "@earendil-works/pi-coding-agent": "^0.84.3",
     "@pigui/core": "workspace:*"
   }
 }

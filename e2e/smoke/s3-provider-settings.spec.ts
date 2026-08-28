@@ -63,18 +63,26 @@ test.describe("S3: Provider Settings (DF-002)", () => {
           testApp.window.getByTestId(`provider-icon-${provider}`),
         ).toBeVisible();
       }
+      await expect(
+        testApp.window.getByTestId("provider-api-key-openai-codex"),
+      ).toHaveCount(0);
 
-      // Subscription tab: only OpenAI / Anthropic (OAuth providers)
+      // Subscription tab: ChatGPT/Codex + Anthropic (OAuth providers)
       await settingsTab(testApp.window, "Subscription").click();
       await expect(
-        testApp.window.getByTestId("provider-subscription-openai"),
+        testApp.window.getByTestId("provider-subscription-openai-codex"),
       ).toBeVisible();
       await expect(
         testApp.window.getByTestId("provider-subscription-anthropic"),
       ).toBeVisible();
-      await expect(testApp.window.getByTestId("provider-icon-openai")).toBeVisible();
+      await expect(
+        testApp.window.getByTestId("provider-icon-openai-codex"),
+      ).toBeVisible();
       await expect(testApp.window.getByTestId("provider-icon-anthropic")).toBeVisible();
-      // DeepSeek / xAI have no subscription card
+      // OpenAI API key, DeepSeek, and xAI have no subscription card
+      await expect(
+        testApp.window.getByTestId("provider-subscription-openai"),
+      ).toHaveCount(0);
       await expect(
         testApp.window.getByTestId("provider-subscription-deepseek"),
       ).toHaveCount(0);

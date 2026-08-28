@@ -1,8 +1,8 @@
-// List RuntimeModelControls from Pi ModelRegistry + AuthStorage without an
+// List RuntimeModelControls from Pi ModelRuntime + ModelRegistry without an
 // open Agent Session (draft create / DF-011).
 
 import { join } from "node:path";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type {
   RuntimeModelCapability,
   RuntimeModelControls,
@@ -17,6 +17,7 @@ const thinkingLevelOrder: RuntimeThinkingLevel[] = [
   "medium",
   "high",
   "xhigh",
+  "max",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,7 +39,8 @@ function thinkingLevelsForModel(model: {
       return false;
     }
 
-    return level !== "xhigh" || mapped !== undefined;
+    // xhigh/max are opt-in per model: only offered when explicitly mapped.
+    return (level !== "xhigh" && level !== "max") || mapped !== undefined;
   });
 }
 
@@ -144,9 +146,15 @@ export async function listAvailableModelControls(input: {
 }): Promise<RuntimeModelControls> {
   const authPath = join(input.agentDir, "auth.json");
   const modelsJsonPath = join(input.agentDir, "models.json");
-  const authStorage = AuthStorage.create(authPath);
-  const registry = ModelRegistry.create(authStorage, modelsJsonPath);
-  registry.refresh();
+  // ModelRuntime.create restores the local models-store.json overlay (e.g.
+  // GPT-5.6) on top of the bundled catalog, offline. Await it so the
+  // registry snapshot is populated before reading.
+  const runtime = await ModelRuntime.create({
+    authPath,
+    modelsPath: modelsJsonPath,
+    allowModelNetwork: false,
+  });
+  const registry = new ModelRegistry(runtime);
 
   const models = registry
     .getAvailable()

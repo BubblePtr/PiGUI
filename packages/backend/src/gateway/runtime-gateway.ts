@@ -844,7 +844,8 @@ function requiredThinkingLevel(value: unknown) {
     value === "low" ||
     value === "medium" ||
     value === "high" ||
-    value === "xhigh"
+    value === "xhigh" ||
+    value === "max"
   ) {
     return value;
   }

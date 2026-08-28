@@ -319,7 +319,7 @@ test.describe("M4: Model and Thinking controls", () => {
 
       const trigger = testApp.window.getByTestId("model-thinking-trigger");
 
-      await expect(trigger).toHaveText(/GPT-5-Codex · High/);
+      await expect(trigger).toHaveText(/GPT-5\.5 · High/);
       await trigger.click();
       await testApp.window.getByText("GPT-4.1", { exact: true }).click();
       await expect(trigger).toHaveText(/GPT-4.1 · Off/);
