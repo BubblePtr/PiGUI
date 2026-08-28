@@ -212,9 +212,10 @@ export const defaultSidebarProjectSessionProjections: SessionProjection[] = [
 const traceUsageNavigationItems = [
   {
     label: "Trace",
-    to: "/",
+    to: "/trace",
     icon: ListTree,
-    isActive: (pathname: string) => pathname === "/" || pathname.startsWith("/sessions/"),
+    isActive: (pathname: string) =>
+      pathname === "/trace" || pathname.startsWith("/sessions/"),
   },
   {
     label: "Usage",
@@ -268,11 +269,15 @@ function getVisibleProjectRegistry() {
 }
 
 function getActiveTab(pathname: string) {
+  if (pathname === "/") {
+    return "New Session";
+  }
+
   if (pathname.startsWith("/projects/")) {
     return "Sessions";
   }
 
-  if (pathname === "/" || pathname.startsWith("/sessions/")) {
+  if (pathname === "/trace" || pathname.startsWith("/sessions/")) {
     return "Trace";
   }
 
@@ -1124,7 +1129,7 @@ export function AppFrame({
         mainLeft={showSidebar ? headerMainLeft : "0px"}
         showSidebarToggle={showSidebar}
         sidebarOpen={showSidebar ? sidebarOpen : false}
-        title={activeTab}
+        title={draftViewActive ? "New Session" : activeTab}
         toolbarActions={toolbarActions}
         onToggleSidebar={() => handleSidebarOpenChange(!sidebarOpen)}
       />
