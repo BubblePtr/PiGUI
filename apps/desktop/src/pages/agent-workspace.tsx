@@ -6,7 +6,10 @@ import {
   SegmentedControlItem,
 } from "@astryxdesign/core/SegmentedControl";
 import { Selector } from "@astryxdesign/core/Selector";
-import { ChatChainOfThought as ChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
+import {
+  ChatChainOfThought as ChainOfThought,
+  formatThoughtSummary,
+} from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
 import {
   ChatMarkdown as Markdown,
@@ -16,6 +19,7 @@ import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
+import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import {
   ChatToolGroup,
   type ChatToolItem,
@@ -157,6 +161,7 @@ type RunTimelineItem = {
   argsText?: string;
   outputText?: string;
   durationMs?: number;
+  timestamp?: string;
 };
 
 type AgentWorkspaceFixture = {
@@ -411,6 +416,7 @@ function LiveChatMessage({
         ) : null}
         {!message.controlLabel ? (
           <AssistantRunTrace
+            elapsedMs={thoughtElapsedMs(timeline)}
             isStreaming={message.isStreaming}
             timeline={timeline}
           />
@@ -419,7 +425,9 @@ function LiveChatMessage({
           <AssistantMessageContent message={message} />
         </ChatMessage.Content>
         {!message.controlLabel ? (
-          <ChatMessageActions>
+          <ChatMessageActions
+            className={message.isStreaming ? undefined : "chat-message__actions--persist"}
+          >
             <ChatMessageActions.Copy
               aria-label="Copy"
               tooltip="Copy"
@@ -443,9 +451,11 @@ function LiveChatMessage({
 }
 
 function AssistantRunTrace({
+  elapsedMs,
   isStreaming = false,
   timeline,
 }: {
+  elapsedMs?: number;
   isStreaming?: boolean;
   timeline: RunTimelineItem[];
 }) {
@@ -453,27 +463,31 @@ function AssistantRunTrace({
     return null;
   }
 
-  // Remount when stream ends so defaultExpanded resets closed (DF-005B).
+  // Remount when stream ends so the settled trigger starts closed (DF-005B).
+  if (isStreaming) {
+    const latest = timeline[timeline.length - 1];
+    return (
+      <ChainOfThought key="streaming" isStreaming>
+        <ChainOfThought.Live>
+          <LiveTracePage item={latest} />
+        </ChainOfThought.Live>
+      </ChainOfThought>
+    );
+  }
+
   return (
-    <ChainOfThought
-      key={isStreaming ? "streaming" : "settled"}
-      defaultExpanded={Boolean(isStreaming)}
-      isStreaming={isStreaming}
-    >
-      <ChainOfThought.Trigger>
-        {isStreaming ? "Thinking..." : "Thought for 3s"}
-      </ChainOfThought.Trigger>
+    <ChainOfThought key="settled" defaultExpanded={false}>
+      <ChainOfThought.Trigger>{formatThoughtSummary(elapsedMs)}</ChainOfThought.Trigger>
       <ChainOfThought.Content>
         <ChainOfThought.Steps>
           {groupTimelineSteps(timeline).map((step) =>
             step.kind === "tools" ? (
-              // Tool rows carry their own name/status; no step label on top.
               <ChainOfThought.Step key={step.id}>
                 <ChatToolGroup tools={step.tools} />
               </ChainOfThought.Step>
             ) : (
-              <ChainOfThought.Step key={step.item.id} label={step.item.title}>
-                {step.item.meta}
+              <ChainOfThought.Step key={step.item.id}>
+                <ChatThoughtMarkdown text={step.item.meta} />
               </ChainOfThought.Step>
             ),
           )}
@@ -481,6 +495,41 @@ function AssistantRunTrace({
       </ChainOfThought.Content>
     </ChainOfThought>
   );
+}
+
+function LiveTracePage({ item }: { item: RunTimelineItem }) {
+  if (item.kind === "tool") {
+    return (
+      <ChatToolGroup
+        tools={[
+          {
+            argsText: item.argsText,
+            durationMs: item.durationMs,
+            output: item.outputText,
+            state: item.toolState ?? "input-available",
+            toolCallId: item.toolCallId ?? item.id,
+            toolName: item.toolName ?? item.title,
+          },
+        ]}
+      />
+    );
+  }
+
+  return (
+    <p className="chain-of-thought__page">
+      <ChatThoughtMarkdown text={item.meta} unwrapLines />
+    </p>
+  );
+}
+
+function thoughtElapsedMs(timeline: RunTimelineItem[]) {
+  const times = timeline
+    .map((item) => (item.timestamp ? Date.parse(item.timestamp) : Number.NaN))
+    .filter((value) => Number.isFinite(value));
+  if (times.length < 2) {
+    return undefined;
+  }
+  return Math.max(...times) - Math.min(...times);
 }
 
 type TimelineStep =
@@ -1117,6 +1166,7 @@ function runTimelineFromRuntimeModel(
             title: "Thinking",
             meta: part.body,
             messageId: message?.messageId,
+            ...(message?.updatedAt ? { timestamp: message.updatedAt } : {}),
           });
         }
       }
@@ -1161,6 +1211,7 @@ function runTimelineFromRuntimeModel(
           : "input-available",
       argsText,
       outputText,
+      timestamp: tool.updatedAt,
       ...(durationMs !== undefined && Number.isFinite(durationMs)
         ? { durationMs }
         : {}),
@@ -1429,6 +1480,7 @@ function runTimelineFromProjection(
         title: "Thinking",
         meta: event.body,
         messageId: event.messageId,
+        timestamp: event.timestamp,
       });
       continue;
     }
@@ -1458,6 +1510,7 @@ function runTimelineFromProjection(
           event.kind === "tool-result" ? "output-available" : "input-available",
         argsText: event.kind === "tool-call" ? event.body : undefined,
         outputText: event.kind === "tool-result" ? event.body : undefined,
+        timestamp: event.timestamp,
       };
 
       toolItemIndexes.set(toolIdentity, items.length);
@@ -1485,6 +1538,7 @@ function runTimelineFromProjection(
       outputText:
         event.kind === "tool-result" ? event.body : existingItem.outputText,
       meta: event.kind === "tool-result" ? event.body : existingItem.meta,
+      timestamp: event.timestamp,
       ...(durationMs !== undefined && Number.isFinite(durationMs) && durationMs >= 0
         ? { durationMs }
         : {}),

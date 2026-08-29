@@ -27,6 +27,7 @@ describe("Design components layer", () => {
       "ChatPromptInput",
       "ChatPromptSuggestion",
       "ChatChainOfThought",
+      "ChatThoughtMarkdown",
       "ChatConversation",
       "TextShimmer",
       "ComposerInsertMenu",
@@ -219,6 +220,32 @@ describe("Design components layer", () => {
     ).toBeGreaterThanOrEqual(3);
     // Fast-selected variant surfaces the fast sibling name in its trigger.
     expect(within(section).getByText(/Grok 4 Fast · Medium/)).toBeInTheDocument();
+  });
+
+  it("shows persist actions on the settled assistant message", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ChatMessage" });
+
+    expect(within(section).getByText("Assistant with persist actions")).toBeInTheDocument();
+    expect(section.querySelector(".chat-message__actions--persist")).toBeInTheDocument();
+  });
+
+  it("shows streaming and settled CoT variants", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ChatChainOfThought" });
+
+    expect(within(section).getByText("streaming, live viewport")).toBeInTheDocument();
+    expect(within(section).getByText("collapsed, settled")).toBeInTheDocument();
+    expect(within(section).getByText("expanded, settled")).toBeInTheDocument();
+    expect(within(section).getByText("Thinking…")).toBeInTheDocument();
+    expect(within(section).getByText("2.5s")).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="chat-pixel-loader"]')).toBeInTheDocument();
+
+    const markdown = screen.getByRole("region", { name: "ChatThoughtMarkdown" });
+    expect(within(markdown).getByText("inline emphasis and code")).toBeInTheDocument();
+    expect(within(markdown).getByText("unclosed marker hidden")).toBeInTheDocument();
   });
 
   it("is wired into the design page", () => {

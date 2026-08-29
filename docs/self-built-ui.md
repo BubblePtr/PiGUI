@@ -10,8 +10,9 @@
 
 | 组件 | 位置 | 说明 |
 | --- | --- | --- |
-| chat-chain-of-thought | `shared/ui/chat/` | Astryx 缺口;默认 Compact 皮肤 |
+| chat-chain-of-thought | `shared/ui/chat/` | Astryx 缺口;Compact 皮肤。2026-08-29 落地流式视口(像素格 + Thinking… + 计时,只显示当前条)与收束分层展开(无左轨,思考/工具按时间线穿插);见 ADR-0027 |
 | chat-chain-of-thought-rail | `shared/ui/chat/` | 2026-08-09 原型探索胜出的 Timeline 皮肤(PR #80);接线等 [#81](https://github.com/BubblePtr/PiGUI/issues/81) |
+| chat-thought-markdown | `shared/ui/chat/` | 思考正文的流式安全行内 markdown(`**` / `*` / 反引号);Astryx Markdown 过重且会把未闭合标记露出来 |
 | text-shimmer | `shared/ui/chat/` | 流式占位闪光 |
 | chat-prompt-suggestion | `shared/ui/chat/` | **在用**(agent-workspace 空 draft 建议卡;2026-08-09 核实,此前误判候删) |
 | chat-queued-message | `shared/ui/chat/` | 等待区 item(queue-first composer,2026-08-12 原型探索胜出);Astryx 无队列概念;决策记录 `.scratch/composer-redesign/PRD.md` |

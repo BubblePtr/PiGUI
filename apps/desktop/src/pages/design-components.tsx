@@ -18,6 +18,7 @@ import {
 import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
 import type { SessionTurn } from "@pigui/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
+import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import {
   ChatChainOfThoughtRail,
   type ChainOfThoughtRailPart,
@@ -590,6 +591,18 @@ function ChatMessageGallery() {
             </ChatMessage.Body>
           </ChatMessage.Assistant>
         </Variant>
+        <Variant caption="Assistant with persist actions">
+          <ChatMessage.Assistant>
+            <ChatMessage.Body>
+              <ChatMessage.Content>Actions stay visible after the turn settles.</ChatMessage.Content>
+              <ChatMessageActions className="chat-message__actions--persist">
+                <ChatMessageActions.Copy aria-label="Copy settled message" />
+                <ChatMessageActions.ThumbsUp aria-label="Good response" />
+                <ChatMessageActions.ThumbsDown aria-label="Bad response" />
+              </ChatMessageActions>
+            </ChatMessage.Body>
+          </ChatMessage.Assistant>
+        </Variant>
       </div>
     </GallerySection>
   );
@@ -907,30 +920,96 @@ function ChatChainOfThoughtGallery() {
   return (
     <GallerySection title="ChatChainOfThought">
       <div className="flex max-w-xl flex-col gap-4">
-        <Variant caption="expanded, settled">
-          <ChatChainOfThought defaultExpanded>
-            <ChatChainOfThought.Trigger>Thought for 8s</ChatChainOfThought.Trigger>
+        <Variant caption="streaming, live viewport">
+          <ChatChainOfThought elapsedMs={2500} isStreaming>
+            <ChatChainOfThought.Live>
+              <p className="chain-of-thought__page">
+                <ChatThoughtMarkdown
+                  unwrapLines
+                  text="**The failing assertion is in session-runtime-model.test.ts.**"
+                />
+              </p>
+            </ChatChainOfThought.Live>
+          </ChatChainOfThought>
+        </Variant>
+        <Variant caption="collapsed, settled">
+          <ChatChainOfThought>
+            <ChatChainOfThought.Trigger>Thought for 12s</ChatChainOfThought.Trigger>
             <ChatChainOfThought.Content>
               <ChatChainOfThought.Steps>
-                <ChatChainOfThought.Step label="Reading the trace">
-                  Scanned 14 runtime events.
+                <ChatChainOfThought.Step>
+                  <ChatThoughtMarkdown text="The replay projection dropped the tool_call part after a fork." />
                 </ChatChainOfThought.Step>
-                <ChatChainOfThought.Step label="Comparing token budgets" />
+                <ChatChainOfThought.Step>
+                  <ChatToolGroup
+                    tools={[
+                      {
+                        toolCallId: "design-read",
+                        toolName: "Read",
+                        state: "output-available",
+                        durationMs: 320,
+                        argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
+                        output: "part.toolCallId  // never remapped",
+                      },
+                    ]}
+                  />
+                </ChatChainOfThought.Step>
               </ChatChainOfThought.Steps>
             </ChatChainOfThought.Content>
           </ChatChainOfThought>
         </Variant>
-        <Variant caption="collapsed, streaming">
-          <ChatChainOfThought isStreaming>
-            <ChatChainOfThought.Trigger>
-              <TextShimmer>Thinking…</TextShimmer>
-            </ChatChainOfThought.Trigger>
+        <Variant caption="expanded, settled">
+          <ChatChainOfThought defaultExpanded>
+            <ChatChainOfThought.Trigger>Thought for 12s</ChatChainOfThought.Trigger>
             <ChatChainOfThought.Content>
               <ChatChainOfThought.Steps>
-                <ChatChainOfThought.Step label="Working" />
+                <ChatChainOfThought.Step>
+                  <ChatThoughtMarkdown text="Looking at `remapEntryId` — **toolCallId is never remapped**." />
+                </ChatChainOfThought.Step>
+                <ChatChainOfThought.Step>
+                  <ChatToolGroup
+                    tools={[
+                      {
+                        toolCallId: "design-read-open",
+                        toolName: "Read",
+                        state: "output-available",
+                        durationMs: 320,
+                        argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
+                        output: "part.toolCallId  // never remapped",
+                      },
+                    ]}
+                  />
+                </ChatChainOfThought.Step>
+                <ChatChainOfThought.Step>
+                  <ChatThoughtMarkdown text="Grep is empty — no remapToolCallId helper exists yet." />
+                </ChatChainOfThought.Step>
               </ChatChainOfThought.Steps>
             </ChatChainOfThought.Content>
           </ChatChainOfThought>
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
+function ChatThoughtMarkdownGallery() {
+  return (
+    <GallerySection title="ChatThoughtMarkdown">
+      <div className="flex max-w-xl flex-col gap-3">
+        <Variant caption="inline emphasis and code">
+          <p className="text-muted">
+            <ChatThoughtMarkdown text="Looking at `remapEntryId` — **toolCallId is never remapped**." />
+          </p>
+        </Variant>
+        <Variant caption="unclosed marker hidden">
+          <p className="text-muted">
+            <ChatThoughtMarkdown text="Decision: confirm by reading **" />
+          </p>
+        </Variant>
+        <Variant caption="unwrap whole-line emphasis">
+          <p className="text-muted">
+            <ChatThoughtMarkdown unwrapLines text="**The failing assertion is in the test.**" />
+          </p>
         </Variant>
       </div>
     </GallerySection>
@@ -1229,6 +1308,7 @@ export function DesignComponentsLayer() {
       <ChatQueuedMessageGallery />
       <ChatPromptSuggestionGallery />
       <ChatChainOfThoughtGallery />
+      <ChatThoughtMarkdownGallery />
       <ChatChainOfThoughtRailGallery />
       <ChatConversationGallery />
       <TextShimmerGallery />
