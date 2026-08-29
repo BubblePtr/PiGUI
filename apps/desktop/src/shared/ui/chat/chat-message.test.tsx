@@ -55,6 +55,23 @@ describe("ChatMessage", () => {
     expect(screen.getByRole("button", { name: "Bad response" })).toBeInTheDocument();
   });
 
+  it("can keep assistant actions visible after the turn settles", () => {
+    const { container } = render(
+      <ChatMessage.Assistant>
+        <ChatMessage.Body>
+          <ChatMessage.Content>Done</ChatMessage.Content>
+          <ChatMessageActions className="chat-message__actions--persist">
+            <ChatMessageActions.Copy aria-label="Copy" />
+          </ChatMessageActions>
+        </ChatMessage.Body>
+      </ChatMessage.Assistant>,
+    );
+
+    expect(container.querySelector('[data-slot="chat-message-actions"]')).toHaveClass(
+      "chat-message__actions--persist",
+    );
+  });
+
   it("fires onPress for custom actions", async () => {
     const user = userEvent.setup();
     const onPress = vi.fn();

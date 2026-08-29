@@ -4306,7 +4306,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(assistantMessages).toHaveLength(1);
-    expect(within(assistantMessages[0]).getByText("Thought for 3s")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("Thought for 2s")).toBeInTheDocument();
     expect(within(assistantMessages[0]).getByText("先确认配置和 endpoint。")).toBeInTheDocument();
     expect(within(assistantMessages[0]).getByText("继续确认 chat completions。")).toBeInTheDocument();
     expect(within(assistantMessages[0]).getByTestId("markdown-renderer")).toHaveTextContent(
@@ -4491,7 +4491,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveChat.querySelectorAll('[data-slot="chain-of-thought"]')).toHaveLength(1);
     expect(streamingTrace).toBeInTheDocument();
     expect(streamingContent).toBeInTheDocument();
-    expect(within(streamingAssistant).getByText("Thinking...")).toBeInTheDocument();
+    expect(within(streamingAssistant).getByText("Thinking…")).toBeInTheDocument();
     expect(
       streamingTrace!.compareDocumentPosition(streamingContent!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -4593,9 +4593,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(trace).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("Thinking...")).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("Thinking")).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("我需要先检查项目结构。")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Thinking…")).toBeInTheDocument();
+    expect(within(assistantMessage!).queryByText("我需要先检查项目结构。")).not.toBeInTheDocument();
+    expect(assistantMessage!.querySelector('[data-slot="chat-message-actions"]')).not.toHaveClass(
+      "chat-message__actions--persist",
+    );
     expect(tool).toHaveAttribute("data-state", "output-available");
     expect(tool).toHaveTextContent("read");
     expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
@@ -4703,7 +4705,10 @@ describe("AgentWorkspaceSessionsPage", () => {
     const tool = assistantMessage!.querySelector('[data-slot="chat-tool-group"]');
 
     expect(trace).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("Thought for 3s")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Thought for 2s")).toBeInTheDocument();
+    expect(assistantMessage!.querySelector('[data-slot="chat-message-actions"]')).toHaveClass(
+      "chat-message__actions--persist",
+    );
     expect(within(assistantMessage!).getByText("先读项目说明。")).toBeInTheDocument();
     expect(tool).toHaveTextContent("read");
     expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
