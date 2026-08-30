@@ -95,7 +95,7 @@
   --pigui-sidebar-content-padding-x: 0.5rem;
   --pigui-sidebar-group-gap: 0.25rem;
   --pigui-sidebar-indent: 0.8rem;
-  --pigui-sidebar-row-gap: 0.125rem;
+  --pigui-sidebar-row-gap: var(--spacing-1);
   --pigui-sidebar-row-height: 1.875rem;
   --pigui-sidebar-row-icon-gap: 0.625rem;
   --pigui-sidebar-row-padding-x: 0.5rem;
@@ -197,8 +197,13 @@ body {
    at StyleX ID-level specificity. Session rows already lead with a glyph slot
    the same size as the project folder, so that extra indent pushes titles —
    especially short empty-state labels like "No chats" — toward the row center.
-   Match StyleX specificity and drop the indent so the two columns line up. */
+   Match StyleX specificity and drop the indent so the two columns line up.
+   childrenInner is a block box with no gap; space the session pills so
+   hover/selected washes do not pinch. */
 .pigui-sidenav-row-with-actions [role="group"] > div:not(#\#):not(#\#):not(#\#) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pigui-sidebar-row-gap);
   padding-inline-start: 0;
 }
 

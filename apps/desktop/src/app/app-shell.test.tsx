@@ -1096,7 +1096,7 @@ describe("AppFrame", () => {
 
     expect(sidebar).toHaveStyle({ width: "260px" });
     expect(styles).toContain("--pigui-sidebar-row-height: 1.875rem;");
-    expect(styles).toContain("--pigui-sidebar-row-gap: 0.125rem;");
+    expect(styles).toContain("--pigui-sidebar-row-gap: var(--spacing-1);");
     expect(styles).toContain("--pigui-sidebar-row-icon-gap: 0.625rem;");
     expect(styles).toContain("--pigui-sidebar-icon-size: 1rem;");
     expect(styles).toContain(".pigui-app-layout .astryx-side-nav-item {");
@@ -1182,6 +1182,20 @@ describe("AppFrame", () => {
       ".pigui-sidenav-row-with-actions [role=\"group\"] > div:not(#\\#):not(#\\#):not(#\\#)",
     );
     expect(styles).toContain("padding-inline-start: 0;");
+  });
+
+  it("separates nested session rows so rounded washes do not pinch", async () => {
+    renderAppFrame("/projects/pig/sessions");
+
+    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
+
+    // Astryx SideNavSection spaces top-level items, but nested session rows
+    // live in childrenInner with no gap — hover/selected pills collide.
+    expect(styles).toMatch(
+      /\.pigui-sidenav-row-with-actions \[role="group"\] > div:not\(#\\#\):not\(#\\#\):not\(#\\#\) \{[^}]*display: flex;[^}]*flex-direction: column;[^}]*gap: var\(--pigui-sidebar-row-gap\);/,
+    );
+    expect(styles).toContain("--pigui-sidebar-row-gap: var(--spacing-1);");
   });
 
   it("uses the Astryx resizable separator without transparent overrides", async () => {
