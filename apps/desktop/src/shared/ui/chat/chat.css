@@ -36,11 +36,36 @@
 
 /* —— Markdown —— */
 
-/* Typography is owned by Astryx Markdown; this wrapper only handles layout
-   inside chat bubbles. */
+/* Layout is ours; heading type scale is too. Astryx compact only tightens
+   heading margins — `#` still uses document heading-1. After
+   headingLevelStart=3, markdown # is data-level=3. Keep a conversation
+   scale: one step up for #, body size below that, never smaller than body. */
 .chat-markdown {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.chat-markdown .astryx-markdown-heading {
+  font-family: inherit;
+}
+
+.chat-markdown .astryx-markdown-heading[data-level="3"] {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+
+.chat-markdown .astryx-markdown-heading[data-level="4"] {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: inherit;
+}
+
+.chat-markdown .astryx-markdown-heading[data-level="5"],
+.chat-markdown .astryx-markdown-heading[data-level="6"] {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: inherit;
 }
 
 /* —— Code block —— */

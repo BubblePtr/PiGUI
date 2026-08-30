@@ -1,6 +1,12 @@
 import { Markdown } from "@astryxdesign/core/Markdown";
 
 /**
+ * Chat sits under the page h1 (Sessions / Trace / …). Markdown `#` must
+ * not mint another top-level heading in the document outline.
+ */
+const chatHeadingLevelStart = 3;
+
+/**
  * Chat prose renders through Astryx Markdown (compact density, per the
  * official ai-chat template). Fenced code uses the Astryx built-in code
  * block; ChatCodeBlock stays only for non-markdown surfaces.
@@ -18,7 +24,9 @@ export function ChatMarkdown({
       data-slot="chat-markdown"
       data-testid="markdown-renderer"
     >
-      <Markdown density="compact">{children}</Markdown>
+      <Markdown density="compact" headingLevelStart={chatHeadingLevelStart}>
+        {children}
+      </Markdown>
     </div>
   );
 }
@@ -44,7 +52,11 @@ export function ChatStreamMarkdown({
       data-slot="chat-stream-markdown"
       data-testid="stream-markdown-renderer"
     >
-      <Markdown density="compact" isStreaming={isStreaming}>
+      <Markdown
+        density="compact"
+        headingLevelStart={chatHeadingLevelStart}
+        isStreaming={isStreaming}
+      >
         {children}
       </Markdown>
     </div>

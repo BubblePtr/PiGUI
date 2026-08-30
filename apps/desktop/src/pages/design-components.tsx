@@ -614,6 +614,22 @@ const markdownFixture = [
   "| 1     | 2     |",
 ].join("\n");
 
+const headingScaleFixture = [
+  "# First-level heading",
+  "",
+  "Body copy under `#`, for size, weight, and gap.",
+  "",
+  "## Second-level heading",
+  "",
+  "Same column, one step down.",
+  "",
+  "### Third-level heading",
+  "",
+  "#### Fourth-level heading",
+  "",
+  "Lower levels stay at body size so they do not shrink below the paragraph.",
+].join("\n");
+
 const streamingMarkdownFixture = [
   "### Streaming across syntaxes",
   "",
@@ -689,6 +705,9 @@ function ChatMarkdownGallery() {
       <div className="flex max-w-xl flex-col gap-4">
         <Variant caption="static GFM">
           <ChatMarkdown>{markdownFixture}</ChatMarkdown>
+        </Variant>
+        <Variant caption="heading scale">
+          <ChatMarkdown>{headingScaleFixture}</ChatMarkdown>
         </Variant>
         <Variant caption="streaming (chunked delivery, Astryx incremental fade-in)">
           <StreamingMarkdownDemo />

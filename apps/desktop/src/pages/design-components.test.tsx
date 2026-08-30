@@ -96,6 +96,26 @@ describe("Design components layer", () => {
     }
   });
 
+  it("shows the chat heading scale against body copy", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ChatMarkdown" });
+
+    expect(within(section).getByText("heading scale")).toBeInTheDocument();
+    expect(
+      within(section).getByRole("heading", { level: 3, name: "First-level heading" }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("heading", { level: 4, name: "Second-level heading" }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("heading", { level: 5, name: "Third-level heading" }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("heading", { level: 6, name: "Fourth-level heading" }),
+    ).toBeInTheDocument();
+  });
+
   it("streams the markdown demo chunk by chunk and replays on demand", async () => {
     const user = userEvent.setup();
 

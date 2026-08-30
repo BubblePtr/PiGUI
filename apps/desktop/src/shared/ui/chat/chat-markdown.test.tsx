@@ -1,4 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ChatMarkdown, ChatStreamMarkdown } from "@/shared/ui/chat/chat-markdown";
 
@@ -26,6 +28,35 @@ describe("ChatMarkdown", () => {
 
     expect(screen.queryByTestId("chat-code-block")).not.toBeInTheDocument();
     expect(container.querySelector(".astryx-markdown-codeblock")).toBeInTheDocument();
+  });
+
+  it("demotes markdown headings so they sit under the page title", () => {
+    render(
+      <ChatMarkdown>
+        {["# Section one", "", "## Section two", "", "### Section three"].join("\n")}
+      </ChatMarkdown>,
+    );
+
+    expect(screen.getByRole("heading", { level: 3, name: "Section one" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: "Section two" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 5, name: "Section three" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+  });
+
+  it("keeps chat headings on a conversation type scale", () => {
+    const styles = readFileSync(
+      join(process.cwd(), "apps/desktop/src/shared/ui/chat/chat.css"),
+      "utf8",
+    );
+
+    expect(styles).toContain(".chat-markdown .astryx-markdown-heading[data-level=\"3\"]");
+    expect(styles).toContain(".chat-markdown .astryx-markdown-heading[data-level=\"4\"]");
+    expect(styles).toContain(".chat-markdown .astryx-markdown-heading[data-level=\"5\"]");
+    expect(styles).toContain("font-size: var(--font-size-lg);");
+    expect(styles).toContain("font-size: var(--font-size-base);");
+    expect(styles).toContain("font-weight: var(--font-weight-semibold);");
+    expect(styles).toContain("font-weight: var(--font-weight-medium);");
   });
 });
 
