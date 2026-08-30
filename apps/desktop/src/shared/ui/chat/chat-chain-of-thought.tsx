@@ -1,5 +1,5 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 
 export function formatLiveElapsed(ms: number) {
@@ -192,19 +192,61 @@ function ChatChainOfThoughtStep({
   );
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function ChatChainOfThoughtLive({
   children,
   className = "",
+  pageKey,
 }: {
   children: ReactNode;
   className?: string;
+  pageKey?: string;
 }) {
+  const previousKeyRef = useRef(pageKey);
+  const previousNodeRef = useRef(children);
+  const [incoming, setIncoming] = useState(children);
+  const [outgoing, setOutgoing] = useState<ReactNode>(null);
+
+  useEffect(() => {
+    if (pageKey === previousKeyRef.current) {
+      previousNodeRef.current = children;
+      setIncoming(children);
+      return;
+    }
+
+    const previousNode = previousNodeRef.current;
+    previousKeyRef.current = pageKey;
+    previousNodeRef.current = children;
+    setIncoming(children);
+    // animation: none under reduced motion, so onAnimationEnd never fires.
+    setOutgoing(prefersReducedMotion() ? null : previousNode);
+  }, [pageKey, children]);
+
   return (
     <div
       className={`chain-of-thought__live ${className}`.trim()}
       data-slot="chain-of-thought-live"
     >
-      {children}
+      <div className="chain-of-thought__flip">
+        {outgoing ? (
+          <div
+            className="chain-of-thought__flip-page"
+            data-motion="out"
+            onAnimationEnd={() => setOutgoing(null)}
+          >
+            {outgoing}
+          </div>
+        ) : null}
+        <div
+          className="chain-of-thought__flip-page"
+          data-motion={outgoing ? "in" : undefined}
+        >
+          {incoming}
+        </div>
+      </div>
     </div>
   );
 }

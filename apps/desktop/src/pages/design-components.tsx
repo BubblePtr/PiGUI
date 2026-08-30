@@ -18,7 +18,10 @@ import {
 import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
 import type { SessionTurn } from "@pigui/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
-import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
+import {
+  ChatThoughtMarkdown,
+  liveThoughtLine,
+} from "@/shared/ui/chat/chat-thought-markdown";
 import {
   ChatChainOfThoughtRail,
   type ChainOfThoughtRailPart,
@@ -577,17 +580,12 @@ function ChatMessageGallery() {
             <ChatMessage.Bubble>Explain this trace, please.</ChatMessage.Bubble>
           </ChatMessage.User>
         </Variant>
-        <Variant caption="Assistant with actions">
+        <Variant caption="streaming, no action bar">
           <ChatMessage.Assistant>
             <ChatMessage.Body>
               <ChatMessage.Content>
                 The session spent most of its budget in the planning turn.
               </ChatMessage.Content>
-              <ChatMessageActions>
-                <ChatMessageActions.Copy aria-label="Copy message" />
-                <ChatMessageActions.ThumbsUp aria-label="Good response" />
-                <ChatMessageActions.ThumbsDown aria-label="Bad response" />
-              </ChatMessageActions>
             </ChatMessage.Body>
           </ChatMessage.Assistant>
         </Variant>
@@ -926,7 +924,9 @@ function ChatChainOfThoughtGallery() {
               <p className="chain-of-thought__page">
                 <ChatThoughtMarkdown
                   unwrapLines
-                  text="**The failing assertion is in session-runtime-model.test.ts.**"
+                  text={liveThoughtLine(
+                    "The remap is missing.\n**The failing assertion is in session-runtime-model.test.ts.**",
+                  )}
                 />
               </p>
             </ChatChainOfThought.Live>

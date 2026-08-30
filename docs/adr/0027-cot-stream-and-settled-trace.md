@@ -11,10 +11,10 @@
 
 从原型落地到 Compact CoT（Window / Flip 的共识，不是 Baseline）：
 
-1. **流式**：不可展开。头上是像素格 loader + shimmer「Thinking…」+ 等宽计时；正文只显示当前最后一条（一句思考或一行工具）。
+1. **流式**：不可展开。头上是像素格 loader + shimmer「Thinking…」+ 等宽计时；正文只显示当前最后一行/句（或一行工具），换页时旧行上移、新行从下进入。同一句打字中不翻页。
 2. **收束**：默认折叠为「Thought for Ns」。展开后按回合时间线穿插思考和 `ChatToolGroup`，去掉左竖线。
 3. **思考正文**：轻量行内 markdown（`**` / `*` / `` ` ``），流式未闭合的 `**` 不露出来；颜色用 `--color-text-secondary`。
-4. **ActionBar**：助手回合收束后常显（`--persist`），不再只靠 hover。
+4. **ActionBar**：流式阶段不渲染。助手回合收束后才出现，并且常显（`--persist`），不再只靠 hover。
 5. **Rail / Timeline** 仍是独立皮肤，本决策不改。
 
 ## 否决

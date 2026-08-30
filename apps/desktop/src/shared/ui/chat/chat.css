@@ -180,6 +180,8 @@
 /* —— Chain of thought —— */
 
 .chain-of-thought {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   font-size: var(--font-size-base);
 }
@@ -233,12 +235,62 @@
 .chain-of-thought__live {
   margin-block-start: var(--spacing-2);
   min-width: 0;
+  max-width: 100%;
+}
+
+.chain-of-thought__flip {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 1.5em;
+}
+
+.chain-of-thought__flip-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.chain-of-thought__flip-page[data-motion="in"] {
+  animation: chain-of-thought-flip-in var(--duration-slow-max) var(--ease-standard)
+    both;
+}
+
+.chain-of-thought__flip-page[data-motion="out"] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  animation: chain-of-thought-flip-out var(--duration-slow-max) var(--ease-standard)
+    both;
+}
+
+@keyframes chain-of-thought-flip-in {
+  from {
+    transform: translateY(1.5em);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes chain-of-thought-flip-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-1.5em);
+    opacity: 0;
+  }
 }
 
 .chain-of-thought__page {
   display: flex;
   align-items: center;
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   height: 1.5em;
   overflow: hidden;
@@ -247,6 +299,8 @@
 }
 
 .chain-of-thought__page .chat-thought-md {
+  display: block;
+  flex: 1 1 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,6 +340,10 @@
   .chat-pixel-loader__cell {
     animation: none;
     opacity: 0.15;
+  }
+
+  .chain-of-thought__flip-page[data-motion] {
+    animation: none;
   }
 }
 

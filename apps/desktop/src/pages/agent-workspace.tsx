@@ -10,6 +10,11 @@ import {
   ChatChainOfThought as ChainOfThought,
   formatThoughtSummary,
 } from "@/shared/ui/chat/chat-chain-of-thought";
+import {
+  ChatThoughtMarkdown,
+  liveThoughtBeatIndex,
+  liveThoughtLine,
+} from "@/shared/ui/chat/chat-thought-markdown";
 import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
 import {
   ChatMarkdown as Markdown,
@@ -19,7 +24,6 @@ import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
-import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import {
   ChatToolGroup,
   type ChatToolItem,
@@ -334,7 +338,6 @@ const modelFirstResponseWatchdogMs = 15_000;
 const contactingModelPlaceholder = "Pi is contacting the model...";
 const stalledModelResponsePlaceholder =
   "Still waiting for the model response. The provider has not returned a first chunk yet.";
-const runningAssistantPlaceholder = "Pi is working...";
 
 function getVisibleProjectRegistry() {
   return getProjectRegistryWithBrowserDevelopmentFallback(getProjectRegistry());
@@ -421,13 +424,13 @@ function LiveChatMessage({
             timeline={timeline}
           />
         ) : null}
-        <ChatMessage.Content>
-          <AssistantMessageContent message={message} />
-        </ChatMessage.Content>
-        {!message.controlLabel ? (
-          <ChatMessageActions
-            className={message.isStreaming ? undefined : "chat-message__actions--persist"}
-          >
+        {message.body ? (
+          <ChatMessage.Content>
+            <AssistantMessageContent message={message} />
+          </ChatMessage.Content>
+        ) : null}
+        {!message.controlLabel && !message.isStreaming ? (
+          <ChatMessageActions className="chat-message__actions--persist">
             <ChatMessageActions.Copy
               aria-label="Copy"
               tooltip="Copy"
@@ -468,7 +471,7 @@ function AssistantRunTrace({
     const latest = timeline[timeline.length - 1];
     return (
       <ChainOfThought key="streaming" isStreaming>
-        <ChainOfThought.Live>
+        <ChainOfThought.Live pageKey={liveTracePageKey(latest)}>
           <LiveTracePage item={latest} />
         </ChainOfThought.Live>
       </ChainOfThought>
@@ -497,6 +500,13 @@ function AssistantRunTrace({
   );
 }
 
+function liveTracePageKey(item: RunTimelineItem) {
+  if (item.kind === "tool") {
+    return `tool:${item.id}`;
+  }
+  return `think:${item.id}:${liveThoughtBeatIndex(item.meta)}`;
+}
+
 function LiveTracePage({ item }: { item: RunTimelineItem }) {
   if (item.kind === "tool") {
     return (
@@ -517,7 +527,7 @@ function LiveTracePage({ item }: { item: RunTimelineItem }) {
 
   return (
     <p className="chain-of-thought__page">
-      <ChatThoughtMarkdown text={item.meta} unwrapLines />
+      <ChatThoughtMarkdown text={liveThoughtLine(item.meta)} unwrapLines />
     </p>
   );
 }
@@ -1081,6 +1091,9 @@ function appendModelRunningPlaceholder(
     return messages;
   }
 
+  const hasAssistantShell = messages.some(
+    (message) => message.role === "assistant" && !message.controlLabel,
+  );
   const hasAssistantMessage = messages.some(
     (message) =>
       message.role === "assistant" &&
@@ -1115,8 +1128,11 @@ function appendModelRunningPlaceholder(
   const elapsedMs = Number.isFinite(latestTimestampMs)
     ? Math.max(0, clockNowMs - latestTimestampMs)
     : 0;
+  if (hasModelActivity && hasAssistantShell) {
+    return messages;
+  }
   const body = hasModelActivity
-    ? runningAssistantPlaceholder
+    ? ""
     : elapsedMs >= modelFirstResponseWatchdogMs
       ? stalledModelResponsePlaceholder
       : contactingModelPlaceholder;
@@ -1414,7 +1430,7 @@ function runningAssistantPlaceholderBody(
   );
 
   if (hasModelActivity) {
-    return runningAssistantPlaceholder;
+    return "";
   }
 
   const latestRuntimeTimestamp =
