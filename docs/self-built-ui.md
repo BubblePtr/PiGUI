@@ -23,7 +23,7 @@
 | pi-trace-inspector | `shared/ui/` | Trace Cockpit 检视器:Summary/Payload/Result/Schema/Timing;大 payload 只在此挂载;Schema 待 Gateway 解析能力 [#107](https://github.com/BubblePtr/PiGUI/issues/107)(现为 unavailable 诚实态);CONTEXT 徽章借 `--success` 见 [#106](https://github.com/BubblePtr/PiGUI/issues/106) |
 | model-selector | `shared/ui/model-selector/` | Composer 模型选择器(#99,2026-08-13 原型探索 "Flat" 胜出):扁平搜索列表 + 模型选项飞出层(Reasoning/Fast Mode),safe-triangle 悬停意图;决策记录 `.scratch/model-selector/PRD.md` |
 | composer-attachments | `shared/ui/composer-attachments/` | Composer「Add to prompt」菜单 + 附件抽屉(#98,2026-08-14 原型探索 Shelf 胜出):footer 左侧 Plus,Files/Commands/Skills/Plugins;图片 Thumbnail、文本 Token;文本附件内联进 prompt,图片走 Gateway `images` 通道;决策记录 `.scratch/composer-attachments/PRD.md` |
-| icons.tsx / primitives.css / chat.css | `shared/ui/` | 图标与样式桥,基础设施 |
+| icons.tsx / primitives.css / chat.css | `shared/ui/` | 图标与样式桥,基础设施。chat.css 把对话标题收成 conversation type scale(`#` 比正文大一档,更低层级不小于正文),大纲用 headingLevelStart=3 |
 
 ## 二、路线图上将从零写的(已开 issue 跟踪)
 
