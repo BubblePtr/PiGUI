@@ -45,8 +45,15 @@ describe("formatThoughtSummary", () => {
 });
 
 describe("ChatChainOfThought", () => {
+  const originalMatchMedia = window.matchMedia;
+
   afterEach(() => {
     vi.useRealTimers();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: originalMatchMedia,
+    });
   });
 
   it("streams a live status and viewport without expanding the full trace", () => {
@@ -113,5 +120,89 @@ describe("ChatChainOfThought", () => {
     await user.click(trigger);
 
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("flips the live page when the page key changes", () => {
+    const { container, rerender } = render(
+      <ChatChainOfThought isStreaming>
+        <ChatChainOfThought.Live pageKey="think:0">
+          <p className="chain-of-thought__page">First line</p>
+        </ChatChainOfThought.Live>
+      </ChatChainOfThought>,
+    );
+
+    expect(container.querySelector("[data-motion]")).not.toBeInTheDocument();
+    expect(screen.getByText("First line")).toBeInTheDocument();
+
+    rerender(
+      <ChatChainOfThought isStreaming>
+        <ChatChainOfThought.Live pageKey="think:1">
+          <p className="chain-of-thought__page">Second line</p>
+        </ChatChainOfThought.Live>
+      </ChatChainOfThought>,
+    );
+
+    expect(container.querySelector('[data-motion="out"]')).toHaveTextContent("First line");
+    expect(container.querySelector('[data-motion="in"]')).toHaveTextContent("Second line");
+  });
+
+  it("swaps the live page immediately when reduced motion is preferred", () => {
+    const matchMedia = vi.fn((query: string): MediaQueryList => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: matchMedia,
+    });
+
+    const { container, rerender } = render(
+      <ChatChainOfThought isStreaming>
+        <ChatChainOfThought.Live pageKey="think:0">
+          <p className="chain-of-thought__page">First line</p>
+        </ChatChainOfThought.Live>
+      </ChatChainOfThought>,
+    );
+
+    rerender(
+      <ChatChainOfThought isStreaming>
+        <ChatChainOfThought.Live pageKey="think:1">
+          <p className="chain-of-thought__page">Second line</p>
+        </ChatChainOfThought.Live>
+      </ChatChainOfThought>,
+    );
+
+    expect(container.querySelector("[data-motion]")).not.toBeInTheDocument();
+    expect(screen.getByText("Second line")).toBeInTheDocument();
+    expect(screen.queryByText("First line")).not.toBeInTheDocument();
+  });
+
+  it("updates the live page in place when the key is unchanged", () => {
+    const { container, rerender } = render(
+      <ChatChainOfThought isStreaming>
+        <ChatChainOfThought.Live pageKey="think:0">
+          <p className="chain-of-thought__page">Confirming fold</p>
+        </ChatChainOfThought.Live>
+      </ChatChainOfThought>,
+    );
+
+    rerender(
+      <ChatChainOfThought isStreaming>
+        <ChatChainOfThought.Live pageKey="think:0">
+          <p className="chain-of-thought__page">Confirming fold winner logic</p>
+        </ChatChainOfThought.Live>
+      </ChatChainOfThought>,
+    );
+
+    expect(container.querySelector("[data-motion]")).not.toBeInTheDocument();
+    expect(screen.getByText("Confirming fold winner logic")).toBeInTheDocument();
+    expect(screen.queryByText("Confirming fold")).not.toBeInTheDocument();
   });
 });

@@ -321,7 +321,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-body"]')).toHaveLength(1);
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-content"]')).toHaveLength(2);
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-avatar"]')).toHaveLength(0);
-    expect(liveColumn.querySelectorAll('[data-slot="chat-message-actions"]')).toHaveLength(2);
+    expect(liveColumn.querySelectorAll('[data-slot="chat-message-actions"]')).toHaveLength(1);
     const userMessage = liveColumn.querySelector(
       '[data-slot="chat-message-user"]',
     );
@@ -356,16 +356,16 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).toBeInTheDocument();
     expect(assistantTrace).not.toBeInTheDocument();
     expect(assistantContent).toBeInTheDocument();
-    expect(assistantActions).toBeInTheDocument();
+    expect(assistantActions).not.toBeInTheDocument();
     expect(
-      within(assistantMessage as HTMLElement).getByRole("button", { name: "Copy" }),
-    ).toBeInTheDocument();
+      within(assistantMessage as HTMLElement).queryByRole("button", { name: "Copy" }),
+    ).not.toBeInTheDocument();
     expect(
-      within(assistantMessage as HTMLElement).getByRole("button", { name: "Good response" }),
-    ).toBeInTheDocument();
+      within(assistantMessage as HTMLElement).queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
     expect(
-      within(assistantMessage as HTMLElement).getByRole("button", { name: "Bad response" }),
-    ).toBeInTheDocument();
+      within(assistantMessage as HTMLElement).queryByRole("button", { name: "Bad response" }),
+    ).not.toBeInTheDocument();
     expect(liveColumn.querySelectorAll('[data-slot="chain-of-thought-step"]')).toHaveLength(0);
     expect(within(liveColumn).queryByText("Project context loaded")).not.toBeInTheDocument();
     expect(promptInput).toBeInTheDocument();
@@ -1351,6 +1351,89 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveColumn.querySelectorAll('[data-slot="chat-message-assistant"]')).toHaveLength(1);
     expect(within(liveColumn).getByRole("button", { name: "Stop" })).toBeInTheDocument();
     expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("does not show Pi is working once the live trace has think activity", async () => {
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "thinking-session",
+        projectId: "pig-docs",
+        initialPrompt: "Look at the current code",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-thinking",
+        piSessionId: "pi-session-thinking",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-thinking-user",
+        piSessionId: "pi-session-thinking",
+        kind: "message",
+        role: "user",
+        body: "Look at the current code",
+        timestamp: "2026-06-26T08:00:02.000Z",
+      },
+    });
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      stage: "accepted",
+      event: {
+        id: "runtime-event-thinking",
+        piSessionId: "pi-session-thinking",
+        messageId: "pi-sdk:pi-session-thinking:assistant:0",
+        kind: "thinking",
+        role: "assistant",
+        body: [
+          "Identifying illegal human raises risk",
+          "Validating raise amounts and state resets",
+          "Confirming fold winner logic consistency",
+        ].join("\n"),
+        timestamp: "2026-06-26T08:00:03.000Z",
+      },
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        clockNowMs={Date.parse("2026-06-26T08:00:04.000Z")}
+        projectId="pig-docs"
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "thinking-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(within(liveChat).getByText("Thinking…")).toBeInTheDocument();
+    expect(liveChat).toHaveTextContent("Confirming fold winner logic consistency");
+    expect(liveChat).not.toHaveTextContent("Identifying illegal human raises risk");
+    expect(liveChat).not.toHaveTextContent("Pi is working");
   });
 
   it("surfaces a stalled first model response in the main chat", async () => {
@@ -4595,9 +4678,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(trace).toBeInTheDocument();
     expect(within(assistantMessage!).getByText("Thinking…")).toBeInTheDocument();
     expect(within(assistantMessage!).queryByText("我需要先检查项目结构。")).not.toBeInTheDocument();
-    expect(assistantMessage!.querySelector('[data-slot="chat-message-actions"]')).not.toHaveClass(
-      "chat-message__actions--persist",
-    );
+    expect(
+      assistantMessage!.querySelector('[data-slot="chat-message-actions"]'),
+    ).not.toBeInTheDocument();
     expect(tool).toHaveAttribute("data-state", "output-available");
     expect(tool).toHaveTextContent("read");
     expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
