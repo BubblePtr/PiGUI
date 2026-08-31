@@ -39,12 +39,16 @@ export function ChatConversation({
     >
       <div
         ref={viewportRef}
-        className="chat-conversation__viewport"
+        className="pigui-scroll-fade chat-conversation__viewport"
         data-slot="chat-conversation-viewport"
       >
         <ChatMessageList
           ref={newMessages.contentRef}
           aria-label={ariaLabel}
+          // The list's leading flex spacer still eats one 16px flex gap even at
+          // zero height; our single Content child owns message spacing, so the
+          // list-level gap only ever padded the top. Zero it out.
+          gap={0}
           isStreaming={isStreaming}
         >
           {children}
