@@ -91,12 +91,14 @@ export function ContextUsageMeter({
     return (
       <Tooltip content={detail}>
         <div
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1"
           data-level={level}
           data-slot="context-usage-meter"
           data-variant="compact"
         >
-          <span className="w-10">
+          {/* The bar only has to read as a gauge next to the share; its own
+              48px floor is lifted in primitives.css. */}
+          <span className="w-6">
             <ProgressBar
               isLabelHidden
               isIndeterminate={isCompacting}
@@ -105,7 +107,9 @@ export function ContextUsageMeter({
               variant={levelVariants[level]}
             />
           </span>
-          {/* Fixed width: a share ticking 9% → 10% must not nudge the toolbar. */}
+          {/* Fixed width: a share ticking 9% → 10% must not nudge the toolbar.
+              2rem is the narrowest step that still fits "100%" at this type
+              scale (measured 31.9px), so it is a floor, not a round number. */}
           <span className="flex w-8 justify-end">
             <Text as="span" color="secondary" hasTabularNumbers type="supporting">
               {isCompacting ? "…" : share}
