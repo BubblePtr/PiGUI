@@ -764,6 +764,26 @@ function FullChatComposer({
     }
   };
 
+  // Context occupancy is session runtime state, so it rides the footer hint
+  // line rather than any composer control. Only a bound runtime has a context
+  // window to be a share of; queue mode drops the hint but keeps the line.
+  const contextMeter = projection?.piSessionId ? (
+    <ContextUsageMeter
+      isCompacting={isContextCompacting(projection.runtimeModel)}
+      usage={projection.contextUsage}
+    />
+  ) : null;
+  const composerHint = queueMode
+    ? null
+    : "AI can make mistakes. Check important info.";
+  const composerFooter =
+    composerHint || contextMeter ? (
+      <span className="flex items-center gap-3">
+        {composerHint}
+        {contextMeter ? <span className="ml-auto">{contextMeter}</span> : null}
+      </span>
+    ) : undefined;
+
   return (
     <div
       className="mt-auto shrink-0 px-4 pb-3 pt-3"
@@ -792,7 +812,7 @@ function FullChatComposer({
           />
         }
         error={attachments.error ?? composerError}
-        footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
+        footer={composerFooter}
         hasAttachments={attachments.items.length > 0}
         lockInputOnRun={!queueMode}
         startActions={
@@ -2739,14 +2759,6 @@ export function SessionToolbarActions({
 }) {
   return (
     <>
-      {/* Only a bound runtime has a context window to be a share of. */}
-      {projection?.piSessionId ? (
-        <ContextUsageMeter
-          isCompacting={isContextCompacting(projection.runtimeModel)}
-          usage={projection.contextUsage}
-          variant="compact"
-        />
-      ) : null}
       <SessionChangesTrigger
         isOpen={changesOpen}
         onOpenChange={onChangesOpenChange}

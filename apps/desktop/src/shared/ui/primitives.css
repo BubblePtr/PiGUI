@@ -258,13 +258,3 @@
   color: var(--color-text-disabled);
   user-select: none;
 }
-
-/* —— ContextUsageMeter —— */
-
-/* Astryx sizes a standalone ProgressBar with a 48px min-width, which silently
-   overrode the compact meter's own slot and let the bar spill into the gap.
-   In the Session toolbar the meter shares a row with 28px icon buttons, so the
-   compact form takes exactly the width its slot gives it. */
-[data-slot="context-usage-meter"][data-variant="compact"] .astryx-progressbar {
-  min-width: 0;
-}

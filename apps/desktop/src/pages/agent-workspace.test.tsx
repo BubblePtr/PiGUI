@@ -5081,8 +5081,8 @@ describe("AgentWorkspaceSessionsPage", () => {
   });
 });
 
-// Context occupancy is session runtime state, not part of composing a prompt:
-// it lives in the Session toolbar, never in the composer. Issue #128.
+// Context occupancy rides the composer footer line — the hint row under the
+// input — and never the Session toolbar. Issue #128.
 describe("Context usage placement", () => {
   const workspace = {
     id: "pig-docs",
@@ -5122,45 +5122,54 @@ describe("Context usage placement", () => {
     };
   }
 
-  it("meters the context window from the Session toolbar", () => {
+  function renderSessionsView(projection: SessionProjection) {
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    return screen
+      .getByTestId("full-chat-composer")
+      .querySelector('[data-slot="prompt-input-footer"]');
+  }
+
+  it("meters the context window on the composer footer line, right of the hint", () => {
+    const footer = renderSessionsView(boundProjection());
+
+    expect(footer).toHaveTextContent("AI can make mistakes. Check important info.");
+    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toHaveTextContent(
+      "Context 45%/200K",
+    );
+  });
+
+  // Queue mode drops the "AI can make mistakes" hint, but the runtime state
+  // still has a line to sit on.
+  it("keeps the footer line while a run is queueing", () => {
+    const footer = renderSessionsView(boundProjection({ status: "running" }));
+
+    expect(footer).not.toHaveTextContent("AI can make mistakes");
+    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toHaveTextContent(
+      "Context 45%/200K",
+    );
+  });
+
+  it("meters nothing until a runtime is bound", () => {
+    const footer = renderSessionsView(boundProjection({ piSessionId: null }));
+
+    expect(footer).toHaveTextContent("AI can make mistakes. Check important info.");
+    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toBeNull();
+  });
+
+  it("leaves the Session toolbar to Session actions", () => {
     const { container } = render(
       <SessionToolbarActions workspace={workspace} projection={boundProjection()} />,
     );
 
     expect(
-      container.querySelector(
-        '[data-slot="context-usage-meter"][data-variant="compact"]',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("45%")).toBeInTheDocument();
-  });
-
-  it("meters nothing until a runtime is bound", () => {
-    const { container } = render(
-      <SessionToolbarActions
-        workspace={workspace}
-        projection={boundProjection({ piSessionId: null })}
-      />,
-    );
-
-    expect(
       container.querySelector('[data-slot="context-usage-meter"]'),
-    ).not.toBeInTheDocument();
-  });
-
-  it("keeps the composer free of runtime state", () => {
-    render(
-      <AgentWorkspaceSessionsView
-        projectId="pig-docs"
-        workspace={workspace}
-        sessionProjection={boundProjection()}
-      />,
-    );
-
-    expect(
-      screen
-        .getByTestId("full-chat-composer")
-        .querySelector('[data-slot="context-usage-meter"]'),
     ).not.toBeInTheDocument();
   });
 });

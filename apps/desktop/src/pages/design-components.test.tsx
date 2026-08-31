@@ -229,7 +229,7 @@ describe("Design components layer", () => {
     expect(screen.getByText("notes.md")).toBeInTheDocument();
   });
 
-  it("registers the compact ContextUsageMeter in every level it can reach", () => {
+  it("registers the ContextUsageMeter in every level it can reach", () => {
     render(<DesignComponentsLayer />);
 
     const section = screen.getByRole("region", { name: "ContextUsageMeter" });
@@ -243,10 +243,17 @@ describe("Design components layer", () => {
     ]) {
       expect(
         section.querySelector(
-          `[data-slot="context-usage-meter"][data-variant="compact"][data-level="${level}"]`,
+          `[data-slot="context-usage-meter"][data-level="${level}"]`,
         ),
       ).toBeInTheDocument();
     }
+    // Its production placement is the composer footer line, so the gallery
+    // shows it there rather than as a floating chip.
+    expect(
+      section.querySelector(
+        '[data-slot="prompt-input-footer"] [data-slot="context-usage-meter"]',
+      ),
+    ).toBeInTheDocument();
   });
 
   it("registers the ModelSelectorControl with its variants", () => {

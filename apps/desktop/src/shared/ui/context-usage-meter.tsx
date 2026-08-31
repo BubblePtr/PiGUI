@@ -1,5 +1,3 @@
-import { ProgressBar } from "@astryxdesign/core/ProgressBar";
-import { Text } from "@astryxdesign/core/Text";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import type { RuntimeContextUsage } from "@pigui/core";
 
@@ -15,8 +13,6 @@ export type ContextUsageMeterProps = {
   usage: RuntimeContextUsage | null;
   /** A compaction is running — the count is in flight, not one we hold. */
   isCompacting?: boolean;
-  /** `compact` fits the toolbar row: the share only, detail on hover. */
-  variant?: "default" | "compact";
 };
 
 const compactTokens = new Intl.NumberFormat(undefined, {
@@ -26,14 +22,15 @@ const compactTokens = new Intl.NumberFormat(undefined, {
 
 const exactTokens = new Intl.NumberFormat();
 
-const levelVariants: Record<ContextUsageLevel, "accent" | "warning" | "error" | "neutral"> =
-  {
-    compacting: "accent",
-    unknown: "neutral",
-    normal: "accent",
-    warning: "warning",
-    critical: "error",
-  };
+// Only the alarms paint; the calm states inherit the composer footer's own
+// muted colour so the line reads as one hint until the context fills up.
+const levelClassNames: Record<ContextUsageLevel, string> = {
+  compacting: "",
+  unknown: "",
+  normal: "",
+  warning: "text-warning",
+  critical: "text-danger",
+};
 
 function usageLevel(percent: number | null, isCompacting: boolean): ContextUsageLevel {
   if (isCompacting) {
@@ -52,9 +49,8 @@ function usageLevel(percent: number | null, isCompacting: boolean): ContextUsage
 }
 
 /**
- * Spelled-out occupancy, for the tooltip and for the compact form's accessible
- * name: the exact counts a hover is expected to reveal, and the same truth a
- * screen reader gets from the bar without hovering anything.
+ * Spelled-out occupancy for the tooltip: the exact counts a hover is expected
+ * to reveal, behind the rounded share the line shows at a glance.
  */
 function usageDetail(usage: RuntimeContextUsage | null, isCompacting: boolean) {
   const tokens = usage
@@ -67,17 +63,15 @@ function usageDetail(usage: RuntimeContextUsage | null, isCompacting: boolean) {
 }
 
 /**
- * Context-window occupancy: a quiet bar plus Pi's own `45%/200K` notation. An
- * unknown token count — before the first response, or between a compaction and
- * the next one — reads `?`, never a fabricated zero. The `compact` variant is
- * the production placement in the Session toolbar, where the row is only as
- * tall as an icon button: it keeps the share and the alarm colour, and hands
- * the counts to a tooltip.
+ * Context-window occupancy as one line of text on the composer footer, in Pi's
+ * own `45%/200K` notation. An unknown token count — before the first response,
+ * or between a compaction and the next one — reads `?`, never a fabricated
+ * zero, and a running compaction says so instead of showing a share we no
+ * longer hold.
  */
 export function ContextUsageMeter({
   usage,
   isCompacting = false,
-  variant = "default",
 }: ContextUsageMeterProps) {
   const percent = usage?.percent ?? null;
   const level = usageLevel(percent, isCompacting);
@@ -85,60 +79,16 @@ export function ContextUsageMeter({
   const contextWindow = usage
     ? `/${compactTokens.format(usage.contextWindow)}`
     : "";
-  const detail = usageDetail(usage, isCompacting);
-
-  if (variant === "compact") {
-    return (
-      <Tooltip content={detail}>
-        <div
-          className="flex items-center gap-1"
-          data-level={level}
-          data-slot="context-usage-meter"
-          data-variant="compact"
-        >
-          {/* The bar only has to read as a gauge next to the share; its own
-              48px floor is lifted in primitives.css. */}
-          <span className="w-6">
-            <ProgressBar
-              isLabelHidden
-              isIndeterminate={isCompacting}
-              label={detail}
-              value={percent ?? 0}
-              variant={levelVariants[level]}
-            />
-          </span>
-          {/* Fixed width: a share ticking 9% → 10% must not nudge the toolbar.
-              2rem is the narrowest step that still fits "100%" at this type
-              scale (measured 31.9px), so it is a floor, not a round number. */}
-          <span className="flex w-8 justify-end">
-            <Text as="span" color="secondary" hasTabularNumbers type="supporting">
-              {isCompacting ? "…" : share}
-            </Text>
-          </span>
-        </div>
-      </Tooltip>
-    );
-  }
 
   return (
-    <div
-      className="flex items-center gap-2"
-      data-level={level}
-      data-slot="context-usage-meter"
-      data-variant="default"
-    >
-      <span className="w-16">
-        <ProgressBar
-          isLabelHidden
-          isIndeterminate={isCompacting}
-          label="Context usage"
-          value={percent ?? 0}
-          variant={levelVariants[level]}
-        />
+    <Tooltip content={usageDetail(usage, isCompacting)}>
+      <span
+        className={`whitespace-nowrap tabular-nums ${levelClassNames[level]}`.trim()}
+        data-level={level}
+        data-slot="context-usage-meter"
+      >
+        {isCompacting ? "Compacting…" : `Context ${share}${contextWindow}`}
       </span>
-      <Text as="span" color="secondary" type="supporting">
-        {isCompacting ? "Compacting…" : `${share}${contextWindow}`}
-      </Text>
-    </div>
+    </Tooltip>
   );
 }
