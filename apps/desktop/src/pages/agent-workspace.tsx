@@ -137,6 +137,8 @@ import {
   overlayPreferredModel,
   saveLastModelSelection,
 } from "@/entities/session/last-model-preference";
+import { getVisibleModels } from "@/entities/model/visible-models";
+import { settingsModelsSectionId } from "@/pages/settings";
 import {
   sessionProjectionFromPersistedProjection,
   useSessionProjections,
@@ -648,6 +650,7 @@ function FullChatComposer({
   onStopRun,
   onSteerSubmit,
   onModelConfigChange,
+  onManageModels,
 }: {
   queueMode?: boolean;
   isStoppingRun?: boolean;
@@ -658,8 +661,12 @@ function FullChatComposer({
   onStopRun?: () => Promise<void> | void;
   onSteerSubmit?: (message: string, images?: RuntimePromptImage[]) => Promise<void> | void;
   onModelConfigChange?: (selection: RuntimeModelSelection) => Promise<void> | void;
+  onManageModels?: () => void;
 }) {
   const sessionId = projection?.id ?? null;
+  // Read once per mount: Settings owns this set and the composer only remounts
+  // after leaving that page (issue #102).
+  const [visibleModels] = useState(getVisibleModels);
   const [draft, setDraft] = useState(() =>
     sessionId ? getFollowUpDraft(sessionId)?.message ?? "" : "",
   );
@@ -810,7 +817,9 @@ function FullChatComposer({
               <ModelSelectorControl
                 controls={projection.modelControls}
                 isLocked={queueMode}
+                visibleModels={visibleModels}
                 onChange={onModelConfigChange}
+                onManageModels={onManageModels}
               />
             ) : null}
           </>
@@ -1756,6 +1765,7 @@ function SessionDraftComposer({
   onDraftCheckoutModeChange,
   onDraftTargetChange,
   onDraftSubmit,
+  onManageModels,
 }: {
   draft: SessionDraft;
   projects: ProjectRegistryEntry[];
@@ -1765,8 +1775,10 @@ function SessionDraftComposer({
   onDraftCheckoutModeChange: (checkoutMode: SessionDraftCheckoutMode) => void;
   onDraftTargetChange: (projectId: string | null) => void;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
+  onManageModels?: () => void;
 }) {
   const [targetError, setTargetError] = useState(false);
+  const [visibleModels] = useState(getVisibleModels);
   const selectedCheckoutMode = draft.checkoutMode ?? recommendedCheckoutMode;
   const { loading: providerAuthLoading, configured: providersConfigured } =
     useProviderAuthStatus();
@@ -1904,6 +1916,8 @@ function SessionDraftComposer({
                   <ModelSelectorControl
                     controls={draftModelControls}
                     isLocked={false}
+                    visibleModels={visibleModels}
+                    onManageModels={onManageModels}
                     onChange={(selection) => {
                       saveLastModelSelection(selection);
                       setDraftModelControls((current) =>
@@ -2767,6 +2781,7 @@ function LiveSessionColumn({
   clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
+  onManageModels,
   runtimeGeneration,
 }: {
   workspace: AgentWorkspaceFixture;
@@ -2781,6 +2796,7 @@ function LiveSessionColumn({
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
+  onManageModels?: () => void;
   runtimeGeneration: number;
 }) {
   const [registryProjects, setRegistryProjects] = useState(() =>
@@ -3457,6 +3473,7 @@ function LiveSessionColumn({
           onDraftCheckoutModeChange={handleDraftCheckoutModeChange}
           onDraftTargetChange={handleDraftTargetChange}
           onDraftSubmit={(event) => void handleDraftSubmit(event)}
+          onManageModels={onManageModels}
         />
       ) : (
         <>
@@ -3514,6 +3531,7 @@ function LiveSessionColumn({
               onStopRun={handleStopRun}
               onSteerSubmit={handleSteerSubmit}
               onModelConfigChange={handleModelConfigChange}
+              onManageModels={onManageModels}
             />
           )}
         </>
@@ -3535,6 +3553,7 @@ export function AgentWorkspaceSessionsView({
   clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
+  onManageModels,
   runtimeGeneration = 0,
 }: {
   projectId?: string;
@@ -3549,6 +3568,7 @@ export function AgentWorkspaceSessionsView({
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
+  onManageModels?: () => void;
   runtimeGeneration?: number;
 }) {
   const [getDefaultRuntimeBridge] = useState(() => {
@@ -3594,6 +3614,7 @@ export function AgentWorkspaceSessionsView({
       clockNowMs={clockNowMs}
       onProjectionChange={onProjectionChange}
       onLatestMessageRendered={onLatestMessageRendered}
+      onManageModels={onManageModels}
       runtimeGeneration={runtimeGeneration}
     />
   );
@@ -3681,6 +3702,7 @@ export function AgentWorkspaceSessionsView({
 }
 
 export function AgentWorkspaceSessionsPage() {
+  const navigate = useNavigate();
   const { projectId } = useParams({ from: "/projects/$projectId/sessions" });
   const showDraft = useRouterState({
     select: (state) => {
@@ -3889,6 +3911,9 @@ export function AgentWorkspaceSessionsPage() {
         sessionProjection={selectedSessionProjection}
         onProjectionChange={handleProjectionChange}
         onLatestMessageRendered={handleLatestMessageRendered}
+        onManageModels={() =>
+          void navigate({ to: "/settings", hash: settingsModelsSectionId })
+        }
       />
     </AppFrame>
   );

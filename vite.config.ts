@@ -23,6 +23,10 @@ export default defineConfig({
     environment: "jsdom",
     exclude: [...configDefaults.exclude, "e2e/**"],
     pool: "forks",
+    // @lobehub/icons ships extensionless directory imports that Node's ESM
+    // resolver rejects; let Vite resolve them so pages using brand icons stay
+    // unit-testable.
+    server: { deps: { inline: [/@lobehub\//] } },
     setupFiles: ["./apps/desktop/src/test/setup.ts"],
   },
 });

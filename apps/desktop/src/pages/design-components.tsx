@@ -1356,6 +1356,15 @@ function ModelSelectorControlGallery() {
             onChange={() => {}}
           />
         </Variant>
+        <Variant caption="Settings visibility — hidden selection marked, Add Models live">
+          <ModelSelectorControl
+            controls={modelSelectorControls}
+            isLocked={false}
+            visibleModels={[{ provider: "moonshot", modelId: "kimi-k3" }]}
+            onChange={() => {}}
+            onManageModels={() => {}}
+          />
+        </Variant>
       </VariantRow>
     </GallerySection>
   );

@@ -1,19 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
+import { CheckboxList, CheckboxListItem } from "@astryxdesign/core/CheckboxList";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppFrame } from "@/app/app-shell";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
+import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
+import { isModelVisible } from "@/shared/ui/model-selector/model-selector-logic";
 import { invoke } from "@/shared/runtime";
 import type {
   ProviderAuthId,
   ProviderAuthStatusItem,
   ProviderAuthStatusReport,
+  RuntimeModelCapability,
+  RuntimeModelControls,
 } from "@pigui/core";
 
 export const providerAuthStatusQueryKey = ["provider-auth-status"] as const;
+const availableModelControlsQueryKey = ["available-model-controls"] as const;
+
+/** Link target for the selector's "Add Models" row (issue #102). */
+export const settingsModelsSectionId = "models";
 
 type AuthTab = "subscription" | "api_key";
 
@@ -201,6 +211,128 @@ function ProviderSubscriptionCard({
   );
 }
 
+function groupModelsByProvider(models: RuntimeModelCapability[]) {
+  const groups = new Map<string, RuntimeModelCapability[]>();
+
+  for (const model of models) {
+    const group = groups.get(model.provider);
+
+    if (group) {
+      group.push(model);
+    } else {
+      groups.set(model.provider, [model]);
+    }
+  }
+
+  return Array.from(groups, ([provider, providerModels]) => ({
+    provider,
+    models: providerModels,
+  }));
+}
+
+/**
+ * Which catalog models the composer selector may offer (issue #102). Stored
+ * per install, read by the selector; an empty set means "not configured" and
+ * lists everything, which is also what unchecking the last model falls back to.
+ */
+function ModelVisibilitySection({
+  models,
+  isLoading,
+  errorMessage,
+  providerLabels,
+}: {
+  models: RuntimeModelCapability[];
+  isLoading: boolean;
+  errorMessage?: string;
+  providerLabels: Record<string, string>;
+}) {
+  const [visibleModels, setVisibleModels] = useState(getVisibleModels);
+
+  // The checkboxes show what the selector will actually list, so they run
+  // through the same predicate — including its "unconfigured means all" rule.
+  // Persisting from this set also drops entries the catalog no longer has.
+  const checkedModels = models.filter((model) =>
+    isModelVisible(model, visibleModels),
+  );
+
+  const replaceProviderSelection = (provider: string, modelIds: string[]) => {
+    const next = [
+      ...checkedModels
+        .filter((model) => model.provider !== provider)
+        .map(({ provider: keptProvider, modelId }) => ({
+          provider: keptProvider,
+          modelId,
+        })),
+      ...modelIds.map((modelId) => ({ provider, modelId })),
+    ];
+
+    setVisibleModels(next);
+    saveVisibleModels(next);
+  };
+
+  return (
+    <section
+      aria-labelledby="settings-models-heading"
+      className="flex flex-col gap-3"
+      id={settingsModelsSectionId}
+    >
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold text-foreground" id="settings-models-heading">
+          Models
+        </h2>
+        <p className="text-sm text-muted">
+          Choose which models the composer model selector offers. With none
+          selected, every available model is shown.
+        </p>
+      </div>
+
+      {isLoading ? <p className="text-sm text-muted">Loading…</p> : null}
+      {errorMessage ? <p className="text-sm text-danger">{errorMessage}</p> : null}
+      {!isLoading && !errorMessage && models.length === 0 ? (
+        <p className="text-sm text-muted">
+          No models are available yet. Configure a provider above first.
+        </p>
+      ) : null}
+
+      {groupModelsByProvider(models).map((group) => {
+        const label = providerLabels[group.provider] ?? group.provider;
+
+        return (
+          <Card data-testid={`model-visibility-${group.provider}`} key={group.provider}>
+            <div className="flex flex-row items-center gap-3">
+              <ProviderIcon providerId={group.provider} />
+              <h3 className="text-base font-semibold text-foreground">{label}</h3>
+            </div>
+            <div className="mt-4">
+              <CheckboxList
+                hasDividers
+                isLabelHidden
+                label={`${label} models`}
+                width="100%"
+                value={group.models
+                  .filter((model) => isModelVisible(model, visibleModels))
+                  .map((model) => model.modelId)}
+                onChange={(modelIds) =>
+                  replaceProviderSelection(group.provider, modelIds)
+                }
+              >
+                {group.models.map((model) => (
+                  <CheckboxListItem
+                    description={model.modelId}
+                    key={model.modelId}
+                    label={model.name}
+                    value={model.modelId}
+                  />
+                ))}
+              </CheckboxList>
+            </div>
+          </Card>
+        );
+      })}
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<AuthTab>("subscription");
@@ -219,91 +351,142 @@ export function SettingsPage() {
     [providers],
   );
 
+  const providerLabels = useMemo(
+    () =>
+      Object.fromEntries(providers.map((provider) => [provider.id, provider.label])),
+    [providers],
+  );
+  const modelsQuery = useQuery({
+    queryKey: availableModelControlsQueryKey,
+    queryFn: () => invoke<RuntimeModelControls>("list_available_model_controls"),
+  });
+  const modelCatalogError = !modelsQuery.isError
+    ? undefined
+    : modelsQuery.error instanceof Error
+      ? modelsQuery.error.message
+      : "Could not load the model catalog.";
+  const locationHash = useRouterState({ select: (state) => state.location.hash });
+
+  useEffect(() => {
+    // Both sections have to hold their data before the section offset is
+    // final, otherwise the jump lands short of the Models section.
+    if (
+      locationHash !== settingsModelsSectionId ||
+      statusQuery.isPending ||
+      modelsQuery.isPending
+    ) {
+      return;
+    }
+
+    document
+      .getElementById(settingsModelsSectionId)
+      ?.scrollIntoView({ block: "start" });
+  }, [locationHash, statusQuery.isPending, modelsQuery.isPending]);
+
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: providerAuthStatusQueryKey });
     void queryClient.invalidateQueries({ queryKey: ["environment-preflight-report"] });
+    // New credentials change which models Pi offers, so the Models section
+    // below has to re-read the catalog.
+    void queryClient.invalidateQueries({ queryKey: availableModelControlsQueryKey });
   };
 
   return (
     <AppFrame>
       <main className="h-full min-h-0 overflow-y-auto bg-surface px-6 py-10 text-foreground">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-          <header className="space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Settings
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
+          <h1 className="text-2xl font-semibold tracking-normal">Settings</h1>
+
+          <section
+            aria-labelledby="settings-providers-heading"
+            className="flex flex-col gap-3"
+          >
+            <div className="space-y-2">
+              <h2
+                className="text-lg font-semibold text-foreground"
+                id="settings-providers-heading"
+              >
+                Providers
+              </h2>
+              <p className="text-sm text-muted">
+                Configure model credentials. Keys are stored in Pi{" "}
+                <code className="text-xs">auth.json</code> and never shown in full after save.
+              </p>
+              {statusQuery.data ? (
+                <p className="text-xs text-muted">
+                  {statusQuery.data.configuredCount} provider
+                  {statusQuery.data.configuredCount === 1 ? "" : "s"} configured
+                </p>
+              ) : null}
             </div>
-            <h1 className="text-2xl font-semibold tracking-normal">Providers</h1>
-            <p className="text-sm text-muted">
-              Configure model credentials. Keys are stored in Pi{" "}
-              <code className="text-xs">auth.json</code> and never shown in full after save.
-            </p>
-            {statusQuery.data ? (
-              <p className="text-xs text-muted">
-                {statusQuery.data.configuredCount} provider
-                {statusQuery.data.configuredCount === 1 ? "" : "s"} configured
+
+            <div className="flex flex-col">
+              <TabList
+                hasDivider
+                value={tab}
+                onChange={(value) => {
+                  if (value === "subscription" || value === "api_key") {
+                    setTab(value);
+                  }
+                }}
+              >
+                <Tab value="subscription" label="Subscription" />
+                <Tab value="api_key" label="API Key" />
+              </TabList>
+              {tab === "subscription" ? (
+                <div className="mt-4 flex flex-col gap-3">
+                  <p className="text-xs text-muted">
+                    ChatGPT/Codex, Anthropic, and Grok (xAI) subscription login via
+                    Pi OAuth (browser). Uses the same Pi{" "}
+                    <code className="text-xs">auth.json</code> as the local TUI.
+                  </p>
+                  {statusQuery.isLoading ? (
+                    <p className="text-sm text-muted">Loading…</p>
+                  ) : (
+                    subscriptionProviders.map((provider) => (
+                      <ProviderSubscriptionCard
+                        key={provider.id}
+                        provider={provider}
+                        onSaved={refresh}
+                      />
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-col gap-3">
+                  <p className="text-xs text-muted">
+                    Paste API keys for OpenAI, Anthropic, DeepSeek, or Grok (xAI).
+                  </p>
+                  {statusQuery.isLoading ? (
+                    <p className="text-sm text-muted">Loading…</p>
+                  ) : (
+                    apiKeyProviders.map((provider) => (
+                      <ProviderApiKeyCard
+                        key={provider.id}
+                        provider={provider}
+                        onSaved={refresh}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {statusQuery.isError ? (
+              <p className="text-sm text-danger">
+                {statusQuery.error instanceof Error
+                  ? statusQuery.error.message
+                  : "Could not load provider status."}
               </p>
             ) : null}
-          </header>
+          </section>
 
-          <div className="flex flex-col">
-            <TabList
-              hasDivider
-              value={tab}
-              onChange={(value) => {
-                if (value === "subscription" || value === "api_key") {
-                  setTab(value);
-                }
-              }}
-            >
-              <Tab value="subscription" label="Subscription" />
-              <Tab value="api_key" label="API Key" />
-            </TabList>
-            {tab === "subscription" ? (
-              <div className="mt-4 flex flex-col gap-3">
-                <p className="text-xs text-muted">
-                  ChatGPT/Codex, Anthropic, and Grok (xAI) subscription login via
-                  Pi OAuth (browser). Uses the same Pi{" "}
-                  <code className="text-xs">auth.json</code> as the local TUI.
-                </p>
-                {statusQuery.isLoading ? (
-                  <p className="text-sm text-muted">Loading…</p>
-                ) : (
-                  subscriptionProviders.map((provider) => (
-                    <ProviderSubscriptionCard
-                      key={provider.id}
-                      provider={provider}
-                      onSaved={refresh}
-                    />
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-col gap-3">
-                <p className="text-xs text-muted">
-                  Paste API keys for OpenAI, Anthropic, DeepSeek, or Grok (xAI).
-                </p>
-                {statusQuery.isLoading ? (
-                  <p className="text-sm text-muted">Loading…</p>
-                ) : (
-                  apiKeyProviders.map((provider) => (
-                    <ProviderApiKeyCard
-                      key={provider.id}
-                      provider={provider}
-                      onSaved={refresh}
-                    />
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          {statusQuery.isError ? (
-            <p className="text-sm text-danger">
-              {statusQuery.error instanceof Error
-                ? statusQuery.error.message
-                : "Could not load provider status."}
-            </p>
-          ) : null}
+          <ModelVisibilitySection
+            errorMessage={modelCatalogError}
+            isLoading={modelsQuery.isPending}
+            models={modelsQuery.data?.models ?? []}
+            providerLabels={providerLabels}
+          />
         </div>
       </main>
     </AppFrame>

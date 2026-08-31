@@ -25,7 +25,8 @@ type ProviderBrand = {
  * Brand treatment from @lobehub/icons constants / Color variants.
  * Mono alone is flat black — wrap in brand surface + tint (or Color path).
  */
-const providerBrands: Record<ProviderAuthId, ProviderBrand> = {
+const providerBrands: Record<ProviderAuthId, ProviderBrand> &
+  Partial<Record<string, ProviderBrand>> = {
   openai: {
     Mono: OpenAI,
     // Official OpenAI: light surface + black mark (#000) — not inverted black badge.
@@ -59,12 +60,17 @@ const providerBrands: Record<ProviderAuthId, ProviderBrand> = {
   },
 };
 
+/**
+ * `providerId` is a plain string, not `ProviderAuthId`: model catalog
+ * providers are a superset of the auth providers (e.g. `moonshot`), and an
+ * id without a brand mark renders nothing.
+ */
 export function ProviderIcon({
   providerId,
   size = 20,
   className,
 }: {
-  providerId: ProviderAuthId;
+  providerId: string;
   size?: number;
   className?: string;
 }) {

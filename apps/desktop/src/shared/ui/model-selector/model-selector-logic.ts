@@ -43,6 +43,44 @@ export function baseModelOf(
   return fastSiblingOf(model, models) ?? model;
 }
 
+/** A catalog entry addressed by identity alone (provider + model id). */
+export type ModelRef = { provider: string; modelId: string };
+
+/**
+ * Settings owns which models reach the selector (issue #102). An empty set
+ * means "never configured" and shows everything, so existing installs are
+ * unaffected and a user who unchecks the last model is not left with an
+ * unusable selector.
+ */
+export function isModelVisible(model: ModelRef, visible: ModelRef[]): boolean {
+  return (
+    visible.length === 0 ||
+    visible.some(
+      (candidate) =>
+        candidate.provider === model.provider &&
+        candidate.modelId === model.modelId,
+    )
+  );
+}
+
+/**
+ * The catalog the selector may list. The current selection always survives so
+ * hiding a model a session is already running never drops it from the list —
+ * the row is marked instead.
+ */
+export function visibleModelsOf(
+  models: RuntimeModelCapability[],
+  visible: ModelRef[],
+  selected: ModelRef | null | undefined,
+): RuntimeModelCapability[] {
+  return models.filter(
+    (model) =>
+      isModelVisible(model, visible) ||
+      (model.provider === selected?.provider &&
+        model.modelId === selected.modelId),
+  );
+}
+
 /** Tokenized match over name, id, and provider; empty query matches all. */
 export function matchesModelQuery(
   model: RuntimeModelCapability,

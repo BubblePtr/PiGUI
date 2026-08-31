@@ -31,8 +31,11 @@ import {
   formatContextWindow,
   isFastModel,
   isInsideTriangle,
+  isModelVisible,
   matchesModelQuery,
   nearestThinkingLevel,
+  visibleModelsOf,
+  type ModelRef,
   type Point,
 } from "./model-selector-logic";
 
@@ -345,11 +348,16 @@ function ModelOptionsFlyout({
 export function ModelSelectorControl({
   controls,
   isLocked,
+  visibleModels = [],
   onChange,
+  onManageModels,
 }: {
   controls: RuntimeModelControls;
   isLocked: boolean;
+  /** Settings-managed allowlist; empty lists the whole catalog (issue #102). */
+  visibleModels?: ModelRef[];
   onChange: (selection: RuntimeModelSelection) => Promise<void> | void;
+  onManageModels?: () => void;
 }) {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -370,24 +378,25 @@ export function ModelSelectorControl({
     return null;
   }
 
-  const selectedModel = controls.models.find(
+  const catalog = visibleModelsOf(controls.models, visibleModels, selected);
+  const selectedModel = catalog.find(
     (model) =>
       model.provider === selected.provider &&
       model.modelId === selected.modelId,
   );
-  const baseModels = controls.models.filter((model) => {
+  const baseModels = catalog.filter((model) => {
     if (!isFastModel(model)) {
       return true;
     }
 
     // Keep a fast entry only when it has no base sibling to fold into.
-    return fastSiblingOf(model, controls.models) === undefined;
+    return fastSiblingOf(model, catalog) === undefined;
   });
-  const visibleModels = baseModels.filter((model) =>
+  const listedModels = baseModels.filter((model) =>
     matchesModelQuery(model, query),
   );
   const flyoutModel = activeKey
-    ? visibleModels.find((model) => modelKey(model) === activeKey)
+    ? listedModels.find((model) => modelKey(model) === activeKey)
     : undefined;
 
   const anchorTop = anchorRef.current?.getBoundingClientRect().top ?? 0;
@@ -399,7 +408,7 @@ export function ModelSelectorControl({
           window.innerHeight -
             VIEWPORT_MARGIN_PX -
             anchorTop -
-            estimateFlyoutHeight(flyoutModel, controls.models),
+            estimateFlyoutHeight(flyoutModel, catalog),
         ),
       )
     : flyoutTop;
@@ -467,17 +476,17 @@ export function ModelSelectorControl({
             onChange={(value: string) => setQuery(value)}
           />
           <div className="relative" ref={anchorRef}>
-            {visibleModels.length > 0 ? (
+            {listedModels.length > 0 ? (
               <List
                 aria-label="Model"
                 className="max-h-72 overflow-y-auto"
                 data-testid="model-thinking-model-list"
                 density="compact"
               >
-                {visibleModels.map((model) => {
+                {listedModels.map((model) => {
                   const isSelected =
                     selectedModel !== undefined &&
-                    baseModelOf(selectedModel, controls.models).modelId ===
+                    baseModelOf(selectedModel, catalog).modelId ===
                       model.modelId &&
                     model.provider === selectedModel.provider;
 
@@ -495,6 +504,11 @@ export function ModelSelectorControl({
                             className="size-4 shrink-0 text-muted"
                           />
                         )
+                      }
+                      description={
+                        isModelVisible(model, visibleModels)
+                          ? undefined
+                          : "Hidden in Settings"
                       }
                       isDisabled={isDisabled}
                       isSelected={modelKey(model) === activeKey}
@@ -545,7 +559,7 @@ export function ModelSelectorControl({
                 <ModelOptionsFlyout
                   isDisabled={isDisabled}
                   model={flyoutModel}
-                  models={controls.models}
+                  models={catalog}
                   selected={selected}
                   onSubmit={(selection) => void submitSelection(selection)}
                 />
@@ -556,9 +570,10 @@ export function ModelSelectorControl({
           <div className="border-t border-border pt-1">
             <List aria-label="Model management" density="compact">
               <ListItem
-                description="Manage in Settings — coming soon"
-                isDisabled
+                description="Choose which models appear here"
+                isDisabled={!onManageModels}
                 label="Add Models"
+                onClick={onManageModels}
               />
             </List>
           </div>
