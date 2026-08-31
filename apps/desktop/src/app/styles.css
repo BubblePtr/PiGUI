@@ -87,6 +87,10 @@
   --pigui-data-orange: #ff6a2a;
   --pigui-data-orange-strong: #f04c0c;
   --pigui-data-amber: #f5b83d;
+  /* Categorical green, deliberately independent of `--success` ("operation
+     succeeded"). Sits between blue and orange in OKLCH lightness at a matching
+     chroma, so the categorical set reads evenly in either theme. */
+  --pigui-data-green: #0eab4e;
   --pigui-data-peach: #ffe0d3;
   --pigui-data-coral: #ffad8d;
   --pigui-data-slate: #b7bec8;

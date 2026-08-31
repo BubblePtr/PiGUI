@@ -22,7 +22,7 @@ export type TraceStepType = { label: string; color: string };
  */
 export function traceStepType(step: TraceStep, role: TraceRole): TraceStepType {
   if (role === "annotation" || step.kind === "config") {
-    return { label: "context", color: "var(--success)" };
+    return { label: "context", color: "var(--pigui-data-green)" };
   }
   if (step.kind === "tool") {
     return { label: "tool", color: "var(--pigui-data-orange)" };
