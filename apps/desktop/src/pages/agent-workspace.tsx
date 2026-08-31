@@ -3513,7 +3513,10 @@ function LiveSessionColumn({
             className="min-h-0 flex-1"
             isStreaming={liveMessages.some((message) => message.isStreaming)}
           >
-            <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 py-6">
+            {/* Tight at the top: the pane already carries the header's own
+                offset, so a second 24px band only pushed the first message
+                down. The bottom keeps its distance from the composer. */}
+            <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 pb-6 pt-2">
               {liveMessages.map((message) => (
                 <LiveChatMessage
                   key={message.id}
