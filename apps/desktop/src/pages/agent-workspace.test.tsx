@@ -451,8 +451,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(aside).not.toHaveClass("border-l");
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     expect(screen.getByLabelText("Resize Session changes")).toHaveClass("mx-2");
-    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-16");
-    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-16");
+    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-10");
+    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-10");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
 

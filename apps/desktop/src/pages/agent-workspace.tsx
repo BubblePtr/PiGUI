@@ -3674,7 +3674,7 @@ export function AgentWorkspaceSessionsView({
                 data-slot="resizable-panel"
               >
                 <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
                   data-testid="session-workspace-main-pane"
                 >
                   {liveSession}
@@ -3699,7 +3699,7 @@ export function AgentWorkspaceSessionsView({
                 style={{ width: asideResizable.size }}
               >
                 <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
                   data-testid="session-workspace-aside-pane"
                 >
                   {aside}
@@ -3707,7 +3707,7 @@ export function AgentWorkspaceSessionsView({
               </div>
             </div>
           ) : (
-            <div className="h-full min-h-0 pt-16">{liveSession}</div>
+            <div className="h-full min-h-0 pt-10">{liveSession}</div>
           )}
         </div>
       </div>
