@@ -485,6 +485,38 @@ describe("backend service", () => {
         archivedAt: expect.any(String),
       }),
     });
+
+    await expect(
+      service.handleRequest({
+        id: "req-rename",
+        method: "rename_session",
+        params: { sessionId: "session-1", title: "Journaling spike" },
+      }),
+    ).resolves.toEqual({
+      id: "req-rename",
+      result: expect.objectContaining({
+        sessionId: "session-1",
+        title: "Journaling spike",
+      }),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-delete",
+        method: "delete_session",
+        params: { sessionId: "session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-delete",
+      result: expect.objectContaining({ sessionId: "session-1" }),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-projections-after-delete",
+        method: "list_session_projections",
+      }),
+    ).resolves.toEqual({ id: "req-projections-after-delete", result: [] });
   });
 
   it("uses the SDK driver for Runtime Gateway by default while retaining raw RPC commands", async () => {

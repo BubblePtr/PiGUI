@@ -819,6 +819,122 @@ describe("Runtime Gateway service", () => {
     });
   });
 
+  it("renames Sessions with a trimmed custom title and rejects blank ones", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      projections,
+      now: () => "2026-07-18T12:00:00.000Z",
+    });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-rename",
+        method: "rename_session",
+        params: { sessionId: "app-session-1", title: "  Ship the sidebar  " },
+      }),
+    ).resolves.toEqual({
+      id: "req-rename",
+      result: expect.objectContaining({
+        sessionId: "app-session-1",
+        title: "Ship the sidebar",
+      }),
+    });
+    await expect(projections.get("app-session-1")).resolves.toMatchObject({
+      title: "Ship the sidebar",
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-rename-blank",
+        method: "rename_session",
+        params: { sessionId: "app-session-1", title: "   " },
+      }),
+    ).resolves.toEqual({
+      id: "req-rename-blank",
+      error: "title is required",
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-rename-missing",
+        method: "rename_session",
+        params: { sessionId: "app-session-unknown", title: "Anything" },
+      }),
+    ).resolves.toEqual({
+      id: "req-rename-missing",
+      error: 'Session "app-session-unknown" was not found.',
+    });
+  });
+
+  it("deletes inactive Session Projections and rejects active ones", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      projections,
+      now: () => "2026-07-18T12:00:00.000Z",
+    });
+
+    await service.handleRequest({
+      id: "req-create",
+      method: "create_session",
+      params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+    });
+    await service.handleRequest({
+      id: "req-prompt",
+      method: "send_prompt",
+      params: { piSessionId: "pi-session-1", prompt: "Run first" },
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-delete-active",
+        method: "delete_session",
+        params: { sessionId: "app-session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-delete-active",
+      error: "Cannot delete an active Session.",
+    });
+
+    await projections.save({
+      ...(await projections.get("app-session-1"))!,
+      status: "completed",
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-delete",
+        method: "delete_session",
+        params: { sessionId: "app-session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-delete",
+      result: expect.objectContaining({
+        sessionId: "app-session-1",
+        status: "completed",
+      }),
+    });
+    await expect(projections.get("app-session-1")).resolves.toBeNull();
+
+    await expect(
+      service.handleRequest({
+        id: "req-delete-missing",
+        method: "delete_session",
+        params: { sessionId: "app-session-1" },
+      }),
+    ).resolves.toEqual({
+      id: "req-delete-missing",
+      error: 'Session "app-session-1" was not found.',
+    });
+  });
+
   it("resumes persisted SDK sessions and restores the gateway session mapping", async () => {
     const journal = createInMemorySessionEventJournal();
     const projections = createInMemorySessionProjectionStore();

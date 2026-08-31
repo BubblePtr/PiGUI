@@ -39,6 +39,8 @@ export type SessionProjection = {
   id: string;
   projectId: string;
   initialPrompt: string;
+  // Custom Session name; null until renamed, so lists fall back to the prompt.
+  title: string | null;
   cwd: string | null;
   status: SessionStatus;
   creationStage: SessionCreationStage;
@@ -186,6 +188,7 @@ export function createSessionProjection(
     id: input.id,
     projectId: input.projectId,
     initialPrompt: input.initialPrompt,
+    title: null,
     cwd: null,
     status: "creating",
     creationStage: "preparing checkout",
@@ -292,7 +295,7 @@ export function getSessionProjectionListItems(
     )
     .map((projection) => ({
       id: projection.id,
-      title: projection.initialPrompt,
+      title: projection.title ?? projection.initialPrompt,
       active: isSessionProjectionActive(projection),
       unread: projection.unreadResult,
       archived: isSessionProjectionArchived(projection),

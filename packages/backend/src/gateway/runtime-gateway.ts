@@ -440,6 +440,17 @@ async function dispatchRuntimeGatewayRequest(input: {
         sessionId: requiredString(params.sessionId, "sessionId"),
         archivedAt: input.now(),
       });
+    case "rename_session":
+      return renameSessionProjection({
+        store: input.projections,
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        title: requiredString(params.title, "title").trim(),
+      });
+    case "delete_session":
+      return deleteSessionProjection({
+        store: input.projections,
+        sessionId: requiredString(params.sessionId, "sessionId"),
+      });
     case "resolve_tool_schemas": {
       const piSessionId = requiredString(params.piSessionId, "piSessionId");
       const names = requiredStringArray(params.names, "names");
@@ -618,15 +629,7 @@ async function archiveSessionProjection(input: {
   sessionId: string;
   archivedAt: string;
 }) {
-  if (!input.store) {
-    throw new Error("Session Projection persistence is unavailable.");
-  }
-
-  const projection = await input.store.get(input.sessionId);
-
-  if (!projection) {
-    throw new Error(`Session "${input.sessionId}" was not found.`);
-  }
+  const { store, projection } = await requireProjection(input);
 
   if (projection.status === "running") {
     throw new Error("Cannot archive an active Session.");
@@ -643,9 +646,59 @@ async function archiveSessionProjection(input: {
     updatedAt: input.archivedAt,
   };
 
-  await input.store.save(archived);
+  await store.save(archived);
 
   return archived;
+}
+
+async function renameSessionProjection(input: {
+  store?: SessionProjectionStore;
+  sessionId: string;
+  title: string;
+}) {
+  const { store, projection } = await requireProjection(input);
+  // A rename is not chat activity — leave updatedAt so list order stays put.
+  const renamed: PersistedSessionProjection = {
+    ...projection,
+    title: input.title,
+  };
+
+  await store.save(renamed);
+
+  return renamed;
+}
+
+async function deleteSessionProjection(input: {
+  store?: SessionProjectionStore;
+  sessionId: string;
+}) {
+  const { store, projection } = await requireProjection(input);
+
+  if (projection.status === "running") {
+    throw new Error("Cannot delete an active Session.");
+  }
+
+  // Pi owns Session truth; PiGUI only drops its own projection record.
+  await store.remove(input.sessionId);
+
+  return projection;
+}
+
+async function requireProjection(input: {
+  store?: SessionProjectionStore;
+  sessionId: string;
+}) {
+  if (!input.store) {
+    throw new Error("Session Projection persistence is unavailable.");
+  }
+
+  const projection = await input.store.get(input.sessionId);
+
+  if (!projection) {
+    throw new Error(`Session "${input.sessionId}" was not found.`);
+  }
+
+  return { store: input.store, projection };
 }
 
 async function getProjectionBySessionId(input: {

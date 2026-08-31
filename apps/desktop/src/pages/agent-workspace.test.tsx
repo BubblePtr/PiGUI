@@ -3879,6 +3879,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       id: "session-1",
       projectId: "pig-docs",
       initialPrompt: "Create a real Pi RPC-backed session",
+      title: null,
       cwd: "/Users/void/code/opensource/Pig/docs",
       status: "completed" as const,
       creationStage: "accepted" as const,

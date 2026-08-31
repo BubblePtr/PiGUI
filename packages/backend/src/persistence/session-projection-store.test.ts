@@ -79,6 +79,18 @@ describe("session projection store", () => {
     ]);
   });
 
+  it("removes persisted projections idempotently", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-projections-"));
+    const store = createFileSessionProjectionStore({ dataDir });
+
+    await store.save(projectionFromRuntimeSnapshot(snapshot));
+    await store.remove("app-session-1");
+
+    await expect(store.get("app-session-1")).resolves.toBeNull();
+    await expect(store.list()).resolves.toEqual([]);
+    await expect(store.remove("app-session-1")).resolves.toBeUndefined();
+  });
+
   it("repairs missing session files from Pi SessionManager.listAll metadata", async () => {
     const store = createInMemorySessionProjectionStore();
     const projection = projectionFromRuntimeSnapshot({
@@ -115,6 +127,20 @@ describe("session projection store", () => {
         sessionFileMissing: true,
       },
     ]);
+  });
+
+  it("keeps a custom title when later runtime snapshots merge in", () => {
+    const renamed = {
+      ...projectionFromRuntimeSnapshot(snapshot),
+      title: "Sidebar actions",
+    };
+
+    expect(
+      mergeSessionProjection(renamed, {
+        ...projectionFromRuntimeSnapshot(snapshot),
+        updatedAt: "2026-07-18T12:05:00.000Z",
+      }),
+    ).toMatchObject({ title: "Sidebar actions" });
   });
 
   it("keeps a failed event result until a later run actually starts", () => {
