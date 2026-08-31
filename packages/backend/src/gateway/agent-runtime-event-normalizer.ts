@@ -112,6 +112,10 @@ export function createAgentRuntimeEventNormalizer(
   let runTrigger: AgentRunTrigger = "unknown";
   let pendingTrigger: AgentRunTrigger | null = null;
   let message: MessageState | null = null;
+  // Pi emits compaction_end only on the happy path; an aborted or failed run
+  // just stops. Tracking the open compaction lets run closure end it too, so
+  // no consumer is left holding a compaction that never finishes.
+  let compacting = false;
 
   function partSnapshots(state: MessageState): AgentMessagePartSnapshot[] {
     return [...state.parts.entries()]
@@ -463,12 +467,16 @@ export function createAgentRuntimeEventNormalizer(
       }
 
       if (rawEvent.type === "compaction_start") {
+        compacting = true;
+
         return [
           statusEvent("compacting", typeof rawEvent.reason === "string" ? rawEvent.reason : undefined),
         ];
       }
 
       if (rawEvent.type === "compaction_end") {
+        compacting = false;
+
         // Right after compaction the runtime reports an unknown token count;
         // reading here is what makes the drop visible instead of stale.
         return [statusEvent("compaction_done", undefined), ...contextUsageEvents()];
@@ -531,12 +539,19 @@ export function createAgentRuntimeEventNormalizer(
               ]
             : [];
         const closureEvents = closeOpenMessage();
+        // A compaction still open here never got its own end event — the run
+        // stopped first. Close it, or every consumer stays stuck compacting.
+        const compactionClosure = compacting
+          ? [statusEvent("compaction_aborted", undefined)]
+          : [];
 
+        compacting = false;
         runId = null;
         turnId = null;
 
         return [
           ...closureEvents,
+          ...compactionClosure,
           ...errorEvents,
           {
             type: "run",

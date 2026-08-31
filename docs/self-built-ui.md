@@ -52,7 +52,10 @@
   fixture 回放行为不变。
 - 渲染层 `session-projection.ts` 用 `contextUsage` 字段承接(与 `summary` 对称:
   live 走 agent 事件,resume 走 `runtime-state-resynced` 的快照)。「压缩中」不另存状态,
-  由 `isContextCompacting()` 从 status 流(`compacting` / `compaction_done`)推导。
+  由 `isContextCompacting()` 从 status 流推导。压缩必须闭环,否则不确定态会永久卡死:
+  Pi 只在正常结束时发 `compaction_end`,run 被 abort / 失败时什么都不发,所以 normalizer
+  在 `agent_end` 补发 `compaction_aborted`(独立 code,不谎称 "Compaction complete");
+  渲染端再兜一层——run 已结束就不可能还在压缩,覆盖 journal 被拦腰截断后 resume 的情况。
 
 未做:压缩阈值刻度线。`shouldCompact()` 用的是 `CompactionSettings.reserveTokens`,
 AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——画一条猜出来的线

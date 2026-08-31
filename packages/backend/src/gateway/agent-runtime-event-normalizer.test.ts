@@ -892,6 +892,49 @@ describe("agent runtime event normalizer", () => {
     ]);
   });
 
+  it("closes an unfinished compaction when the Active Run ends, so the UI never hangs on Compacting", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
+    const aborted = { role: "assistant", stopReason: "aborted" };
+
+    normalizer.normalize({ type: "agent_start" });
+    normalizer.normalize({ type: "compaction_start" });
+
+    const events = normalizeAll(normalizer, [
+      { type: "agent_end", messages: [aborted] },
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "status",
+        runId: "pi-session-1:run-1",
+        code: "compaction_aborted",
+        surface: "trace",
+        origin: "sdk",
+      },
+      {
+        type: "run",
+        runId: "pi-session-1:run-1",
+        phase: "end",
+        trigger: "unknown",
+        outcome: "aborted",
+        surface: "hidden",
+        origin: "sdk",
+      },
+    ]);
+  });
+
+  it("does not re-close a compaction that already reported its own completion", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
+
+    normalizer.normalize({ type: "agent_start" });
+    normalizer.normalize({ type: "compaction_start" });
+    normalizer.normalize({ type: "compaction_end" });
+
+    const events = normalizeAll(normalizer, [{ type: "agent_end", messages: [] }]);
+
+    expect(events.some((event) => event.type === "status")).toBe(false);
+  });
+
   it("stays silent when the runtime cannot report a context window", () => {
     const normalizer = createAgentRuntimeEventNormalizer({
       piSessionId,

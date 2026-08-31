@@ -491,6 +491,10 @@ function summaryFromSession(session: PublicPiSdkAgentSession) {
  * A context window is the only field that must be a real number: without it
  * there is nothing to be a percentage of. `tokens`/`percent` stay nullable —
  * Pi reports them as unknown until the first LLM response after a compaction.
+ *
+ * `percent` is bounded here because Pi *estimates* context tokens and can
+ * report more than the window holds; an unbounded share would print "103%"
+ * beside a bar that any meter clamps to full.
  */
 function contextUsageFromSession(
   session: PublicPiSdkAgentSession,
@@ -502,10 +506,13 @@ function contextUsageFromSession(
     return undefined;
   }
 
+  const percent = maybeNumber(usage.percent);
+
   return {
+    // The raw estimate stays truthful; only its share of the window is bounded.
     tokens: maybeNumber(usage.tokens),
     contextWindow,
-    percent: maybeNumber(usage.percent),
+    percent: percent === null ? null : Math.min(100, Math.max(0, percent)),
   };
 }
 

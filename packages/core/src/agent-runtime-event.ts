@@ -26,6 +26,10 @@ export type AgentStatusCode =
   | "retry_failed"
   | "compacting"
   | "compaction_done"
+  // A compaction that never reported its own end because the Active Run
+  // stopped first (abort, failure). Distinct from `compaction_done` so the
+  // trace never claims a completion that did not happen.
+  | "compaction_aborted"
   | "runtime_unavailable"
   | "first_token_timeout"
   | "model_changed"
@@ -172,6 +176,7 @@ export const AGENT_STATUS_SURFACES: Record<
   retry_failed: "trace",
   compacting: "trace",
   compaction_done: "trace",
+  compaction_aborted: "trace",
   runtime_unavailable: "composer",
   first_token_timeout: "composer",
   model_changed: "status",

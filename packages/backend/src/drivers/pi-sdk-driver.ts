@@ -111,6 +111,10 @@ function cloneSummary(summary: RuntimeGatewaySummary): RuntimeGatewaySummary {
   return { ...summary };
 }
 
+function cloneContextUsage(usage: RuntimeContextUsage): RuntimeContextUsage {
+  return { ...usage };
+}
+
 function cloneModelControls(controls: RuntimeModelControls): RuntimeModelControls {
   return {
     models: controls.models.map((model) => ({
@@ -136,7 +140,7 @@ function cloneSnapshot(snapshot: RuntimeGatewaySnapshot): RuntimeGatewaySnapshot
   }
 
   if (snapshot.contextUsage) {
-    cloned.contextUsage = { ...snapshot.contextUsage };
+    cloned.contextUsage = cloneContextUsage(snapshot.contextUsage);
   }
 
   return cloned;
@@ -173,7 +177,7 @@ function snapshotFromRuntime(input: {
   }
 
   if (input.runtime.contextUsage) {
-    snapshot.contextUsage = { ...input.runtime.contextUsage };
+    snapshot.contextUsage = cloneContextUsage(input.runtime.contextUsage);
   }
 
   return snapshot;
@@ -202,7 +206,7 @@ function mergeSnapshotPatch(
   }
 
   if (patch.contextUsage) {
-    merged.contextUsage = { ...patch.contextUsage };
+    merged.contextUsage = cloneContextUsage(patch.contextUsage);
   }
 
   if (patch.updatedAt) {

@@ -549,6 +549,18 @@ describe("session runtime model", () => {
     model = applyAll(model, [
       {
         seq: 1,
+        timestamp: "2026-07-02T10:00:00.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 2,
         timestamp: "2026-07-02T10:00:01.000Z",
         event: {
           type: "status",
@@ -564,7 +576,7 @@ describe("session runtime model", () => {
 
     model = applyAll(model, [
       {
-        seq: 2,
+        seq: 3,
         timestamp: "2026-07-02T10:00:09.000Z",
         event: {
           type: "status",
@@ -575,7 +587,7 @@ describe("session runtime model", () => {
         },
       },
       {
-        seq: 3,
+        seq: 4,
         timestamp: "2026-07-02T10:00:10.000Z",
         event: {
           type: "status",
@@ -588,6 +600,77 @@ describe("session runtime model", () => {
     ]);
 
     expect(isContextCompacting(model)).toBe(false);
+  });
+
+  it("treats an interrupted compaction as finished, live and on replay", () => {
+    const startCompaction = [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:00.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } satisfies AgentRuntimeEvent,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "status",
+          runId,
+          code: "compacting",
+          surface: "trace",
+          origin: "sdk",
+        } satisfies AgentRuntimeEvent,
+      },
+    ];
+
+    // The Gateway closes the compaction explicitly when the run is aborted.
+    expect(
+      isContextCompacting(
+        applyAll(createSessionRuntimeModel(), [
+          ...startCompaction,
+          {
+            seq: 3,
+            timestamp: "2026-07-02T10:00:04.000Z",
+            event: {
+              type: "status",
+              runId,
+              code: "compaction_aborted",
+              surface: "trace",
+              origin: "sdk",
+            },
+          },
+        ]),
+      ),
+    ).toBe(false);
+
+    // Replaying a journal that was cut off mid-compaction (the process died
+    // before any closing status) must not strand the session in Compacting.
+    expect(
+      isContextCompacting(
+        applyAll(createSessionRuntimeModel(), [
+          ...startCompaction,
+          {
+            seq: 3,
+            timestamp: "2026-07-02T10:00:04.000Z",
+            event: {
+              type: "run",
+              runId,
+              phase: "end",
+              trigger: "prompt",
+              outcome: "aborted",
+              surface: "hidden",
+              origin: "sdk",
+            },
+          },
+        ]),
+      ),
+    ).toBe(false);
   });
 
   it("ignores replayed events at or below the last applied seq", () => {

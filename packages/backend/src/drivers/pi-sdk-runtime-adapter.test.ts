@@ -689,6 +689,38 @@ describe("Pi SDK public runtime adapter", () => {
     ]);
   });
 
+  it("clamps an overflowing context percentage so the label cannot disagree with a full bar", async () => {
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      // Pi estimates context tokens, so the share can run past the window.
+      getContextUsage: vi.fn(() => ({
+        tokens: 206_000,
+        contextWindow: 200_000,
+        percent: 103,
+      })),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+      now: () => "2026-07-01T00:00:00.000Z",
+    });
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    await expect(runtime.getSnapshot?.()).resolves.toMatchObject({
+      // The raw token estimate stays truthful; only the share is bounded.
+      contextUsage: { tokens: 206_000, contextWindow: 200_000, percent: 100 },
+    });
+  });
+
   it("omits context usage for runtimes whose SDK does not report it", async () => {
     const session = {
       sessionId: "sdk-session-1",
