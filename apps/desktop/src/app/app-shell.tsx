@@ -251,10 +251,10 @@ const sidebarDefaultSize = "260px";
 const projectExpansionStorageKey = "pigui.projectSidebar.expanded.v1";
 
 const titlebarHeight = "40px";
-const titlebarHeaderStyle = {
-  height: titlebarHeight,
-  paddingBottom: "0px",
-  paddingTop: "0px",
+// The SideNav header slot wraps this spacer with 8px block padding on each
+// side, so it only covers the titlebar height the slot doesn't already fill.
+const sidebarTitlebarSpacerStyle = {
+  height: "24px",
 } as CSSProperties;
 const titlebarControlStyle = {
   width: "28px",
@@ -1176,7 +1176,7 @@ export function AppFrame({
             <div
               aria-hidden="true"
               data-testid="sidebar-titlebar-spacer"
-              style={titlebarHeaderStyle}
+              style={sidebarTitlebarSpacerStyle}
             />
           }
           footer={<SystemNavigation pathname={pathname} onNavigate={handleNavigate} />}

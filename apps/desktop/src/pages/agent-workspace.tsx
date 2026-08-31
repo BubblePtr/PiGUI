@@ -764,6 +764,18 @@ function FullChatComposer({
     }
   };
 
+  // Context occupancy is session runtime state, so it rides the footer line
+  // rather than any composer control. Only a bound runtime has a context
+  // window to be a share of.
+  const composerFooter = projection?.piSessionId ? (
+    <span className="flex items-center justify-end">
+      <ContextUsageMeter
+        isCompacting={isContextCompacting(projection.runtimeModel)}
+        usage={projection.contextUsage}
+      />
+    </span>
+  ) : undefined;
+
   return (
     <div
       className="mt-auto shrink-0 px-4 pb-3 pt-3"
@@ -792,17 +804,8 @@ function FullChatComposer({
           />
         }
         error={attachments.error ?? composerError}
-        footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
+        footer={composerFooter}
         hasAttachments={attachments.items.length > 0}
-        headerContext={
-          // Only a bound runtime has a context window to be a share of.
-          projection?.piSessionId ? (
-            <ContextUsageMeter
-              isCompacting={isContextCompacting(projection.runtimeModel)}
-              usage={projection.contextUsage}
-            />
-          ) : undefined
-        }
         lockInputOnRun={!queueMode}
         startActions={
           <>
@@ -3502,7 +3505,10 @@ function LiveSessionColumn({
             className="min-h-0 flex-1"
             isStreaming={liveMessages.some((message) => message.isStreaming)}
           >
-            <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 py-6">
+            {/* Tight at the top: the pane already carries the header's own
+                offset, so a second 24px band only pushed the first message
+                down. The bottom keeps its distance from the composer. */}
+            <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 pb-6 pt-2">
               {liveMessages.map((message) => (
                 <LiveChatMessage
                   key={message.id}
@@ -3660,7 +3666,7 @@ export function AgentWorkspaceSessionsView({
                 data-slot="resizable-panel"
               >
                 <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
                   data-testid="session-workspace-main-pane"
                 >
                   {liveSession}
@@ -3685,7 +3691,7 @@ export function AgentWorkspaceSessionsView({
                 style={{ width: asideResizable.size }}
               >
                 <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden pt-16"
+                  className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
                   data-testid="session-workspace-aside-pane"
                 >
                   {aside}
@@ -3693,7 +3699,7 @@ export function AgentWorkspaceSessionsView({
               </div>
             </div>
           ) : (
-            <div className="h-full min-h-0 pt-16">{liveSession}</div>
+            <div className="h-full min-h-0 pt-10">{liveSession}</div>
           )}
         </div>
       </div>

@@ -3,44 +3,52 @@ import { describe, expect, it } from "vitest";
 import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
 
 describe("ContextUsageMeter", () => {
-  it("renders the occupied share of the context window, Pi's footer notation", () => {
+  it("renders a ring whose accessible name and tooltip carry the full readout", () => {
     render(
       <ContextUsageMeter
         usage={{ tokens: 90_000, contextWindow: 200_000, percent: 45 }}
       />,
     );
 
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "45");
-    expect(screen.getByText("45%/200K")).toBeInTheDocument();
+    const ring = screen.getByRole("img", {
+      name: "Context 45% · 200K",
+    });
+    expect(ring).toHaveAttribute("data-level", "normal");
+    expect(ring.className).toContain("text-[var(--pigui-data-green)]");
+    expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent(
+      "Context 45% · 200K",
+    );
   });
 
-  it("shows an unknown count instead of a fabricated number when tokens are null", () => {
+  it("keeps the unknown count honest instead of fabricating a number", () => {
     render(
       <ContextUsageMeter
         usage={{ tokens: null, contextWindow: 200_000, percent: null }}
       />,
     );
 
-    expect(screen.getByText("?/200K")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+    expect(
+      screen.getByRole("img", { name: "Context ? · 200K" }),
+    ).toHaveAttribute("data-level", "unknown");
   });
 
   it("shows the unknown state before the runtime has reported any usage", () => {
     render(<ContextUsageMeter usage={null} />);
 
-    expect(screen.getByText("?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Context usage not reported yet" }),
+    ).toHaveAttribute("data-level", "unknown");
   });
 
   it("escalates severity as the context fills up, at Pi's own thresholds", () => {
     const levelAt = (percent: number) => {
-      const { unmount } = render(
+      const { container, unmount } = render(
         <ContextUsageMeter
           usage={{ tokens: percent * 2_000, contextWindow: 200_000, percent }}
         />,
       );
-      const level = screen
-        .getByRole("progressbar")
-        .closest('[data-slot="context-usage-meter"]')
+      const level = container
+        .querySelector('[data-slot="context-usage-meter"]')
         ?.getAttribute("data-level");
 
       unmount();
@@ -55,7 +63,7 @@ describe("ContextUsageMeter", () => {
     expect(levelAt(91)).toBe("critical");
   });
 
-  it("animates an indeterminate bar while a compaction is running", () => {
+  it("reports the compaction instead of the share it no longer holds", () => {
     render(
       <ContextUsageMeter
         isCompacting
@@ -63,7 +71,10 @@ describe("ContextUsageMeter", () => {
       />,
     );
 
-    expect(screen.getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
-    expect(screen.getByText("Compacting…")).toBeInTheDocument();
+    const ring = screen.getByRole("img", {
+      name: "Compacting… · 200K",
+    });
+    expect(ring).toHaveAttribute("data-level", "compacting");
+    expect(ring.getAttribute("aria-label")).not.toContain("92%");
   });
 });

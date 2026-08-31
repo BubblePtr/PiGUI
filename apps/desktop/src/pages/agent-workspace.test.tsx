@@ -19,6 +19,7 @@ import {
   AgentWorkspaceSessionsView,
   SessionActionsContent,
   SessionChangesPanel,
+  SessionToolbarActions,
   getSessionChangesResizableSizes,
 } from "@/pages/agent-workspace";
 import { addProjectToRegistry } from "@/entities/project/project-registry";
@@ -450,8 +451,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(aside).not.toHaveClass("border-l");
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     expect(screen.getByLabelText("Resize Session changes")).toHaveClass("mx-2");
-    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-16");
-    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-16");
+    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-10");
+    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-10");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
 
@@ -5077,6 +5078,95 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(screen.getByText("No Git repository")).toBeInTheDocument();
     expect(screen.getByText("Git-only actions are unavailable for this Project.")).toBeInTheDocument();
+  });
+});
+
+// Context occupancy rides the composer footer line — the hint row under the
+// input — and never the Session toolbar. Issue #128.
+describe("Context usage placement", () => {
+  const workspace = {
+    id: "pig-docs",
+    name: "Pig Docs",
+    projectRoot: "/Users/void/code/opensource/Pig/docs",
+    repoRoot: "/Users/void/code/opensource/Pig",
+    selectedSessionId: "session-context",
+    liveMessages: [],
+    runTimeline: [],
+    checkout: {
+      mode: "Foreground local checkout",
+      root: "/Users/void/code/opensource/Pig",
+      runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+    },
+    summary: {
+      model: "fixture-model",
+      totalCostUsd: 0,
+      totalTokens: 0,
+    },
+  };
+
+  function boundProjection(
+    overrides: Partial<SessionProjection> = {},
+  ): SessionProjection {
+    return {
+      ...createSessionProjection({
+        id: "session-context",
+        projectId: "pig-docs",
+        initialPrompt: "Watch the context window fill up",
+        createdAt: "2026-08-20T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      runtimeId: "pi-rpc:session-context",
+      piSessionId: "pi-session-context",
+      contextUsage: { tokens: 90_000, contextWindow: 200_000, percent: 45 },
+      ...overrides,
+    };
+  }
+
+  function renderSessionsView(projection: SessionProjection) {
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    return screen
+      .getByTestId("full-chat-composer")
+      .querySelector('[data-slot="prompt-input-footer"]');
+  }
+
+  it("meters the context window as a ring on the composer footer line", () => {
+    const footer = renderSessionsView(boundProjection());
+
+    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toHaveAttribute(
+      "aria-label",
+      "Context 45% · 200K",
+    );
+  });
+
+  it("keeps the footer line while a run is queueing", () => {
+    const footer = renderSessionsView(boundProjection({ status: "running" }));
+
+    expect(
+      footer?.querySelector('[data-slot="context-usage-meter"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("meters nothing until a runtime is bound, and drops the footer line", () => {
+    const footer = renderSessionsView(boundProjection({ piSessionId: null }));
+
+    expect(footer).toBeNull();
+  });
+
+  it("leaves the Session toolbar to Session actions", () => {
+    const { container } = render(
+      <SessionToolbarActions workspace={workspace} projection={boundProjection()} />,
+    );
+
+    expect(
+      container.querySelector('[data-slot="context-usage-meter"]'),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -1383,19 +1383,23 @@ function ContextUsageMeterGallery() {
             usage={{ tokens: null, contextWindow: 200_000, percent: null }}
           />
         </Variant>
-        <Variant caption="compacting — indeterminate while the run reclaims context">
+        <Variant caption="compacting — says so instead of a share it no longer holds">
           <ContextUsageMeter
             isCompacting
             usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
           />
         </Variant>
-        <Variant caption="in the composer header (its production placement)">
-          <div className="w-96">
+      </VariantRow>
+      <VariantRow>
+        <Variant caption="on the composer footer line (its production placement)">
+          <div className="w-[32rem]">
             <ChatPromptInput
-              headerContext={
-                <ContextUsageMeter
-                  usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
-                />
+              footer={
+                <span className="flex items-center justify-end">
+                  <ContextUsageMeter
+                    usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
+                  />
+                </span>
               }
               placeholder="Ask anything"
               value=""
