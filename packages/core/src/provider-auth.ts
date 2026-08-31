@@ -51,5 +51,6 @@ export const PROVIDER_AUTH_CATALOG: ReadonlyArray<{
     supportsOAuth: true,
   },
   { id: "deepseek", label: "DeepSeek", supportsApiKey: true, supportsOAuth: false },
-  { id: "xai", label: "Grok (xAI)", supportsApiKey: true, supportsOAuth: false },
+  // SuperGrok / X Premium device-code OAuth lives under the same `xai` key.
+  { id: "xai", label: "Grok (xAI)", supportsApiKey: true, supportsOAuth: true },
 ] as const;

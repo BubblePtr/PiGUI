@@ -27,6 +27,10 @@ describe("provider auth service", () => {
       "xai",
     ]);
     expect(report.providers.every((provider) => provider.mode === "none")).toBe(true);
+    expect(report.providers.find((provider) => provider.id === "xai")).toMatchObject({
+      supportsApiKey: true,
+      supportsOAuth: true,
+    });
   });
 
   it("reuses openai-codex OAuth already stored in Pi auth.json", async () => {
@@ -129,5 +133,67 @@ describe("provider auth service", () => {
     await service.loginOAuth("openai-codex");
 
     expect(selected).toBe("browser");
+  });
+
+  it("reuses xai OAuth already stored in Pi auth.json", async () => {
+    const agentDir = await tempAgentDir();
+    await writeFile(
+      join(agentDir, "auth.json"),
+      JSON.stringify({
+        xai: {
+          type: "oauth",
+          access: "xai-access-ae1d",
+          refresh: "xai-refresh",
+          expires: Date.now() + 60_000,
+        },
+      }),
+      "utf8",
+    );
+    const service = createProviderAuthService({ agentDir });
+
+    const report = await service.listStatus();
+    const xai = report.providers.find((provider) => provider.id === "xai");
+
+    expect(xai).toMatchObject({
+      mode: "oauth",
+      configured: true,
+      supportsOAuth: true,
+      supportsApiKey: true,
+      keyHint: "…ae1d",
+    });
+    expect(JSON.stringify(report)).not.toContain("xai-access-ae1d");
+  });
+
+  it("opens the xAI device-code verification URI on subscription login", async () => {
+    const agentDir = await tempAgentDir();
+    const opened: string[] = [];
+    const runtime: ProviderAuthRuntime = {
+      getProviderAuthStatus: () => ({ configured: false }),
+      async login(_providerId, _type, interaction) {
+        interaction.notify({
+          type: "device_code",
+          userCode: "ABCD-1234",
+          verificationUri: "https://auth.x.ai/activate",
+          intervalSeconds: 5,
+          expiresInSeconds: 600,
+        });
+        return { type: "oauth", access: "a", refresh: "r", expires: 0 };
+      },
+      async logout() {},
+      async refresh() {
+        return { aborted: false, errors: new Map() };
+      },
+    };
+    const service = createProviderAuthService({
+      agentDir,
+      openExternalUrl: (url) => {
+        opened.push(url);
+      },
+      createRuntime: async () => runtime,
+    });
+
+    await service.loginOAuth("xai");
+
+    expect(opened).toEqual(["https://auth.x.ai/activate"]);
   });
 });

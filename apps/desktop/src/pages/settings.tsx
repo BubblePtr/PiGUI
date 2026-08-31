@@ -261,8 +261,8 @@ export function SettingsPage() {
             {tab === "subscription" ? (
               <div className="mt-4 flex flex-col gap-3">
                 <p className="text-xs text-muted">
-                  ChatGPT/Codex and Anthropic subscription login via Pi OAuth
-                  (browser). Uses the same Pi{" "}
+                  ChatGPT/Codex, Anthropic, and Grok (xAI) subscription login via
+                  Pi OAuth (browser). Uses the same Pi{" "}
                   <code className="text-xs">auth.json</code> as the local TUI.
                 </p>
                 {statusQuery.isLoading ? (

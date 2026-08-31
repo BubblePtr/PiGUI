@@ -225,7 +225,7 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
             id: "xai",
             label: "Grok (xAI)",
             supportsApiKey: true,
-            supportsOAuth: false,
+            supportsOAuth: true,
             mode: "none",
             configured: false,
           },
