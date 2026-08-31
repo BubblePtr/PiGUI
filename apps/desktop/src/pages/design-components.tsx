@@ -227,7 +227,9 @@ function galleryCost(totalUsd: number) {
 
 // Shared trace fixture for the Cockpit trio (Strip / Ledger / Inspector):
 // four Active Runs plus an annotation — enough columns that focusing one
-// swimlane block makes the outside dimming obvious.
+// swimlane block makes the outside dimming obvious. The first assistant turn
+// deliberately carries no startTimestamp, so the Strip has both a measured and
+// an estimated model span to show in Time mode.
 const traceSessionTurns: SessionTurn[] = [
   {
     kind: "message",
@@ -326,6 +328,7 @@ const traceSessionTurns: SessionTurn[] = [
   {
     kind: "message",
     role: "assistant",
+    startTimestamp: "2026-03-22T14:44:12.000Z",
     timestamp: "2026-03-22T14:44:28.000Z",
     model: "claude-fable-5",
     usage: galleryUsage(62_000, 1_400),
@@ -370,6 +373,7 @@ const traceSessionTurns: SessionTurn[] = [
   {
     kind: "message",
     role: "assistant",
+    startTimestamp: "2026-03-22T14:45:26.000Z",
     timestamp: "2026-03-22T14:45:40.000Z",
     model: "claude-fable-5",
     usage: galleryUsage(64_200, 2_100),
@@ -451,6 +455,86 @@ const defaultGalleryFocus: SegmentRange = (() => {
   return midTools >= 0 ? [midTools, midTools] : [1, 1];
 })();
 
+// Two runs sized so the Time-mode encoding is readable at a glance: Run 1's
+// model call is bracketed by Pi's stamps, Run 2's is not. The shared Cockpit
+// fixture also mixes both, but its estimated spans collapse to slivers.
+const stripTimingTurns: SessionTurn[] = [
+  {
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T10:00:00.000Z",
+    parts: [{ partType: "text", text: "Recorded model call.", payload: {} }],
+  },
+  {
+    kind: "message",
+    role: "assistant",
+    startTimestamp: "2026-03-22T10:00:02.000Z",
+    timestamp: "2026-03-22T10:00:14.000Z",
+    model: "claude-fable-5",
+    parts: [
+      { partType: "thinking", text: "Read the helper first.", payload: {} },
+      { partType: "toolCall", name: "bash", payload: { id: "s1", arguments: { command: "ls" } } },
+      {
+        partType: "toolResult",
+        name: "bash",
+        text: "src",
+        isError: false,
+        durationMs: 4_000,
+        payload: { toolCallId: "s1" },
+      },
+    ],
+  },
+  {
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T10:00:20.000Z",
+    parts: [{ partType: "text", text: "Session without model stamps.", payload: {} }],
+  },
+  {
+    kind: "message",
+    role: "assistant",
+    timestamp: "2026-03-22T10:00:38.000Z",
+    model: "claude-fable-5",
+    parts: [
+      { partType: "thinking", text: "Same shape, older session.", payload: {} },
+      { partType: "toolCall", name: "bash", payload: { id: "s2", arguments: { command: "ls" } } },
+      {
+        partType: "toolResult",
+        name: "bash",
+        text: "src",
+        isError: false,
+        durationMs: 4_000,
+        payload: { toolCallId: "s2" },
+      },
+    ],
+  },
+  {
+    kind: "message",
+    role: "user",
+    timestamp: "2026-03-22T10:00:52.000Z",
+    parts: [{ partType: "text", text: "Thanks.", payload: {} }],
+  },
+];
+
+const stripTimingTraceTurns = buildTraceTurns(stripTimingTurns);
+
+function PiTraceStripTimeVariant() {
+  const [widthMode, setWidthMode] = useState<StripWidthMode>("duration");
+
+  return (
+    <Variant caption="Time mode · mixed truth: solid = model span Pi recorded (Run 1), hatched + dimmed = estimated from the turn gap (Run 2: older session, unbracketed call)">
+      <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
+        <PiTraceStrip
+          turns={stripTimingTraceTurns}
+          widthMode={widthMode}
+          onSelect={() => {}}
+          onWidthModeChange={setWidthMode}
+        />
+      </div>
+    </Variant>
+  );
+}
+
 function PiTraceStripGallery() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("steps");
   const [range, setRange] = useState<SegmentRange | undefined>(defaultGalleryFocus);
@@ -487,6 +571,7 @@ function PiTraceStripGallery() {
             />
           </div>
         </Variant>
+        <PiTraceStripTimeVariant />
       </div>
     </GallerySection>
   );

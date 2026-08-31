@@ -31,6 +31,8 @@ export type TraceTurn = {
   role: TraceRole;
   label: string;
   timestamp?: string;
+  /** assistant only: when the model call started, so `timestamp` closes it. */
+  startTimestamp?: string;
   model?: string;
   costUsd?: number;
   totalTokens?: number;
@@ -198,6 +200,7 @@ export function buildTraceTurns(turns: SessionTurn[]): TraceTurn[] {
       role,
       label: turn.kind === "annotation" ? (turn.title ?? "Annotation") : roleLabels[role],
       timestamp: turn.timestamp,
+      startTimestamp: turn.startTimestamp,
       model: turn.model,
       costUsd: turn.cost?.totalUsd,
       totalTokens: turn.usage?.totalTokens,

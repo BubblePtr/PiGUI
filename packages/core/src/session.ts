@@ -34,6 +34,11 @@ export type SessionTurn = {
   kind: "message" | "annotation";
   role?: MessageRole;
   timestamp?: string;
+  // assistant only: when the model call started. Pi stamps it as epoch ms
+  // inside the message the moment the provider stream opens, while `timestamp`
+  // is stamped on message end — the pair brackets one real model call. Absent
+  // for older sessions and whenever the pair is not a positive span.
+  startTimestamp?: string;
   title?: string;
   model?: string;
   usage?: TokenUsage;

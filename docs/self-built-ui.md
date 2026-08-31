@@ -19,7 +19,7 @@
 | pi-kpi / pi-bar-chart / dot-matrix | `shared/ui/` | KPI/图表原语,Astryx 无 chart 系 |
 | pi-sheet | `shared/ui/` | 自建 sheet |
 | pi-trace-ledger | `shared/ui/` | Trace Cockpit 台账(2026-08-18 原型重构):Run 顶层分组 + Turn 边界圆点 + 徽章行(`名称 {请求} → 结果`),行永不内联展开;读模型在 `entities/session/trace-model.ts`(Run>Turn>Step,见 CONTEXT.md);USER/ASSISTANT/TOOL/CONTEXT 四徽章一律取自 `--pigui-data-*` 数据调色板,CONTEXT 用 [#106](https://github.com/BubblePtr/PiGUI/issues/106) 新增的 `--pigui-data-green`(不再借语义色 `--success`) |
-| pi-trace-strip | `shared/ui/` | Trace Cockpit 概览带:Input/Model/Tools 三泳道、段粒度、游标竖线、单击选中该泳道块 / 拖拽框选连续段;选区外列与台账行置灰(不过滤)、Steps/Time 双宽度模式;Time 模式模型时长为启发式估算,真数据待 [#108](https://github.com/BubblePtr/PiGUI/issues/108) |
+| pi-trace-strip | `shared/ui/` | Trace Cockpit 概览带:Input/Model/Tools 三泳道、段粒度、游标竖线、单击选中该泳道块 / 拖拽框选连续段;选区外列与台账行置灰(不过滤)、Steps/Time 双宽度模式;Time 模式模型段用 Pi 记录的模型调用起止真实时长([#108](https://github.com/BubblePtr/PiGUI/issues/108)),缺起止的旧 session 退回轮次间隔估算并以斜纹+弱化标出,估算不伪装成实测 |
 | pi-trace-inspector | `shared/ui/` | Trace Cockpit 检视器:Summary/Payload/Result/Schema/Timing;大 payload 只在此挂载;Schema 待 Gateway 解析能力 [#107](https://github.com/BubblePtr/PiGUI/issues/107)(现为 unavailable 诚实态) |
 | model-selector | `shared/ui/model-selector/` | Composer 模型选择器(#99,2026-08-13 原型探索 "Flat" 胜出):扁平搜索列表 + 模型选项飞出层(Reasoning/Fast Mode),safe-triangle 悬停意图;`visibleModels` 为设置页管理的可见集(#102,空集=全显,当前选中模型即使被隐藏也保留并标注),`onManageModels` 跳到设置页 Models 区块;决策记录 `.scratch/model-selector/PRD.md` |
 | context-usage-meter | `shared/ui/` | Composer header 的上下文占用指示器(#101):**不是从零手搓**——外壳是 Astryx `ProgressBar`(`headerContext` 槽位是 Astryx 为此设计的),自建的是领域语义:`tokens: null`(刚压缩完)显示 `?/200K` 而非假 0、压缩中走 indeterminate、70%/90% 两档告警对齐 Pi CLI footer 自己的阈值。数据链路见下方备注 |

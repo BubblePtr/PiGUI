@@ -197,6 +197,7 @@ export class SessionParser {
         kind: "message",
         role,
         timestamp: isoTimestamp(record.timestamp),
+        startTimestamp: role === "assistant" ? modelCallStart(record) : undefined,
         model,
         usage,
         cost,
@@ -268,9 +269,10 @@ export class SessionParser {
     const content = effectiveContent(record);
     const texts = textValuesFromContent(content);
     const isError = effectiveField(record, "isError");
-    // No duration field exists in Pi JSONL; the gap between the assistant
-    // event (which carries the toolCall) and this toolResult event is the
-    // tool's execution time.
+    // Pi ships no tool duration field; the gap between the assistant event
+    // (which carries the toolCall) and this toolResult event is the tool's
+    // execution time. Model latency comes from a different pair of stamps —
+    // see modelCallStart.
     const callMs = timestampMs(assistantTurn.timestamp);
     const resultMs = timestampMs(record.timestamp);
 
@@ -597,6 +599,25 @@ function effectiveContent(record: JsonRecord) {
   const message = effectiveMessage(record);
 
   return message && "content" in message ? message.content : record.content;
+}
+
+/**
+ * Pi writes `message.timestamp` (epoch ms) when the provider stream opens and
+ * the outer record timestamp when the message ends, so the inner stamp is the
+ * model call's start. Anything that is not a strictly positive span — an older
+ * session without the inner stamp, a garbage value, a clock skewed backwards —
+ * yields nothing, so consumers fall back to their estimate rather than paint a
+ * zero-width or negative segment.
+ */
+function modelCallStart(record: JsonRecord) {
+  const startMs = timestampMs(effectiveMessage(record)?.timestamp);
+  const endMs = timestampMs(record.timestamp);
+
+  if (startMs === undefined || endMs === undefined || startMs >= endMs) {
+    return undefined;
+  }
+
+  return new Date(startMs).toISOString();
 }
 
 function effectiveField(record: JsonRecord, key: string) {

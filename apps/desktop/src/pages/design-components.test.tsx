@@ -69,9 +69,11 @@ describe("Design components layer", () => {
 
     const strip = screen.getByRole("region", { name: "PiTraceStrip" });
     expect(strip.querySelector('[data-slot="trace-strip"]')).toBeInTheDocument();
-    expect(within(strip).getByRole("button", { name: "Steps" })).toBeInTheDocument();
-    expect(within(strip).getByRole("button", { name: "Time" })).toBeInTheDocument();
+    expect(within(strip).getAllByRole("button", { name: "Steps" }).length).toBe(2);
+    expect(within(strip).getAllByRole("button", { name: "Time" }).length).toBe(2);
     expect(strip.querySelectorAll("[data-strip-col][data-focus-dimmed]").length).toBeGreaterThan(2);
+    // The Time-mode variant must show both truths: measured and estimated spans.
+    expect(strip.querySelector("[data-strip-col][data-estimated-width]")).toBeInTheDocument();
 
     const inspector = screen.getByRole("region", { name: "PiTraceInspector" });
     expect(within(inspector).getAllByRole("tab", { name: "Schema" }).length).toBeGreaterThan(0);
