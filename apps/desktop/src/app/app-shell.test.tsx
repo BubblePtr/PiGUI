@@ -737,7 +737,9 @@ describe("AppFrame", () => {
     expect(sidebar).toHaveStyle({ width: "260px" });
     const sidebarChrome = screen.getByTestId("sidebar-titlebar-spacer");
     expect(sidebarChrome).toBeInTheDocument();
-    expect(sidebarChrome).toHaveStyle({ height: "40px" });
+    // 24px + the SideNav header slot's own 8px block padding on each side
+    // adds up to the 40px titlebar, so nav content starts right below the chrome.
+    expect(sidebarChrome).toHaveStyle({ height: "24px" });
     expect(within(sidebarChrome).queryByRole("button")).not.toBeInTheDocument();
 
     const headerChrome = screen.getByTestId("header-chrome");
