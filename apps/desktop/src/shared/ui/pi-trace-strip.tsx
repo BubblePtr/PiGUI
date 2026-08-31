@@ -6,8 +6,10 @@
 // hover shows a scrub cursor. Column widths track step count ("steps") or time
 // ("duration") — in Time mode both tool and model spans are measured from Pi's
 // timestamps; a model call Pi never bracketed falls back to an estimate and is
-// hatched so the guess never reads as truth. Validated in the trace-cockpit
-// prototype round (2026-08-18).
+// hatched so the guess never reads as truth. Hatching means "this total is a
+// guess", nothing else: a turn whose one measured call spans several model
+// segments splits it evenly and stays solid, disclosing the split in its
+// tooltip. Validated in the trace-cockpit prototype round (2026-08-18).
 import { useLayoutEffect, useRef, useState } from "react";
 import type { TraceTurn } from "@/entities/session/trace-model";
 
@@ -24,9 +26,18 @@ export type StripSegment = {
   isAnnotation: boolean;
   toolCount: number;
   hasError: boolean;
+  /**
+   * Seconds this segment stands for — measured, or the derived estimate. The
+   * layout bounds it (see columnWeight); the tooltip reports it as-is.
+   */
   durationSec: number;
   /** True when durationSec is a heuristic guess rather than a measured span. */
   isEstimatedDuration: boolean;
+  /**
+   * Set on a model segment that is one of several splitting a single measured
+   * call: the whole span, so the tooltip can say what the share came from.
+   */
+  evenShareOfSec?: number;
   stepIds: string[];
   label: string;
   timestamp?: string;
@@ -40,6 +51,19 @@ const laneColors: Record<StripLane, string> = {
 
 /** Same green as the Ledger's CONTEXT badge: one colour per step type. */
 const annotationColor = "var(--pigui-data-green)";
+
+/**
+ * Time-mode column weight. Widths are relative, so one 40-minute think would
+ * otherwise crush every other column to its 2px floor, and a 200ms call would
+ * vanish. The bounds match the turn-gap clamp; tooltips report the real value.
+ */
+function columnWeight(durationSec: number) {
+  return Math.min(300, Math.max(0.5, durationSec));
+}
+
+function formatSeconds(seconds: number) {
+  return seconds < 1 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
+}
 
 /** Painted-lane alpha: tools deepen with call count, model sits further back. */
 function laneOpacity(segment: StripSegment, estimatedWidth: boolean) {
@@ -61,20 +85,6 @@ function formatCursorTime(value?: string) {
     return undefined;
   }
   return new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(date);
-}
-
-/**
- * Measured latency of the turn's model call: Pi brackets it with a start stamp
- * (stream open) and the turn timestamp (message end). Undefined for turns that
- * carry no start stamp — older sessions and the live gateway path — and for any
- * pair that would not yield a positive span.
- */
-function modelCallSeconds(turn: TraceTurn) {
-  if (!turn.startTimestamp || !turn.timestamp) {
-    return undefined;
-  }
-  const seconds = (Date.parse(turn.timestamp) - Date.parse(turn.startTimestamp)) / 1000;
-  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 }
 
 /** Gap to the next turn's timestamp, clamped to [1s, 300s]. */
@@ -145,7 +155,8 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
 
     const toolsTotalSec = groups.reduce((sum, group) => sum + group.toolSec, 0);
     const modelGroupCount = groups.filter((group) => group.lane === "model").length;
-    const measuredModelSec = modelCallSeconds(turn);
+    const measuredModelSec =
+      turn.modelDurationMs === undefined ? undefined : turn.modelDurationMs / 1000;
     // One turn is one model call, so its measured latency splits evenly across
     // the turn's model groups (tool time sits outside the call and is not
     // subtracted). Without that measurement, fall back to the residual of the
@@ -157,6 +168,9 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
         : measuredModelSec !== undefined
           ? measuredModelSec / modelGroupCount
           : Math.min(30, Math.max(0.5, (duration - toolsTotalSec) / modelGroupCount));
+    // Each share must own up to being a share, so carry the whole it came from.
+    const sharedMeasuredSec =
+      measuredModelSec !== undefined && modelGroupCount > 1 ? measuredModelSec : undefined;
 
     for (const group of groups) {
       segments.push({
@@ -168,6 +182,7 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
         hasError: group.hasError,
         durationSec: group.lane === "tools" ? Math.max(0.5, group.toolSec) : modelShareSec,
         isEstimatedDuration: group.lane === "model" && measuredModelSec === undefined,
+        evenShareOfSec: group.lane === "model" ? sharedMeasuredSec : undefined,
         stepIds: group.stepIds,
         label: turn.label,
         timestamp: turn.timestamp,
@@ -381,8 +396,10 @@ export function PiTraceStrip({
             ? `repeating-linear-gradient(135deg, ${fill} 0 2px, transparent 2px 5px)`
             : fill;
           const durationLabel = segment.isEstimatedDuration
-            ? `~${Math.round(segment.durationSec)}s (estimated)`
-            : `${Math.round(segment.durationSec)}s`;
+            ? `~${formatSeconds(segment.durationSec)} (estimated)`
+            : segment.evenShareOfSec !== undefined
+              ? `${formatSeconds(segment.durationSec)} · even share of measured ${formatSeconds(segment.evenShareOfSec)}`
+              : formatSeconds(segment.durationSec);
 
           return (
             <button
@@ -398,11 +415,11 @@ export function PiTraceStrip({
               className="group relative flex min-w-[2px] cursor-pointer flex-col gap-px"
               style={{
                 // Steps mode: width tracks activity volume (36 collapsed tool
-                // calls read 36x wider than one think). Time mode: measured
-                // seconds, or the capped estimate for unbracketed model calls.
+                // calls read 36x wider than one think). Time mode: seconds,
+                // bounded so no single span can flatten the rest of the strip.
                 flexGrow:
                   widthMode === "duration"
-                    ? segment.durationSec
+                    ? columnWeight(segment.durationSec)
                     : Math.max(1, segment.stepIds.length),
                 flexBasis: 0,
                 opacity: dimmed ? 0.15 : 1,

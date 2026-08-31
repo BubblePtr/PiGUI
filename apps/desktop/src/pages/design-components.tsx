@@ -228,7 +228,7 @@ function galleryCost(totalUsd: number) {
 // Shared trace fixture for the Cockpit trio (Strip / Ledger / Inspector):
 // four Active Runs plus an annotation — enough columns that focusing one
 // swimlane block makes the outside dimming obvious. The first assistant turn
-// deliberately carries no startTimestamp, so the Strip has both a measured and
+// deliberately carries no measured model duration, so the Strip has both a
 // an estimated model span to show in Time mode.
 const traceSessionTurns: SessionTurn[] = [
   {
@@ -328,7 +328,7 @@ const traceSessionTurns: SessionTurn[] = [
   {
     kind: "message",
     role: "assistant",
-    startTimestamp: "2026-03-22T14:44:12.000Z",
+    modelDurationMs: 16_000,
     timestamp: "2026-03-22T14:44:28.000Z",
     model: "claude-fable-5",
     usage: galleryUsage(62_000, 1_400),
@@ -373,7 +373,7 @@ const traceSessionTurns: SessionTurn[] = [
   {
     kind: "message",
     role: "assistant",
-    startTimestamp: "2026-03-22T14:45:26.000Z",
+    modelDurationMs: 14_000,
     timestamp: "2026-03-22T14:45:40.000Z",
     model: "claude-fable-5",
     usage: galleryUsage(64_200, 2_100),
@@ -468,7 +468,7 @@ const stripTimingTurns: SessionTurn[] = [
   {
     kind: "message",
     role: "assistant",
-    startTimestamp: "2026-03-22T10:00:02.000Z",
+    modelDurationMs: 12_000,
     timestamp: "2026-03-22T10:00:14.000Z",
     model: "claude-fable-5",
     parts: [

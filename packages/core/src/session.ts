@@ -34,11 +34,13 @@ export type SessionTurn = {
   kind: "message" | "annotation";
   role?: MessageRole;
   timestamp?: string;
-  // assistant only: when the model call started. Pi stamps it as epoch ms
-  // inside the message the moment the provider stream opens, while `timestamp`
-  // is stamped on message end — the pair brackets one real model call. Absent
-  // for older sessions and whenever the pair is not a positive span.
-  startTimestamp?: string;
+  // assistant only: how long the model call took, derived from the pair of
+  // stamps Pi writes around it (stream open inside the message, message end on
+  // the record). Absent for older sessions and for any pair that does not yield
+  // a plausible span — consumers estimate instead. Same units as
+  // SessionContentPart.durationMs, and likewise already validated here so no
+  // consumer re-derives it.
+  modelDurationMs?: number;
   title?: string;
   model?: string;
   usage?: TokenUsage;
