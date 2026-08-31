@@ -197,6 +197,7 @@ export class SessionParser {
         kind: "message",
         role,
         timestamp: isoTimestamp(record.timestamp),
+        modelDurationMs: role === "assistant" ? modelDurationMs(record) : undefined,
         model,
         usage,
         cost,
@@ -268,9 +269,10 @@ export class SessionParser {
     const content = effectiveContent(record);
     const texts = textValuesFromContent(content);
     const isError = effectiveField(record, "isError");
-    // No duration field exists in Pi JSONL; the gap between the assistant
-    // event (which carries the toolCall) and this toolResult event is the
-    // tool's execution time.
+    // Pi ships no tool duration field; the gap between the assistant event
+    // (which carries the toolCall) and this toolResult event is the tool's
+    // execution time. Model latency comes from a different pair of stamps —
+    // see modelDurationMs.
     const callMs = timestampMs(assistantTurn.timestamp);
     const resultMs = timestampMs(record.timestamp);
 
@@ -597,6 +599,31 @@ function effectiveContent(record: JsonRecord) {
   const message = effectiveMessage(record);
 
   return message && "content" in message ? message.content : record.content;
+}
+
+// No model call runs for hours; a longer span means the inner stamp is not
+// what we think it is (epoch 0 being the classic degenerate value).
+const maxModelDurationMs = 2 * 60 * 60 * 1000;
+
+/**
+ * Pi writes `message.timestamp` (epoch ms) when the provider stream opens and
+ * the outer record timestamp when the message ends, so their difference is how
+ * long the model call took. This is the one place that validates the pair:
+ * anything that is not a plausible positive span — an older session without the
+ * inner stamp, a garbage value, a clock skewed backwards, epoch 0 — yields
+ * nothing, so consumers estimate rather than trust a bogus number.
+ */
+function modelDurationMs(record: JsonRecord) {
+  const startMs = timestampMs(effectiveMessage(record)?.timestamp);
+  const endMs = timestampMs(record.timestamp);
+
+  if (startMs === undefined || endMs === undefined) {
+    return undefined;
+  }
+
+  const durationMs = endMs - startMs;
+
+  return durationMs > 0 && durationMs <= maxModelDurationMs ? durationMs : undefined;
 }
 
 function effectiveField(record: JsonRecord, key: string) {

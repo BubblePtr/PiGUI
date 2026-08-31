@@ -3,9 +3,13 @@
 // or a stretch of consecutive tool calls — so the lanes never overlap on one
 // column. Click selects that block and jumps the Playhead; drag brushes a
 // contiguous segment range (focus semantics: the page dims, never filters);
-// hover shows a scrub cursor. Column widths track step count ("steps") or
-// measured/estimated time ("duration"). Validated in the trace-cockpit
-// prototype round (2026-08-18).
+// hover shows a scrub cursor. Column widths track step count ("steps") or time
+// ("duration") — in Time mode both tool and model spans are measured from Pi's
+// timestamps; a model call Pi never bracketed falls back to an estimate and is
+// hatched so the guess never reads as truth. Hatching means "this total is a
+// guess", nothing else: a turn whose one measured call spans several model
+// segments splits it evenly and stays solid, disclosing the split in its
+// tooltip. Validated in the trace-cockpit prototype round (2026-08-18).
 import { useLayoutEffect, useRef, useState } from "react";
 import type { TraceTurn } from "@/entities/session/trace-model";
 
@@ -22,7 +26,18 @@ export type StripSegment = {
   isAnnotation: boolean;
   toolCount: number;
   hasError: boolean;
+  /**
+   * Seconds this segment stands for — measured, or the derived estimate. The
+   * layout bounds it (see columnWeight); the tooltip reports it as-is.
+   */
   durationSec: number;
+  /** True when durationSec is a heuristic guess rather than a measured span. */
+  isEstimatedDuration: boolean;
+  /**
+   * Set on a model segment that is one of several splitting a single measured
+   * call: the whole span, so the tooltip can say what the share came from.
+   */
+  evenShareOfSec?: number;
   stepIds: string[];
   label: string;
   timestamp?: string;
@@ -36,6 +51,30 @@ const laneColors: Record<StripLane, string> = {
 
 /** Same green as the Ledger's CONTEXT badge: one colour per step type. */
 const annotationColor = "var(--pigui-data-green)";
+
+/**
+ * Time-mode column weight. Widths are relative, so one 40-minute think would
+ * otherwise crush every other column to its 2px floor, and a 200ms call would
+ * vanish. The bounds match the turn-gap clamp; tooltips report the real value.
+ */
+function columnWeight(durationSec: number) {
+  return Math.min(300, Math.max(0.5, durationSec));
+}
+
+function formatSeconds(seconds: number) {
+  return seconds < 1 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
+}
+
+/** Painted-lane alpha: tools deepen with call count, model sits further back. */
+function laneOpacity(segment: StripSegment, estimatedWidth: boolean) {
+  if (segment.lane === "tools" && !segment.hasError) {
+    return Math.min(1, 0.45 + segment.toolCount * 0.04);
+  }
+  if (segment.lane === "model") {
+    return estimatedWidth ? 0.5 : 0.75;
+  }
+  return 1;
+}
 
 function formatCursorTime(value?: string) {
   if (!value) {
@@ -79,6 +118,7 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
         toolCount: 0,
         hasError: turn.hasError,
         durationSec: duration,
+        isEstimatedDuration: false,
         stepIds: turn.steps.map((step) => step.id),
         label: turn.label,
         timestamp: turn.timestamp,
@@ -115,13 +155,22 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
 
     const toolsTotalSec = groups.reduce((sum, group) => sum + group.toolSec, 0);
     const modelGroupCount = groups.filter((group) => group.lane === "model").length;
-    // The JSONL records no model latency; only tool time is measured. Cap the
-    // per-segment model share so idle gaps between runs don't masquerade as
-    // model time and dwarf the measured tool activity.
+    const measuredModelSec =
+      turn.modelDurationMs === undefined ? undefined : turn.modelDurationMs / 1000;
+    // One turn is one model call, so its measured latency splits evenly across
+    // the turn's model groups (tool time sits outside the call and is not
+    // subtracted). Without that measurement, fall back to the residual of the
+    // turn gap, capped so idle gaps between runs can't masquerade as model time
+    // and dwarf the measured tool activity.
     const modelShareSec =
-      modelGroupCount > 0
-        ? Math.min(30, Math.max(0.5, (duration - toolsTotalSec) / modelGroupCount))
-        : 0;
+      modelGroupCount === 0
+        ? 0
+        : measuredModelSec !== undefined
+          ? measuredModelSec / modelGroupCount
+          : Math.min(30, Math.max(0.5, (duration - toolsTotalSec) / modelGroupCount));
+    // Each share must own up to being a share, so carry the whole it came from.
+    const sharedMeasuredSec =
+      measuredModelSec !== undefined && modelGroupCount > 1 ? measuredModelSec : undefined;
 
     for (const group of groups) {
       segments.push({
@@ -132,6 +181,8 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
         toolCount: group.toolCount,
         hasError: group.hasError,
         durationSec: group.lane === "tools" ? Math.max(0.5, group.toolSec) : modelShareSec,
+        isEstimatedDuration: group.lane === "model" && measuredModelSec === undefined,
+        evenShareOfSec: group.lane === "model" ? sharedMeasuredSec : undefined,
         stepIds: group.stepIds,
         label: turn.label,
         timestamp: turn.timestamp,
@@ -146,7 +197,8 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
         isAnnotation: false,
         toolCount: 0,
         hasError: turn.hasError,
-        durationSec: duration,
+        durationSec: measuredModelSec ?? duration,
+        isEstimatedDuration: measuredModelSec === undefined,
         stepIds: [],
         label: turn.label,
         timestamp: turn.timestamp,
@@ -336,6 +388,18 @@ export function PiTraceStrip({
             : segment.isAnnotation
               ? annotationColor
               : laneColors[segment.lane];
+          // Only Time mode encodes duration in the width, so only there can a
+          // width be a guess. Hatch + dim it so an estimated span never reads
+          // as measured truth.
+          const estimatedWidth = widthMode === "duration" && segment.isEstimatedDuration;
+          const paint = estimatedWidth
+            ? `repeating-linear-gradient(135deg, ${fill} 0 2px, transparent 2px 5px)`
+            : fill;
+          const durationLabel = segment.isEstimatedDuration
+            ? `~${formatSeconds(segment.durationSec)} (estimated)`
+            : segment.evenShareOfSec !== undefined
+              ? `${formatSeconds(segment.durationSec)} · even share of measured ${formatSeconds(segment.evenShareOfSec)}`
+              : formatSeconds(segment.durationSec);
 
           return (
             <button
@@ -344,17 +408,18 @@ export function PiTraceStrip({
               role="option"
               aria-selected={isActive}
               aria-label={`Run ${segment.runIndex + 1} ${segment.lane}${segment.hasError ? " (has error)" : ""}`}
-              title={`#${segment.runIndex + 1} ${segment.label} · ${segment.lane}${segment.toolCount ? ` · ${segment.toolCount} tools` : ""}${segment.hasError ? " · error" : ""} · ${Math.round(segment.durationSec)}s`}
+              title={`#${segment.runIndex + 1} ${segment.label} · ${segment.lane}${segment.toolCount ? ` · ${segment.toolCount} tools` : ""}${segment.hasError ? " · error" : ""} · ${durationLabel}`}
               data-strip-col=""
+              data-estimated-width={estimatedWidth ? "" : undefined}
               data-focus-dimmed={dimmed ? "" : undefined}
               className="group relative flex min-w-[2px] cursor-pointer flex-col gap-px"
               style={{
                 // Steps mode: width tracks activity volume (36 collapsed tool
-                // calls read 36x wider than one think). Time mode: measured
-                // tool seconds + capped model share.
+                // calls read 36x wider than one think). Time mode: seconds,
+                // bounded so no single span can flatten the rest of the strip.
                 flexGrow:
                   widthMode === "duration"
-                    ? segment.durationSec
+                    ? columnWeight(segment.durationSec)
                     : Math.max(1, segment.stepIds.length),
                 flexBasis: 0,
                 opacity: dimmed ? 0.15 : 1,
@@ -371,24 +436,21 @@ export function PiTraceStrip({
                 onSelect(segment.turnIndex, segment.stepIds[0]);
               }}
             >
-              {[0, 1, 2].map((laneIndex) => (
-                <span
-                  aria-hidden="true"
-                  className="h-[8px] w-full rounded-[1px]"
-                  key={laneIndex}
-                  style={{
-                    background: laneOf[segment.lane] === laneIndex ? fill : "transparent",
-                    opacity:
-                      laneOf[segment.lane] === laneIndex
-                        ? segment.lane === "tools" && !segment.hasError
-                          ? Math.min(1, 0.45 + segment.toolCount * 0.04)
-                          : segment.lane === "model"
-                            ? 0.75
-                            : 1
-                        : 1,
-                  }}
-                />
-              ))}
+              {[0, 1, 2].map((laneIndex) => {
+                const painted = laneOf[segment.lane] === laneIndex;
+
+                return (
+                  <span
+                    aria-hidden="true"
+                    className="h-[8px] w-full rounded-[1px]"
+                    key={laneIndex}
+                    style={{
+                      background: painted ? paint : "transparent",
+                      opacity: painted ? laneOpacity(segment, estimatedWidth) : 1,
+                    }}
+                  />
+                );
+              })}
               {isActive ? (
                 <span
                   aria-hidden="true"

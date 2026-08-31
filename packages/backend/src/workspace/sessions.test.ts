@@ -215,6 +215,30 @@ describe("backend session parser", () => {
     });
   });
 
+  it("measures model latency only from a plausible inner/outer span", () => {
+    // Pi stamps message.timestamp (epoch ms) when the provider stream opens and
+    // the outer record timestamp when the message ends. Every record after the
+    // first is a degenerate shape that must fall back to nothing rather than a
+    // bogus span: no inner stamp, a stamp after the end (clock skew), a garbage
+    // stamp, epoch 0, and a span too long for any real model call.
+    const detail = parseSession(`{"type":"session","id":"model-latency","timestamp":"2026-06-23T10:00:00.000Z","cwd":"/Users/test/proj"}
+{"type":"message","id":"m1","timestamp":"2026-06-23T10:00:08.000Z","message":{"role":"assistant","timestamp":1782208802500,"content":[{"type":"text","text":"Measured."}],"model":"gpt-5"}}
+{"type":"message","id":"m2","timestamp":"2026-06-23T10:00:10.000Z","message":{"role":"assistant","content":[{"type":"text","text":"No inner stamp."}],"model":"gpt-5"}}
+{"type":"message","id":"m3","timestamp":"2026-06-23T10:00:12.000Z","message":{"role":"assistant","timestamp":1782208820000,"content":[{"type":"text","text":"Clock skew."}],"model":"gpt-5"}}
+{"type":"message","id":"m4","timestamp":"2026-06-23T10:00:14.000Z","message":{"role":"assistant","timestamp":"whenever","content":[{"type":"text","text":"Garbage stamp."}],"model":"gpt-5"}}
+{"type":"message","id":"m5","timestamp":"2026-06-23T10:00:16.000Z","message":{"role":"assistant","timestamp":0,"content":[{"type":"text","text":"Epoch zero."}],"model":"gpt-5"}}
+{"type":"message","id":"m6","timestamp":"2026-06-23T10:00:18.000Z","message":{"role":"assistant","timestamp":1782198018000,"content":[{"type":"text","text":"Three hours."}],"model":"gpt-5"}}`);
+
+    expect(detail.turns.map((turn) => turn.modelDurationMs)).toEqual([
+      5_500,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
   it("classifies command, skill, natural-language, trivial, and unicode titles", () => {
     expect(classifyTitle("/grilling sharpen this plan")).toEqual({
       kind: "command",
