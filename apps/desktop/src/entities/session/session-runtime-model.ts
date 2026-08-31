@@ -8,6 +8,7 @@ import type {
   AgentRuntimeEvent,
   AgentRunOutcome,
   AgentRunTrigger,
+  AgentStatusCode,
   RuntimePromptImage,
 } from "@pigui/core";
 import { promptImageDataUrl } from "@pigui/core";
@@ -482,6 +483,38 @@ export function addLegacyChatEventToModel(
     }),
     updatedAt: input.timestamp,
   };
+}
+
+// Statuses are stored with a widened `code`, so this set is keyed by string.
+const COMPACTION_STATUS_CODES = new Set<string>([
+  "compacting",
+  "compaction_done",
+  "compaction_aborted",
+] satisfies AgentStatusCode[]);
+
+/**
+ * Whether a compaction is still running. Derived from the status stream rather
+ * than mirrored into its own field, so the two can never disagree.
+ *
+ * A compaction only happens inside an Active Run, so a run that has ended
+ * closes it too. The Gateway already emits `compaction_aborted` when a run
+ * stops mid-compaction; this covers the case it cannot — a journal cut off
+ * before any closing event, replayed on resume.
+ */
+export function isContextCompacting(model: SessionRuntimeModel): boolean {
+  if ([...model.runs.values()].every((run) => run.endedAt)) {
+    return false;
+  }
+
+  for (let index = model.statuses.length - 1; index >= 0; index -= 1) {
+    const code = model.statuses[index].code;
+
+    if (COMPACTION_STATUS_CODES.has(code)) {
+      return code === "compacting";
+    }
+  }
+
+  return false;
 }
 
 export function sessionStatusFromRuntimeModel(

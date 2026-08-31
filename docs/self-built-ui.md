@@ -22,6 +22,7 @@
 | pi-trace-strip | `shared/ui/` | Trace Cockpit 概览带:Input/Model/Tools 三泳道、段粒度、游标竖线、单击选中该泳道块 / 拖拽框选连续段;选区外列与台账行置灰(不过滤)、Steps/Time 双宽度模式;Time 模式模型时长为启发式估算,真数据待 [#108](https://github.com/BubblePtr/PiGUI/issues/108) |
 | pi-trace-inspector | `shared/ui/` | Trace Cockpit 检视器:Summary/Payload/Result/Schema/Timing;大 payload 只在此挂载;Schema 待 Gateway 解析能力 [#107](https://github.com/BubblePtr/PiGUI/issues/107)(现为 unavailable 诚实态) |
 | model-selector | `shared/ui/model-selector/` | Composer 模型选择器(#99,2026-08-13 原型探索 "Flat" 胜出):扁平搜索列表 + 模型选项飞出层(Reasoning/Fast Mode),safe-triangle 悬停意图;决策记录 `.scratch/model-selector/PRD.md` |
+| context-usage-meter | `shared/ui/` | Composer header 的上下文占用指示器(#101):**不是从零手搓**——外壳是 Astryx `ProgressBar`(`headerContext` 槽位是 Astryx 为此设计的),自建的是领域语义:`tokens: null`(刚压缩完)显示 `?/200K` 而非假 0、压缩中走 indeterminate、70%/90% 两档告警对齐 Pi CLI footer 自己的阈值。数据链路见下方备注 |
 | composer-attachments | `shared/ui/composer-attachments/` | Composer「Add to prompt」菜单 + 附件抽屉(#98,2026-08-14 原型探索 Shelf 胜出):footer 左侧 Plus,Files/Commands/Skills/Plugins;图片 Thumbnail、文本 Token;文本附件内联进 prompt,图片走 Gateway `images` 通道;决策记录 `.scratch/composer-attachments/PRD.md` |
 | icons.tsx / primitives.css / chat.css | `shared/ui/` | 图标与样式桥,基础设施。chat.css 把对话标题收成 conversation type scale(`#` 比正文大一档,更低层级不小于正文),大纲用 headingLevelStart=3 |
 
@@ -35,8 +36,30 @@
 | Dynamic workflow visualization(图/DAG/时间线) | [#84](https://github.com/BubblePtr/PiGUI/issues/84) | **future,远期**(2026-08-09 降级) |
 | 思维链样式可选项(Compact/Timeline) | [#81](https://github.com/BubblePtr/PiGUI/issues/81) | **future,后置**(被 Appearance 设置页阻塞) |
 | Composer 队列拖拽重排 | [#97](https://github.com/BubblePtr/PiGUI/issues/97) | 被 runtime gateway reorder 能力阻塞 |
-| Context usage 指示器(composer 附近) | [#101](https://github.com/BubblePtr/PiGUI/issues/101) | needs-triage;数据源 getContextUsage() 待 gateway 透传 |
 | 设置页可见模型管理(Add Models 落点) | [#102](https://github.com/BubblePtr/PiGUI/issues/102) | future;被 #99 落地解锁 |
+
+## 备注:context-usage-meter 的数据链路(#101)
+
+`AgentSession.getContextUsage()` 是 SDK 的**方法**而非事件,所以链路按既有管线分层接入,
+没有开旁路:
+
+- 驱动层 `pi-sdk-runtime-adapter.ts` 把 `() => session.getContextUsage()` 作为
+  `readContextUsage` 注入 normalizer,并把同一份读数放进 `getSnapshot()` patch
+  (resume/fork 一打开就有真值,不必等下一个 turn)。
+- 归一化层 `agent-runtime-event-normalizer.ts` 只在**上下文可能变化的边界**调用它
+  (`turn_end` / `compaction_end`),产出 `context_usage` 事件(`surface: "hidden"`,
+  与 `usage` 同性质:喂投影而非时间线)。不注入 reader 就一个事件都不发——RPC 驱动与
+  fixture 回放行为不变。
+- 渲染层 `session-projection.ts` 用 `contextUsage` 字段承接(与 `summary` 对称:
+  live 走 agent 事件,resume 走 `runtime-state-resynced` 的快照)。「压缩中」不另存状态,
+  由 `isContextCompacting()` 从 status 流推导。压缩必须闭环,否则不确定态会永久卡死:
+  Pi 只在正常结束时发 `compaction_end`,run 被 abort / 失败时什么都不发,所以 normalizer
+  在 `agent_end` 补发 `compaction_aborted`(独立 code,不谎称 "Compaction complete");
+  渲染端再兜一层——run 已结束就不可能还在压缩,覆盖 journal 被拦腰截断后 resume 的情况。
+
+未做:压缩阈值刻度线。`shouldCompact()` 用的是 `CompactionSettings.reserveTokens`,
+AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——画一条猜出来的线
+比不画更误导。Astryx `ProgressBar` 的 `marks` prop 已经就位,等 SDK 能读到设置即可补。
 
 ## 维护规则
 

@@ -41,6 +41,17 @@ export type RuntimeGatewaySummary = {
   totalCostUsd: number;
 };
 
+/**
+ * Live context-window occupancy of the active runtime, mirroring Pi's
+ * `ContextUsage`. `tokens`/`percent` are null right after a compaction, before
+ * the next LLM response — an unknown count, never a zero.
+ */
+export type RuntimeContextUsage = {
+  tokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+};
+
 export type RuntimeThinkingLevel =
   | "off"
   | "minimal"
@@ -98,6 +109,7 @@ export type RuntimeGatewaySnapshot = {
   events: RuntimeGatewayEventEnvelope[];
   summary?: RuntimeGatewaySummary;
   modelControls?: RuntimeModelControls;
+  contextUsage?: RuntimeContextUsage;
   updatedAt: string;
 };
 

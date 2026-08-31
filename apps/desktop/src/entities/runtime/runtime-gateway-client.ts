@@ -212,6 +212,7 @@ const AGENT_STATUS_TITLES: Record<string, string> = {
   retry_failed: "Retry failed",
   compacting: "Compacting",
   compaction_done: "Compaction complete",
+  compaction_aborted: "Compaction interrupted",
   runtime_unavailable: "Runtime unavailable",
   first_token_timeout: "Model timeout",
   model_changed: "Model changed",
@@ -399,6 +400,7 @@ function stateFromSnapshot(snapshot: RuntimeGatewaySnapshot): PiSessionState {
           },
         }
       : {}),
+    ...(snapshot.contextUsage ? { contextUsage: { ...snapshot.contextUsage } } : {}),
     updatedAt: snapshot.updatedAt,
   };
   const summary = runtimeSummaryFromGateway(snapshot.summary);

@@ -4,6 +4,7 @@ import type {
   PiRuntimeEvent,
   PiRuntimeSummary,
   PiSessionState,
+  RuntimeContextUsage,
   RuntimeModelControls,
 } from "@/entities/runtime/pi-runtime-bridge";
 import {
@@ -53,6 +54,8 @@ export type SessionProjection = {
   queuedMessages: PiQueuedMessage[];
   summary: PiRuntimeSummary;
   modelControls: RuntimeModelControls | null;
+  // Live context-window occupancy; null until the runtime first reports it.
+  contextUsage: RuntimeContextUsage | null;
   stale: boolean;
   staleReason: string | null;
   failure: SessionCreationFailure | null;
@@ -200,6 +203,7 @@ export function createSessionProjection(
       totalCostUsd: 0,
     },
     modelControls: null,
+    contextUsage: null,
     stale: false,
     staleReason: null,
     failure: null,
@@ -567,6 +571,10 @@ export function applySessionProjectionEvent(
           agentEvent.type === "usage"
             ? mergeRuntimeSummary(projection.summary, agentEvent.summary)
             : projection.summary,
+        contextUsage:
+          agentEvent.type === "context_usage"
+            ? { ...agentEvent.usage }
+            : projection.contextUsage,
         unreadResult: finalizedAssistantAnswer ? true : projection.unreadResult,
         updatedAt: event.entry.timestamp,
       };
@@ -717,6 +725,9 @@ export function applySessionProjectionEvent(
                 : null,
             }
           : projection.modelControls,
+        contextUsage: event.state.contextUsage
+          ? { ...event.state.contextUsage }
+          : projection.contextUsage,
         stale: false,
         staleReason: null,
       };
