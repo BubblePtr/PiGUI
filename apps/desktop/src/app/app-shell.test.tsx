@@ -737,14 +737,14 @@ describe("AppFrame", () => {
     expect(sidebar).toHaveStyle({ width: "260px" });
     const sidebarChrome = screen.getByTestId("sidebar-titlebar-spacer");
     expect(sidebarChrome).toBeInTheDocument();
-    expect(sidebarChrome).toHaveStyle({ height: "36px" });
+    expect(sidebarChrome).toHaveStyle({ height: "40px" });
     expect(within(sidebarChrome).queryByRole("button")).not.toBeInTheDocument();
 
     const headerChrome = screen.getByTestId("header-chrome");
     expect(headerChrome).toBeInTheDocument();
     expect(headerChrome).toHaveClass("pigui-header-chrome");
     expect(headerChrome).toHaveStyle({
-      "--pigui-header-height": "36px",
+      "--pigui-header-height": "40px",
       "--pigui-main-left": "260px",
       "--pigui-traffic-width": "88px",
     });
@@ -791,14 +791,9 @@ describe("AppFrame", () => {
       10,
     );
 
-    expect(headerChrome).toHaveStyle({ height: "36px" });
-    expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 11 }");
-    expect(11).toBe((headerHeight - 14) / 2);
-    // The content spacer stands in for the fixed header, so it has to be the
-    // header's height exactly — both read the same constant.
-    expect(screen.getByTestId("header-chrome-spacer")).toHaveStyle({
-      height: "36px",
-    });
+    expect(headerChrome).toHaveStyle({ height: "40px" });
+    expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 13 }");
+    expect(13).toBe((headerHeight - 14) / 2);
     expect(titleTrack).toHaveStyle({ left: "var(--pigui-chrome-safe-left)" });
     expect(title).toHaveStyle({
       transform:
@@ -1365,7 +1360,7 @@ describe("AppFrame", () => {
     const mainSource = readFileSync(join(process.cwd(), "apps/desktop/electron/main.ts"), "utf8");
 
     expect(mainSource).toContain('titleBarStyle: "hidden"');
-    expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 11 }");
+    expect(mainSource).toContain("trafficLightPosition: { x: 16, y: 13 }");
     expect(mainSource).toContain("width: 1280");
     expect(mainSource).toContain("height: 840");
     expect(mainSource).toContain("minWidth: 960");

@@ -88,7 +88,7 @@ function createMainWindow() {
     minHeight: 720,
     title: "PiGUI",
     titleBarStyle: "hidden",
-    trafficLightPosition: { x: 16, y: 11 },
+    trafficLightPosition: { x: 16, y: 13 },
     ...(process.platform === "darwin"
       ? {
           // Transparent web contents are required for vibrancy to show through

@@ -29,7 +29,7 @@ describe("Electron shell", () => {
     expect(main).toContain("sandbox: true");
     expect(main).toContain("nodeIntegration: false");
     expect(main).toContain('titleBarStyle: "hidden"');
-    expect(main).toContain("trafficLightPosition: { x: 16, y: 11 }");
+    expect(main).toContain("trafficLightPosition: { x: 16, y: 13 }");
     expect(main).toContain("transparent: true");
     expect(main).toContain('vibrancy: "under-window"');
     expect(main).toContain('backgroundColor: "#00000000"');

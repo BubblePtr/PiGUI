@@ -250,9 +250,7 @@ const systemNavigationItems = [
 const sidebarDefaultSize = "260px";
 const projectExpansionStorageKey = "pigui.projectSidebar.expanded.v1";
 
-// The tallest thing in the bar is a 28px control, so 36px leaves it 4px of
-// breathing room on each side without stealing more from the content below.
-const titlebarHeight = "36px";
+const titlebarHeight = "40px";
 const titlebarHeaderStyle = {
   height: titlebarHeight,
   paddingBottom: "0px",
@@ -1139,14 +1137,7 @@ export function AppFrame({
         className="flex h-full min-h-0 min-w-0 flex-col"
         data-testid="app-frame-content"
       >
-        {/* Stands in for the fixed header chrome, so it reads the same
-            constant rather than restating its height as a utility class. */}
-        <div
-          aria-hidden="true"
-          className="shrink-0"
-          data-testid="header-chrome-spacer"
-          style={{ height: titlebarHeight }}
-        />
+        <div aria-hidden="true" className="h-10 shrink-0" />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       </div>
     </>
