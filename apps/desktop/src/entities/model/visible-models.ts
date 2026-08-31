@@ -2,6 +2,13 @@
 // on the Settings page, read by the selector. Same renderer-local settings
 // channel as the other PiGUI preferences (localStorage, `pigui.*` keys) —
 // Pi's own settings.json stays Pi's.
+//
+// Known boundary: this is an explicit allowlist (the Cursor semantics the
+// issue asks for), not a denylist. The first time a user unchecks anything,
+// the models visible at that moment are written out in full, so models Pi
+// adds later are hidden until the user checks them in Settings. Only the
+// empty set — nothing configured, or everything unchecked — keeps listing
+// the whole catalog.
 
 import type { ModelRef } from "@/shared/ui/model-selector/model-selector-logic";
 

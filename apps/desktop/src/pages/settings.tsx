@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppFrame } from "@/app/app-shell";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
+import { isModelVisible } from "@/shared/ui/model-selector/model-selector-logic";
 import { invoke } from "@/shared/runtime";
 import type {
   ProviderAuthId,
@@ -247,16 +248,21 @@ function ModelVisibilitySection({
 }) {
   const [visibleModels, setVisibleModels] = useState(getVisibleModels);
 
-  // Render the unconfigured set as all-checked so the checkboxes always
-  // describe what the selector will actually list.
-  const checkedModels =
-    visibleModels.length > 0
-      ? visibleModels
-      : models.map(({ provider, modelId }) => ({ provider, modelId }));
+  // The checkboxes show what the selector will actually list, so they run
+  // through the same predicate — including its "unconfigured means all" rule.
+  // Persisting from this set also drops entries the catalog no longer has.
+  const checkedModels = models.filter((model) =>
+    isModelVisible(model, visibleModels),
+  );
 
   const replaceProviderSelection = (provider: string, modelIds: string[]) => {
     const next = [
-      ...checkedModels.filter((model) => model.provider !== provider),
+      ...checkedModels
+        .filter((model) => model.provider !== provider)
+        .map(({ provider: keptProvider, modelId }) => ({
+          provider: keptProvider,
+          modelId,
+        })),
       ...modelIds.map((modelId) => ({ provider, modelId })),
     ];
 
@@ -294,9 +300,7 @@ function ModelVisibilitySection({
         return (
           <Card data-testid={`model-visibility-${group.provider}`} key={group.provider}>
             <div className="flex flex-row items-center gap-3">
-              {/* Model providers are a superset of the auth providers; the icon
-                  renders nothing for the ones without a brand mark. */}
-              <ProviderIcon providerId={group.provider as ProviderAuthId} />
+              <ProviderIcon providerId={group.provider} />
               <h3 className="text-base font-semibold text-foreground">{label}</h3>
             </div>
             <div className="mt-4">
@@ -306,13 +310,7 @@ function ModelVisibilitySection({
                 label={`${label} models`}
                 width="100%"
                 value={group.models
-                  .filter((model) =>
-                    checkedModels.some(
-                      (checked) =>
-                        checked.provider === model.provider &&
-                        checked.modelId === model.modelId,
-                    ),
-                  )
+                  .filter((model) => isModelVisible(model, visibleModels))
                   .map((model) => model.modelId)}
                 onChange={(modelIds) =>
                   replaceProviderSelection(group.provider, modelIds)
@@ -388,6 +386,9 @@ export function SettingsPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: providerAuthStatusQueryKey });
     void queryClient.invalidateQueries({ queryKey: ["environment-preflight-report"] });
+    // New credentials change which models Pi offers, so the Models section
+    // below has to re-read the catalog.
+    void queryClient.invalidateQueries({ queryKey: availableModelControlsQueryKey });
   };
 
   return (
