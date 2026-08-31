@@ -5,8 +5,10 @@ import {
   fastSiblingOf,
   formatContextWindow,
   isInsideTriangle,
+  isModelVisible,
   matchesModelQuery,
   nearestThinkingLevel,
+  visibleModelsOf,
 } from "./model-selector-logic";
 
 const grok: RuntimeModelCapability = {
@@ -75,6 +77,24 @@ describe("matchesModelQuery", () => {
   it("treats an empty query as match-all", () => {
     expect(matchesModelQuery(grok, "")).toBe(true);
     expect(matchesModelQuery(grok, "   ")).toBe(true);
+  });
+});
+
+describe("model visibility", () => {
+  const onlySonnet = [{ provider: "anthropic", modelId: "claude-sonnet-4" }];
+
+  it("shows the whole catalog while nothing is configured", () => {
+    expect(visibleModelsOf(models, [], null)).toEqual(models);
+  });
+
+  it("keeps only the models the user made visible", () => {
+    expect(visibleModelsOf(models, onlySonnet, null)).toEqual([sonnet]);
+  });
+
+  it("keeps the current selection listed even when it was hidden", () => {
+    expect(visibleModelsOf(models, onlySonnet, grok)).toEqual([grok, sonnet]);
+    expect(isModelVisible(grok, onlySonnet)).toBe(false);
+    expect(isModelVisible(sonnet, onlySonnet)).toBe(true);
   });
 });
 

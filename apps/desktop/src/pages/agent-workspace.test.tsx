@@ -42,6 +42,7 @@ import {
 import { createSessionRuntimeModel } from "@/entities/session/session-runtime-model";
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
+import { saveVisibleModels } from "@/entities/model/visible-models";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 
 // The app shell renders the sidebar with Astryx SideNav: rows are buttons,
@@ -162,9 +163,16 @@ function renderProjectSessions(
     path: "/projects/$projectId/sessions",
     component: AgentWorkspaceSessionsPage,
   });
+  // Stands in for the Settings page so navigation out of the workspace is
+  // observable without pulling that page's tree into these tests.
+  const settingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/settings",
+    component: () => <div>Settings route</div>,
+  });
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [routePath] }),
-    routeTree: rootRoute.addChildren([sessionsRoute]),
+    routeTree: rootRoute.addChildren([sessionsRoute, settingsRoute]),
   });
 
   return render(
@@ -2240,6 +2248,84 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(await screen.findByTestId("model-thinking-trigger")).toHaveTextContent(
       "GPT-5.6 SOL · High",
     );
+  });
+
+  it("lists only the models Settings kept visible and links back to Settings", async () => {
+    const user = userEvent.setup();
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [];
+      }
+
+      if (command === "list_provider_auth_status") {
+        return {
+          agentDir: "",
+          authPath: "",
+          configuredCount: 1,
+          providers: [],
+        };
+      }
+
+      if (command === "list_available_model_controls") {
+        return {
+          models: [
+            {
+              provider: "deepseek",
+              modelId: "deepseek-chat",
+              name: "DeepSeek Chat",
+              thinkingLevels: ["off"],
+            },
+            {
+              provider: "openai-codex",
+              modelId: "gpt-5.6-sol",
+              name: "GPT-5.6 SOL",
+              thinkingLevels: ["off", "low", "medium", "high"],
+            },
+          ],
+          selected: {
+            provider: "deepseek",
+            modelId: "deepseek-chat",
+            thinkingLevel: "off",
+          },
+        };
+      }
+
+      if (command === "get_config_inventory") {
+        return {
+          skills: [],
+          extensions: [],
+          packages: [],
+          promptTemplates: [],
+        };
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+    saveLastModelSelection({
+      provider: "openai-codex",
+      modelId: "gpt-5.6-sol",
+      thinkingLevel: "high",
+    });
+    saveVisibleModels([{ provider: "openai-codex", modelId: "gpt-5.6-sol" }]);
+    saveSessionDraft(pigProjectPath, "");
+
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+
+    await user.click(await screen.findByTestId("model-thinking-trigger"));
+
+    const modelList = await screen.findByTestId("model-thinking-model-list");
+
+    expect(within(modelList).getByText("GPT-5.6 SOL")).toBeInTheDocument();
+    expect(within(modelList).queryByText("DeepSeek Chat")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Add Models"));
+
+    expect(await screen.findByText("Settings route")).toBeInTheDocument();
   });
 
   it("submits the draft through Session Creation, clears the draft, and shows the first runtime event", async () => {
