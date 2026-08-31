@@ -17,6 +17,17 @@ export async function archiveSessionProjection(sessionId: string) {
   return invoke<PersistedSessionProjection>("archive_session", { sessionId });
 }
 
+export async function renameSessionProjection(sessionId: string, title: string) {
+  return invoke<PersistedSessionProjection>("rename_session", {
+    sessionId,
+    title,
+  });
+}
+
+export async function deleteSessionProjection(sessionId: string) {
+  return invoke<PersistedSessionProjection>("delete_session", { sessionId });
+}
+
 export async function getSessionChanges(sessionId: string) {
   return invoke<SessionChanges>("get_session_changes", { sessionId });
 }

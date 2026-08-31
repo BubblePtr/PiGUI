@@ -61,6 +61,7 @@ export function sessionProjectionFromPersistedProjection(
 
   return {
     ...projection,
+    title: record.title ?? null,
     cwd: record.cwd,
     status: sessionStatusFromPersistedProjection(record.status),
     creationStage: "accepted",

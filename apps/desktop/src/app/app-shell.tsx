@@ -1,10 +1,12 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { HStack } from "@astryxdesign/core/Stack";
 import {
+  Archive,
   BarChart3,
   ChatAdd,
   ChevronRight,
@@ -55,8 +57,16 @@ import {
   type SessionProjection,
   type SessionProjectionListItem,
 } from "@/entities/session/session-projection";
-import { formatSessionListTime } from "@/entities/session/sessions";
-import { useSessionProjectionsOptional } from "@/entities/session/use-session-projections";
+import {
+  archiveSessionProjection,
+  deleteSessionProjection,
+  formatSessionListTime,
+  renameSessionProjection,
+} from "@/entities/session/sessions";
+import {
+  sessionProjectionFromPersistedProjection,
+  useSessionProjectionsOptional,
+} from "@/entities/session/use-session-projections";
 import {
   browserDevelopmentProjectId,
   getProjectRegistryWithBrowserDevelopmentFallback,
@@ -495,6 +505,57 @@ function ProjectActionsMenu({
   );
 }
 
+function SessionActionsMenu({
+  session,
+  onRenameSession,
+  onArchiveSession,
+  onDeleteSession,
+}: {
+  session: SessionProjectionListItem;
+  onRenameSession: (sessionId: string) => void;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+}) {
+  return (
+    // DropdownMenu instead of MoreMenu: MoreMenu hard-wires its label into a
+    // trigger tooltip, and the hover-revealed row button should carry none.
+    <DropdownMenu
+      hasChevron={false}
+      button={{
+        icon: <MoreHorizontal aria-hidden="true" />,
+        isIconOnly: true,
+        label: `Session actions for ${session.title}`,
+        size: "sm",
+        variant: "ghost",
+      }}
+      items={[
+        {
+          label: "Rename Session",
+          icon: <Pencil aria-hidden="true" size={16} />,
+          onClick: () => onRenameSession(session.id),
+        },
+        // Archive/delete are backend-rejected while a session is active, so
+        // the menu drops them instead of offering actions that only error.
+        ...(session.active
+          ? []
+          : [
+              {
+                label: "Archive Session",
+                icon: <Archive aria-hidden="true" size={16} />,
+                onClick: () => onArchiveSession(session.id),
+              },
+              { type: "divider" } as const,
+              {
+                label: "Delete Session...",
+                icon: <Trash2 aria-hidden="true" size={16} />,
+                onClick: () => onDeleteSession(session.id),
+              },
+            ]),
+      ]}
+    />
+  );
+}
+
 function ProjectNavigation({
   draftViewActive,
   pathname,
@@ -510,6 +571,9 @@ function ProjectNavigation({
   onRenameProject,
   onRevealProject,
   onRemoveProject,
+  onRenameSession,
+  onArchiveSession,
+  onDeleteSession,
 }: {
   draftViewActive: boolean;
   pathname: string;
@@ -525,6 +589,9 @@ function ProjectNavigation({
   onRenameProject: (projectId: string) => void;
   onRevealProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
+  onRenameSession: (sessionId: string) => void;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
 }) {
   const projectActive = pathname.startsWith("/projects/");
   const [followUpDraftVersion, setFollowUpDraftVersion] = useState(0);
@@ -587,23 +654,46 @@ function ProjectNavigation({
               const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
 
               return (
-                <SideNavItem
+                // Same overlay-sibling pattern as the project row: the actions
+                // menu cannot live inside the SideNavItem <button>.
+                <div
                   key={session.id}
-                  icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
-                  isSelected={
-                    !draftViewActive && projectActive && session.id === selectedSessionId
-                  }
-                  label={session.title}
-                  endContent={
-                    <HStack gap={1} vAlign="center">
-                      {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
-                      <span className="text-muted text-[10px] leading-none">
-                        {formatSessionListTime(session.updatedAt)}
-                      </span>
-                    </HStack>
-                  }
-                  onClick={() => onOpenSession(session.id, project.id)}
-                />
+                  className="pigui-sidenav-row-with-actions pigui-sidenav-session-row"
+                  data-testid="session-row-with-actions"
+                >
+                  <SideNavItem
+                    icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
+                    isSelected={
+                      !draftViewActive && projectActive && session.id === selectedSessionId
+                    }
+                    label={session.title}
+                    endContent={
+                      <HStack
+                        className="pigui-sidenav-session-meta"
+                        gap={1}
+                        vAlign="center"
+                      >
+                        {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+                        <span className="text-muted text-[10px] leading-none">
+                          {formatSessionListTime(session.updatedAt)}
+                        </span>
+                      </HStack>
+                    }
+                    onClick={() => onOpenSession(session.id, project.id)}
+                  />
+                  <HStack
+                    className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
+                    gap={0.5}
+                    vAlign="center"
+                  >
+                    <SessionActionsMenu
+                      session={session}
+                      onRenameSession={onRenameSession}
+                      onArchiveSession={onArchiveSession}
+                      onDeleteSession={onDeleteSession}
+                    />
+                  </HStack>
+                </div>
               );
             })}
             </SideNavItem>
@@ -1105,6 +1195,118 @@ export function AppFrame({
       search: { view: "draft" } as never,
     });
   };
+  // After archive/delete removes the selected session from the sidebar,
+  // fall back to the project's draft view (same tail as handleRemoveProject).
+  const clearRemovedSessionSelection = (sessionId: string, projectId: string) => {
+    if (effectiveSelectedSessionId !== sessionId) {
+      return;
+    }
+
+    updateSelectedSessionId(null);
+    ensureSessionDraft(projectId);
+    void router.navigate({
+      to: projectRoute(projectId) as never,
+      search: { view: "draft" } as never,
+    });
+  };
+  const handleRenameSession = async (sessionId: string) => {
+    const session = sessions.find((candidate) => candidate.id === sessionId);
+
+    if (!session) {
+      return;
+    }
+
+    const nextTitle = window.prompt("Rename Session", session.title);
+
+    if (nextTitle === null) {
+      return;
+    }
+
+    const trimmedTitle = nextTitle.trim();
+
+    if (!trimmedTitle || trimmedTitle === session.title) {
+      return;
+    }
+
+    try {
+      await renameSessionProjection(sessionId, trimmedTitle);
+      // Patch the title in place instead of rehydrating from the persisted
+      // record: a full replace would drop live runtime state mid-session.
+      sessionProjectionsStore?.setSessionProjections((projections) =>
+        projections.map((projection) =>
+          projection.id === sessionId
+            ? { ...projection, title: trimmedTitle }
+            : projection,
+        ),
+      );
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "PiGUI could not rename the Session.",
+      );
+    }
+  };
+  const handleArchiveSession = async (sessionId: string) => {
+    const session = sessions.find((candidate) => candidate.id === sessionId);
+
+    if (!session) {
+      return;
+    }
+
+    try {
+      const archived = sessionProjectionFromPersistedProjection(
+        await archiveSessionProjection(sessionId),
+      );
+
+      sessionProjectionsStore?.setSessionProjections((projections) =>
+        projections.map((projection) =>
+          projection.id === archived.id ? archived : projection,
+        ),
+      );
+      clearRemovedSessionSelection(sessionId, session.projection.projectId);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "PiGUI could not archive the Session.",
+      );
+    }
+  };
+  const handleDeleteSession = async (sessionId: string) => {
+    const session = sessions.find((candidate) => candidate.id === sessionId);
+
+    if (!session) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      [
+        `Delete ${session.title}?`,
+        "",
+        "This removes the Session from PiGUI permanently.",
+        "Pi's own session files on disk are not deleted.",
+      ].join("\n"),
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteSessionProjection(sessionId);
+      sessionProjectionsStore?.setSessionProjections((projections) =>
+        projections.filter((projection) => projection.id !== sessionId),
+      );
+      clearRemovedSessionSelection(sessionId, session.projection.projectId);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "PiGUI could not delete the Session.",
+      );
+    }
+  };
   const handleToggleProject = (projectId: string) => {
     updateExpandedProjects((currentExpandedProjects) => ({
       ...currentExpandedProjects,
@@ -1203,6 +1405,9 @@ export function AppFrame({
             onRenameProject={handleRenameProject}
             onRevealProject={handleRevealProject}
             onRemoveProject={handleRemoveProject}
+            onRenameSession={(sessionId) => void handleRenameSession(sessionId)}
+            onArchiveSession={(sessionId) => void handleArchiveSession(sessionId)}
+            onDeleteSession={(sessionId) => void handleDeleteSession(sessionId)}
           />
         </SideNav>
         )

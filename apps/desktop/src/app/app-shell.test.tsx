@@ -548,9 +548,10 @@ describe("AppFrame", () => {
     const projectHeader = getProjectHeaderButton(projectGroup, "Pig");
     // The indicator sits in the sibling actions overlay on the same row, not
     // inside the row button (no interactive-element nesting).
+    // Direct child only: nested session rows carry their own actions overlay.
     const projectActions = projectHeader
       .closest<HTMLElement>("[data-testid='project-row-with-actions']")
-      ?.querySelector<HTMLElement>(".pigui-sidenav-row-actions");
+      ?.querySelector<HTMLElement>(":scope > .pigui-sidenav-row-actions");
 
     expect(within(projectActions!).getByLabelText("Unsent follow-up")).toBeInTheDocument();
     expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
@@ -670,6 +671,121 @@ describe("AppFrame", () => {
     expect(invoke).toHaveBeenCalledWith("reveal_project_in_finder", {
       path: pigProjectPath,
     });
+  });
+
+  it("renames a Session from the row action menu with a trimmed title", async () => {
+    const user = userEvent.setup();
+    const prompt = vi
+      .spyOn(window, "prompt")
+      .mockReturnValue("  Boundary follow-up  ");
+    const alert = vi.spyOn(window, "alert").mockReturnValue(undefined);
+    const invoke = vi.fn(async () => ({}));
+    window.pigui = {
+      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: () => () => {},
+      onWindowFocusChanged: () => () => {},
+    };
+
+    renderAppFrame("/projects/pig/sessions");
+    const projectGroup = await screen.findByTestId("sidebar-projects");
+
+    await user.click(
+      within(projectGroup).getByRole("button", {
+        name: "Session actions for Trace boundary pass",
+      }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Rename Session" }));
+
+    expect(prompt).toHaveBeenCalledWith("Rename Session", "Trace boundary pass");
+    expect(invoke).toHaveBeenCalledWith("rename_session", {
+      sessionId: "session-analyze-boundary",
+      title: "Boundary follow-up",
+    });
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("archives a Session from the row action menu", async () => {
+    const user = userEvent.setup();
+    const alert = vi.spyOn(window, "alert").mockReturnValue(undefined);
+    const invoke = vi.fn(async () => ({
+      sessionId: "session-analyze-boundary",
+      runtimeId: null,
+      piSessionId: null,
+      projectId: pigProjectPath,
+      cwd: pigProjectPath,
+      status: "archived",
+      archivedAt: "2026-06-26T09:00:00.000Z",
+      updatedAt: "2026-06-26T09:00:00.000Z",
+    }));
+    window.pigui = {
+      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: () => () => {},
+      onWindowFocusChanged: () => () => {},
+    };
+
+    renderAppFrame("/projects/pig/sessions");
+    const projectGroup = await screen.findByTestId("sidebar-projects");
+
+    await user.click(
+      within(projectGroup).getByRole("button", {
+        name: "Session actions for Trace boundary pass",
+      }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Archive Session" }));
+
+    expect(invoke).toHaveBeenCalledWith("archive_session", {
+      sessionId: "session-analyze-boundary",
+    });
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("deletes a Session from the row action menu after confirmation", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const alert = vi.spyOn(window, "alert").mockReturnValue(undefined);
+    const invoke = vi.fn(async () => ({}));
+    window.pigui = {
+      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: () => () => {},
+      onWindowFocusChanged: () => () => {},
+    };
+
+    renderAppFrame("/projects/pig/sessions");
+    const projectGroup = await screen.findByTestId("sidebar-projects");
+
+    await user.click(
+      within(projectGroup).getByRole("button", {
+        name: "Session actions for Trace boundary pass",
+      }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete Session..." }));
+
+    expect(confirm).toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledWith("delete_session", {
+      sessionId: "session-analyze-boundary",
+    });
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("keeps only Rename on the action menu of an active Session", async () => {
+    const user = userEvent.setup();
+
+    renderAppFrame("/projects/pig/sessions");
+    const projectGroup = await screen.findByTestId("sidebar-projects");
+
+    await user.click(
+      within(projectGroup).getByRole("button", {
+        name: "Session actions for Agent Workspace shell",
+      }),
+    );
+
+    expect(screen.getByRole("menuitem", { name: "Rename Session" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Archive Session" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Delete Session..." }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders Trace and Usage as first-level side nav items", async () => {

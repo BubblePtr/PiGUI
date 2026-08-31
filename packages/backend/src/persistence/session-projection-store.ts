@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   RuntimeGatewaySnapshot,
@@ -12,6 +12,8 @@ export type PersistedSessionProjection = {
   piSessionId: string;
   projectId: string;
   initialPrompt?: string;
+  // Custom Session name; absent until renamed, so lists fall back to the prompt.
+  title?: string;
   cwd: string;
   status: RuntimeGatewaySnapshot["status"] | "archived";
   sessionFile?: string;
@@ -27,6 +29,7 @@ export type SessionProjectionStore = {
   save(projection: PersistedSessionProjection): Promise<void>;
   get(sessionId: string): Promise<PersistedSessionProjection | null>;
   list(): Promise<PersistedSessionProjection[]>;
+  remove(sessionId: string): Promise<void>;
 };
 
 export type FileSessionProjectionStoreOptions = {
@@ -119,6 +122,7 @@ export function mergeSessionProjection(
   const merged: PersistedSessionProjection = {
     ...next,
     initialPrompt: next.initialPrompt ?? current.initialPrompt,
+    title: next.title ?? current.title,
     status:
       current.status === "archived"
         ? "archived"
@@ -159,6 +163,10 @@ export function createInMemorySessionProjectionStore(): SessionProjectionStore {
       return Array.from(projections.values())
         .map(cloneProjection)
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    },
+
+    async remove(sessionId) {
+      projections.delete(sessionId);
     },
   };
 }
@@ -230,6 +238,12 @@ export function createFileSessionProjectionStore(
       } catch {
         return [];
       }
+    },
+
+    async remove(sessionId) {
+      // Cache the miss so a later read never resurrects the deleted record.
+      cached.set(sessionId, null);
+      await rm(projectionFilePath(options.dataDir, sessionId), { force: true });
     },
   };
 }

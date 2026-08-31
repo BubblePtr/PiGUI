@@ -407,6 +407,8 @@ function isRuntimeGatewayMethod(method: string) {
     method === "configure_model" ||
     method === "resolve_tool_schemas" ||
     method === "archive_session" ||
+    method === "rename_session" ||
+    method === "delete_session" ||
     method === "get_runtime_snapshot"
   );
 }

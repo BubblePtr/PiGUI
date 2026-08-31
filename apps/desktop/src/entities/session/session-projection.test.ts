@@ -99,6 +99,19 @@ describe("Session Projection state", () => {
     ).toContain("archived-session");
   });
 
+  it("shows the custom title in list items and falls back to the initial prompt", () => {
+    expect(
+      getSessionProjectionListItems([
+        projection({
+          id: "renamed",
+          initialPrompt: "Investigate Pig session state",
+          title: "Sidebar actions",
+        }),
+        projection({ id: "unnamed", initialPrompt: "Investigate Pig session state" }),
+      ]).map((item) => item.title),
+    ).toEqual(["Sidebar actions", "Investigate Pig session state"]);
+  });
+
   it("tracks creation stages, runtime binding, and the first runtime event", () => {
     const created = createSessionProjection({
       id: "session-1",

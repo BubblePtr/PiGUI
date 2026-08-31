@@ -211,6 +211,29 @@ body {
   padding-inline-start: 0;
 }
 
+/* Session rows keep the timestamp in the trailing slot and reveal the actions
+   menu only on hover/focus, swapping the two so they never overlap. */
+.pigui-sidenav-session-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.pigui-sidenav-session-row:hover .pigui-sidenav-session-actions,
+.pigui-sidenav-session-row:focus-within .pigui-sidenav-session-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pigui-sidenav-session-meta {
+  transition: opacity 120ms ease-out;
+}
+
+.pigui-sidenav-session-row:hover .pigui-sidenav-session-meta,
+.pigui-sidenav-session-row:focus-within .pigui-sidenav-session-meta {
+  opacity: 0;
+}
+
 /* Project rows carry their own folder/chevron indicator — hide the built-in
    trailing chevron Astryx renders on collapsible items. */
 .pigui-app-layout .astryx-side-nav-item[aria-expanded] > span:last-of-type {
