@@ -44,6 +44,7 @@ import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-
 import { ComposerAttachmentDrawer } from "@/shared/ui/composer-attachments/composer-attachment-drawer";
 import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-insert-menu";
 import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import * as Icons from "@/shared/ui/icons";
 import type { RuntimeModelControls } from "@pigui/core";
 
@@ -1389,18 +1390,61 @@ function ContextUsageMeterGallery() {
             usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
           />
         </Variant>
-        <Variant caption="in the composer header (its production placement)">
-          <div className="w-96">
-            <ChatPromptInput
-              headerContext={
-                <ContextUsageMeter
-                  usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
-                />
-              }
-              placeholder="Ask anything"
-              value=""
-              onSubmit={() => {}}
-              onValueChange={() => {}}
+      </VariantRow>
+      <VariantRow>
+        <Variant caption="compact — nothing reported yet">
+          <ContextUsageMeter usage={null} variant="compact" />
+        </Variant>
+        <Variant caption="compact — normal (≤70%)">
+          <ContextUsageMeter
+            usage={{ tokens: 90_000, contextWindow: 200_000, percent: 45 }}
+            variant="compact"
+          />
+        </Variant>
+        <Variant caption="compact — warning, past 70%">
+          <ContextUsageMeter
+            usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
+            variant="compact"
+          />
+        </Variant>
+        <Variant caption="compact — critical, past 90%">
+          <ContextUsageMeter
+            usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
+            variant="compact"
+          />
+        </Variant>
+        <Variant caption="compact — tokens null, hover for the counts">
+          <ContextUsageMeter
+            usage={{ tokens: null, contextWindow: 200_000, percent: null }}
+            variant="compact"
+          />
+        </Variant>
+        <Variant caption="compact — compacting, the share is in flight">
+          <ContextUsageMeter
+            isCompacting
+            usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
+            variant="compact"
+          />
+        </Variant>
+        <Variant caption="in the Session toolbar (its production placement)">
+          <div className="flex h-9 items-center gap-1 rounded-md border border-separator px-2">
+            <ContextUsageMeter
+              usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
+              variant="compact"
+            />
+            <IconButton
+              icon={<Icons.FileDiff className="size-4" />}
+              label="Session changes"
+              size="sm"
+              variant="ghost"
+              onClick={() => {}}
+            />
+            <IconButton
+              icon={<Icons.Activity className="size-4" />}
+              label="Session actions"
+              size="sm"
+              variant="ghost"
+              onClick={() => {}}
             />
           </div>
         </Variant>

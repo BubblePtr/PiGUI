@@ -19,6 +19,7 @@ import {
   AgentWorkspaceSessionsView,
   SessionActionsContent,
   SessionChangesPanel,
+  SessionToolbarActions,
   getSessionChangesResizableSizes,
 } from "@/pages/agent-workspace";
 import { addProjectToRegistry } from "@/entities/project/project-registry";
@@ -5077,6 +5078,90 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(screen.getByText("No Git repository")).toBeInTheDocument();
     expect(screen.getByText("Git-only actions are unavailable for this Project.")).toBeInTheDocument();
+  });
+});
+
+// Context occupancy is session runtime state, not part of composing a prompt:
+// it lives in the Session toolbar, never in the composer. Issue #128.
+describe("Context usage placement", () => {
+  const workspace = {
+    id: "pig-docs",
+    name: "Pig Docs",
+    projectRoot: "/Users/void/code/opensource/Pig/docs",
+    repoRoot: "/Users/void/code/opensource/Pig",
+    selectedSessionId: "session-context",
+    liveMessages: [],
+    runTimeline: [],
+    checkout: {
+      mode: "Foreground local checkout",
+      root: "/Users/void/code/opensource/Pig",
+      runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+    },
+    summary: {
+      model: "fixture-model",
+      totalCostUsd: 0,
+      totalTokens: 0,
+    },
+  };
+
+  function boundProjection(
+    overrides: Partial<SessionProjection> = {},
+  ): SessionProjection {
+    return {
+      ...createSessionProjection({
+        id: "session-context",
+        projectId: "pig-docs",
+        initialPrompt: "Watch the context window fill up",
+        createdAt: "2026-08-20T08:00:00.000Z",
+      }),
+      status: "completed" as const,
+      runtimeId: "pi-rpc:session-context",
+      piSessionId: "pi-session-context",
+      contextUsage: { tokens: 90_000, contextWindow: 200_000, percent: 45 },
+      ...overrides,
+    };
+  }
+
+  it("meters the context window from the Session toolbar", () => {
+    const { container } = render(
+      <SessionToolbarActions workspace={workspace} projection={boundProjection()} />,
+    );
+
+    expect(
+      container.querySelector(
+        '[data-slot="context-usage-meter"][data-variant="compact"]',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("45%")).toBeInTheDocument();
+  });
+
+  it("meters nothing until a runtime is bound", () => {
+    const { container } = render(
+      <SessionToolbarActions
+        workspace={workspace}
+        projection={boundProjection({ piSessionId: null })}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-slot="context-usage-meter"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the composer free of runtime state", () => {
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={boundProjection()}
+      />,
+    );
+
+    expect(
+      screen
+        .getByTestId("full-chat-composer")
+        .querySelector('[data-slot="context-usage-meter"]'),
+    ).not.toBeInTheDocument();
   });
 });
 

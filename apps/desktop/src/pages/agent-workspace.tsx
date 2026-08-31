@@ -794,15 +794,6 @@ function FullChatComposer({
         error={attachments.error ?? composerError}
         footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
         hasAttachments={attachments.items.length > 0}
-        headerContext={
-          // Only a bound runtime has a context window to be a share of.
-          projection?.piSessionId ? (
-            <ContextUsageMeter
-              isCompacting={isContextCompacting(projection.runtimeModel)}
-              usage={projection.contextUsage}
-            />
-          ) : undefined
-        }
         lockInputOnRun={!queueMode}
         startActions={
           <>
@@ -2748,6 +2739,14 @@ export function SessionToolbarActions({
 }) {
   return (
     <>
+      {/* Only a bound runtime has a context window to be a share of. */}
+      {projection?.piSessionId ? (
+        <ContextUsageMeter
+          isCompacting={isContextCompacting(projection.runtimeModel)}
+          usage={projection.contextUsage}
+          variant="compact"
+        />
+      ) : null}
       <SessionChangesTrigger
         isOpen={changesOpen}
         onOpenChange={onChangesOpenChange}

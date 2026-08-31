@@ -229,6 +229,26 @@ describe("Design components layer", () => {
     expect(screen.getByText("notes.md")).toBeInTheDocument();
   });
 
+  it("registers the compact ContextUsageMeter in every level it can reach", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ContextUsageMeter" });
+
+    for (const level of [
+      "normal",
+      "warning",
+      "critical",
+      "unknown",
+      "compacting",
+    ]) {
+      expect(
+        section.querySelector(
+          `[data-slot="context-usage-meter"][data-variant="compact"][data-level="${level}"]`,
+        ),
+      ).toBeInTheDocument();
+    }
+  });
+
   it("registers the ModelSelectorControl with its variants", () => {
     render(<DesignComponentsLayer />);
 
