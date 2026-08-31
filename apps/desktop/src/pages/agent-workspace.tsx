@@ -764,25 +764,17 @@ function FullChatComposer({
     }
   };
 
-  // Context occupancy is session runtime state, so it rides the footer hint
-  // line rather than any composer control. Only a bound runtime has a context
-  // window to be a share of; queue mode drops the hint but keeps the line.
-  const contextMeter = projection?.piSessionId ? (
-    <ContextUsageMeter
-      isCompacting={isContextCompacting(projection.runtimeModel)}
-      usage={projection.contextUsage}
-    />
-  ) : null;
-  const composerHint = queueMode
-    ? null
-    : "AI can make mistakes. Check important info.";
-  const composerFooter =
-    composerHint || contextMeter ? (
-      <span className="flex items-center gap-3">
-        {composerHint}
-        {contextMeter ? <span className="ml-auto">{contextMeter}</span> : null}
-      </span>
-    ) : undefined;
+  // Context occupancy is session runtime state, so it rides the footer line
+  // rather than any composer control. Only a bound runtime has a context
+  // window to be a share of.
+  const composerFooter = projection?.piSessionId ? (
+    <span className="flex items-center justify-end">
+      <ContextUsageMeter
+        isCompacting={isContextCompacting(projection.runtimeModel)}
+        usage={projection.contextUsage}
+      />
+    </span>
+  ) : undefined;
 
   return (
     <div

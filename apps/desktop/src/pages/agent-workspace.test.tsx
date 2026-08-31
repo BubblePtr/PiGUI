@@ -5136,31 +5136,27 @@ describe("Context usage placement", () => {
       .querySelector('[data-slot="prompt-input-footer"]');
   }
 
-  it("meters the context window on the composer footer line, right of the hint", () => {
+  it("meters the context window as a ring on the composer footer line", () => {
     const footer = renderSessionsView(boundProjection());
 
-    expect(footer).toHaveTextContent("AI can make mistakes. Check important info.");
-    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toHaveTextContent(
-      "Context 45%/200K",
+    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toHaveAttribute(
+      "aria-label",
+      "Context 45% · 200K",
     );
   });
 
-  // Queue mode drops the "AI can make mistakes" hint, but the runtime state
-  // still has a line to sit on.
   it("keeps the footer line while a run is queueing", () => {
     const footer = renderSessionsView(boundProjection({ status: "running" }));
 
-    expect(footer).not.toHaveTextContent("AI can make mistakes");
-    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toHaveTextContent(
-      "Context 45%/200K",
-    );
+    expect(
+      footer?.querySelector('[data-slot="context-usage-meter"]'),
+    ).toBeInTheDocument();
   });
 
-  it("meters nothing until a runtime is bound", () => {
+  it("meters nothing until a runtime is bound, and drops the footer line", () => {
     const footer = renderSessionsView(boundProjection({ piSessionId: null }));
 
-    expect(footer).toHaveTextContent("AI can make mistakes. Check important info.");
-    expect(footer?.querySelector('[data-slot="context-usage-meter"]')).toBeNull();
+    expect(footer).toBeNull();
   });
 
   it("leaves the Session toolbar to Session actions", () => {

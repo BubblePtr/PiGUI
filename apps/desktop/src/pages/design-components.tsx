@@ -1395,35 +1395,13 @@ function ContextUsageMeterGallery() {
           <div className="w-[32rem]">
             <ChatPromptInput
               footer={
-                <span className="flex items-center gap-3">
-                  AI can make mistakes. Check important info.
-                  <span className="ml-auto">
-                    <ContextUsageMeter
-                      usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
-                    />
-                  </span>
+                <span className="flex items-center justify-end">
+                  <ContextUsageMeter
+                    usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
+                  />
                 </span>
               }
               placeholder="Ask anything"
-              value=""
-              onSubmit={() => {}}
-              onValueChange={() => {}}
-            />
-          </div>
-        </Variant>
-        <Variant caption="queue mode — the hint is gone, the line stays">
-          <div className="w-[32rem]">
-            <ChatPromptInput
-              footer={
-                <span className="flex items-center gap-3">
-                  <span className="ml-auto">
-                    <ContextUsageMeter
-                      usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
-                    />
-                  </span>
-                </span>
-              }
-              placeholder="Queue the next task…"
               value=""
               onSubmit={() => {}}
               onValueChange={() => {}}

@@ -20,17 +20,23 @@ const compactTokens = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
-const exactTokens = new Intl.NumberFormat();
-
-// Only the alarms paint; the calm states inherit the composer footer's own
-// muted colour so the line reads as one hint until the context fills up.
+// Traffic-light health semantics: green while the context length is in good
+// shape, amber when it has grown enough that a proactive compaction is worth
+// considering, red when the window limit — and a forced compaction — is near.
 const levelClassNames: Record<ContextUsageLevel, string> = {
-  compacting: "",
-  unknown: "",
-  normal: "",
-  warning: "text-warning",
-  critical: "text-danger",
+  compacting: "text-primary",
+  unknown: "text-muted",
+  // The data-* palette, not text tokens: `--success`/`--warning` are darkened
+  // for text contrast in light mode, which reads muddy on a 2px graphic arc.
+  normal: "text-[var(--pigui-data-green)]",
+  warning: "text-[var(--pigui-data-amber)]",
+  critical: "text-[var(--pigui-data-orange-strong)]",
 };
+
+const RING_SIZE = 14;
+const RING_STROKE = 2;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 function usageLevel(percent: number | null, isCompacting: boolean): ContextUsageLevel {
   if (isCompacting) {
@@ -49,25 +55,33 @@ function usageLevel(percent: number | null, isCompacting: boolean): ContextUsage
 }
 
 /**
- * Spelled-out occupancy for the tooltip: the exact counts a hover is expected
- * to reveal, behind the rounded share the line shows at a glance.
+ * Readout for the tooltip and the ring's accessible name — the ring alone
+ * carries no text, so this single string is everything a hover, or a screen
+ * reader, learns: the share plus the window it is a share of (`45% · 200K`).
  */
 function usageDetail(usage: RuntimeContextUsage | null, isCompacting: boolean) {
-  const tokens = usage
-    ? `Context ${
-        usage.tokens === null ? "?" : exactTokens.format(usage.tokens)
-      }/${exactTokens.format(usage.contextWindow)} tokens`
-    : "Context usage not reported yet";
+  if (!usage) {
+    return "Context usage not reported yet";
+  }
 
-  return isCompacting ? `${tokens} · Compacting…` : tokens;
+  const window = compactTokens.format(usage.contextWindow);
+
+  // A compaction invalidates the share we held; say so instead of showing it.
+  if (isCompacting) {
+    return `Compacting… · ${window}`;
+  }
+
+  const share = usage.percent === null ? "?" : `${Math.round(usage.percent)}%`;
+
+  return `Context ${share} · ${window}`;
 }
 
 /**
- * Context-window occupancy as one line of text on the composer footer, in Pi's
- * own `45%/200K` notation. An unknown token count — before the first response,
- * or between a compaction and the next one — reads `?`, never a fabricated
- * zero, and a running compaction says so instead of showing a share we no
- * longer hold.
+ * Context-window occupancy as a small ring on the composer footer: the arc is
+ * the occupied share, quiet in the accent colour until Pi's 70%/90% alarms
+ * repaint it. An unknown count draws the empty track rather than a fabricated
+ * arc, and a running compaction spins instead of showing a share we no longer
+ * hold. All numbers live in the tooltip and the accessible name.
  */
 export function ContextUsageMeter({
   usage,
@@ -75,19 +89,48 @@ export function ContextUsageMeter({
 }: ContextUsageMeterProps) {
   const percent = usage?.percent ?? null;
   const level = usageLevel(percent, isCompacting);
-  const share = percent === null ? "?" : `${Math.round(percent)}%`;
-  const contextWindow = usage
-    ? `/${compactTokens.format(usage.contextWindow)}`
-    : "";
+  const detail = usageDetail(usage, isCompacting);
+  // A compacting spinner shows a fixed quarter arc; otherwise the real share.
+  const arcPercent = isCompacting ? 25 : percent ?? 0;
+  const arcLength = (Math.min(Math.max(arcPercent, 0), 100) / 100) * RING_CIRCUMFERENCE;
 
   return (
-    <Tooltip content={usageDetail(usage, isCompacting)}>
+    <Tooltip content={detail}>
       <span
-        className={`whitespace-nowrap tabular-nums ${levelClassNames[level]}`.trim()}
+        aria-label={detail}
+        className={`inline-flex ${levelClassNames[level]}`}
         data-level={level}
         data-slot="context-usage-meter"
+        role="img"
       >
-        {isCompacting ? "Compacting…" : `Context ${share}${contextWindow}`}
+        <svg
+          aria-hidden="true"
+          className={isCompacting ? "animate-spin motion-reduce:animate-none" : undefined}
+          fill="none"
+          height={RING_SIZE}
+          viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+          width={RING_SIZE}
+        >
+          <circle
+            className="opacity-25"
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RING_RADIUS}
+            stroke="currentColor"
+            strokeWidth={RING_STROKE}
+          />
+          <circle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RING_RADIUS}
+            stroke="currentColor"
+            strokeDasharray={`${arcLength} ${RING_CIRCUMFERENCE}`}
+            strokeLinecap="round"
+            strokeWidth={RING_STROKE}
+            // Start the arc at 12 o'clock, like every clock-shaped gauge.
+            transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+          />
+        </svg>
       </span>
     </Tooltip>
   );
