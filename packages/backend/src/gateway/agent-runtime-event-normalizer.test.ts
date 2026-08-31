@@ -827,6 +827,88 @@ describe("agent runtime event normalizer", () => {
     ]);
   });
 
+  it("reports context usage at every turn boundary, from the injected runtime reader", () => {
+    const readings = [
+      { tokens: 40_000, contextWindow: 200_000, percent: 20 },
+      { tokens: 96_000, contextWindow: 200_000, percent: 48 },
+    ];
+    const normalizer = createAgentRuntimeEventNormalizer({
+      piSessionId,
+      readContextUsage: () => readings.shift(),
+    });
+
+    normalizer.normalize({ type: "agent_start" });
+
+    const events = normalizeAll(normalizer, [
+      { type: "turn_start" },
+      { type: "turn_end" },
+      { type: "turn_start" },
+      { type: "turn_end" },
+    ]);
+
+    expect(events.filter((event) => event.type === "context_usage")).toEqual([
+      {
+        type: "context_usage",
+        runId: "pi-session-1:run-1",
+        usage: { tokens: 40_000, contextWindow: 200_000, percent: 20 },
+        surface: "hidden",
+        origin: "sdk",
+      },
+      {
+        type: "context_usage",
+        runId: "pi-session-1:run-1",
+        usage: { tokens: 96_000, contextWindow: 200_000, percent: 48 },
+        surface: "hidden",
+        origin: "sdk",
+      },
+    ]);
+  });
+
+  it("reports the unknown context state after a compaction instead of a stale count", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({
+      piSessionId,
+      readContextUsage: () => ({
+        tokens: null,
+        contextWindow: 200_000,
+        percent: null,
+      }),
+    });
+
+    normalizer.normalize({ type: "agent_start" });
+
+    const events = normalizeAll(normalizer, [
+      { type: "compaction_start", reason: "context window pressure" },
+      { type: "compaction_end" },
+    ]);
+
+    expect(events.filter((event) => event.type === "context_usage")).toEqual([
+      {
+        type: "context_usage",
+        runId: "pi-session-1:run-1",
+        usage: { tokens: null, contextWindow: 200_000, percent: null },
+        surface: "hidden",
+        origin: "sdk",
+      },
+    ]);
+  });
+
+  it("stays silent when the runtime cannot report a context window", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({
+      piSessionId,
+      readContextUsage: () => undefined,
+    });
+
+    normalizer.normalize({ type: "agent_start" });
+
+    const events = normalizeAll(normalizer, [
+      { type: "turn_start" },
+      { type: "turn_end" },
+      { type: "compaction_end" },
+    ]);
+
+    expect(events.some((event) => event.type === "context_usage")).toBe(false);
+  });
+
   it("drops user message lifecycle events — the Gateway mints the user projection at command accept", () => {
     const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
     const userMessage = { role: "user", content: "do the thing", timestamp: 1 };

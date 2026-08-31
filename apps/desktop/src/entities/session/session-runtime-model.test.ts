@@ -4,6 +4,7 @@ import {
   addLegacyChatEventToModel,
   applyAgentRuntimeEvent,
   createSessionRuntimeModel,
+  isContextCompacting,
   sessionStatusFromRuntimeModel,
   type SessionRuntimeModel,
 } from "./session-runtime-model";
@@ -538,6 +539,55 @@ describe("session runtime model", () => {
       phase: "final",
       parts: [{ body: "Kakeya answer" }],
     });
+  });
+
+  it("reports a compaction as running only until its completion status arrives", () => {
+    let model = createSessionRuntimeModel();
+
+    expect(isContextCompacting(model)).toBe(false);
+
+    model = applyAll(model, [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "status",
+          runId,
+          code: "compacting",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    expect(isContextCompacting(model)).toBe(true);
+
+    model = applyAll(model, [
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:09.000Z",
+        event: {
+          type: "status",
+          runId,
+          code: "compaction_done",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:10.000Z",
+        event: {
+          type: "status",
+          runId,
+          code: "retrying",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    expect(isContextCompacting(model)).toBe(false);
   });
 
   it("ignores replayed events at or below the last applied seq", () => {

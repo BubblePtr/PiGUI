@@ -124,6 +124,7 @@ export function ChatPromptInput({
   lockInputOnRun = false,
   startActions,
   endActions,
+  headerContext,
   drawer,
   footer,
   error,
@@ -141,6 +142,8 @@ export function ChatPromptInput({
   lockInputOnRun?: boolean;
   startActions?: ReactNode;
   endActions?: ReactNode;
+  /** Composer header, right-aligned: runtime context such as the usage meter. */
+  headerContext?: ReactNode;
   drawer?: ReactNode;
   footer?: ReactNode;
   error?: string | null;
@@ -225,6 +228,7 @@ export function ChatPromptInput({
         drawer={drawer}
         elevation="none"
         footerActions={startActions}
+        headerContext={headerContext}
         input={
           <PromptTextArea
             disabled={lockInputOnRun && isRunning}

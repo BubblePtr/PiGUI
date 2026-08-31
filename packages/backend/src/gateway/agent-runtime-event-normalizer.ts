@@ -14,6 +14,7 @@ import {
   type AgentRuntimeEvent,
   type AgentRunTrigger,
   type AgentStatusCode,
+  type RuntimeContextUsage,
 } from "@pigui/core";
 
 export type AgentRuntimeEventNormalizerInput = {
@@ -25,6 +26,13 @@ export type AgentRuntimeEventNormalizerInput = {
    * ADR-0020: counters must continue after reattach, never reset to 0.
    */
   initialRunSeq?: number;
+  /**
+   * Live context-window read, injected by the driver: Pi exposes occupancy as
+   * a session method, not as an event payload. Called only at the boundaries
+   * where context can have changed, so identity derivation stays pure.
+   * Absent (RPC driver, fixture replay) means no context_usage events.
+   */
+  readContextUsage?: () => RuntimeContextUsage | undefined;
 };
 
 export type AgentRuntimeEventNormalizer = {
@@ -286,6 +294,24 @@ export function createAgentRuntimeEventNormalizer(
     };
   }
 
+  function contextUsageEvents(): AgentRuntimeEvent[] {
+    const usage = input.readContextUsage?.();
+
+    if (!usage) {
+      return [];
+    }
+
+    return [
+      {
+        type: "context_usage",
+        ...(runId ? { runId } : {}),
+        usage,
+        surface: "hidden",
+        origin,
+      },
+    ];
+  }
+
   function closeOpenMessage(options: { abandoned?: boolean } = {}): AgentRuntimeEvent[] {
     if (!runId || !turnId || !message) {
       return [];
@@ -443,7 +469,9 @@ export function createAgentRuntimeEventNormalizer(
       }
 
       if (rawEvent.type === "compaction_end") {
-        return [statusEvent("compaction_done", undefined)];
+        // Right after compaction the runtime reports an unknown token count;
+        // reading here is what makes the drop visible instead of stale.
+        return [statusEvent("compaction_done", undefined), ...contextUsageEvents()];
       }
 
       if (rawEvent.type === "auto_retry_start" && runId) {
@@ -469,7 +497,10 @@ export function createAgentRuntimeEventNormalizer(
       }
 
       if (rawEvent.type === "turn_end" && runId && turnId) {
-        return [{ type: "turn", runId, turnId, phase: "end", surface: "hidden", origin }];
+        return [
+          { type: "turn", runId, turnId, phase: "end", surface: "hidden", origin },
+          ...contextUsageEvents(),
+        ];
       }
 
       if (rawEvent.type === "agent_end" && runId) {

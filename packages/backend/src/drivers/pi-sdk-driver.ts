@@ -1,4 +1,5 @@
 import type {
+  RuntimeContextUsage,
   RuntimeGatewayQueuedMessage,
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
@@ -28,7 +29,7 @@ export type PiSdkUserMessageBoundary = {
 export type PiSdkSnapshotPatch = Partial<
   Pick<
     RuntimeGatewaySnapshot,
-    "status" | "events" | "summary" | "modelControls" | "updatedAt"
+    "status" | "events" | "summary" | "modelControls" | "contextUsage" | "updatedAt"
   >
 >;
 
@@ -40,6 +41,7 @@ export type PiSdkSessionRuntime = {
   sessionFile?: string;
   summary?: RuntimeGatewaySummary;
   modelControls?: RuntimeModelControls;
+  contextUsage?: RuntimeContextUsage;
   /**
    * Next synthetic user message index after reattach (`user:{n}`).
    * Resume/fork must seed this from session history so ids do not collide
@@ -133,6 +135,10 @@ function cloneSnapshot(snapshot: RuntimeGatewaySnapshot): RuntimeGatewaySnapshot
     cloned.modelControls = cloneModelControls(snapshot.modelControls);
   }
 
+  if (snapshot.contextUsage) {
+    cloned.contextUsage = { ...snapshot.contextUsage };
+  }
+
   return cloned;
 }
 
@@ -166,6 +172,10 @@ function snapshotFromRuntime(input: {
     snapshot.modelControls = cloneModelControls(input.runtime.modelControls);
   }
 
+  if (input.runtime.contextUsage) {
+    snapshot.contextUsage = { ...input.runtime.contextUsage };
+  }
+
   return snapshot;
 }
 
@@ -189,6 +199,10 @@ function mergeSnapshotPatch(
 
   if (patch.modelControls) {
     merged.modelControls = cloneModelControls(patch.modelControls);
+  }
+
+  if (patch.contextUsage) {
+    merged.contextUsage = { ...patch.contextUsage };
   }
 
   if (patch.updatedAt) {

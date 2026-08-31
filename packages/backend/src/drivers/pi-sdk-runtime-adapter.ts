@@ -4,6 +4,7 @@
 
 import { createAgentRuntimeEventNormalizer } from "../gateway/agent-runtime-event-normalizer";
 import type {
+  RuntimeContextUsage,
   RuntimeGatewayQueuedMessage,
   RuntimeModelCapability,
   RuntimeModelControls,
@@ -90,6 +91,11 @@ export type PublicPiSdkAgentSession = {
     };
     cost?: number;
   };
+  getContextUsage?(): {
+    tokens?: number | null;
+    contextWindow?: number;
+    percent?: number | null;
+  } | undefined;
   setModel?(model: unknown): Promise<void>;
   setThinkingLevel?(level: unknown): void;
   cycleModel?(direction?: "forward" | "backward"): Promise<unknown>;
@@ -481,6 +487,28 @@ function summaryFromSession(session: PublicPiSdkAgentSession) {
   return undefined;
 }
 
+/**
+ * A context window is the only field that must be a real number: without it
+ * there is nothing to be a percentage of. `tokens`/`percent` stay nullable —
+ * Pi reports them as unknown until the first LLM response after a compaction.
+ */
+function contextUsageFromSession(
+  session: PublicPiSdkAgentSession,
+): RuntimeContextUsage | undefined {
+  const usage = session.getContextUsage?.();
+  const contextWindow = maybeNumber(usage?.contextWindow);
+
+  if (!usage || contextWindow === null || contextWindow <= 0) {
+    return undefined;
+  }
+
+  return {
+    tokens: maybeNumber(usage.tokens),
+    contextWindow,
+    percent: maybeNumber(usage.percent),
+  };
+}
+
 function schemasFromSession(session: PublicPiSdkAgentSession, names: string[]) {
   const schemas: Record<string, RuntimeToolSchema> = {};
 
@@ -657,6 +685,7 @@ function createPublicPiSdkRuntime(context: {
       piSessionId: session.sessionId,
       origin: "sdk",
       initialRunSeq: priorUserPrompts,
+      readContextUsage: () => contextUsageFromSession(session),
     });
     const pendingUserBoundaries: PiSdkUserMessageBoundary[] = [];
     const userBoundaryWaiters: Array<(boundary: PiSdkUserMessageBoundary) => void> = [];
@@ -671,6 +700,7 @@ function createPublicPiSdkRuntime(context: {
       status: session.isStreaming ? "running" : "idle",
       sessionFile: session.sessionManager?.getSessionFile?.(),
       modelControls: modelControlsFromSession(session),
+      contextUsage: contextUsageFromSession(session),
       seedPromptCount: priorUserPrompts,
       getLeafId() {
         return session.sessionManager?.getLeafId?.() ?? null;
@@ -707,6 +737,7 @@ function createPublicPiSdkRuntime(context: {
           status: statusFromSession({ session, promptCompleted, stopped }),
           summary: summaryFromSession(session),
           modelControls: modelControlsFromSession(session),
+          contextUsage: contextUsageFromSession(session),
           updatedAt: now(),
         };
       },

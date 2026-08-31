@@ -634,6 +634,86 @@ describe("Pi SDK public runtime adapter", () => {
     expect(session.abort).toHaveBeenCalledTimes(1);
   });
 
+  it("carries the live context-window occupancy into the snapshot and the turn-boundary stream", async () => {
+    const listeners: Array<(event: unknown) => void> = [];
+    const getContextUsage = vi.fn(() => ({
+      tokens: 84_000,
+      contextWindow: 200_000,
+      percent: 42,
+    }));
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      getContextUsage,
+      subscribe(listener: (event: unknown) => void) {
+        listeners.push(listener);
+
+        return vi.fn();
+      },
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+      now: () => "2026-07-01T00:00:00.000Z",
+    });
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+    const events: Array<{ payload?: Record<string, unknown> }> = [];
+
+    runtime.onEvent?.((event) => events.push(event as { payload?: Record<string, unknown> }));
+    listeners[0]?.({ type: "agent_start" });
+    listeners[0]?.({ type: "turn_start" });
+    listeners[0]?.({ type: "turn_end" });
+
+    await expect(runtime.getSnapshot?.()).resolves.toMatchObject({
+      contextUsage: { tokens: 84_000, contextWindow: 200_000, percent: 42 },
+    });
+    expect(
+      events
+        .map((event) => event.payload)
+        .filter((payload) => payload?.type === "context_usage"),
+    ).toEqual([
+      {
+        type: "context_usage",
+        runId: "sdk-session-1:run-1",
+        usage: { tokens: 84_000, contextWindow: 200_000, percent: 42 },
+        surface: "hidden",
+        origin: "sdk",
+      },
+    ]);
+  });
+
+  it("omits context usage for runtimes whose SDK does not report it", async () => {
+    const session = {
+      sessionId: "sdk-session-1",
+      isStreaming: false,
+      messages: [],
+      prompt: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+      dispose: vi.fn(),
+      subscribe: vi.fn(() => vi.fn()),
+    };
+    const runtimeFactory = createPublicPiSdkRuntimeFactory({
+      sdk: { createAgentSession: vi.fn(async () => ({ session })) },
+      now: () => "2026-07-01T00:00:00.000Z",
+    });
+    const runtime = await runtimeFactory({
+      sessionId: "app-session-1",
+      projectId: "pig",
+      cwd: "/Users/void/code/opensource/Pig",
+    });
+
+    const snapshot = await runtime.getSnapshot?.();
+
+    expect(snapshot?.contextUsage).toBeUndefined();
+  });
+
   it("passes image attachments through prompt, follow-up, and steer", async () => {
     const session = {
       sessionId: "sdk-session-1",

@@ -11,12 +11,17 @@ export type {
 } from "@pigui/core";
 import type {
   AgentRuntimeEvent,
+  RuntimeContextUsage,
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimePromptImage,
 } from "@pigui/core";
 
-export type { RuntimeModelControls, RuntimeModelSelection } from "@pigui/core";
+export type {
+  RuntimeContextUsage,
+  RuntimeModelControls,
+  RuntimeModelSelection,
+} from "@pigui/core";
 
 export type ExecutionCheckout = {
   mode: "foreground-local" | "managed-worktree";
@@ -138,6 +143,7 @@ export type PiSessionState = {
   replay?: SessionReplayEntry[];
   summary?: PiRuntimeSummary;
   modelControls?: RuntimeModelControls;
+  contextUsage?: RuntimeContextUsage;
   updatedAt: string;
 };
 
@@ -283,5 +289,6 @@ export function cloneSessionState(state: PiSessionState): PiSessionState {
             : null,
         }
       : undefined,
+    contextUsage: state.contextUsage ? { ...state.contextUsage } : undefined,
   };
 }

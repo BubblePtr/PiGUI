@@ -484,6 +484,22 @@ export function addLegacyChatEventToModel(
   };
 }
 
+/**
+ * Whether a compaction is still running. Derived from the status stream rather
+ * than mirrored into its own field, so the two can never disagree.
+ */
+export function isContextCompacting(model: SessionRuntimeModel): boolean {
+  for (let index = model.statuses.length - 1; index >= 0; index -= 1) {
+    const code = model.statuses[index].code;
+
+    if (code === "compacting" || code === "compaction_done") {
+      return code === "compacting";
+    }
+  }
+
+  return false;
+}
+
 export function sessionStatusFromRuntimeModel(
   model: SessionRuntimeModel,
 ): SessionStatus | null {
