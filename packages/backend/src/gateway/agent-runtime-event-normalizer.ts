@@ -14,6 +14,7 @@ import {
   type AgentRuntimeEvent,
   type AgentRunTrigger,
   type AgentStatusCode,
+  type RuntimeContextUsage,
 } from "@pigui/core";
 
 export type AgentRuntimeEventNormalizerInput = {
@@ -25,6 +26,13 @@ export type AgentRuntimeEventNormalizerInput = {
    * ADR-0020: counters must continue after reattach, never reset to 0.
    */
   initialRunSeq?: number;
+  /**
+   * Live context-window read, injected by the driver: Pi exposes occupancy as
+   * a session method, not as an event payload. Called only at the boundaries
+   * where context can have changed, so identity derivation stays pure.
+   * Absent (RPC driver, fixture replay) means no context_usage events.
+   */
+  readContextUsage?: () => RuntimeContextUsage | undefined;
 };
 
 export type AgentRuntimeEventNormalizer = {
@@ -104,6 +112,10 @@ export function createAgentRuntimeEventNormalizer(
   let runTrigger: AgentRunTrigger = "unknown";
   let pendingTrigger: AgentRunTrigger | null = null;
   let message: MessageState | null = null;
+  // Pi emits compaction_end only on the happy path; an aborted or failed run
+  // just stops. Tracking the open compaction lets run closure end it too, so
+  // no consumer is left holding a compaction that never finishes.
+  let compacting = false;
 
   function partSnapshots(state: MessageState): AgentMessagePartSnapshot[] {
     return [...state.parts.entries()]
@@ -286,6 +298,24 @@ export function createAgentRuntimeEventNormalizer(
     };
   }
 
+  function contextUsageEvents(): AgentRuntimeEvent[] {
+    const usage = input.readContextUsage?.();
+
+    if (!usage) {
+      return [];
+    }
+
+    return [
+      {
+        type: "context_usage",
+        ...(runId ? { runId } : {}),
+        usage,
+        surface: "hidden",
+        origin,
+      },
+    ];
+  }
+
   function closeOpenMessage(options: { abandoned?: boolean } = {}): AgentRuntimeEvent[] {
     if (!runId || !turnId || !message) {
       return [];
@@ -437,13 +467,19 @@ export function createAgentRuntimeEventNormalizer(
       }
 
       if (rawEvent.type === "compaction_start") {
+        compacting = true;
+
         return [
           statusEvent("compacting", typeof rawEvent.reason === "string" ? rawEvent.reason : undefined),
         ];
       }
 
       if (rawEvent.type === "compaction_end") {
-        return [statusEvent("compaction_done", undefined)];
+        compacting = false;
+
+        // Right after compaction the runtime reports an unknown token count;
+        // reading here is what makes the drop visible instead of stale.
+        return [statusEvent("compaction_done", undefined), ...contextUsageEvents()];
       }
 
       if (rawEvent.type === "auto_retry_start" && runId) {
@@ -469,7 +505,10 @@ export function createAgentRuntimeEventNormalizer(
       }
 
       if (rawEvent.type === "turn_end" && runId && turnId) {
-        return [{ type: "turn", runId, turnId, phase: "end", surface: "hidden", origin }];
+        return [
+          { type: "turn", runId, turnId, phase: "end", surface: "hidden", origin },
+          ...contextUsageEvents(),
+        ];
       }
 
       if (rawEvent.type === "agent_end" && runId) {
@@ -500,12 +539,19 @@ export function createAgentRuntimeEventNormalizer(
               ]
             : [];
         const closureEvents = closeOpenMessage();
+        // A compaction still open here never got its own end event — the run
+        // stopped first. Close it, or every consumer stays stuck compacting.
+        const compactionClosure = compacting
+          ? [statusEvent("compaction_aborted", undefined)]
+          : [];
 
+        compacting = false;
         runId = null;
         turnId = null;
 
         return [
           ...closureEvents,
+          ...compactionClosure,
           ...errorEvents,
           {
             type: "run",

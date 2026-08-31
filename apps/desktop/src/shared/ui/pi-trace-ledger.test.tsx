@@ -1,9 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionTurn } from "@pigui/core";
+import type { TraceRole, TraceStep } from "@/entities/session/trace-model";
 import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
-import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
+import { PiTraceLedger, traceStepType } from "@/shared/ui/pi-trace-ledger";
 
 const sessionTurns: SessionTurn[] = [
   {
@@ -182,5 +185,30 @@ describe("PiTraceLedger", () => {
     render(<PiTraceLedger emptyLabel="No timeline entries found." runs={[]} />);
 
     expect(screen.getByText("No timeline entries found.")).toBeInTheDocument();
+  });
+
+  // Badges encode a step's type, not its outcome: borrowing a semantic token
+  // (CONTEXT once used `--success`) overloads that colour's meaning on screen
+  // and repaints the badge whenever the semantic token is retuned. The
+  // declaration is checked too — an undeclared var() silently paints nothing.
+  it("colors every badge from a declared data-palette token", () => {
+    const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
+    const declared = [...styles.matchAll(/(--pigui-data-[a-z-]+)\s*:/g)].map((match) => match[1]);
+
+    const step = (kind: string): TraceStep => ({ id: "s", turnIndex: 0, stepIndex: 0, kind });
+    const badges: Array<[TraceStep, TraceRole]> = [
+      [step("config"), "annotation"],
+      [step("tool"), "assistant"],
+      [step("text"), "user"],
+      [step("text"), "assistant"],
+    ];
+
+    for (const [traceStep, role] of badges) {
+      const { label, color } = traceStepType(traceStep, role);
+      const token = /^var\((--pigui-data-[a-z-]+)\)$/.exec(color)?.[1];
+
+      expect(token, `${label} badge is painted with ${color}`).toBeDefined();
+      expect(declared).toContain(token);
+    }
   });
 });

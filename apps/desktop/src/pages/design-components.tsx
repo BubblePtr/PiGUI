@@ -39,6 +39,7 @@ import {
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import { ComposerAttachmentDrawer } from "@/shared/ui/composer-attachments/composer-attachment-drawer";
 import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-insert-menu";
@@ -1270,6 +1271,59 @@ function ComposerAttachmentDrawerGallery() {
   );
 }
 
+function ContextUsageMeterGallery() {
+  return (
+    <GallerySection title="ContextUsageMeter">
+      <VariantRow>
+        <Variant caption="loading — runtime bound, nothing reported yet">
+          <ContextUsageMeter usage={null} />
+        </Variant>
+        <Variant caption="normal (≤70%)">
+          <ContextUsageMeter
+            usage={{ tokens: 90_000, contextWindow: 200_000, percent: 45 }}
+          />
+        </Variant>
+        <Variant caption="warning — past Pi's 70% threshold">
+          <ContextUsageMeter
+            usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
+          />
+        </Variant>
+        <Variant caption="critical — past 90%, compaction is imminent">
+          <ContextUsageMeter
+            usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
+          />
+        </Variant>
+        <Variant caption="tokens null — just compacted, count unknown, never a fake 0">
+          <ContextUsageMeter
+            usage={{ tokens: null, contextWindow: 200_000, percent: null }}
+          />
+        </Variant>
+        <Variant caption="compacting — indeterminate while the run reclaims context">
+          <ContextUsageMeter
+            isCompacting
+            usage={{ tokens: 188_000, contextWindow: 200_000, percent: 94 }}
+          />
+        </Variant>
+        <Variant caption="in the composer header (its production placement)">
+          <div className="w-96">
+            <ChatPromptInput
+              headerContext={
+                <ContextUsageMeter
+                  usage={{ tokens: 156_000, contextWindow: 200_000, percent: 78 }}
+                />
+              }
+              placeholder="Ask anything"
+              value=""
+              onSubmit={() => {}}
+              onValueChange={() => {}}
+            />
+          </div>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
 function ModelSelectorControlGallery() {
   return (
     <GallerySection title="ModelSelectorControl">
@@ -1340,6 +1394,7 @@ export function DesignComponentsLayer() {
       <ChatChainOfThoughtRailGallery />
       <ChatConversationGallery />
       <TextShimmerGallery />
+      <ContextUsageMeterGallery />
       <ModelSelectorControlGallery />
       <ComposerInsertMenuGallery />
       <ComposerAttachmentDrawerGallery />

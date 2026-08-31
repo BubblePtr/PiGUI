@@ -1140,6 +1140,83 @@ describe("Session Projection state", () => {
     });
   });
 
+  it("tracks context-window occupancy across turns, compaction, and resume", () => {
+    let projection = createSessionProjection({
+      id: "session-1",
+      projectId: "project-1",
+      initialPrompt: "Ship it",
+      createdAt: "2026-07-02T10:00:00.000Z",
+    });
+
+    expect(projection.contextUsage).toBeNull();
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "context_usage",
+          runId: "pi-session-1:run-1",
+          usage: { tokens: 184_000, contextWindow: 200_000, percent: 92 },
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+
+    expect(projection.contextUsage).toEqual({
+      tokens: 184_000,
+      contextWindow: 200_000,
+      percent: 92,
+    });
+
+    // Right after a compaction Pi cannot count the context yet — the
+    // projection must carry the unknown through, not the stale 92%.
+    projection = applySessionProjectionEvent(projection, {
+      type: "agent-event-received",
+      entry: {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "context_usage",
+          runId: "pi-session-1:run-1",
+          usage: { tokens: null, contextWindow: 200_000, percent: null },
+          surface: "hidden",
+          origin: "sdk",
+        },
+      },
+    });
+
+    expect(projection.contextUsage).toEqual({
+      tokens: null,
+      contextWindow: 200_000,
+      percent: null,
+    });
+
+    const state: PiSessionState = {
+      piSessionId: "pi-session-1",
+      runtimeId: "pi-sdk:session-1",
+      projectId: "project-1",
+      cwd: "/repo",
+      status: "idle",
+      events: [],
+      contextUsage: { tokens: 24_000, contextWindow: 200_000, percent: 12 },
+      updatedAt: "2026-07-02T10:05:00.000Z",
+    };
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-state-resynced",
+      state,
+    });
+
+    expect(projection.contextUsage).toEqual({
+      tokens: 24_000,
+      contextWindow: 200_000,
+      percent: 12,
+    });
+  });
+
   it("mirrors Gateway-minted chat events into the runtime model but never compat-derived ones", () => {
     let projection = createSessionProjection({
       id: "session-1",

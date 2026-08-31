@@ -3924,6 +3924,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         totalCostUsd: 0.012345,
       },
       modelControls: null,
+      contextUsage: null,
       stale: false,
       staleReason: null,
       failure: null,

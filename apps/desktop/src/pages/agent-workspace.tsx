@@ -30,6 +30,7 @@ import {
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import {
   ComposerAttachmentDrawer,
@@ -89,9 +90,10 @@ import {
   type RuntimeModelControls,
   type RuntimeModelSelection,
 } from "@/entities/runtime/pi-runtime-bridge";
-import type {
-  SessionRuntimeMessage,
-  SessionRuntimeModel,
+import {
+  isContextCompacting,
+  type SessionRuntimeMessage,
+  type SessionRuntimeModel,
 } from "@/entities/session/session-runtime-model";
 import {
   createInMemorySessionProjectionStore,
@@ -792,6 +794,15 @@ function FullChatComposer({
         error={attachments.error ?? composerError}
         footer={!queueMode ? "AI can make mistakes. Check important info." : undefined}
         hasAttachments={attachments.items.length > 0}
+        headerContext={
+          // Only a bound runtime has a context window to be a share of.
+          projection?.piSessionId ? (
+            <ContextUsageMeter
+              isCompacting={isContextCompacting(projection.runtimeModel)}
+              usage={projection.contextUsage}
+            />
+          ) : undefined
+        }
         lockInputOnRun={!queueMode}
         startActions={
           <>
