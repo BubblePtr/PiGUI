@@ -34,7 +34,8 @@ const laneColors: Record<StripLane, string> = {
   tools: "var(--pigui-data-orange)",
 };
 
-const annotationColor = "var(--pigui-data-amber)";
+/** Same green as the Ledger's CONTEXT badge: one colour per step type. */
+const annotationColor = "var(--pigui-data-green)";
 
 function formatCursorTime(value?: string) {
   if (!value) {

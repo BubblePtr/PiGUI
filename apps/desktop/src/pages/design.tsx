@@ -33,6 +33,7 @@ const dataColorTokens = [
   "--pigui-data-orange",
   "--pigui-data-orange-strong",
   "--pigui-data-amber",
+  "--pigui-data-green",
   "--pigui-data-peach",
   "--pigui-data-coral",
   "--pigui-data-slate",
