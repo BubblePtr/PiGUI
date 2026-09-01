@@ -349,10 +349,13 @@ function getVisibleProjectRegistry() {
 
 function LiveChatMessage({
   message,
+  modelElapsedMs,
   timeline = [],
   onForkMessage,
 }: {
   message: LiveMessage;
+  /** Measured model-call time for this answer; absent when unbracketed. */
+  modelElapsedMs?: number;
   timeline?: RunTimelineItem[];
   onForkMessage?: (message: LiveMessage) => void;
 }) {
@@ -423,7 +426,7 @@ function LiveChatMessage({
         ) : null}
         {!message.controlLabel ? (
           <AssistantRunTrace
-            elapsedMs={thoughtElapsedMs(timeline)}
+            elapsedMs={modelElapsedMs ?? thoughtElapsedMs(timeline)}
             isStreaming={message.isStreaming}
             timeline={timeline}
           />
@@ -466,13 +469,14 @@ function AssistantRunTrace({
   isStreaming?: boolean;
   timeline: RunTimelineItem[];
 }) {
-  if (!timeline.length) {
-    return null;
-  }
-
   // Remount when stream ends so the settled trigger starts closed (DF-005B).
   if (isStreaming) {
     const latest = timeline[timeline.length - 1];
+
+    if (!latest) {
+      return null;
+    }
+
     return (
       <ChainOfThought key="streaming" isStreaming>
         <ChainOfThought.Live pageKey={liveTracePageKey(latest)}>
@@ -480,6 +484,13 @@ function AssistantRunTrace({
         </ChainOfThought.Live>
       </ChainOfThought>
     );
+  }
+
+  // A measured call is worth disclosing even when the turn left no thinking or
+  // tool steps behind — an answer that took 30s should say so. Without steps
+  // and without a measurement there is nothing to show but a placeholder.
+  if (!timeline.length && elapsedMs === undefined) {
+    return null;
   }
 
   return (
@@ -536,6 +547,12 @@ function LiveTracePage({ item }: { item: RunTimelineItem }) {
   );
 }
 
+/**
+ * Legacy-bridge fallback: trace items carry only closing stamps, so this spans
+ * the steps rather than the calls — it loses each call's opening wait and has
+ * nothing to measure below two steps. Kept for bridges that mint no message
+ * boundaries; the runtime-model path measures the calls themselves.
+ */
 function thoughtElapsedMs(timeline: RunTimelineItem[]) {
   const times = timeline
     .map((item) => (item.timestamp ? Date.parse(item.timestamp) : Number.NaN))
@@ -544,6 +561,36 @@ function thoughtElapsedMs(timeline: RunTimelineItem[]) {
     return undefined;
   }
   return Math.max(...times) - Math.min(...times);
+}
+
+/**
+ * Wall clock the model itself spent on one answer: every call the bubble
+ * collapses, each measured between its own message boundaries. Tool execution
+ * sits between calls and each tool row already reports its own duration, so
+ * summing the calls keeps the two disclosures from charging the same seconds
+ * twice. Undefined when no call in the run was bracketed — the caller keeps
+ * its older estimate rather than pass off a guess as a measurement.
+ */
+function runModelElapsedMs(model: SessionRuntimeModel, messageIds: string[]) {
+  let totalMs = 0;
+
+  for (const messageId of messageIds) {
+    const message = model.messages.get(messageId);
+
+    if (!message || message.phase !== "final" || !message.startedAt) {
+      continue;
+    }
+
+    const spanMs = Date.parse(message.updatedAt) - Date.parse(message.startedAt);
+
+    // A pair that is not a plausible positive span contributes nothing, so a
+    // skewed clock or an unparsable stamp degrades to the estimate.
+    if (Number.isFinite(spanMs) && spanMs > 0) {
+      totalMs += spanMs;
+    }
+  }
+
+  return totalMs > 0 ? totalMs : undefined;
 }
 
 type TimelineStep =
@@ -3158,6 +3205,10 @@ function LiveSessionColumn({
         : message.id === fallbackTraceMessageId,
     );
   };
+  const modelElapsedForMessage = (message: LiveMessage) =>
+    liveProjection
+      ? runModelElapsedMs(liveProjection.runtimeModel, relatedMessageIdsFor(message))
+      : undefined;
   const readOnlyProjection = isReadOnlyProjection(liveProjection);
   const runtimeUnavailableProjection =
     isRuntimeUnavailableProjection(liveProjection) ? liveProjection : null;
@@ -3513,6 +3564,7 @@ function LiveSessionColumn({
                 <LiveChatMessage
                   key={message.id}
                   message={message}
+                  modelElapsedMs={modelElapsedForMessage(message)}
                   onForkMessage={
                     liveProjection?.sessionFile &&
                     liveProjection.piSessionId &&

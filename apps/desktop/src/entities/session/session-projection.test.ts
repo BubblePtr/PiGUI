@@ -898,6 +898,10 @@ describe("Session Projection state", () => {
     expect(resynced.runtimeModel.messages.get(messageId)).toMatchObject({
       role: "assistant",
       phase: "final",
+      // Both message boundaries are journalled, so a restart still knows how
+      // long the call took — the trace does not degrade to an estimate.
+      startedAt: "2026-07-03T10:00:03.000Z",
+      updatedAt: "2026-07-03T10:00:05.000Z",
       parts: [expect.objectContaining({ body: "Hello.", done: true })],
     });
     expect(resynced.runtimeModel.messages.get("evt-user")).toMatchObject({

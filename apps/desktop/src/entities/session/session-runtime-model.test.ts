@@ -173,6 +173,95 @@ describe("session runtime model", () => {
     expect(model.order).toEqual([{ kind: "message", id: messageId, seq: 3 }]);
   });
 
+  it("keeps a model call's start stamp through the message end so its span stays derivable", () => {
+    let model = createSessionRuntimeModel();
+
+    model = applyAll(model, [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" },
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:05.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "thinking",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: "Reading the repo.",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:08.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId, partType: "thinking", body: "Reading the repo." }],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    // Both boundaries survive, so the call is a measurable 6s rather than a
+    // single "last touched" stamp.
+    expect(model.messages.get(messageId)).toMatchObject({
+      phase: "final",
+      startedAt: "2026-07-02T10:00:02.000Z",
+      updatedAt: "2026-07-02T10:00:08.000Z",
+    });
+  });
+
+  it("leaves a message that never opened unstamped rather than inventing a start", () => {
+    // A journal cut short, or a bridge that only mints the closing boundary.
+    const model = applyAll(createSessionRuntimeModel(), [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:08.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId, partType: "text", body: "Done." }],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    expect(model.messages.get(messageId)?.startedAt).toBeUndefined();
+  });
+
   it("keeps Session Status owned by run events: a retrying status never completes the session", () => {
     let model = createSessionRuntimeModel();
 
