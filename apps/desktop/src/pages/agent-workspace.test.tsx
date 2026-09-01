@@ -451,6 +451,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(sheetPanel).toHaveClass("pi-sheet__panel");
     expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
     expect(inspectorButton).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.queryByTestId("session-inspector-trigger-rail-slot"),
+    ).not.toBeInTheDocument();
 
     await user.click(within(changesDialog).getByRole("radio", { name: "Actions" }));
 
@@ -474,10 +477,36 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     expect(screen.getByLabelText("Resize Session inspector")).toHaveClass("mx-2");
-    expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-10");
-    expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-10");
+    // The titlebar band is a real 40px row on the Chat side; the inspector's
+    // own header fills that band on the aside side, so the aside pane carries
+    // no offset. One hairline under the band spans the whole view (across the
+    // resize handle too) rather than being drawn per column.
+    expect(
+      within(screen.getByTestId("session-workspace-main-pane")).getByTestId(
+        "session-workspace-titlebar-band",
+      ),
+    ).toHaveClass("h-10");
+    expect(screen.getByTestId("session-workspace-aside-pane")).not.toHaveClass("pt-10");
+    expect(within(aside).getByRole("banner")).toHaveClass("h-10");
+    expect(within(aside).getByRole("banner")).not.toHaveClass("border-b");
+    expect(
+      within(screen.getByTestId("project-sessions-view")).getByTestId(
+        "session-workspace-titlebar-rule",
+      ),
+    ).toHaveClass("absolute", "inset-x-0", "top-10");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The panel's rail hugs the window edge: no centered max-width box or
+    // horizontal padding may sit between the split view and the viewport.
+    expect(aside.closest(".max-w-\\[96rem\\]")).toBeNull();
+    expect(screen.getByTestId("project-sessions-view")).not.toHaveClass("px-6");
+    // The toolbar toggle is the head of the rail column: docked, it sits on
+    // the rail's axis (a rail-width slot that cancels the header inset).
+    expect(
+      screen.getByRole("button", { name: "Session inspector" }).closest(
+        '[data-testid="session-inspector-trigger-rail-slot"]',
+      ),
+    ).toHaveClass("w-11", "-mr-4", "justify-center");
 
     // The rail swaps the surface inside the same docked panel.
     await user.click(
@@ -492,9 +521,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(actionsAside).getByText("Checkout")).toBeInTheDocument();
     expect(within(actionsAside).queryByText("Diff summary")).not.toBeInTheDocument();
 
-    await user.click(
-      within(actionsAside).getByRole("button", { name: "Close Session inspector" }),
-    );
+    // No close button in the docked header; the toolbar toggle is the one
+    // way in and out.
+    expect(
+      within(actionsAside).queryByRole("button", { name: "Close Session inspector" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Session inspector" }));
 
     await waitFor(() => {
       expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
@@ -4742,6 +4774,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByText("{\"path\":\"AGENTS.md\"}")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    // Single column too: Chat centers itself, so no outer max-width box may
+    // pull its scrollbar away from the window edge.
+    expect(
+      screen.getByLabelText("Live Chat messages").closest(".max-w-\\[96rem\\]"),
+    ).toBeNull();
 
     render(<SessionActionsContent workspace={workspace} projection={projection} />);
 

@@ -4,7 +4,7 @@ import {
   ToggleButtonGroup,
 } from "@astryxdesign/core/ToggleButton";
 import type { ReactNode } from "react";
-import { Cancel, SidebarLeft } from "@/shared/ui/icons";
+import { SidebarLeft } from "@/shared/ui/icons";
 import {
   sessionSurfaceOrder,
   sessionSurfaces,
@@ -41,22 +41,47 @@ export function sessionInspectorResizableBounds(viewportWidth: number) {
  * panel (and with it the rail) is closed, so it lives with the component.
  */
 export function SessionInspectorTrigger({
+  alignToRail = false,
   isOpen,
   onOpenChange,
 }: {
+  /**
+   * Docked layouts: seat the toggle on the rail's axis so it reads as the
+   * head of the rail column. The slot is rail-width (`w-11`) and cancels the
+   * header chrome's 1rem right inset; it stays put whether the panel is open
+   * or closed so the toggle never jumps.
+   */
+  alignToRail?: boolean;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 }) {
-  return (
-    <ToggleButton
+  // A plain ghost button, not a ToggleButton: the panel being open is already
+  // obvious, and a pressed fill here would compete with the rail's active
+  // surface, which is the selection that matters. aria-pressed keeps the
+  // state for assistive tech.
+  const toggle = (
+    <IconButton
+      aria-pressed={isOpen}
       icon={<SidebarLeft className="size-4 rotate-180" />}
-      isIconOnly
-      isPressed={isOpen}
       label="Session inspector"
       size="sm"
       tooltip={isOpen ? "Hide inspector" : "Show inspector"}
-      onPressedChange={onOpenChange}
+      variant="ghost"
+      onClick={() => onOpenChange(!isOpen)}
     />
+  );
+
+  if (!alignToRail) {
+    return toggle;
+  }
+
+  return (
+    <span
+      className="-mr-4 flex w-11 shrink-0 justify-center"
+      data-testid="session-inspector-trigger-rail-slot"
+    >
+      {toggle}
+    </span>
   );
 }
 
@@ -65,14 +90,12 @@ export function SessionInspector({
   badges,
   children,
   onActiveSurfaceChange,
-  onClose,
 }: {
   activeSurfaceId: SessionSurfaceId;
   /** Live counts per surface, e.g. changed file count. */
   badges?: Partial<Record<SessionSurfaceId, string>>;
   children: ReactNode;
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
-  onClose: () => void;
 }) {
   const surface = sessionSurfaces[activeSurfaceId];
   const SurfaceIcon = surface.icon;
@@ -80,10 +103,14 @@ export function SessionInspector({
   return (
     <aside
       aria-labelledby={headingId}
-      className="flex h-full min-h-0 min-w-0 bg-background"
+      className="flex h-full min-h-0 min-w-0 bg-surface"
       data-testid="session-inspector"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Fills the titlebar band beside Chat's title; the hairline under the
+            band is the sessions view's, not ours. Display only: the toolbar
+            toggle at the rail's head owns open/close, so a close button here
+            would duplicate it 40px away. */}
         <header className="flex h-10 shrink-0 items-center gap-2 px-4">
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
@@ -95,20 +122,16 @@ export function SessionInspector({
           <span className="min-w-0 flex-1 truncate text-xs text-muted">
             {surface.hint}
           </span>
-          <IconButton
-            icon={<Cancel className="size-4" />}
-            label="Close Session inspector"
-            size="sm"
-            tooltip="Close inspector"
-            variant="ghost"
-            onClick={onClose}
-          />
         </header>
-        <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4">
           {children}
         </div>
       </div>
-      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface-muted py-2">
+      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface">
+        {/* The toolbar toggle (header chrome) floats over this cell, so the
+            rail reads as toggle / hairline / surfaces. */}
+        <div aria-hidden="true" className="h-10 w-full shrink-0" />
+        <div className="flex flex-col items-center py-2">
         <ToggleButtonGroup
           label="Session surfaces"
           orientation="vertical"
@@ -142,12 +165,15 @@ export function SessionInspector({
                 }
                 isIconOnly
                 label={meta.title}
+                // Same size as the toolbar toggle so the column reads as one.
+                size="sm"
                 tooltip={`${meta.title} — ${meta.hint}`}
                 value={surfaceId}
               />
             );
           })}
         </ToggleButtonGroup>
+        </div>
       </nav>
     </aside>
   );
