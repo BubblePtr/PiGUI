@@ -38,8 +38,7 @@ async function openSession(
   const session = sessionRowButton(window, projection.initialPrompt);
   await expect(session).toBeVisible();
   await session.click();
-  await expect(window.getByLabel("Session changes")).toBeVisible();
-  await expect(window.getByLabel("Session actions", { exact: true })).toBeVisible();
+  await expect(window.getByLabel("Session inspector")).toBeVisible();
 }
 
 test.describe("S3: Provider Settings (DF-002)", () => {

@@ -43,8 +43,7 @@ async function openSession(
 
   await expect(session).toBeVisible();
   await session.click();
-  await expect(window.getByLabel("Session changes")).toBeVisible();
-  await expect(window.getByLabel("Session actions", { exact: true })).toBeVisible();
+  await expect(window.getByLabel("Session inspector")).toBeVisible();
 }
 
 test.describe("M1: Real-data-only", () => {
@@ -85,7 +84,13 @@ test.describe("M2: Reliable lifecycle", () => {
         testApp.project!,
         testApp.projection!,
       );
-      await testApp.window.getByLabel("Session actions", { exact: true }).click();
+      // Default window is 1280×840, so the inspector docks; the rail switches
+      // it from Changes to Actions.
+      await testApp.window.getByLabel("Session inspector").click();
+      await testApp.window
+        .getByRole("group", { name: "Session surfaces" })
+        .getByRole("button", { name: "Actions" })
+        .click();
 
       const archive = testApp.window.getByRole("button", {
         name: "Archive Session",
@@ -180,12 +185,12 @@ test.describe("M3: Real diff action surface", () => {
       // Default window is now 1280×840 (docked aside). Force narrow width so
       // the Changes panel renders as a sheet dialog, matching these assertions.
       await testApp.resizeWindow(640, 780);
-      await testApp.window.getByLabel("Session changes").click();
+      await testApp.window.getByLabel("Session inspector").click();
 
       await expect(
         testApp.window.getByRole("dialog", { name: "Changes" }),
       ).toBeVisible();
-      await expect(testApp.window.getByTestId("session-changes-aside")).toHaveCount(0);
+      await expect(testApp.window.getByTestId("session-inspector")).toHaveCount(0);
 
       await expect(testApp.window.getByText("src/app.ts").first()).toBeVisible();
       await expect(
@@ -229,7 +234,7 @@ test.describe("M3: Real diff action surface", () => {
     }
   });
 
-  test("docks Changes beside Chat in a wide Electron window", async () => {
+  test("docks the Session inspector beside Chat in a wide Electron window", async () => {
     const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
 
     try {
@@ -239,13 +244,13 @@ test.describe("M3: Real diff action surface", () => {
         testApp.project!,
         testApp.projection!,
       );
-      await testApp.window.getByLabel("Session changes").click();
+      await testApp.window.getByLabel("Session inspector").click();
 
-      const changesAside = testApp.window.getByTestId("session-changes-aside");
+      const changesAside = testApp.window.getByTestId("session-inspector");
 
       await expect(changesAside).toBeVisible();
       await expect(testApp.window.getByLabel("Live Chat messages")).toBeVisible();
-      await expect(testApp.window.getByLabel("Resize Session changes")).toBeVisible();
+      await expect(testApp.window.getByLabel("Resize Session inspector")).toBeVisible();
       await expect(
         testApp.window.getByRole("dialog", { name: "Changes" }),
       ).toHaveCount(0);
@@ -256,7 +261,7 @@ test.describe("M3: Real diff action surface", () => {
         }),
       ).toBeVisible({ timeout: 15_000 });
 
-      const resizeHandle = testApp.window.getByLabel("Resize Session changes");
+      const resizeHandle = testApp.window.getByLabel("Resize Session inspector");
       const handleBox = await resizeHandle.boundingBox();
       const initialAsideBox = await changesAside.boundingBox();
       const viewportHeight = await testApp.window.evaluate(() => window.innerHeight);
