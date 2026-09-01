@@ -14,12 +14,12 @@ import {
 /**
  * Session-scoped surface host: one panel plus an icon rail on its own right
  * edge. The rail belongs to the panel, so closing the inspector removes both —
- * nothing stays docked against the window (ADR-0024).
+ * nothing stays docked against the window (ADR-0028).
  */
 
 const headingId = "session-inspector-heading";
 
-/** Panel geometry (ADR-0024); the drag itself is Astryx `useResizable`. */
+/** Panel geometry (ADR-0028); the drag itself is Astryx `useResizable`. */
 export const sessionInspectorDefaultWidthPx = 560;
 const minWidthPx = 340;
 const maxWidthViewportRatio = 0.58;

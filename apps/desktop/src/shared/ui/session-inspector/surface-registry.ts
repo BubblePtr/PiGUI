@@ -18,7 +18,7 @@ export type SessionSurfaceMeta = {
   hint: string;
   /**
    * Multi-instance surfaces keep a single rail icon and list their instances
-   * in the panel header (ADR-0024). No v1 surface is multi-instance, so the
+   * in the panel header (ADR-0028). No v1 surface is multi-instance, so the
    * instance strip is not built yet.
    */
   multiInstance?: boolean;
