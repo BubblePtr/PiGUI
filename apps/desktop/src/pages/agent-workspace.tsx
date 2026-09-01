@@ -3698,10 +3698,10 @@ export function AgentWorkspaceSessionsView({
         className="pointer-events-none absolute inset-x-0 top-10 z-10 h-px bg-separator"
         data-testid="session-workspace-titlebar-rule"
       />
-      {/* Docked: the split view spans the full width so the inspector's rail
-          hugs the window edge (ADR-0028). Chat centers itself via its own
-          max-width, so an outer centered box would only strand the panel
-          short of the edge. */}
+      {/* Both layouts span the full width: Chat centers itself via its own
+          max-width, so an outer centered box would only strand the docked
+          inspector's rail (ADR-0028) and Chat's scrollbar short of the
+          window edge. */}
       {aside ? (
         <div
           className="flex h-full min-h-0 w-full flex-row"
@@ -3747,7 +3747,7 @@ export function AgentWorkspaceSessionsView({
           </div>
         </div>
       ) : (
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-[96rem] flex-col px-6">
+        <div className="flex h-full min-h-0 w-full flex-col">
           <TitlebarBand />
           <div className="min-h-0 flex-1">{liveSession}</div>
         </div>

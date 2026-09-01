@@ -4774,6 +4774,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByText("{\"path\":\"AGENTS.md\"}")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    // Single column too: Chat centers itself, so no outer max-width box may
+    // pull its scrollbar away from the window edge.
+    expect(
+      screen.getByLabelText("Live Chat messages").closest(".max-w-\\[96rem\\]"),
+    ).toBeNull();
 
     render(<SessionActionsContent workspace={workspace} projection={projection} />);
 
