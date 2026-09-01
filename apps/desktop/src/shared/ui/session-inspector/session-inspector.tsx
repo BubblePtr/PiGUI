@@ -109,10 +109,11 @@ export function SessionInspector({
       data-testid="session-inspector"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Fills the titlebar band beside Chat's title. The fixed header
-            chrome's drag region sits above this row, so only the close button
-            is lifted over it. */}
-        <header className="flex h-10 shrink-0 items-center gap-2 border-b border-separator px-4">
+        {/* Fills the titlebar band beside Chat's title; the hairline under the
+            band is the sessions view's, not ours. The fixed header chrome's
+            drag region sits above this row, so only the close button is
+            lifted over it. */}
+        <header className="flex h-10 shrink-0 items-center gap-2 px-4">
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
             id={headingId}
@@ -141,7 +142,7 @@ export function SessionInspector({
       <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface">
         {/* The toolbar toggle (header chrome) floats over this cell, so the
             rail reads as toggle / hairline / surfaces. */}
-        <div aria-hidden="true" className="h-10 w-full shrink-0 border-b border-separator" />
+        <div aria-hidden="true" className="h-10 w-full shrink-0" />
         <div className="flex flex-col items-center py-2">
         <ToggleButtonGroup
           label="Session surfaces"

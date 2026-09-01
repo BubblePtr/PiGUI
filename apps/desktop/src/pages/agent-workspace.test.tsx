@@ -477,16 +477,23 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     expect(screen.getByLabelText("Resize Session inspector")).toHaveClass("mx-2");
-    // The titlebar band is a real 40px row (not padding) so the hairline under
-    // it can run across Chat; the inspector's own header fills that band on the
-    // aside side, so the aside pane carries no offset.
+    // The titlebar band is a real 40px row on the Chat side; the inspector's
+    // own header fills that band on the aside side, so the aside pane carries
+    // no offset. One hairline under the band spans the whole view (across the
+    // resize handle too) rather than being drawn per column.
     expect(
       within(screen.getByTestId("session-workspace-main-pane")).getByTestId(
         "session-workspace-titlebar-band",
       ),
-    ).toHaveClass("h-10", "border-b");
+    ).toHaveClass("h-10");
     expect(screen.getByTestId("session-workspace-aside-pane")).not.toHaveClass("pt-10");
-    expect(within(aside).getByRole("banner")).toHaveClass("h-10", "border-b");
+    expect(within(aside).getByRole("banner")).toHaveClass("h-10");
+    expect(within(aside).getByRole("banner")).not.toHaveClass("border-b");
+    expect(
+      within(screen.getByTestId("project-sessions-view")).getByTestId(
+        "session-workspace-titlebar-rule",
+      ),
+    ).toHaveClass("absolute", "inset-x-0", "top-10");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     // The panel's rail hugs the window edge: no centered max-width box or

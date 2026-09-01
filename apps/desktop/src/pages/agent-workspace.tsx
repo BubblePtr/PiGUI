@@ -3578,15 +3578,15 @@ function LiveSessionColumn({
 }
 
 /**
- * The 40px row under the fixed header chrome. A real element rather than
- * padding so every column can draw the same hairline under its title row:
- * Chat here, the inspector via its own header, the rail via its toggle cell.
+ * The 40px row under the fixed header chrome on the Chat side. The inspector
+ * fills the same band with its own header; the hairline under both is drawn
+ * once by the sessions view.
  */
 function TitlebarBand() {
   return (
     <div
       aria-hidden="true"
-      className="h-10 shrink-0 border-b border-separator"
+      className="h-10 shrink-0"
       data-testid="session-workspace-titlebar-band"
     />
   );
@@ -3687,9 +3687,17 @@ export function AgentWorkspaceSessionsView({
 
   return (
     <article
-      className="-mt-10 flex h-[calc(100%+2.5rem)] min-h-0 min-w-0 flex-col overflow-hidden pb-0"
+      className="relative -mt-10 flex h-[calc(100%+2.5rem)] min-h-0 min-w-0 flex-col overflow-hidden pb-0"
       data-testid="project-sessions-view"
     >
+      {/* One hairline under the titlebar band for the whole view. Drawn once
+          here rather than per column so it does not break at the resize
+          handle between Chat and the inspector. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-10 z-10 h-px bg-separator"
+        data-testid="session-workspace-titlebar-rule"
+      />
       {/* Docked: the split view spans the full width so the inspector's rail
           hugs the window edge (ADR-0028). Chat centers itself via its own
           max-width, so an outer centered box would only strand the panel
