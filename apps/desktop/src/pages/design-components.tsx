@@ -252,6 +252,15 @@ function SessionInspectorGallery() {
         <Variant caption="collapsed — panel and rail are both gone; only this toolbar toggle remains">
           <SessionInspectorTrigger isOpen={isOpen} onOpenChange={setIsOpen} />
         </Variant>
+        <Variant caption="docked toggle — alignToRail seats it on the 44px rail axis (slot cancels the header's 1rem inset)">
+          <div className="flex w-40 justify-end border-r border-separator pr-4">
+            <SessionInspectorTrigger
+              alignToRail
+              isOpen={isOpen}
+              onOpenChange={setIsOpen}
+            />
+          </div>
+        </Variant>
       </VariantRow>
     </GallerySection>
   );

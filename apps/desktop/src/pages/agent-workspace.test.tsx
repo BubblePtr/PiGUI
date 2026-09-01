@@ -451,6 +451,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(sheetPanel).toHaveClass("pi-sheet__panel");
     expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
     expect(inspectorButton).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.queryByTestId("session-inspector-trigger-rail-slot"),
+    ).not.toBeInTheDocument();
 
     await user.click(within(changesDialog).getByRole("radio", { name: "Actions" }));
 
@@ -482,6 +485,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     // horizontal padding may sit between the split view and the viewport.
     expect(aside.closest(".max-w-\\[96rem\\]")).toBeNull();
     expect(screen.getByTestId("project-sessions-view")).not.toHaveClass("px-6");
+    // The toolbar toggle is the head of the rail column: docked, it sits on
+    // the rail's axis (a rail-width slot that cancels the header inset).
+    expect(
+      screen.getByRole("button", { name: "Session inspector" }).closest(
+        '[data-testid="session-inspector-trigger-rail-slot"]',
+      ),
+    ).toHaveClass("w-11", "-mr-4", "justify-center");
 
     // The rail swaps the surface inside the same docked panel.
     await user.click(

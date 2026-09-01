@@ -41,13 +41,21 @@ export function sessionInspectorResizableBounds(viewportWidth: number) {
  * panel (and with it the rail) is closed, so it lives with the component.
  */
 export function SessionInspectorTrigger({
+  alignToRail = false,
   isOpen,
   onOpenChange,
 }: {
+  /**
+   * Docked layouts: seat the toggle on the rail's axis so it reads as the
+   * head of the rail column. The slot is rail-width (`w-11`) and cancels the
+   * header chrome's 1rem right inset; it stays put whether the panel is open
+   * or closed so the toggle never jumps.
+   */
+  alignToRail?: boolean;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 }) {
-  return (
+  const toggle = (
     <ToggleButton
       icon={<SidebarLeft className="size-4 rotate-180" />}
       isIconOnly
@@ -57,6 +65,19 @@ export function SessionInspectorTrigger({
       tooltip={isOpen ? "Hide inspector" : "Show inspector"}
       onPressedChange={onOpenChange}
     />
+  );
+
+  if (!alignToRail) {
+    return toggle;
+  }
+
+  return (
+    <span
+      className="-mr-4 flex w-11 shrink-0 justify-center"
+      data-testid="session-inspector-trigger-rail-slot"
+    >
+      {toggle}
+    </span>
   );
 }
 
@@ -142,6 +163,8 @@ export function SessionInspector({
                 }
                 isIconOnly
                 label={meta.title}
+                // Same size as the toolbar toggle so the column reads as one.
+                size="sm"
                 tooltip={`${meta.title} — ${meta.hint}`}
                 value={surfaceId}
               />

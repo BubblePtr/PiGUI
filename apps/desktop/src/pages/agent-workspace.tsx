@@ -2742,6 +2742,7 @@ export function SessionToolbarActions({
   return (
     <>
       <SessionInspectorTrigger
+        alignToRail={dockInspector}
         isOpen={inspectorOpen}
         onOpenChange={onInspectorOpenChange}
       />
