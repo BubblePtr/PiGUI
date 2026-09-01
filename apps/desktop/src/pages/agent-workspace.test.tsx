@@ -505,6 +505,118 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
+  it("counts changed files on the rail, whichever surface is showing", async () => {
+    const user = userEvent.setup();
+    setDockedSessionInspectorLayout(true);
+    const persisted = {
+      sessionId: "persisted-session-1",
+      runtimeId: "pi-sdk:persisted-session-1",
+      piSessionId: "pi-session-persisted-1",
+      projectId: pigProjectPath,
+      initialPrompt: "Review the diff",
+      cwd: pigProjectPath,
+      status: "completed",
+      updatedAt: "2026-09-02T12:00:00.000Z",
+    };
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [persisted];
+      }
+
+      if (command === "get_session_changes") {
+        return {
+          sessionId: "persisted-session-1",
+          state: "ready",
+          checkoutRoot: pigProjectPath,
+          repositoryRoot: pigProjectPath,
+          generatedAt: "2026-09-02T12:01:00.000Z",
+          files: [
+            {
+              path: "src/app.ts",
+              kind: "modified",
+              staged: false,
+              unstaged: true,
+              additions: 2,
+              deletions: 1,
+              binary: false,
+              patchTruncated: false,
+            },
+            {
+              path: "src/main.ts",
+              kind: "added",
+              staged: true,
+              unstaged: false,
+              additions: 4,
+              deletions: 0,
+              binary: false,
+              patchTruncated: false,
+            },
+          ],
+          totals: {
+            files: 2,
+            additions: 6,
+            deletions: 1,
+            binaryFiles: 0,
+            conflictedFiles: 0,
+          },
+          truncated: false,
+          omittedFileCount: 0,
+        } satisfies SessionChanges;
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions();
+
+    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+
+    const rail = await screen.findByRole("group", { name: "Session surfaces" });
+
+    await waitFor(() => {
+      expect(within(rail).getByText("2")).toBeInTheDocument();
+    });
+    // The badge and the panel's totals row must never disagree.
+    expect(
+      within(await screen.findByRole("complementary", { name: "Changes" }))
+        .getByText("2 files ·", { exact: false }),
+    ).toBeInTheDocument();
+
+    await user.click(within(rail).getByRole("button", { name: "Actions" }));
+
+    await screen.findByRole("complementary", { name: "Actions" });
+    expect(within(rail).getByText("2")).toBeInTheDocument();
+    // One read feeds both the panel and the badge.
+    expect(
+      invoke.mock.calls.filter(([command]) => command === "get_session_changes"),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the rail badge empty when the working tree cannot be read", async () => {
+    const user = userEvent.setup();
+    setDockedSessionInspectorLayout(true);
+
+    renderProjectSessions();
+
+    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+
+    const aside = await screen.findByRole("complementary", { name: "Changes" });
+
+    expect(await within(aside).findByRole("alert")).toHaveTextContent(
+      "unavailable outside Electron",
+    );
+    expect(
+      within(screen.getByRole("group", { name: "Session surfaces" })).queryByText(
+        /^\d+$/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an empty Workspace state until a Project is added manually", async () => {
     renderProjectSessions("/projects/pig/sessions", { seedProjects: false });
 
@@ -5840,7 +5952,16 @@ describe("Context usage placement", () => {
 
   it("leaves the Session toolbar to the inspector toggle", () => {
     const { container } = render(
-      <SessionToolbarActions workspace={workspace} projection={boundProjection()} />,
+      <SessionToolbarActions
+        sessionChanges={{
+          changes: null,
+          error: null,
+          loading: false,
+          refresh: () => {},
+        }}
+        workspace={workspace}
+        projection={boundProjection()}
+      />,
     );
 
     expect(
@@ -5917,17 +6038,34 @@ describe("Session changes action surface", () => {
     };
   }
 
-  it("loads real changes, switches files, and changes the diff layout", async () => {
-    const user = userEvent.setup();
-    const loadChanges = vi.fn(async () => changes());
-
-    render(
+  function panel(
+    loaded: SessionChanges | null,
+    {
+      error = null,
+      loading = false,
+      onRefresh = () => {},
+    }: {
+      error?: string | null;
+      loading?: boolean;
+      onRefresh?: () => void;
+    } = {},
+  ) {
+    return (
       <SessionChangesPanel
-        loadChanges={loadChanges}
+        changes={loaded}
+        error={error}
+        loading={loading}
         sessionId={projection.id}
         stale={projection.stale}
-      />,
+        onRefresh={onRefresh}
+      />
     );
+  }
+
+  it("lists loaded changes, switches files, and changes the diff layout", async () => {
+    const user = userEvent.setup();
+
+    render(panel(changes()));
 
     expect(await screen.findAllByText("src/app.ts")).toHaveLength(2);
     expect(screen.getByText("2 files ·", { exact: false })).toBeInTheDocument();
@@ -5946,55 +6084,53 @@ describe("Session changes action surface", () => {
     expect(
       screen.getByText("Binary file changed. A textual diff is not available."),
     ).toBeInTheDocument();
-    expect(loadChanges).toHaveBeenCalledWith("session-changes");
   });
 
   it("shows clean and non-Git states without treating them as failures", async () => {
-    const clean = vi.fn(async () =>
-      changes({
-        state: "clean",
-        files: [],
-        totals: {
-          files: 0,
-          additions: 0,
-          deletions: 0,
-          binaryFiles: 0,
-          conflictedFiles: 0,
-        },
-      }),
-    );
     const view = render(
-      <SessionChangesPanel
-        loadChanges={clean}
-        sessionId={projection.id}
-        stale={projection.stale}
-      />,
+      panel(
+        changes({
+          state: "clean",
+          files: [],
+          totals: {
+            files: 0,
+            additions: 0,
+            deletions: 0,
+            binaryFiles: 0,
+            conflictedFiles: 0,
+          },
+        }),
+      ),
     );
 
     expect(
-      await screen.findByText("Working tree clean. No staged, unstaged, or untracked changes."),
+      screen.getByText("Working tree clean. No staged, unstaged, or untracked changes."),
     ).toBeInTheDocument();
 
     view.rerender(
-      <SessionChangesPanel
-        loadChanges={async () =>
-          changes({ state: "non-git", files: [], repositoryRoot: null })
-        }
-        sessionId="session-non-git"
-        stale={false}
-      />,
+      panel(changes({ state: "non-git", files: [], repositoryRoot: null })),
     );
     expect(
-      await screen.findByText("This Session checkout is not a Git repository."),
+      screen.getByText("This Session checkout is not a Git repository."),
     ).toBeInTheDocument();
   });
 
   it("exposes load errors, retry, and bounded-review warnings", async () => {
     const user = userEvent.setup();
-    const loadChanges = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Git is temporarily unavailable"))
-      .mockResolvedValueOnce(
+    const onRefresh = vi.fn();
+
+    const view = render(
+      panel(null, { error: "Git is temporarily unavailable", onRefresh }),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Git is temporarily unavailable",
+    );
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      panel(
         changes({
           truncated: true,
           omittedFileCount: 3,
@@ -6006,20 +6142,8 @@ describe("Session changes action surface", () => {
             },
           ],
         }),
-      );
-
-    render(
-      <SessionChangesPanel
-        loadChanges={loadChanges}
-        sessionId={projection.id}
-        stale={projection.stale}
-      />,
+      ),
     );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Git is temporarily unavailable",
-    );
-    await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(
       await screen.findByText(
         "This patch exceeds the review limit and was omitted. Open the checkout for the full diff.",

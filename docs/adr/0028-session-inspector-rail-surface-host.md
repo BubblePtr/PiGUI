@@ -43,7 +43,7 @@ v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR
 
 - 一个 toggle、一块区域：所有 Session-scoped surface 的到达方式统一，宽屏上 Actions 不再用遮罩盖住 Chat。
 - `AgentWorkspaceSessionsView` 仍然只暴露那个很薄的 optional `aside` seam；split 布局照旧不知道 diff、surface 或插件的存在。
-- rail 徽标接口（`badges` prop）已就位但暂无生产者：变更文件数在 `SessionChangesPanel` 自己的读取里，把这份数据上提留给第一个真正需要徽标的人。
+- rail 徽标（`badges` prop）由 Changes 文件数点亮（#141）：working tree 的读取从 `SessionChangesPanel` 上提到页面层的 `useSessionChanges`，面板与徽标共用同一次读取，因此两处数字不可能各算各的。徽标只在 `state: "ready"` 且有文件时出现——加载中、读取失败、干净树、非 Git checkout 都不显示数字。inspector 收起时不读 Git；停靠形态下 rail 一直在，所以停在 Actions 也照读，Sheet 形态没有 rail，就只在 Changes surface 上读。
 - ADR-0023 在工具栏入口与承载容器两个问题上被本文部分取代；Changes 的数据与安全契约（ADR-0022）不受影响。
 
 ## 验证
