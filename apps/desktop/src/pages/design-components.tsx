@@ -522,7 +522,7 @@ function PiTraceStripTimeVariant() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("duration");
 
   return (
-    <Variant caption="Time mode · mixed truth: solid = model span Pi recorded (Run 1), hatched + dimmed = estimated from the turn gap (Run 2: older session, unbracketed call)">
+    <Variant caption="Time mode · mixed truth: solid = span Pi recorded — Run 1's model call, and the input wait up to it opening; hatched = estimated (Run 2: older session, unbracketed call, so neither its model span nor the wait before it can be measured)">
       <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
         <PiTraceStrip
           turns={stripTimingTraceTurns}

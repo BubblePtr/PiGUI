@@ -130,6 +130,106 @@ describe("PiTraceStrip", () => {
     expect(tools[0]).toMatchObject({ durationSec: 3, isEstimatedDuration: false });
   });
 
+  it("widths an input column by the wait until its run started, not the gap to the next turn", () => {
+    const turns: SessionTurn[] = [
+      {
+        kind: "message",
+        role: "user",
+        timestamp: "2026-03-22T10:00:00.000Z",
+        parts: [{ partType: "text", text: "Go", payload: {} }],
+      },
+      {
+        kind: "message",
+        role: "assistant",
+        // Ends 20s after the input, so the call itself opened at 10:00:12.
+        modelDurationMs: 8_000,
+        timestamp: "2026-03-22T10:00:20.000Z",
+        parts: [{ partType: "text", text: "Done", payload: {} }],
+      },
+    ];
+
+    const segments = stripSegmentsFromTurns(buildTraceTurns(turns));
+    const input = segments.find((segment) => segment.lane === "input");
+
+    // 12s of queueing, not the 20s the model segment already paints.
+    expect(input).toMatchObject({ durationSec: 12, isEstimatedDuration: false });
+  });
+
+  it("falls back to a nominal input width whenever the run start cannot be derived", () => {
+    const turns: SessionTurn[] = [
+      // No input timestamp at all.
+      {
+        kind: "message",
+        role: "user",
+        parts: [{ partType: "text", text: "Unstamped", payload: {} }],
+      },
+      {
+        kind: "message",
+        role: "assistant",
+        modelDurationMs: 5_000,
+        timestamp: "2026-03-22T10:00:20.000Z",
+        parts: [{ partType: "text", text: "Done", payload: {} }],
+      },
+      // The run's first call was never bracketed.
+      {
+        kind: "message",
+        role: "user",
+        timestamp: "2026-03-22T10:00:40.000Z",
+        parts: [{ partType: "text", text: "Unbracketed", payload: {} }],
+      },
+      {
+        kind: "message",
+        role: "assistant",
+        timestamp: "2026-03-22T10:01:00.000Z",
+        parts: [{ partType: "text", text: "Done", payload: {} }],
+      },
+      // Latency longer than the gap: the derived start precedes the input.
+      {
+        kind: "message",
+        role: "user",
+        timestamp: "2026-03-22T10:01:20.000Z",
+        parts: [{ partType: "text", text: "Skewed", payload: {} }],
+      },
+      {
+        kind: "message",
+        role: "assistant",
+        modelDurationMs: 8_000,
+        timestamp: "2026-03-22T10:01:23.000Z",
+        parts: [{ partType: "text", text: "Done", payload: {} }],
+      },
+      // An annotation is a config event, not an input that starts a run.
+      {
+        kind: "annotation",
+        title: "Model changed",
+        timestamp: "2026-03-22T10:02:00.000Z",
+        parts: [{ partType: "model_change", payload: {} }],
+      },
+      {
+        kind: "message",
+        role: "assistant",
+        modelDurationMs: 4_000,
+        timestamp: "2026-03-22T10:02:10.000Z",
+        parts: [{ partType: "text", text: "Done", payload: {} }],
+      },
+      // Nothing has answered this one yet.
+      {
+        kind: "message",
+        role: "user",
+        timestamp: "2026-03-22T10:03:00.000Z",
+        parts: [{ partType: "text", text: "Pending", payload: {} }],
+      },
+    ];
+
+    const inputs = stripSegmentsFromTurns(buildTraceTurns(turns)).filter(
+      (segment) => segment.lane === "input",
+    );
+
+    expect(inputs).toHaveLength(5);
+    for (const input of inputs) {
+      expect(input).toMatchObject({ durationSec: 1, isEstimatedDuration: true });
+    }
+  });
+
   it("clamps extreme measured spans for layout while the tooltip keeps the real value", () => {
     // A 40-minute think must not squeeze every other column into a sliver, and a
     // 200ms call must stay wide enough to hit.
@@ -241,7 +341,10 @@ describe("PiTraceStrip", () => {
     };
     const { rerender } = render(<PiTraceStrip {...props} widthMode="duration" />);
 
+    // Run 2's call is unbracketed, so neither its model span nor the wait
+    // before it started can be measured.
     expect(estimatedColumns().map((option) => option.getAttribute("aria-label"))).toEqual([
+      "Run 2 input",
       "Run 2 model",
     ]);
     expect(estimatedColumns()[0].getAttribute("title")).toContain("estimated");
