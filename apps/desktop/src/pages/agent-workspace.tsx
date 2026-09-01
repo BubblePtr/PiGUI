@@ -2640,7 +2640,7 @@ function SessionInspectorSheet({
           </div>
         </PiSheet.Header>
         <PiSheet.Body>
-          <div className="pigui-scroll-fade max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="max-h-[calc(100vh-14rem)] overflow-y-auto">
             {children}
           </div>
         </PiSheet.Body>
