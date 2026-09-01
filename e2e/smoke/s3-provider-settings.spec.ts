@@ -14,6 +14,14 @@ function settingsTab(window: import("@playwright/test").Page, name: string) {
     .getByRole("button", { name, exact: true });
 }
 
+// The sidebar row button's accessible name starts with the Session title
+// ("<title> <relative time>"), while the hover-revealed menu button next to it
+// reads "Session actions for <title>". Anchoring at the start keeps the row the
+// only match without resorting to positional selectors.
+function sessionRowButton(window: import("@playwright/test").Page, title: string) {
+  return window.getByRole("button", { name: new RegExp(`^${title}`, "i") });
+}
+
 async function openProjectDraft(window: import("@playwright/test").Page, project: E2EProject) {
   const newSession = window.getByRole("button", { name: "New Session", exact: true });
   await expect(newSession).toBeVisible();
@@ -27,13 +35,11 @@ async function openSession(
   projection: E2ESessionProjection,
 ) {
   await openProjectDraft(window, project);
-  const session = window.getByRole("button", {
-    name: new RegExp(projection.initialPrompt, "i"),
-  });
+  const session = sessionRowButton(window, projection.initialPrompt);
   await expect(session).toBeVisible();
   await session.click();
   await expect(window.getByLabel("Session changes")).toBeVisible();
-  await expect(window.getByLabel("Session actions")).toBeVisible();
+  await expect(window.getByLabel("Session actions", { exact: true })).toBeVisible();
 }
 
 test.describe("S3: Provider Settings (DF-002)", () => {
@@ -53,15 +59,14 @@ test.describe("S3: Provider Settings (DF-002)", () => {
         settingsTab(testApp.window, "API Key"),
       ).toBeVisible();
 
-      // API Key tab: OpenAI / Anthropic / DeepSeek / Grok (xAI) cards + brand icons
+      // API Key tab: OpenAI / Anthropic / DeepSeek / Grok (xAI) cards + brand icons.
+      // Brand icons are scoped to their card: the Models section below the tabs
+      // renders the same provider-icon testid per model-visibility group.
       await settingsTab(testApp.window, "API Key").click();
       for (const provider of ["openai", "anthropic", "deepseek", "xai"]) {
-        await expect(
-          testApp.window.getByTestId(`provider-api-key-${provider}`),
-        ).toBeVisible();
-        await expect(
-          testApp.window.getByTestId(`provider-icon-${provider}`),
-        ).toBeVisible();
+        const card = testApp.window.getByTestId(`provider-api-key-${provider}`);
+        await expect(card).toBeVisible();
+        await expect(card.getByTestId(`provider-icon-${provider}`)).toBeVisible();
       }
       await expect(
         testApp.window.getByTestId("provider-api-key-openai-codex"),
@@ -69,20 +74,11 @@ test.describe("S3: Provider Settings (DF-002)", () => {
 
       // Subscription tab: ChatGPT/Codex + Anthropic + Grok (xAI)
       await settingsTab(testApp.window, "Subscription").click();
-      await expect(
-        testApp.window.getByTestId("provider-subscription-openai-codex"),
-      ).toBeVisible();
-      await expect(
-        testApp.window.getByTestId("provider-subscription-anthropic"),
-      ).toBeVisible();
-      await expect(
-        testApp.window.getByTestId("provider-subscription-xai"),
-      ).toBeVisible();
-      await expect(
-        testApp.window.getByTestId("provider-icon-openai-codex"),
-      ).toBeVisible();
-      await expect(testApp.window.getByTestId("provider-icon-anthropic")).toBeVisible();
-      await expect(testApp.window.getByTestId("provider-icon-xai")).toBeVisible();
+      for (const provider of ["openai-codex", "anthropic", "xai"]) {
+        const card = testApp.window.getByTestId(`provider-subscription-${provider}`);
+        await expect(card).toBeVisible();
+        await expect(card.getByTestId(`provider-icon-${provider}`)).toBeVisible();
+      }
       // OpenAI API key and DeepSeek have no subscription card
       await expect(
         testApp.window.getByTestId("provider-subscription-openai"),
