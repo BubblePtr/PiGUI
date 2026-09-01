@@ -4,8 +4,10 @@
 // column. Click selects that block and jumps the Playhead; drag brushes a
 // contiguous segment range (focus semantics: the page dims, never filters);
 // hover shows a scrub cursor. Column widths track step count ("steps") or time
-// ("duration") — in Time mode both tool and model spans are measured from Pi's
-// timestamps; a model call Pi never bracketed falls back to an estimate and is
+// ("duration") — in Time mode every column is measured from Pi's timestamps and
+// the spans partition the session rather than overlap: an input column is the
+// wait until its run started, never the whole gap the model and tools lanes go
+// on to paint. A span Pi never bracketed falls back to an estimate and is
 // hatched so the guess never reads as truth. Hatching means "this total is a
 // guess", nothing else: a turn whose one measured call spans several model
 // segments splits it evenly and stays solid, disclosing the split in its
@@ -87,6 +89,59 @@ function formatCursorTime(value?: string) {
   return new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(date);
 }
 
+/**
+ * Nominal input width when the run start cannot be derived: a run normally
+ * starts within about a second of the submit, so this is the estimate for that
+ * wait — hatched like every other guess, never passed off as a measurement.
+ */
+const nominalInputSeconds = 1;
+
+/**
+ * Epoch ms at which this turn's model call opened. Pi stamps the message when
+ * the call ends, so the start is that minus the measured latency; an
+ * unbracketed call has no start to give.
+ */
+function modelCallStartMs(turn: TraceTurn) {
+  const durationMs = turn.modelDurationMs ?? NaN;
+  if (turn.role !== "assistant" || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return undefined;
+  }
+  const endMs = turn.timestamp ? Date.parse(turn.timestamp) : NaN;
+  return Number.isFinite(endMs) ? endMs - durationMs : undefined;
+}
+
+/** The turn that answers an input: annotations record config, they never run. */
+function runTurnAfter(turns: TraceTurn[], index: number) {
+  for (let i = index + 1; i < turns.length; i += 1) {
+    if (turns[i].role !== "annotation") {
+      return turns[i];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Input columns stand for the wait between the user's submit and their run
+ * actually starting — its first model call opening. The stretch after that
+ * belongs to the model and tools lanes, so charging the input lane the full gap
+ * to the next turn would paint one span of wall clock twice.
+ */
+function inputDurationSeconds(turns: TraceTurn[], index: number) {
+  const turn = turns[index];
+  const submittedMs = turn.role === "user" && turn.timestamp ? Date.parse(turn.timestamp) : NaN;
+
+  if (Number.isFinite(submittedMs)) {
+    const run = runTurnAfter(turns, index);
+    const startedMs = run ? modelCallStartMs(run) : undefined;
+    const seconds = startedMs === undefined ? NaN : (startedMs - submittedMs) / 1000;
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return { seconds, isEstimated: false };
+    }
+  }
+
+  return { seconds: nominalInputSeconds, isEstimated: true };
+}
+
 /** Gap to the next turn's timestamp, clamped to [1s, 300s]. */
 function turnDurationsSeconds(turns: TraceTurn[]): number[] {
   return turns.map((turn, index) => {
@@ -110,6 +165,7 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
     const duration = turnDurations[turn.index];
 
     if (turn.role === "user" || turn.role === "annotation") {
+      const input = inputDurationSeconds(turns, turn.index);
       segments.push({
         turnIndex: turn.index,
         runIndex: turn.runIndex,
@@ -117,8 +173,8 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
         isAnnotation: turn.role === "annotation",
         toolCount: 0,
         hasError: turn.hasError,
-        durationSec: duration,
-        isEstimatedDuration: false,
+        durationSec: input.seconds,
+        isEstimatedDuration: input.isEstimated,
         stepIds: turn.steps.map((step) => step.id),
         label: turn.label,
         timestamp: turn.timestamp,
