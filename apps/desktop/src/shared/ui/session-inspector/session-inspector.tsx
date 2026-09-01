@@ -80,7 +80,7 @@ export function SessionInspector({
   return (
     <aside
       aria-labelledby={headingId}
-      className="flex h-full min-h-0 min-w-0 bg-background"
+      className="flex h-full min-h-0 min-w-0 bg-surface"
       data-testid="session-inspector"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
