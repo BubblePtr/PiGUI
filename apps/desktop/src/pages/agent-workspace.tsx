@@ -137,8 +137,12 @@ import {
   archiveSessionProjection,
   formatCost,
   formatTokens,
-  getSessionChanges,
 } from "@/entities/session/sessions";
+import {
+  sessionChangesBadge,
+  useSessionChanges,
+  type SessionChangesView,
+} from "@/entities/session/use-session-changes";
 import {
   getLastModelSelection,
   mostRecentSessionModelSelection,
@@ -211,7 +215,11 @@ type SessionActionsContentProps = {
 type SessionChangesPanelProps = {
   sessionId: string | null;
   stale: boolean;
-  loadChanges?: typeof getSessionChanges;
+  /** The page owns the read so the rail badge can share it (ADR-0028). */
+  changes: SessionChanges | null;
+  error: string | null;
+  loading: boolean;
+  onRefresh: () => void;
 };
 
 const sessionInspectorDockMediaQuery = "(min-width: 1280px)";
@@ -2109,54 +2117,24 @@ function changeStageLabel(file: SessionChangedFile) {
 export function SessionChangesPanel({
   sessionId,
   stale,
-  loadChanges = getSessionChanges,
+  changes,
+  error,
+  loading,
+  onRefresh,
 }: SessionChangesPanelProps) {
-  const [changes, setChanges] = useState<SessionChanges | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(Boolean(sessionId));
-  const [refreshKey, setRefreshKey] = useState(0);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">("unified");
 
+  // Each read yields a new object; keep the reviewed file when it survived.
   useEffect(() => {
-    if (!sessionId) {
-      setChanges(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
+    if (!changes) return;
 
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    void loadChanges(sessionId)
-      .then((nextChanges) => {
-        if (cancelled) return;
-        setChanges(nextChanges);
-        setSelectedPath((current) =>
-          nextChanges.files.some((file) => file.path === current)
-            ? current
-            : (nextChanges.files[0]?.path ?? null),
-        );
-      })
-      .catch((loadError) => {
-        if (cancelled) return;
-        setChanges(null);
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Session changes could not be loaded.",
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [loadChanges, refreshKey, sessionId]);
+    setSelectedPath((current) =>
+      changes.files.some((file) => file.path === current)
+        ? current
+        : (changes.files[0]?.path ?? null),
+    );
+  }, [changes]);
 
   const selectedFile =
     changes?.files.find((file) => file.path === selectedPath) ?? null;
@@ -2192,7 +2170,7 @@ export function SessionChangesPanel({
             size="sm"
             tooltip="Refresh changes"
             variant="ghost"
-            onClick={() => setRefreshKey((value) => value + 1)}
+            onClick={onRefresh}
           />
         ) : null}
       </div>
@@ -2223,7 +2201,7 @@ export function SessionChangesPanel({
             label="Retry"
             size="sm"
             variant="secondary"
-            onClick={() => setRefreshKey((value) => value + 1)}
+            onClick={onRefresh}
           />
         </div>
       ) : changes?.state === "non-git" ? (
@@ -2581,6 +2559,7 @@ function SessionSurfaceContent({
   projection,
   archiveError,
   isArchiving,
+  sessionChanges,
   onArchive,
 }: {
   surfaceId: SessionSurfaceId;
@@ -2588,13 +2567,18 @@ function SessionSurfaceContent({
   projection?: SessionProjection | null;
   archiveError?: string | null;
   isArchiving?: boolean;
+  sessionChanges: SessionChangesView;
   onArchive?: () => void;
 }) {
   if (surfaceId === "changes") {
     return (
       <SessionChangesPanel
+        changes={sessionChanges.changes}
+        error={sessionChanges.error}
+        loading={sessionChanges.loading}
         sessionId={projection?.id ?? null}
         stale={projection?.stale ?? false}
+        onRefresh={sessionChanges.refresh}
       />
     );
   }
@@ -2738,6 +2722,7 @@ export function SessionToolbarActions({
   dockInspector = false,
   inspectorOpen = false,
   isArchiving,
+  sessionChanges,
   onActiveSurfaceChange = () => {},
   onArchive,
   onInspectorOpenChange = () => {},
@@ -2749,6 +2734,7 @@ export function SessionToolbarActions({
   dockInspector?: boolean;
   inspectorOpen?: boolean;
   isArchiving?: boolean;
+  sessionChanges: SessionChangesView;
   onActiveSurfaceChange?: (surfaceId: SessionSurfaceId) => void;
   onArchive?: () => void;
   onInspectorOpenChange?: (isOpen: boolean) => void;
@@ -2768,6 +2754,7 @@ export function SessionToolbarActions({
         <SessionSurfaceContent
           archiveError={archiveError}
           isArchiving={isArchiving}
+          sessionChanges={sessionChanges}
           surfaceId={activeSurfaceId}
           workspace={workspace}
           projection={projection}
@@ -3791,6 +3778,13 @@ export function AgentWorkspaceSessionsPage() {
       (projection) =>
         projection.id === selectedSessionId && projection.projectId === projectId,
     ) ?? null;
+  // One read for the panel and the rail badge. The docked rail carries the
+  // Changes count whatever surface is showing, so it needs the diff even on
+  // Actions; the Sheet has no rail, so there it follows the active surface.
+  const sessionChanges = useSessionChanges({
+    sessionId: selectedSessionProjection?.id ?? null,
+    enabled: inspectorOpen && (dockInspector || activeSurfaceId === "changes"),
+  });
 
   useEffect(
     () =>
@@ -3932,6 +3926,7 @@ export function AgentWorkspaceSessionsPage() {
           dockInspector={dockInspector}
           inspectorOpen={inspectorOpen}
           isArchiving={isArchiving}
+          sessionChanges={sessionChanges}
           workspace={workspace}
           projection={selectedSessionProjection}
           onActiveSurfaceChange={setActiveSurfaceId}
@@ -3945,12 +3940,14 @@ export function AgentWorkspaceSessionsPage() {
           dockInspector && inspectorOpen ? (
             <SessionInspector
               activeSurfaceId={activeSurfaceId}
+              badges={{ changes: sessionChangesBadge(sessionChanges.changes) }}
               onActiveSurfaceChange={setActiveSurfaceId}
               onClose={() => setInspectorOpen(false)}
             >
               <SessionSurfaceContent
                 archiveError={archiveError}
                 isArchiving={isArchiving}
+                sessionChanges={sessionChanges}
                 surfaceId={activeSurfaceId}
                 workspace={workspace}
                 projection={selectedSessionProjection}
