@@ -478,6 +478,10 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-10");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The panel's rail hugs the window edge: no centered max-width box or
+    // horizontal padding may sit between the split view and the viewport.
+    expect(aside.closest(".max-w-\\[96rem\\]")).toBeNull();
+    expect(screen.getByTestId("project-sessions-view")).not.toHaveClass("px-6");
 
     // The rail swaps the surface inside the same docked panel.
     await user.click(

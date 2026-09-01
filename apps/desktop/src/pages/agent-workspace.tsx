@@ -3671,59 +3671,61 @@ export function AgentWorkspaceSessionsView({
 
   return (
     <article
-      className="-mt-10 flex h-[calc(100%+2.5rem)] min-h-0 min-w-0 flex-col overflow-hidden px-6 pb-0"
+      className="-mt-10 flex h-[calc(100%+2.5rem)] min-h-0 min-w-0 flex-col overflow-hidden pb-0"
       data-testid="project-sessions-view"
     >
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-[96rem] flex-col gap-4">
-        <div className="min-h-0 flex-1">
-          {aside ? (
+      {/* Docked: the split view spans the full width so the inspector's rail
+          hugs the window edge (ADR-0028). Chat centers itself via its own
+          max-width, so an outer centered box would only strand the panel
+          short of the edge. */}
+      {aside ? (
+        <div
+          className="flex h-full min-h-0 w-full flex-row"
+          data-slot="resizable"
+          data-testid="session-workspace-split-view"
+        >
+          <div
+            className="h-full min-h-0 min-w-0 flex-1"
+            data-slot="resizable-panel"
+          >
             <div
-              className="flex h-full min-h-0 w-full flex-row"
-              data-slot="resizable"
-              data-testid="session-workspace-split-view"
+              className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
+              data-testid="session-workspace-main-pane"
             >
-              <div
-                className="h-full min-h-0 min-w-0 flex-1"
-                data-slot="resizable-panel"
-              >
-                <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
-                  data-testid="session-workspace-main-pane"
-                >
-                  {liveSession}
-                </div>
-              </div>
-              <ResizeHandle
-                className="mx-2"
-                direction="horizontal"
-                hasDivider
-                isReversed
-                label="Resize Session inspector"
-                // Astryx 0.3.0 `hitAreaOffsetX` carries a `-50%` Y translate meant
-                // for vertical handles, so a side-biased pill shifts the grab zone
-                // up by half its height and only the divider's top half is
-                // draggable. Centering the pill skips that offset entirely.
-                pillPlacement="center"
-                resizable={asideResizable.props}
-              />
-              <div
-                className="h-full min-h-0 shrink-0"
-                data-slot="resizable-panel"
-                style={{ width: asideResizable.size }}
-              >
-                <div
-                  className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
-                  data-testid="session-workspace-aside-pane"
-                >
-                  {aside}
-                </div>
-              </div>
+              {liveSession}
             </div>
-          ) : (
-            <div className="h-full min-h-0 pt-10">{liveSession}</div>
-          )}
+          </div>
+          <ResizeHandle
+            className="mx-2"
+            direction="horizontal"
+            hasDivider
+            isReversed
+            label="Resize Session inspector"
+            // Astryx 0.3.0 `hitAreaOffsetX` carries a `-50%` Y translate meant
+            // for vertical handles, so a side-biased pill shifts the grab zone
+            // up by half its height and only the divider's top half is
+            // draggable. Centering the pill skips that offset entirely.
+            pillPlacement="center"
+            resizable={asideResizable.props}
+          />
+          <div
+            className="h-full min-h-0 shrink-0"
+            data-slot="resizable-panel"
+            style={{ width: asideResizable.size }}
+          >
+            <div
+              className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
+              data-testid="session-workspace-aside-pane"
+            >
+              {aside}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mx-auto h-full min-h-0 w-full max-w-[96rem] px-6 pt-10">
+          {liveSession}
+        </div>
+      )}
     </article>
   );
 }
