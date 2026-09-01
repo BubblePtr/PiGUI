@@ -11,8 +11,10 @@ export function formatLiveElapsed(ms: number) {
 }
 
 export function formatThoughtSummary(ms: number | undefined) {
+  // An unmeasured duration claims no number — inventing one would pass a
+  // guess off as a measurement, which nothing else in this app does.
   if (ms === undefined || !Number.isFinite(ms) || ms < 0) {
-    return "Thought for 3s";
+    return "Thought";
   }
   const seconds = Math.max(1, Math.round(ms / 1000));
   return `Thought for ${seconds}s`;
@@ -135,6 +137,28 @@ function ChatChainOfThoughtTrigger({
   );
 }
 
+/**
+ * Settled summary with nothing to expand behind it: a plain label in the
+ * trigger's clothes, but no button role, no cursor, no empty panel. Use it
+ * instead of Trigger+Content when the turn left no steps to disclose.
+ */
+function ChatChainOfThoughtLabel({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <p
+      className={`chain-of-thought__label ${className}`.trim()}
+      data-slot="chain-of-thought-label"
+    >
+      {children}
+    </p>
+  );
+}
+
 function ChatChainOfThoughtContent({
   children,
   className = "",
@@ -252,6 +276,7 @@ function ChatChainOfThoughtLive({
 }
 
 ChatChainOfThought.Trigger = ChatChainOfThoughtTrigger;
+ChatChainOfThought.Label = ChatChainOfThoughtLabel;
 ChatChainOfThought.Content = ChatChainOfThoughtContent;
 ChatChainOfThought.Steps = ChatChainOfThoughtSteps;
 ChatChainOfThought.Step = ChatChainOfThoughtStep;

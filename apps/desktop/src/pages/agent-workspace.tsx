@@ -489,8 +489,15 @@ function AssistantRunTrace({
   // A measured call is worth disclosing even when the turn left no thinking or
   // tool steps behind — an answer that took 30s should say so. Without steps
   // and without a measurement there is nothing to show but a placeholder.
-  if (!timeline.length && elapsedMs === undefined) {
-    return null;
+  if (!timeline.length) {
+    if (elapsedMs === undefined) {
+      return null;
+    }
+    return (
+      <ChainOfThought key="settled">
+        <ChainOfThought.Label>{formatThoughtSummary(elapsedMs)}</ChainOfThought.Label>
+      </ChainOfThought>
+    );
   }
 
   return (

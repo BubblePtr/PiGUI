@@ -3464,6 +3464,10 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(within(assistantMessage!).getByText("Shipped.")).toBeInTheDocument();
     expect(within(assistantMessage!).getByText("Thought for 5s")).toBeInTheDocument();
+    // Nothing to expand behind the summary, so it must not pose as a control.
+    expect(
+      within(assistantMessage!).queryByRole("button", { name: "Thought for 5s" }),
+    ).not.toBeInTheDocument();
   });
 
   it("sums the run's model calls rather than the span between its trace steps", () => {
