@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -26,10 +26,14 @@ import { addProjectToRegistry } from "@/entities/project/project-registry";
 import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
 import {
   PiRuntimeBridgeError,
+  type AgentRuntimeEventEntry,
   type ForkSessionInput,
   type ForkSessionResult,
 } from "@/entities/runtime/pi-runtime-bridge";
-import { createInMemoryPiRuntimeBridge } from "@/entities/runtime/in-memory-pi-runtime-bridge";
+import {
+  createInMemoryPiRuntimeBridge,
+  type InMemoryPiRuntimeBridge,
+} from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import { createExecutionCheckoutManager } from "@/entities/checkout/execution-checkout";
 import {
   createInMemorySessionProjectionStore,
@@ -1706,6 +1710,264 @@ describe("AgentWorkspaceSessionsPage", () => {
       await within(liveChat).findByText("Continue after completion"),
     ).toBeInTheDocument();
     expect(getFollowUpDraft("completed-session")).toBeNull();
+  });
+
+  it("keeps both user bubbles and the in-flight run events of a follow-up prompt on the runtime-model path", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-07-02T10:00:10.000Z",
+    });
+    const agentListeners = new Map<
+      string,
+      Set<(entry: AgentRuntimeEventEntry) => void>
+    >();
+    let releasePromptEcho: (() => void) | null = null;
+    // In-memory bridge plus the Agent Runtime Event stream, with the prompt
+    // RPC held open so the test can deliver live run events inside the
+    // round-trip window — the window handlePromptSubmit used to clobber with
+    // its pre-await projection snapshot.
+    const runtimeModelBridge: InMemoryPiRuntimeBridge = {
+      ...bridge,
+      subscribeToAgentEvents(piSessionId, listener) {
+        const sessionListeners = agentListeners.get(piSessionId) ?? new Set();
+
+        sessionListeners.add(listener);
+        agentListeners.set(piSessionId, sessionListeners);
+
+        return () => {
+          sessionListeners.delete(listener);
+        };
+      },
+      async sendInitialPrompt(input) {
+        const accepted = await bridge.sendInitialPrompt(input);
+
+        await new Promise<void>((resolve) => {
+          releasePromptEcho = resolve;
+        });
+
+        return accepted;
+      },
+    };
+    const emitAgentEvent = (entry: AgentRuntimeEventEntry) => {
+      for (const listener of agentListeners.get("pi-session-followup") ?? []) {
+        listener(entry);
+      }
+    };
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "followup-session",
+        projectId: "pig-docs",
+        initialPrompt: "First prompt",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:followup-session",
+      piSessionId: "pi-session-followup",
+    };
+
+    // Gateway-minted user echo of the opening prompt, mirrored into the model.
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-event-received",
+      event: {
+        id: "user-echo-1",
+        piSessionId: "pi-session-followup",
+        kind: "message",
+        role: "user",
+        body: "First prompt",
+        messageId: "pi-sdk:pi-session-followup:user:0",
+        timestamp: "2026-07-02T10:00:00.500Z",
+      },
+    });
+
+    const openingRunId = "pi-session-followup:run-1";
+    const openingTurnId = `${openingRunId}:turn-1`;
+    const openingAnswerId = `${openingTurnId}:msg-1`;
+
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId: openingRunId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId: openingRunId,
+          turnId: openingTurnId,
+          messageId: openingAnswerId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${openingAnswerId}:part-0`,
+              partType: "text",
+              body: "First answer",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "run",
+          runId: openingRunId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-followup",
+      runtimeId: "pi-sdk:followup-session",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "completed",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={runtimeModelBridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "followup-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "fixture-model",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    // Run events own the Session, so the composer sends instead of queuing.
+    expect(screen.queryByRole("button", { name: "Steer" })).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Second prompt",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    // The prompt RPC is parked mid-flight while the follow-up run streams and
+    // completes inside the round-trip window.
+    await waitFor(() => expect(releasePromptEcho).not.toBeNull());
+
+    const followupRunId = "pi-session-followup:run-2";
+    const followupTurnId = `${followupRunId}:turn-1`;
+    const followupAnswerId = `${followupTurnId}:msg-1`;
+
+    act(() => {
+      for (const entry of [
+        {
+          seq: 4,
+          timestamp: "2026-07-02T10:00:11.000Z",
+          event: {
+            type: "run",
+            runId: followupRunId,
+            phase: "start",
+            trigger: "prompt",
+            surface: "hidden",
+            origin: "sdk",
+          } as const,
+        },
+        {
+          seq: 5,
+          timestamp: "2026-07-02T10:00:12.000Z",
+          event: {
+            type: "message",
+            runId: followupRunId,
+            turnId: followupTurnId,
+            messageId: followupAnswerId,
+            role: "assistant",
+            phase: "end",
+            parts: [
+              {
+                partId: `${followupAnswerId}:part-0`,
+                partType: "text",
+                body: "Second answer",
+              },
+            ],
+            surface: "chat",
+            origin: "sdk",
+          } as const,
+        },
+        {
+          seq: 6,
+          timestamp: "2026-07-02T10:00:13.000Z",
+          event: {
+            type: "run",
+            runId: followupRunId,
+            phase: "end",
+            trigger: "prompt",
+            outcome: "completed",
+            surface: "hidden",
+            origin: "sdk",
+          } as const,
+        },
+      ]) {
+        emitAgentEvent(entry);
+      }
+    });
+
+    await act(async () => {
+      releasePromptEcho?.();
+    });
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("First prompt"),
+      { timeout: 3000 },
+    );
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("First answer"),
+      { timeout: 3000 },
+    );
+    // The user echo from the RPC return must survive the commit …
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("Second prompt"),
+      { timeout: 3000 },
+    );
+    // … and so must the run events that landed inside the RPC window.
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("Second answer"),
+      { timeout: 3000 },
+    );
   });
 
   it("restores a per-Session Follow-up Draft without showing a Project selector", async () => {
