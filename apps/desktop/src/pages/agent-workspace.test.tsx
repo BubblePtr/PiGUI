@@ -521,9 +521,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(actionsAside).getByText("Checkout")).toBeInTheDocument();
     expect(within(actionsAside).queryByText("Diff summary")).not.toBeInTheDocument();
 
-    await user.click(
-      within(actionsAside).getByRole("button", { name: "Close Session inspector" }),
-    );
+    // No close button in the docked header; the toolbar toggle is the one
+    // way in and out.
+    expect(
+      within(actionsAside).queryByRole("button", { name: "Close Session inspector" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Session inspector" }));
 
     await waitFor(() => {
       expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();

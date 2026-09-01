@@ -3970,7 +3970,6 @@ export function AgentWorkspaceSessionsPage() {
               activeSurfaceId={activeSurfaceId}
               badges={{ changes: sessionChangesBadge(sessionChanges.changes) }}
               onActiveSurfaceChange={setActiveSurfaceId}
-              onClose={() => setInspectorOpen(false)}
             >
               <SessionSurfaceContent
                 archiveError={archiveError}

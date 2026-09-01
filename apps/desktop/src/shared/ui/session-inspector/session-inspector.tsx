@@ -4,7 +4,7 @@ import {
   ToggleButtonGroup,
 } from "@astryxdesign/core/ToggleButton";
 import type { ReactNode } from "react";
-import { Cancel, SidebarLeft } from "@/shared/ui/icons";
+import { SidebarLeft } from "@/shared/ui/icons";
 import {
   sessionSurfaceOrder,
   sessionSurfaces,
@@ -90,14 +90,12 @@ export function SessionInspector({
   badges,
   children,
   onActiveSurfaceChange,
-  onClose,
 }: {
   activeSurfaceId: SessionSurfaceId;
   /** Live counts per surface, e.g. changed file count. */
   badges?: Partial<Record<SessionSurfaceId, string>>;
   children: ReactNode;
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
-  onClose: () => void;
 }) {
   const surface = sessionSurfaces[activeSurfaceId];
   const SurfaceIcon = surface.icon;
@@ -110,9 +108,9 @@ export function SessionInspector({
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Fills the titlebar band beside Chat's title; the hairline under the
-            band is the sessions view's, not ours. The fixed header chrome's
-            drag region sits above this row, so only the close button is
-            lifted over it. */}
+            band is the sessions view's, not ours. Display only: the toolbar
+            toggle at the rail's head owns open/close, so a close button here
+            would duplicate it 40px away. */}
         <header className="flex h-10 shrink-0 items-center gap-2 px-4">
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
@@ -123,16 +121,6 @@ export function SessionInspector({
           </h2>
           <span className="min-w-0 flex-1 truncate text-xs text-muted">
             {surface.hint}
-          </span>
-          <span className="relative z-[60] flex [-webkit-app-region:no-drag]">
-            <IconButton
-              icon={<Cancel className="size-4" />}
-              label="Close Session inspector"
-              size="sm"
-              tooltip="Close inspector"
-              variant="ghost"
-              onClick={onClose}
-            />
           </span>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4">

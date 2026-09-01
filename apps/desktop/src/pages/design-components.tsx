@@ -227,7 +227,6 @@ function SessionInspectorGallery() {
               activeSurfaceId={activeSurfaceId}
               badges={{ changes: "3" }}
               onActiveSurfaceChange={setActiveSurfaceId}
-              onClose={() => {}}
             >
               <p className="text-sm text-muted">
                 {sessionSurfaces[activeSurfaceId].title} surface content — the
@@ -241,7 +240,6 @@ function SessionInspectorGallery() {
             <SessionInspector
               activeSurfaceId="actions"
               onActiveSurfaceChange={() => {}}
-              onClose={() => {}}
             >
               <p className="text-sm text-muted">
                 Checkout, model and cost, archive.

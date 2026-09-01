@@ -15,25 +15,22 @@ function renderInspector({
   activeSurfaceId = "changes" as SessionSurfaceId,
   badges,
   onActiveSurfaceChange = vi.fn(),
-  onClose = vi.fn(),
 }: {
   activeSurfaceId?: SessionSurfaceId;
   badges?: Partial<Record<SessionSurfaceId, string>>;
   onActiveSurfaceChange?: (surfaceId: SessionSurfaceId) => void;
-  onClose?: () => void;
 } = {}) {
   render(
     <SessionInspector
       activeSurfaceId={activeSurfaceId}
       badges={badges}
       onActiveSurfaceChange={onActiveSurfaceChange}
-      onClose={onClose}
     >
       <p>{`${sessionSurfaces[activeSurfaceId].title} surface content`}</p>
     </SessionInspector>,
   );
 
-  return { onActiveSurfaceChange, onClose };
+  return { onActiveSurfaceChange };
 }
 
 describe("SessionInspector", () => {
@@ -85,13 +82,12 @@ describe("SessionInspector", () => {
     expect(onActiveSurfaceChange).not.toHaveBeenCalled();
   });
 
-  it("closes from the panel header", async () => {
-    const user = userEvent.setup();
-    const { onClose } = renderInspector();
+  it("has no close button of its own: the toolbar toggle owns open/close", () => {
+    renderInspector();
 
-    await user.click(screen.getByRole("button", { name: "Close Session inspector" }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "Close Session inspector" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a rail badge only for surfaces that report one", () => {
