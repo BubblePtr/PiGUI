@@ -108,7 +108,7 @@ export function SessionInspector({
           {children}
         </div>
       </div>
-      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface-muted py-2">
+      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface py-2">
         <ToggleButtonGroup
           label="Session surfaces"
           orientation="vertical"
