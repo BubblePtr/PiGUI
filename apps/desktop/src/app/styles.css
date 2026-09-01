@@ -488,6 +488,26 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
   }
 }
 
+/* —— Scrollbars ——
+   Chromium's classic scrollbar is a wide, near-black slab that outweighs the
+   content beside it. A thin translucent thumb on a transparent track reads as
+   a hint rather than a control; deriving it from --foreground keeps it right
+   in both themes. `scrollbar-color` inherits, so one declaration covers every
+   scroll container; hovering the window darkens it slightly so it still
+   affords dragging. */
+:root {
+  scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent;
+}
+
+/* Unlike scrollbar-color, scrollbar-width does not inherit. */
+* {
+  scrollbar-width: thin;
+}
+
+:root:hover {
+  scrollbar-color: color-mix(in srgb, var(--foreground) 28%, transparent) transparent;
+}
+
 /* —— Scroll fade ——
    Fade scrollable content at both ends of the scroll axis with a mask
    gradient on the scroll container. */
