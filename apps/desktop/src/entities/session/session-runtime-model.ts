@@ -41,6 +41,12 @@ export type SessionRuntimeMessage = {
   runId?: string;
   turnId?: string;
   phase: "streaming" | "final";
+  // Timestamp of the message(start) boundary — when the model call opened.
+  // `updatedAt` closes the pair on a final message, the way a tool's
+  // startedAt/updatedAt bracket its execution. Absent when the opening
+  // boundary never arrived (a cut journal, a bridge that mints only the end),
+  // so consumers can tell "not measured" from "measured as zero".
+  startedAt?: string;
   abandoned?: boolean;
   // Set on mirrored control/error entries (Steer echo, run failures) so the
   // chat can render them as control bubbles.
@@ -245,6 +251,9 @@ export function applyAgentRuntimeEvent(
           runId: event.runId,
           turnId: event.turnId,
           phase: "streaming",
+          // A boundary reissued on resume must not restate when the call
+          // opened, so the first start wins — as it does for tools.
+          startedAt: existing?.startedAt ?? timestamp,
           parts: existing?.parts ?? [],
           updatedAt: timestamp,
         });
@@ -266,6 +275,9 @@ export function applyAgentRuntimeEvent(
           runId: event.runId,
           turnId: event.turnId,
           phase: "final",
+          // Carry the opening stamp across the close, or the pair the call's
+          // duration is read from is gone the moment it completes.
+          ...(existing?.startedAt ? { startedAt: existing.startedAt } : {}),
           ...(event.abandoned ? { abandoned: true } : {}),
           // The end snapshot is the authoritative content.
           parts: event.parts

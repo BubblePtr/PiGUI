@@ -3350,6 +3350,287 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
+  it("discloses a measured model call on a plain answer that leaves no trace steps behind", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    const turnId = `${runId}:turn-1`;
+    const answerId = `${turnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Ship it",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    // A non-reasoning model: one call, one text part, no thinking, no tools —
+    // so the old last-minus-first-step heuristic had nothing to measure.
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: answerId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:07.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: answerId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId: `${answerId}:part-0`, partType: "text", body: "Shipped." }],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:07.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessage = liveChat.querySelector<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    expect(within(assistantMessage!).getByText("Shipped.")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Thought for 5s")).toBeInTheDocument();
+  });
+
+  it("sums the run's model calls rather than the span between its trace steps", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    const firstId = `${runId}:turn-1:msg-1`;
+    const secondId = `${runId}:turn-2:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Ship it",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    // Two calls in one Active Run: 9s then 2s, with 4s of work between them
+    // that belongs to no call. The trace steps carry only closing stamps, so
+    // the old heuristic saw 6s — it lost each call's own opening wait.
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:00.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: `${runId}:turn-1`,
+          messageId: firstId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:09.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId: `${runId}:turn-1`,
+          messageId: firstId,
+          partId: `${firstId}:part-0`,
+          partType: "thinking",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: "Read the ADR first.",
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:10.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: `${runId}:turn-1`,
+          messageId: firstId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            { partId: `${firstId}:part-0`, partType: "thinking", body: "Read the ADR first." },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:14.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: `${runId}:turn-2`,
+          messageId: secondId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:16.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId: `${runId}:turn-2`,
+          messageId: secondId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId: `${secondId}:part-0`, partType: "text", body: "Shipped." }],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 7,
+        timestamp: "2026-07-02T10:00:16.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "completed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessages = liveChat.querySelectorAll<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(within(assistantMessages[0]).getByText("Thought for 11s")).toBeInTheDocument();
+  });
+
   it("renders image parts from a Gateway-minted user echo", () => {
     const workspace = {
       id: "pig-docs",
