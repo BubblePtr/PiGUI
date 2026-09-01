@@ -32,7 +32,7 @@ bun run test:e2e -- e2e/smoke/m1-fixture-free.spec.ts
 
 ## Linux 显示环境
 
-部分用例依赖真实窗口宽度（`session-changes-aside` 由 `matchMedia("(min-width: 1280px)")` 控制停靠还是弹 sheet）。在平铺式 Wayland 合成器（Hyprland/sway 等）下，合成器会覆盖客户端请求的尺寸——实测 `setSize(1440, 900)` 生效约 500ms 后被抢回 1181px，这类用例必然失败。
+部分用例依赖真实窗口宽度（`session-inspector` 由 `matchMedia("(min-width: 1280px)")` 控制停靠还是弹 sheet）。在平铺式 Wayland 合成器（Hyprland/sway 等）下，合成器会覆盖客户端请求的尺寸——实测 `setSize(1440, 900)` 生效约 500ms 后被抢回 1181px，这类用例必然失败。
 
 所以 Linux 上用 `test:e2e:linux` / `test:e2e:packaged:linux`，它们跑在 Xvfb 里（无窗口管理器，没人改窗口几何）：
 

@@ -42,6 +42,17 @@ import {
   useFilePicker,
 } from "@/shared/ui/composer-attachments";
 import { PiSheet } from "@/shared/ui/pi-sheet";
+import {
+  SessionInspector,
+  SessionInspectorTrigger,
+  sessionInspectorDefaultWidthPx,
+  sessionInspectorResizableBounds,
+} from "@/shared/ui/session-inspector/session-inspector";
+import {
+  sessionSurfaceOrder,
+  sessionSurfaces,
+  type SessionSurfaceId,
+} from "@/shared/ui/session-inspector/surface-registry";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pigui/core";
@@ -52,13 +63,10 @@ import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-sta
 import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
 import { invoke } from "@/shared/runtime";
 import {
-  Activity,
   Archive,
   Box,
-  Cancel,
   ChevronDown,
   Computer,
-  FileDiff,
   FolderClosed,
   GitBranch,
   LayoutAlignLeft,
@@ -206,15 +214,16 @@ type SessionChangesPanelProps = {
   loadChanges?: typeof getSessionChanges;
 };
 
-const sessionChangesDockMediaQuery = "(min-width: 1280px)";
+const sessionInspectorDockMediaQuery = "(min-width: 1280px)";
 
-function useDockedSessionChangesLayout() {
+/** Wide Workspaces dock the inspector; narrower ones fall back to a Sheet. */
+function useDockedSessionInspectorLayout() {
   const [isDocked, setIsDocked] = useState(() => {
     if (typeof window === "undefined" || !window.matchMedia) {
       return true;
     }
 
-    return window.matchMedia(sessionChangesDockMediaQuery).matches;
+    return window.matchMedia(sessionInspectorDockMediaQuery).matches;
   });
 
   useEffect(() => {
@@ -222,7 +231,7 @@ function useDockedSessionChangesLayout() {
       return;
     }
 
-    const mediaQuery = window.matchMedia(sessionChangesDockMediaQuery);
+    const mediaQuery = window.matchMedia(sessionInspectorDockMediaQuery);
     const handleChange = () => setIsDocked(mediaQuery.matches);
 
     handleChange();
@@ -232,16 +241,6 @@ function useDockedSessionChangesLayout() {
   }, []);
 
   return isDocked;
-}
-
-export function getSessionChangesResizableSizes() {
-  return {
-    changesDefaultSize: 54,
-    changesMaxSize: 64,
-    changesMinSize: 42,
-    workspaceDefaultSize: 46,
-    workspaceMinSize: 36,
-  };
 }
 
 const SessionDiffViewer = lazy(
@@ -2575,147 +2574,94 @@ export function SessionActionsContent({
   );
 }
 
-function SessionChangesTrigger({
-  isOpen,
-  onOpenChange,
-}: {
-  isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
-}) {
-  return (
-    <IconButton
-      aria-pressed={isOpen}
-      icon={<FileDiff className="size-4" />}
-      label="Session changes"
-      size="sm"
-      tooltip={isOpen ? "Close changes" : "Open changes"}
-      variant="ghost"
-      onClick={() => onOpenChange(!isOpen)}
-    />
-  );
-}
-
-function SessionChangesSheet({
-  isOpen,
-  projection,
-  onOpenChange,
-}: {
-  isOpen: boolean;
-  projection?: SessionProjection | null;
-  onOpenChange: (isOpen: boolean) => void;
-}) {
-  return (
-    <PiSheet isOpen={isOpen} onOpenChange={onOpenChange}>
-      <PiSheet.Content>
-        <PiSheet.CloseTrigger />
-        <PiSheet.Header>
-          <PiSheet.Heading>Changes</PiSheet.Heading>
-          <p className="mt-1 text-sm text-muted">
-            Review the working tree for this Session checkout.
-          </p>
-        </PiSheet.Header>
-        <PiSheet.Body>
-          <div className="pigui-scroll-fade max-h-[calc(100vh-10rem)] overflow-y-auto">
-            <SessionChangesPanel
-              sessionId={projection?.id ?? null}
-              stale={projection?.stale ?? false}
-            />
-          </div>
-        </PiSheet.Body>
-      </PiSheet.Content>
-    </PiSheet>
-  );
-}
-
-function SessionChangesAside({
-  projection,
-  onClose,
-}: {
-  projection?: SessionProjection | null;
-  onClose: () => void;
-}) {
-  return (
-    <aside
-      aria-labelledby="session-changes-heading"
-      className="flex h-full min-h-0 min-w-0 flex-col bg-background"
-      data-testid="session-changes-aside"
-    >
-      <header className="flex min-h-12 shrink-0 items-center justify-between gap-3 px-4">
-        <h2
-          className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground"
-          id="session-changes-heading"
-        >
-          <FileDiff className="size-4 shrink-0 text-muted" />
-          <span className="truncate">Changes</span>
-        </h2>
-        <IconButton
-          icon={<Cancel className="size-4" />}
-          label="Close Session changes"
-          size="sm"
-          tooltip="Close changes"
-          variant="ghost"
-          onClick={onClose}
-        />
-      </header>
-      <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <SessionChangesPanel
-          sessionId={projection?.id ?? null}
-          stale={projection?.stale ?? false}
-        />
-      </div>
-    </aside>
-  );
-}
-
-function SessionActionsSheet({
+/** Renders whichever surface the inspector (or its Sheet fallback) is showing. */
+function SessionSurfaceContent({
+  surfaceId,
   workspace,
   projection,
   archiveError,
   isArchiving,
   onArchive,
 }: {
+  surfaceId: SessionSurfaceId;
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
   archiveError?: string | null;
   isArchiving?: boolean;
   onArchive?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  if (surfaceId === "changes") {
+    return (
+      <SessionChangesPanel
+        sessionId={projection?.id ?? null}
+        stale={projection?.stale ?? false}
+      />
+    );
+  }
 
   return (
-    <>
-      <IconButton
-        icon={<Activity className="size-4" />}
-        label="Session actions"
-        size="sm"
-        tooltip="Session actions"
-        variant="ghost"
-        onClick={() => setOpen(true)}
-      />
+    <SessionActionsContent
+      archiveError={archiveError}
+      isArchiving={isArchiving}
+      workspace={workspace}
+      projection={projection}
+      onArchive={onArchive}
+    />
+  );
+}
 
-      <PiSheet isOpen={open} onOpenChange={setOpen}>
-        <PiSheet.Content>
-          <PiSheet.CloseTrigger />
-          <PiSheet.Header>
-            <PiSheet.Heading>Session actions</PiSheet.Heading>
-            <p className="mt-1 text-sm text-muted">
-              Checkout, model, cost, and lifecycle context.
-            </p>
-          </PiSheet.Header>
-          <PiSheet.Body>
-            <div className="pigui-scroll-fade max-h-[calc(100vh-10rem)] overflow-y-auto">
-              <SessionActionsContent
-                archiveError={archiveError}
-                isArchiving={isArchiving}
-                workspace={workspace}
-                projection={projection}
-                onArchive={onArchive}
-              />
-            </div>
-          </PiSheet.Body>
-        </PiSheet.Content>
-      </PiSheet>
-    </>
+/**
+ * Below the dock breakpoint the inspector collapses into a Sheet. The rail
+ * would waste the narrow width, so surface switching moves to the header.
+ */
+function SessionInspectorSheet({
+  activeSurfaceId,
+  isOpen,
+  children,
+  onActiveSurfaceChange,
+  onOpenChange,
+}: {
+  activeSurfaceId: SessionSurfaceId;
+  isOpen: boolean;
+  children: ReactNode;
+  onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
+  onOpenChange: (isOpen: boolean) => void;
+}) {
+  const surface = sessionSurfaces[activeSurfaceId];
+
+  return (
+    <PiSheet isOpen={isOpen} onOpenChange={onOpenChange}>
+      <PiSheet.Content>
+        <PiSheet.CloseTrigger />
+        <PiSheet.Header>
+          <PiSheet.Heading>{surface.title}</PiSheet.Heading>
+          <p className="mt-1 text-sm text-muted">{surface.hint}</p>
+          <div className="mt-3">
+            <SegmentedControl
+              label="Session surfaces"
+              size="sm"
+              value={activeSurfaceId}
+              onChange={(value) =>
+                onActiveSurfaceChange(value as SessionSurfaceId)
+              }
+            >
+              {sessionSurfaceOrder.map((surfaceId) => (
+                <SegmentedControlItem
+                  key={surfaceId}
+                  label={sessionSurfaces[surfaceId].title}
+                  value={surfaceId}
+                />
+              ))}
+            </SegmentedControl>
+          </div>
+        </PiSheet.Header>
+        <PiSheet.Body>
+          <div className="pigui-scroll-fade max-h-[calc(100vh-14rem)] overflow-y-auto">
+            {children}
+          </div>
+        </PiSheet.Body>
+      </PiSheet.Content>
+    </PiSheet>
   );
 }
 
@@ -2787,40 +2733,47 @@ async function restoreProjectionRuntimeState(input: {
 export function SessionToolbarActions({
   workspace,
   projection,
+  activeSurfaceId = "changes",
   archiveError,
-  changesOpen = false,
-  dockChanges = false,
+  dockInspector = false,
+  inspectorOpen = false,
   isArchiving,
+  onActiveSurfaceChange = () => {},
   onArchive,
-  onChangesOpenChange = () => {},
+  onInspectorOpenChange = () => {},
 }: {
   workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
+  activeSurfaceId?: SessionSurfaceId;
   archiveError?: string | null;
-  changesOpen?: boolean;
-  dockChanges?: boolean;
+  dockInspector?: boolean;
+  inspectorOpen?: boolean;
   isArchiving?: boolean;
+  onActiveSurfaceChange?: (surfaceId: SessionSurfaceId) => void;
   onArchive?: () => void;
-  onChangesOpenChange?: (isOpen: boolean) => void;
+  onInspectorOpenChange?: (isOpen: boolean) => void;
 }) {
   return (
     <>
-      <SessionChangesTrigger
-        isOpen={changesOpen}
-        onOpenChange={onChangesOpenChange}
+      <SessionInspectorTrigger
+        isOpen={inspectorOpen}
+        onOpenChange={onInspectorOpenChange}
       />
-      <SessionActionsSheet
-        archiveError={archiveError}
-        isArchiving={isArchiving}
-        workspace={workspace}
-        projection={projection}
-        onArchive={onArchive}
-      />
-      <SessionChangesSheet
-        isOpen={changesOpen && !dockChanges}
-        projection={projection}
-        onOpenChange={onChangesOpenChange}
-      />
+      <SessionInspectorSheet
+        activeSurfaceId={activeSurfaceId}
+        isOpen={inspectorOpen && !dockInspector}
+        onActiveSurfaceChange={onActiveSurfaceChange}
+        onOpenChange={onInspectorOpenChange}
+      >
+        <SessionSurfaceContent
+          archiveError={archiveError}
+          isArchiving={isArchiving}
+          surfaceId={activeSurfaceId}
+          workspace={workspace}
+          projection={projection}
+          onArchive={onArchive}
+        />
+      </SessionInspectorSheet>
     </>
   );
 }
@@ -3714,26 +3667,17 @@ export function AgentWorkspaceSessionsView({
       runtimeGeneration={runtimeGeneration}
     />
   );
-  const resizableSizes = getSessionChangesResizableSizes();
-  // Percentage bounds resolve against the viewport once; the drag itself is
-  // pixel-based (Astryx useResizable), matching the previous percent split.
-  const [asideSizeBounds] = useState(() => {
-    const viewportWidth =
+  // The viewport-relative upper bound resolves once; the drag itself is
+  // pixel-based (Astryx useResizable).
+  const [asideSizeBounds] = useState(() =>
+    sessionInspectorResizableBounds(
       typeof window !== "undefined" && window.innerWidth > 0
         ? window.innerWidth
-        : 1280;
-
-    return {
-      minSizePx: Math.round(
-        (viewportWidth * resizableSizes.changesMinSize) / 100,
-      ),
-      maxSizePx: Math.round(
-        (viewportWidth * resizableSizes.changesMaxSize) / 100,
-      ),
-    };
-  });
+        : 1280,
+    ),
+  );
   const asideResizable = useResizable({
-    defaultSize: `${resizableSizes.changesDefaultSize}%`,
+    defaultSize: sessionInspectorDefaultWidthPx,
     minSizePx: asideSizeBounds.minSizePx,
     maxSizePx: asideSizeBounds.maxSizePx,
   });
@@ -3767,7 +3711,7 @@ export function AgentWorkspaceSessionsView({
                 direction="horizontal"
                 hasDivider
                 isReversed
-                label="Resize Session changes"
+                label="Resize Session inspector"
                 // Astryx 0.3.0 `hitAreaOffsetX` carries a `-50%` Y translate meant
                 // for vertical handles, so a side-biased pill shifts the grab zone
                 // up by half its height and only the divider's top half is
@@ -3834,8 +3778,12 @@ export function AgentWorkspaceSessionsPage() {
   }, [browserDevelopmentData, setSessionProjections]);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
-  const [changesOpen, setChangesOpen] = useState(false);
-  const dockChanges = useDockedSessionChangesLayout();
+  // Open state and the active surface are Workspace-level, so switching
+  // Sessions keeps the inspector where the user left it.
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [activeSurfaceId, setActiveSurfaceId] =
+    useState<SessionSurfaceId>("changes");
+  const dockInspector = useDockedSessionInspectorLayout();
   const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
   const workspace = project ? workspaceFromProject(project) : null;
   const selectedSessionProjection =
@@ -3870,7 +3818,7 @@ export function AgentWorkspaceSessionsPage() {
 
   useEffect(() => {
     if (!selectedSessionProjection) {
-      setChangesOpen(false);
+      setInspectorOpen(false);
     }
   }, [selectedSessionProjection?.id]);
 
@@ -3979,24 +3927,36 @@ export function AgentWorkspaceSessionsPage() {
       onSelectedSessionIdChange={setSelectedSessionId}
       toolbarActions={selectedSessionProjection ? (
         <SessionToolbarActions
+          activeSurfaceId={activeSurfaceId}
           archiveError={archiveError}
-          changesOpen={changesOpen}
-          dockChanges={dockChanges}
+          dockInspector={dockInspector}
+          inspectorOpen={inspectorOpen}
           isArchiving={isArchiving}
           workspace={workspace}
           projection={selectedSessionProjection}
+          onActiveSurfaceChange={setActiveSurfaceId}
           onArchive={() => void handleArchiveSession()}
-          onChangesOpenChange={setChangesOpen}
+          onInspectorOpenChange={setInspectorOpen}
         />
       ) : undefined}
     >
       <AgentWorkspaceSessionsView
         aside={
-          dockChanges && changesOpen ? (
-            <SessionChangesAside
-              projection={selectedSessionProjection}
-              onClose={() => setChangesOpen(false)}
-            />
+          dockInspector && inspectorOpen ? (
+            <SessionInspector
+              activeSurfaceId={activeSurfaceId}
+              onActiveSurfaceChange={setActiveSurfaceId}
+              onClose={() => setInspectorOpen(false)}
+            >
+              <SessionSurfaceContent
+                archiveError={archiveError}
+                isArchiving={isArchiving}
+                surfaceId={activeSurfaceId}
+                workspace={workspace}
+                projection={selectedSessionProjection}
+                onArchive={() => void handleArchiveSession()}
+              />
+            </SessionInspector>
           ) : undefined
         }
         projectId={projectId}

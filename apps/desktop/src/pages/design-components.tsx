@@ -4,6 +4,14 @@ import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
 import { PiSheet } from "@/shared/ui/pi-sheet";
+import {
+  SessionInspector,
+  SessionInspectorTrigger,
+} from "@/shared/ui/session-inspector/session-inspector";
+import {
+  sessionSurfaces,
+  type SessionSurfaceId,
+} from "@/shared/ui/session-inspector/surface-registry";
 import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
 import {
   PiTraceInspector,
@@ -199,6 +207,50 @@ function PiSheetGallery() {
               </PiSheet.Body>
             </PiSheet.Content>
           </PiSheet>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+function SessionInspectorGallery() {
+  const [activeSurfaceId, setActiveSurfaceId] =
+    useState<SessionSurfaceId>("changes");
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <GallerySection title="SessionInspector">
+      <VariantRow>
+        <Variant caption="Changes active — rail badge carries the file count">
+          <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
+            <SessionInspector
+              activeSurfaceId={activeSurfaceId}
+              badges={{ changes: "3" }}
+              onActiveSurfaceChange={setActiveSurfaceId}
+              onClose={() => {}}
+            >
+              <p className="text-sm text-muted">
+                {sessionSurfaces[activeSurfaceId].title} surface content — the
+                panel hosts whichever surface the rail selects.
+              </p>
+            </SessionInspector>
+          </div>
+        </Variant>
+        <Variant caption="Actions active — same panel, rail switches the surface">
+          <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
+            <SessionInspector
+              activeSurfaceId="actions"
+              onActiveSurfaceChange={() => {}}
+              onClose={() => {}}
+            >
+              <p className="text-sm text-muted">
+                Checkout, model and cost, archive.
+              </p>
+            </SessionInspector>
+          </div>
+        </Variant>
+        <Variant caption="collapsed — panel and rail are both gone; only this toolbar toggle remains">
+          <SessionInspectorTrigger isOpen={isOpen} onOpenChange={setIsOpen} />
         </Variant>
       </VariantRow>
     </GallerySection>
@@ -1470,6 +1522,7 @@ export function DesignComponentsLayer() {
       <PiKpiGallery />
       <PiBarChartGallery />
       <PiSheetGallery />
+      <SessionInspectorGallery />
       <PiTraceLedgerGallery />
       <PiTraceStripGallery />
       <PiTraceInspectorGallery />

@@ -20,7 +20,6 @@ import {
   SessionActionsContent,
   SessionChangesPanel,
   SessionToolbarActions,
-  getSessionChangesResizableSizes,
 } from "@/pages/agent-workspace";
 import { addProjectToRegistry } from "@/entities/project/project-registry";
 import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
@@ -224,7 +223,24 @@ function getOpenSelectorListbox() {
   return listbox;
 }
 
-function setDockedSessionChangesLayout(matches: boolean) {
+/**
+ * Below the dock breakpoint both surfaces live in one Sheet, reached through
+ * the toolbar toggle and the Sheet's surface switcher.
+ */
+async function openSessionSurfaceSheet(
+  user: ReturnType<typeof userEvent.setup>,
+  surfaceTitle: "Changes" | "Actions",
+) {
+  await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+
+  const sheet = await screen.findByRole("dialog");
+
+  await user.click(within(sheet).getByRole("radio", { name: surfaceTitle }));
+
+  return sheet;
+}
+
+function setDockedSessionInspectorLayout(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     configurable: true,
@@ -243,7 +259,7 @@ function setDockedSessionChangesLayout(matches: boolean) {
 
 describe("AgentWorkspaceSessionsPage", () => {
   beforeEach(() => {
-    setDockedSessionChangesLayout(false);
+    setDockedSessionInspectorLayout(false);
     window.localStorage.clear();
     delete window.pigui;
     delete (
@@ -288,16 +304,22 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
     expect(within(liveColumn).queryByRole("heading", { name: "Live Chat" })).not.toBeInTheDocument();
     expect(within(liveColumn).queryByRole("heading", { name: "Run timeline" })).not.toBeInTheDocument();
-    expect(within(liveColumn).queryByRole("button", { name: "Session actions" })).not.toBeInTheDocument();
+    expect(within(liveColumn).queryByRole("button", { name: "Session inspector" })).not.toBeInTheDocument();
     expect(liveColumn).toHaveClass("h-full");
     expect(sessionsView).toHaveClass("-mt-10", "h-[calc(100%+2.5rem)]", "pb-0");
     expect(sessionsView).not.toHaveClass("pt-6", "py-6");
-    const sessionActionsButton = within(navbarActions).getByRole("button", {
-      name: "Session actions",
+    // One toolbar toggle now stands for the whole inspector; Changes and
+    // Actions are surfaces inside it, not separate toolbar buttons.
+    const sessionInspectorButton = within(navbarActions).getByRole("button", {
+      name: "Session inspector",
     });
-    const sessionChangesButton = within(navbarActions).getByRole("button", {
-      name: "Session changes",
-    });
+
+    expect(
+      within(navbarActions).queryByRole("button", { name: "Session changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(navbarActions).queryByRole("button", { name: "Session actions" }),
+    ).not.toBeInTheDocument();
     const chatConversation = liveColumn.querySelector('[data-slot="chat-conversation"]');
     const promptInput = liveColumn.querySelector('[data-slot="prompt-input"]');
     const composer = liveColumn.querySelector('[data-testid="full-chat-composer"]');
@@ -310,8 +332,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       screen.getByRole("group", { name: "Trace and usage navigation" }),
     ).getByText("New Session");
 
-    expect(sessionActionsButton).toBeInTheDocument();
-    expect(sessionChangesButton).toHaveAttribute("aria-pressed", "false");
+    expect(sessionInspectorButton).toHaveAttribute("aria-pressed", "false");
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
       "data-window-drag-region",
     );
@@ -396,12 +417,9 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(liveColumn).queryByText("Queue is the default while Pi is running."),
     ).not.toBeInTheDocument();
     expect(within(navbarActions).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Session actions" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    await user.click(sessionActionsButton);
-
-    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
     const sheetPanel = document.querySelector('[data-slot="sheet-panel"]');
 
     // PiSheet renders the right-side panel; slide-in styling lives in
@@ -414,16 +432,16 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(actionDialog).getByText("$0.042137")).toBeInTheDocument();
   });
 
-  it("opens Session changes in a Sheet below the docked breakpoint", async () => {
+  it("reaches both surfaces through one Sheet below the docked breakpoint", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
 
-    const changesButton = await screen.findByRole("button", {
-      name: "Session changes",
+    const inspectorButton = await screen.findByRole("button", {
+      name: "Session inspector",
     });
 
-    await user.click(changesButton);
+    await user.click(inspectorButton);
 
     const changesDialog = await screen.findByRole("dialog", { name: "Changes" });
     const sheetPanel = changesDialog.closest('[data-slot="sheet-panel"]');
@@ -431,54 +449,60 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(changesDialog).getByText("Diff summary")).toBeInTheDocument();
     // Panel width and rounding come from the shared pi-sheet__panel styles.
     expect(sheetPanel).toHaveClass("pi-sheet__panel");
-    expect(screen.queryByTestId("session-changes-aside")).not.toBeInTheDocument();
-    expect(changesButton).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
+    expect(inspectorButton).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(within(changesDialog).getByRole("radio", { name: "Actions" }));
+
+    const actionsDialog = await screen.findByRole("dialog", { name: "Actions" });
+
+    expect(within(actionsDialog).getByText("Checkout")).toBeInTheDocument();
+    expect(within(actionsDialog).queryByText("Diff summary")).not.toBeInTheDocument();
   });
 
-  it("docks Session changes beside Chat on wide Workspaces", async () => {
+  it("docks the Session inspector beside Chat on wide Workspaces", async () => {
     const user = userEvent.setup();
-    setDockedSessionChangesLayout(true);
+    setDockedSessionInspectorLayout(true);
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "Session changes" }));
+    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
 
-    const aside = await screen.findByRole("complementary", {
-      name: "Changes",
-    });
+    const aside = await screen.findByRole("complementary", { name: "Changes" });
     const splitView = aside.closest('[data-slot="resizable"]');
 
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
-    expect(aside).not.toHaveClass("border-l");
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
-    expect(screen.getByLabelText("Resize Session changes")).toHaveClass("mx-2");
+    expect(screen.getByLabelText("Resize Session inspector")).toHaveClass("mx-2");
     expect(screen.getByTestId("session-workspace-main-pane")).toHaveClass("pt-10");
     expect(screen.getByTestId("session-workspace-aside-pane")).toHaveClass("pt-10");
     expect(splitView?.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(2);
-    expect(screen.queryByRole("dialog", { name: "Changes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    await user.click(within(aside).getByRole("button", { name: "Close Session changes" }));
+    // The rail swaps the surface inside the same docked panel.
+    await user.click(
+      within(screen.getByRole("group", { name: "Session surfaces" })).getByRole(
+        "button",
+        { name: "Actions" },
+      ),
+    );
+
+    const actionsAside = await screen.findByRole("complementary", { name: "Actions" });
+
+    expect(within(actionsAside).getByText("Checkout")).toBeInTheDocument();
+    expect(within(actionsAside).queryByText("Diff summary")).not.toBeInTheDocument();
+
+    await user.click(
+      within(actionsAside).getByRole("button", { name: "Close Session inspector" }),
+    );
 
     await waitFor(() => {
-      expect(screen.queryByTestId("session-changes-aside")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Session changes" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Session inspector" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-  });
-
-  it("keeps bounded percentage sizes for the docked Changes pane", () => {
-    expect(getSessionChangesResizableSizes()).toEqual({
-      changesDefaultSize: 54,
-      changesMaxSize: 64,
-      changesMinSize: 42,
-      workspaceDefaultSize: 46,
-      workspaceMinSize: 36,
-    });
   });
 
   it("shows an empty Workspace state until a Project is added manually", async () => {
@@ -510,7 +534,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       expect(invoke).toHaveBeenCalledWith("list_session_projections", undefined);
     });
     expect(await screen.findByTestId("project-sessions-view")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Session actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Session inspector" })).not.toBeInTheDocument();
     expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
     expect(screen.queryByText("Usage evidence review")).not.toBeInTheDocument();
     expect(screen.queryByText("Create the Agent Workspace entry shape for this Project.")).not.toBeInTheDocument();
@@ -589,12 +613,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     renderProjectSessions();
 
     expect(await findSidebarSessionRow("Archive this session")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Session actions" }));
+
+    const actionsSheet = await openSessionSurfaceSheet(user, "Actions");
+
     fireEvent.click(
-      within(await screen.findByRole("dialog", { name: "Session actions" })).getByRole(
-        "button",
-        { name: "Archive Session" },
-      ),
+      within(actionsSheet).getByRole("button", { name: "Archive Session" }),
     );
 
     await waitFor(() => {
@@ -908,9 +931,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "Session actions" }));
-
-    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
     const archiveButton = within(actionDialog).getByRole("button", {
       name: "Archive Session",
     });
@@ -927,9 +948,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     renderProjectSessions();
 
     await user.click(await findSidebarSessionRow("Trace boundary pass"));
-    await user.click(screen.getByRole("button", { name: "Session actions" }));
 
-    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
     const archiveButton = within(actionDialog).getByRole("button", {
       name: "Archive Session",
     });
@@ -968,9 +988,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(liveChat).queryByText("Pi stopped the active run."),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Session actions" }));
-
-    const actionDialog = await screen.findByRole("dialog", { name: "Session actions" });
+    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
 
     expect(within(actionDialog).getByRole("button", { name: "Archive Session" })).toBeEnabled();
     expect(
@@ -5820,7 +5838,7 @@ describe("Context usage placement", () => {
     expect(footer).toBeNull();
   });
 
-  it("leaves the Session toolbar to Session actions", () => {
+  it("leaves the Session toolbar to the inspector toggle", () => {
     const { container } = render(
       <SessionToolbarActions workspace={workspace} projection={boundProjection()} />,
     );
