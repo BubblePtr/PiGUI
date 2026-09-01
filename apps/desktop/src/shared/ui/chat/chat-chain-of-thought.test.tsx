@@ -34,8 +34,10 @@ describe("formatLiveElapsed", () => {
 });
 
 describe("formatThoughtSummary", () => {
-  it("falls back when duration is unknown", () => {
-    expect(formatThoughtSummary(undefined)).toBe("Thought for 3s");
+  it("claims no number when the duration was never measured", () => {
+    expect(formatThoughtSummary(undefined)).toBe("Thought");
+    expect(formatThoughtSummary(Number.NaN)).toBe("Thought");
+    expect(formatThoughtSummary(-1)).toBe("Thought");
   });
 
   it("rounds known durations to at least one second", () => {
@@ -108,6 +110,19 @@ describe("ChatChainOfThought", () => {
     expect(screen.getByText("Reasoning body text")).toBeInTheDocument();
     expect(steps).toBeInTheDocument();
     expect(steps).not.toHaveClass("chain-of-thought__steps--rail");
+  });
+
+  it("renders a plain non-interactive label when there is nothing to expand", () => {
+    const { container } = render(
+      <ChatChainOfThought>
+        <ChatChainOfThought.Label>Thought for 5s</ChatChainOfThought.Label>
+      </ChatChainOfThought>,
+    );
+
+    const label = container.querySelector('[data-slot="chain-of-thought-label"]');
+
+    expect(label).toHaveTextContent("Thought for 5s");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("toggles expansion from the trigger", async () => {

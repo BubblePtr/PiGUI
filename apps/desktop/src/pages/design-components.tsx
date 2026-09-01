@@ -1037,6 +1037,11 @@ function ChatChainOfThoughtGallery() {
             </ChatChainOfThought.Live>
           </ChatChainOfThought>
         </Variant>
+        <Variant caption="settled, nothing to expand (plain label, no control)">
+          <ChatChainOfThought>
+            <ChatChainOfThought.Label>Thought for 5s</ChatChainOfThought.Label>
+          </ChatChainOfThought>
+        </Variant>
         <Variant caption="collapsed, settled">
           <ChatChainOfThought>
             <ChatChainOfThought.Trigger>Thought for 12s</ChatChainOfThought.Trigger>

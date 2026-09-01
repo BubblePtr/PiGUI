@@ -227,6 +227,16 @@
   color: var(--color-text-primary);
 }
 
+/* Label shares the trigger's face but is inert: no hover, no pointer. */
+.chain-of-thought__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+}
+
 .chain-of-thought[data-streaming="true"] .chain-of-thought__trigger {
   color: var(--color-text-secondary);
 }
