@@ -109,7 +109,10 @@ export function SessionInspector({
       data-testid="session-inspector"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-10 shrink-0 items-center gap-2 border-t border-separator px-4">
+        {/* Fills the titlebar band beside Chat's title. The fixed header
+            chrome's drag region sits above this row, so only the close button
+            is lifted over it. */}
+        <header className="flex h-10 shrink-0 items-center gap-2 border-b border-separator px-4">
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
             id={headingId}
@@ -120,20 +123,26 @@ export function SessionInspector({
           <span className="min-w-0 flex-1 truncate text-xs text-muted">
             {surface.hint}
           </span>
-          <IconButton
-            icon={<Cancel className="size-4" />}
-            label="Close Session inspector"
-            size="sm"
-            tooltip="Close inspector"
-            variant="ghost"
-            onClick={onClose}
-          />
+          <span className="relative z-[60] flex [-webkit-app-region:no-drag]">
+            <IconButton
+              icon={<Cancel className="size-4" />}
+              label="Close Session inspector"
+              size="sm"
+              tooltip="Close inspector"
+              variant="ghost"
+              onClick={onClose}
+            />
+          </span>
         </header>
         <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto px-4 pb-4">
           {children}
         </div>
       </div>
-      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface py-2">
+      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface">
+        {/* The toolbar toggle (header chrome) floats over this cell, so the
+            rail reads as toggle / hairline / surfaces. */}
+        <div aria-hidden="true" className="h-10 w-full shrink-0 border-b border-separator" />
+        <div className="flex flex-col items-center py-2">
         <ToggleButtonGroup
           label="Session surfaces"
           orientation="vertical"
@@ -175,6 +184,7 @@ export function SessionInspector({
             );
           })}
         </ToggleButtonGroup>
+        </div>
       </nav>
     </aside>
   );

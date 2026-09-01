@@ -19,7 +19,7 @@ ADR-0008 把 Live Session 页右侧定义为 Structured Action Surface。ADR-002
 
 ### Inspector 是一个自带 rail 的面板
 
-`SessionInspector`（`shared/ui/session-inspector/`）渲染一个全高面板：40px 表头（surface 图标、标题、提示、关闭按钮），以及贴在面板自身右缘的 44px 图标 rail。rail 是面板的一部分：inspector 关闭时两者一起消失，用户不需要它的时候窗口边上不留任何常驻物。HeaderChrome `toolbarActions` 槽位里一个 toggle 按钮（开启态高亮）取代原先的 Changes 与 Session actions 两个按钮。
+`SessionInspector`（`shared/ui/session-inspector/`）渲染一个全高面板：40px 表头（surface 图标、标题、提示、关闭按钮），以及贴在面板自身右缘的 44px 图标 rail。停靠时表头直接填满窗口顶部那条 40px 标题带，与 Chat 的标题同一基线；rail 顶格留给工具栏里的开关，开关按 rail 轴线对齐，视觉上是 rail 的第一格。标题带底边一条细线横贯 Chat、面板与 rail。rail 是面板的一部分：inspector 关闭时两者一起消失，用户不需要它的时候窗口边上不留任何常驻物。HeaderChrome `toolbarActions` 槽位里一个 toggle 按钮（开启态高亮）取代原先的 Changes 与 Session actions 两个按钮。
 
 面板宽度：默认 560px，最小 340px，最大 58vw（其余留给 Chat），拖拽复用已经驱动 docked Changes 的 Astryx `useResizable` / `ResizeHandle`。
 

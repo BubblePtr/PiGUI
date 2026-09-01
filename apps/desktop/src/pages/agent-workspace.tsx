@@ -3577,6 +3577,21 @@ function LiveSessionColumn({
   );
 }
 
+/**
+ * The 40px row under the fixed header chrome. A real element rather than
+ * padding so every column can draw the same hairline under its title row:
+ * Chat here, the inspector via its own header, the rail via its toggle cell.
+ */
+function TitlebarBand() {
+  return (
+    <div
+      aria-hidden="true"
+      className="h-10 shrink-0 border-b border-separator"
+      data-testid="session-workspace-titlebar-band"
+    />
+  );
+}
+
 export function AgentWorkspaceSessionsView({
   projectId = fixtureWorkspace.id,
   showDraft = false,
@@ -3690,10 +3705,11 @@ export function AgentWorkspaceSessionsView({
             data-slot="resizable-panel"
           >
             <div
-              className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
+              className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
               data-testid="session-workspace-main-pane"
             >
-              {liveSession}
+              <TitlebarBand />
+              <div className="min-h-0 flex-1">{liveSession}</div>
             </div>
           </div>
           <ResizeHandle
@@ -3715,7 +3731,7 @@ export function AgentWorkspaceSessionsView({
             style={{ width: asideResizable.size }}
           >
             <div
-              className="h-full min-h-0 min-w-0 overflow-hidden pt-10"
+              className="h-full min-h-0 min-w-0 overflow-hidden"
               data-testid="session-workspace-aside-pane"
             >
               {aside}
@@ -3723,8 +3739,9 @@ export function AgentWorkspaceSessionsView({
           </div>
         </div>
       ) : (
-        <div className="mx-auto h-full min-h-0 w-full max-w-[96rem] px-6 pt-10">
-          {liveSession}
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[96rem] flex-col px-6">
+          <TitlebarBand />
+          <div className="min-h-0 flex-1">{liveSession}</div>
         </div>
       )}
     </article>
