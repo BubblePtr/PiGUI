@@ -1970,6 +1970,119 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
+  it("keeps the submitted user bubble when a slow resume resync lands after the prompt echo", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-07-02T10:00:10.000Z",
+    });
+    let releaseResume: (() => void) | null = null;
+    // resumeSession snapshots the Session state when the RPC starts (the way
+    // the Gateway snapshot predates later events) and stays parked until the
+    // test releases it.
+    const resumingBridge = {
+      ...bridge,
+      async resumeSession(input: { piSessionId: string }) {
+        const snapshot = await bridge.getSessionState(input.piSessionId);
+
+        await new Promise<void>((resolve) => {
+          releaseResume = resolve;
+        });
+
+        return snapshot;
+      },
+    };
+    const projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "resumed-session",
+        projectId: "pig-docs",
+        initialPrompt: "First prompt",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      status: "completed",
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:resumed-session",
+      piSessionId: "pi-session-resumed",
+      sessionFile: "/sessions/pi-session-resumed.jsonl",
+      runtimeEvents: [
+        {
+          id: "user-echo-1",
+          piSessionId: "pi-session-resumed",
+          kind: "message",
+          role: "user",
+          body: "First prompt",
+          timestamp: "2026-07-02T10:00:00.500Z",
+        },
+      ],
+      updatedAt: "2026-07-02T10:00:00.500Z",
+    };
+
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-resumed",
+      runtimeId: "pi-sdk:resumed-session",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "completed",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={resumingBridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "resumed-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "fixture-model",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    // The resume RPC parked on mount; the user sends a follow-up while it is
+    // still in flight and the echo renders.
+    await waitFor(() => expect(releaseResume).not.toBeNull());
+
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Second prompt",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("Second prompt"),
+      { timeout: 3000 },
+    );
+
+    // The slow resume RPC now returns its pre-prompt snapshot; the resync
+    // commit must not clobber the echo that landed while it was in flight.
+    await act(async () => {
+      releaseResume?.();
+    });
+
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("Second prompt"),
+      { timeout: 3000 },
+    );
+    expect(liveChat).toHaveTextContent("First prompt");
+  });
+
   it("restores a per-Session Follow-up Draft without showing a Project selector", async () => {
     let projection = applySessionProjectionEvent(
       createSessionProjection({

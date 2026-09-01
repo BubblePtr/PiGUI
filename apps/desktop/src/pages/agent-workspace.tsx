@@ -2989,12 +2989,35 @@ function LiveSessionColumn({
         }
 
         resumeFailedKeysRef.current.delete(resumeKey);
-        commitInteractionProjection(
-          applySessionProjectionEvent(sessionProjection, {
-            type: "runtime-state-resynced",
-            state,
-          }),
+
+        // Re-base on the freshest projection: prompt/queue handlers may have
+        // committed echoes while the resume RPC was in flight, and resync
+        // replaces runtimeEvents wholesale from a snapshot that predates
+        // them. Fall back to the prop when the view switched Sessions.
+        const latest = liveProjectionRef.current ?? sessionProjection;
+        const base =
+          latest?.piSessionId === sessionProjection.piSessionId
+            ? latest
+            : sessionProjection;
+        let next = applySessionProjectionEvent(base, {
+          type: "runtime-state-resynced",
+          state,
+        });
+        const snapshotEventIds = new Set(
+          state.events.map((snapshotEvent) => snapshotEvent.id),
         );
+
+        for (const event of base.runtimeEvents) {
+          if (!snapshotEventIds.has(event.id)) {
+            next = applySessionProjectionEvent(next, {
+              type: "runtime-event-received",
+              event,
+            });
+          }
+        }
+
+        liveProjectionRef.current = next;
+        commitInteractionProjection(next);
       })
       .catch((error) => {
         if (cancelled) {
