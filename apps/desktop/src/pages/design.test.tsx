@@ -126,6 +126,19 @@ describe("Design page tabs", () => {
 
     expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
   });
+
+  // AGENTS.md hard rule: every shared/ui component registers here.
+  it("registers the SessionInspector surface host", async () => {
+    const user = userEvent.setup();
+
+    render(<DesignPageContent />);
+
+    await user.click(screen.getByRole("button", { name: "Components" }));
+
+    expect(
+      screen.getByRole("region", { name: "SessionInspector" }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("Design page dev-only gating", () => {
