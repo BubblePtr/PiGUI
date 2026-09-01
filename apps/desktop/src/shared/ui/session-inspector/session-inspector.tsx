@@ -109,7 +109,7 @@ export function SessionInspector({
       data-testid="session-inspector"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-10 shrink-0 items-center gap-2 border-b border-separator px-4">
+        <header className="flex h-10 shrink-0 items-center gap-2 border-t border-separator px-4">
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
             id={headingId}
