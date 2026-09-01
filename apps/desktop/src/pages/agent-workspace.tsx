@@ -3271,7 +3271,15 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    // Re-base the echo on the freshest projection: the pre-await snapshot is
+    // stale by now, and committing on top of it would silently drop every live
+    // event that landed during the RPC round-trip (same pattern as
+    // createSessionFromDraft's mutable projection). If the view switched to
+    // another Session mid-flight, fall back to the captured snapshot.
+    const latest = liveProjectionRef.current ?? liveProjection;
+    const base =
+      latest?.piSessionId === projection.piSessionId ? latest : projection;
+    const next = applySessionProjectionEvent(base, {
       type: "runtime-event-received",
       event: accepted.event,
     });
