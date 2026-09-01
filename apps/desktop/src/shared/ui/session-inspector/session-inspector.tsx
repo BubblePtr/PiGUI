@@ -55,15 +55,19 @@ export function SessionInspectorTrigger({
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 }) {
+  // A plain ghost button, not a ToggleButton: the panel being open is already
+  // obvious, and a pressed fill here would compete with the rail's active
+  // surface, which is the selection that matters. aria-pressed keeps the
+  // state for assistive tech.
   const toggle = (
-    <ToggleButton
+    <IconButton
+      aria-pressed={isOpen}
       icon={<SidebarLeft className="size-4 rotate-180" />}
-      isIconOnly
-      isPressed={isOpen}
       label="Session inspector"
       size="sm"
       tooltip={isOpen ? "Hide inspector" : "Show inspector"}
-      onPressedChange={onOpenChange}
+      variant="ghost"
+      onClick={() => onOpenChange(!isOpen)}
     />
   );
 
@@ -105,7 +109,7 @@ export function SessionInspector({
       data-testid="session-inspector"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-10 shrink-0 items-center gap-2 px-4">
+        <header className="flex h-10 shrink-0 items-center gap-2 border-b border-separator px-4">
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
             id={headingId}
