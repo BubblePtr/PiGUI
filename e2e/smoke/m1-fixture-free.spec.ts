@@ -15,6 +15,14 @@ declare global {
   }
 }
 
+// The sidebar row button's accessible name starts with the Session title
+// ("<title> <relative time>"), while the hover-revealed menu button next to it
+// reads "Session actions for <title>". Anchoring at the start keeps the row the
+// only match without resorting to positional selectors.
+function sessionRowButton(window: Page, title: string) {
+  return window.getByRole("button", { name: new RegExp(`^${title}`, "i") });
+}
+
 async function openProjectDraft(window: Page, project: E2EProject) {
   const newSession = window.getByRole("button", { name: "New Session", exact: true });
 
@@ -31,14 +39,12 @@ async function openSession(
 ) {
   await openProjectDraft(window, project);
 
-  const session = window.getByRole("button", {
-    name: new RegExp(projection.initialPrompt, "i"),
-  });
+  const session = sessionRowButton(window, projection.initialPrompt);
 
   await expect(session).toBeVisible();
   await session.click();
   await expect(window.getByLabel("Session changes")).toBeVisible();
-  await expect(window.getByLabel("Session actions")).toBeVisible();
+  await expect(window.getByLabel("Session actions", { exact: true })).toBeVisible();
 }
 
 test.describe("M1: Real-data-only", () => {
@@ -79,7 +85,7 @@ test.describe("M2: Reliable lifecycle", () => {
         testApp.project!,
         testApp.projection!,
       );
-      await testApp.window.getByLabel("Session actions").click();
+      await testApp.window.getByLabel("Session actions", { exact: true }).click();
 
       const archive = testApp.window.getByRole("button", {
         name: "Archive Session",
@@ -151,9 +157,7 @@ test.describe("M2: Reliable lifecycle", () => {
           },
         ]);
       await expect(
-        testApp.window.getByRole("button", {
-          name: /Reloaded after backend restart/i,
-        }),
+        sessionRowButton(testApp.window, "Reloaded after backend restart"),
       ).toBeVisible();
       await expect(testApp.window).toHaveTitle(/PiGUI/);
     } finally {
