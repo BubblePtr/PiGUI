@@ -28,6 +28,7 @@ export const browserTitlebarBandPx = 40;
  */
 const browserCommands = new Set([
   "browser_capture",
+  "browser_capture_annotation",
   "browser_navigate",
   "browser_back",
   "browser_forward",
@@ -196,8 +197,12 @@ export type BrowserHostView = {
   reload(): void;
   destroy(): void;
   readState(): BrowserViewSnapshot;
-  /** PNG data URL of the view as it stands, or null if it cannot be read. */
-  capture(): Promise<string | null>;
+  /**
+   * PNG data URL of the view as it stands, or null if it cannot be read.
+   * `maxWidth` is in CSS pixels: a capture wider than that is downsampled to
+   * it, which is how a HiDPI screenshot is brought back to page size.
+   */
+  capture(maxWidth?: number): Promise<string | null>;
 };
 
 export type BrowserHostDependencies = {
@@ -378,7 +383,14 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
           view?.clearAnnotations();
           return null;
         case "browser_capture":
+          // Full resolution: this still is shown at the placeholder's own size,
+          // standing in for the native view while a DOM overlay is open.
           return view ? view.capture() : null;
+        case "browser_capture_annotation":
+          // Back down to CSS pixels. On a 2x display the same capture is a PNG
+          // approaching the 8 MiB prompt-image ceiling, and a model reading the
+          // numbered markers gains nothing from the extra pixels.
+          return view ? view.capture(bounds?.width) : null;
         case "browser_open_external":
           await deps.openExternal(normalizeBrowserUrl(readUrlArgument(args)));
           return null;

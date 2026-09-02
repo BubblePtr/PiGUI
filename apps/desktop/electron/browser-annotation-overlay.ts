@@ -361,6 +361,20 @@ export function createAnnotationOverlay(options: {
     }
   }
 
+  /**
+   * The pointer left the document — `relatedTarget` is null only then, which
+   * is what tells this apart from moving between two elements in the page.
+   *
+   * It matters because leaving the page is how the user reaches the toolbar,
+   * and `Send to composer` photographs the page: a highlight still framing the
+   * last hovered element would be printed on the screenshot Pi reads.
+   */
+  function handlePointerOut(event: Event) {
+    if (designMode && !(event as MouseEvent).relatedTarget) {
+      hideHighlight();
+    }
+  }
+
   function handlePointerEvent(event: Event) {
     if (!designMode) {
       return;
@@ -420,6 +434,7 @@ export function createAnnotationOverlay(options: {
     listenerTarget.addEventListener(type, handlePointerEvent, true);
   }
   listenerTarget.addEventListener("pointermove", handlePointerMove, true);
+  listenerTarget.addEventListener("mouseout", handlePointerOut, true);
   listenerTarget.addEventListener("keydown", handleKeyDown, true);
   // Scroll does not bubble, so the capture phase is the only way to hear one
   // from a nested container; passive, because this never cancels anything.
@@ -453,6 +468,7 @@ export function createAnnotationOverlay(options: {
         listenerTarget.removeEventListener(type, handlePointerEvent, true);
       }
       listenerTarget.removeEventListener("pointermove", handlePointerMove, true);
+      listenerTarget.removeEventListener("mouseout", handlePointerOut, true);
       listenerTarget.removeEventListener("keydown", handleKeyDown, true);
       listenerTarget.removeEventListener("scroll", scheduleMarkerSync, true);
       listenerTarget.removeEventListener("resize", scheduleMarkerSync, true);

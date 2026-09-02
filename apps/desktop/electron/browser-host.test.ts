@@ -64,8 +64,8 @@ function createFakeView() {
       view.destroyed = true;
       calls.push("destroy");
     },
-    async capture() {
-      calls.push("capture");
+    async capture(maxWidth) {
+      calls.push(`capture(${maxWidth ?? ""})`);
       return "data:image/png;base64,SNAPSHOT";
     },
     readState() {
@@ -361,6 +361,29 @@ describe("browser host commands", () => {
     );
   });
 
+  it("caps the annotation capture at the panel's own CSS width", async () => {
+    const { host, views } = createHostHarness();
+
+    await expect(host.invoke("browser_capture_annotation")).resolves.toBeNull();
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    await host.invoke("browser_set_bounds", {
+      rect: { x: 748, y: 40, width: 684, height: 820 },
+    });
+
+    await host.invoke("browser_capture");
+    await expect(host.invoke("browser_capture_annotation")).resolves.toBe(
+      "data:image/png;base64,SNAPSHOT",
+    );
+
+    // The still that stands in for the native view keeps every device pixel,
+    // because it is shown at the placeholder's own size. The one that becomes
+    // a prompt attachment does not: a 2x capture of a wide panel is a PNG
+    // approaching the 8 MiB image ceiling, and the model gains nothing from it.
+    expect(views[0]!.calls).toContain("capture()");
+    expect(views[0]!.calls).toContain("capture(684)");
+  });
+
   it("drives design mode through the view and remembers it for the next document", async () => {
     const { host, views } = createHostHarness();
 
@@ -398,6 +421,7 @@ describe("browser host commands", () => {
   it("claims only the commands it implements, so the backend keeps the rest", () => {
     for (const command of [
       "browser_capture",
+      "browser_capture_annotation",
       "browser_navigate",
       "browser_back",
       "browser_forward",

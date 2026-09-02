@@ -504,11 +504,23 @@ function createBrowserView() {
       canGoBack: webContents.navigationHistory.canGoBack(),
       canGoForward: webContents.navigationHistory.canGoForward(),
     }),
-    async capture() {
+    async capture(maxWidth?: number) {
       // Whole view, so the still lines up with the placeholder rect exactly.
       const image = await webContents.capturePage();
 
-      return image.isEmpty() ? null : image.toDataURL();
+      if (image.isEmpty()) {
+        return null;
+      }
+
+      // `capturePage` answers in device pixels, so a HiDPI display doubles
+      // every dimension. Resizing by width alone keeps the aspect ratio.
+      const captured = image.getSize();
+      const resized =
+        maxWidth && maxWidth > 0 && captured.width > maxWidth
+          ? image.resize({ width: maxWidth })
+          : image;
+
+      return resized.toDataURL();
     },
   };
 }

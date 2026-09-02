@@ -141,6 +141,44 @@ describe("annotation overlay", () => {
     expect(latest()).toHaveLength(1);
   });
 
+  it("drops the hover highlight when the pointer leaves the page", () => {
+    const { overlay, shadow } = harness();
+    const button = document.getElementById("cta")!;
+    const hover = (target: Element) =>
+      target.dispatchEvent(
+        new MouseEvent("pointermove", { bubbles: true, cancelable: true, composed: true }),
+      );
+    const leave = (target: Element, relatedTarget: Element | null) =>
+      target.dispatchEvent(
+        new MouseEvent("mouseout", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          relatedTarget,
+        }),
+      );
+
+    overlay.setDesignMode(true);
+    hover(button);
+
+    const highlight = shadow().querySelector<HTMLElement>(
+      '[data-slot="annotation-highlight"]',
+    )!;
+
+    expect(highlight.hidden).toBe(false);
+
+    // Moving between two elements is not leaving: the highlight has to follow
+    // the pointer, and the next pointermove is what moves it.
+    leave(button, document.getElementById("copy"));
+    expect(highlight.hidden).toBe(false);
+
+    // Reaching the toolbar takes the pointer out of the page entirely, which
+    // is when a screenshot gets taken — a highlight left on the last hovered
+    // element would be printed on it.
+    leave(button, null);
+    expect(highlight.hidden).toBe(true);
+  });
+
   it("ignores clicks that land on its own overlay", () => {
     const { overlay, annotationChanges } = harness();
 
