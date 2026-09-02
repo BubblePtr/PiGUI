@@ -171,8 +171,18 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     // only signal, and jsdom has no Popover API at all, so this is the one
     // place the production detection path can be proven.
     expect(await readBrowserViewVisible(testApp.app)).toBe(true);
-    await aside.getByRole("button", { name: "Changes" }).hover();
 
+    // Hovered on each attempt rather than once: a tooltip opens on a pointer
+    // that arrives and stays, and a single hover dispatched while the panel is
+    // still settling can land where the button is about to be — after which no
+    // amount of waiting produces a layer, because nothing is pointing at it.
+    await expect
+      .poll(async () => {
+        await aside.getByRole("button", { name: "Changes" }).hover();
+
+        return window.getByTestId("browser-snapshot").count();
+      })
+      .toBeGreaterThan(0);
     await expect(window.getByTestId("browser-snapshot")).toBeVisible();
     await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(false);
 
