@@ -34,6 +34,8 @@ ADR-0008 把 Live Session 页右侧定义为 Structured Action Surface。ADR-002
 
 v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR-0007 冻结；插件 surface 协议（#85 / ADR-0018）不受影响。
 
+> **修订（2026-09-03）**：Terminal 已由 PR #147 解冻，Browser 已由 ADR-0029 正式解冻并注册为第三个 surface；File surface 仍受 ADR-0007 冻结。
+
 ### 多实例只建模，不实装
 
 未来的 Terminal、Subagent 可能是多实例。现在先把模型记下来，免得回头重做 rail：**rail 保持类型级、每类一个图标，永不随实例膨胀**；实例条放在面板表头，rail 徽标显示 `×N`。注册表保留 `multiInstance` 标志位；在真的出现多实例 surface 之前不上任何实例 UI。
