@@ -341,6 +341,11 @@ describe("SessionBrowserPanel", () => {
       ],
     });
 
+    // Typing an address is not going there, and the payload has to name the
+    // page the marks are actually on.
+    await user.clear(screen.getByRole("textbox", { name: "Address" }));
+    await user.type(screen.getByRole("textbox", { name: "Address" }), "localhost:4000");
+
     await user.click(await screen.findByRole("button", { name: "Send to composer" }));
     await waitFor(() => expect(injections).toHaveLength(1));
 
