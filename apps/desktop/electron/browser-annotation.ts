@@ -1,4 +1,7 @@
-import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@/shared/browser-protocol";
 
 /**
  * The annotation layer's vocabulary: the two IPC channels between main and the
@@ -17,15 +20,28 @@ export const browserAnnotationChannel = "pigui:browser-annotation";
 /** Main → page. Design mode is a command, never a page-side decision. */
 export const browserAnnotationCommandChannel = "pigui:browser-annotation-command";
 
+/** Marks, and the space they were measured in — always reported together. */
+type AnnotationsPayload = {
+  annotations: BrowserAnnotationElement[];
+  viewport: BrowserAnnotationViewport;
+};
+
 export type BrowserAnnotationMessage =
   /** A fresh document's overlay is live: it has no annotations yet. */
   | { type: "ready" }
   | { type: "design-mode"; enabled: boolean }
-  | { type: "annotations"; annotations: BrowserAnnotationElement[] };
+  | ({ type: "annotations" } & AnnotationsPayload)
+  /**
+   * The overlay has put itself out of shot — comment bubble committed and
+   * closed, hover highlight hidden — and states what it holds right now. Main
+   * waits for this before `capturePage`.
+   */
+  | ({ type: "capture-ready" } & AnnotationsPayload);
 
 export type BrowserAnnotationCommand =
   | { type: "set-design-mode"; enabled: boolean }
-  | { type: "clear-annotations" };
+  | { type: "clear-annotations" }
+  | { type: "prepare-capture" };
 
 const maxTextLength = 120;
 const maxCommentLength = 500;
@@ -35,8 +51,17 @@ const maxAnnotations = 200;
 /** `file:line` or `file:line:column`, with a file part that is not empty. */
 const sourcePattern = /^(.+?):(\d+)(?::(\d+))?$/;
 
+/**
+ * One line, then at most `max` characters of it.
+ *
+ * The prompt Pi reads is one row per mark, so a newline anywhere in a field is
+ * a page writing rows of its own. Core's formatter defends its own template
+ * too; this is the boundary where nothing from the page gets in unshaped.
+ */
 function clampText(value: string, max: number) {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+  const line = value.replace(/[\r\n]+/g, " ");
+
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
 function resolvesUniquely(element: Element, selector: string) {
@@ -55,9 +80,10 @@ function identifyingSelector(element: Element) {
   }
 
   const testId = element.getAttribute("data-testid");
-  const testIdSelector = testId
-    ? `[data-testid="${testId.replace(/["\\]/g, "\\$&")}"]`
-    : null;
+  // `CSS.escape` rather than escaping quotes by hand: a test id is page data
+  // and can hold a newline, which is a parse error inside a CSS string —
+  // Chromium throws on the selector, jsdom matches nothing at all.
+  const testIdSelector = testId ? `[data-testid="${CSS.escape(testId)}"]` : null;
 
   return testIdSelector && resolvesUniquely(element, testIdSelector)
     ? testIdSelector
@@ -183,6 +209,19 @@ function readRect(value: unknown) {
     : null;
 }
 
+function readViewportValue(value: unknown): BrowserAnnotationViewport | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const { width, height, dpr } = value as Record<string, unknown>;
+  const measures = [width, height, dpr].map(finiteNumber);
+
+  return measures.every((measure) => measure !== null)
+    ? { width: measures[0]!, height: measures[1]!, dpr: measures[2]! }
+    : null;
+}
+
 function readSourceValue(value: unknown) {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -244,9 +283,29 @@ function readAnnotation(value: unknown): BrowserAnnotationElement | null {
   };
 }
 
+function readAnnotationsPayload(
+  message: Record<string, unknown>,
+): AnnotationsPayload | null {
+  const viewport = readViewportValue(message.viewport);
+
+  // Rects without the viewport they were measured in describe positions in an
+  // unknown space, so the message is not usable without one.
+  if (!Array.isArray(message.annotations) || !viewport) {
+    return null;
+  }
+
+  return {
+    annotations: message.annotations
+      .slice(0, maxAnnotations)
+      .map(readAnnotation)
+      .filter((annotation): annotation is BrowserAnnotationElement => annotation !== null),
+    viewport,
+  };
+}
+
 /**
  * The gate on the annotation channel: the message has to come from the
- * embedded view's own webContents, and it has to be one of the three shapes
+ * embedded view's own webContents, and it has to be one of the shapes
  * this protocol knows. `ipcMain.handle("pigui:invoke")` has no sender check —
  * that is precisely why annotations get their own channel (PRD S2
  * implementation constraint 2).
@@ -273,17 +332,11 @@ export function acceptBrowserAnnotationMessage<Sender>(input: {
       return typeof message.enabled === "boolean"
         ? { type: "design-mode", enabled: message.enabled }
         : null;
-    case "annotations": {
-      if (!Array.isArray(message.annotations)) {
-        return null;
-      }
+    case "annotations":
+    case "capture-ready": {
+      const payload = readAnnotationsPayload(message);
 
-      const annotations = message.annotations
-        .slice(0, maxAnnotations)
-        .map(readAnnotation)
-        .filter((annotation): annotation is BrowserAnnotationElement => annotation !== null);
-
-      return { type: "annotations", annotations };
+      return payload ? { type: message.type, ...payload } : null;
     }
     default:
       return null;

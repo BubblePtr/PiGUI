@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@/shared/browser-protocol";
 import {
   annotationOverlayHostTag,
   createAnnotationOverlay,
@@ -17,18 +20,29 @@ let overlay: BrowserAnnotationOverlay | null = null;
 
 function harness() {
   const annotationChanges: BrowserAnnotationElement[][] = [];
+  const viewports: BrowserAnnotationViewport[] = [];
   const designModeChanges: boolean[] = [];
+  const captures: {
+    annotations: BrowserAnnotationElement[];
+    viewport: BrowserAnnotationViewport;
+  }[] = [];
 
   overlay = createAnnotationOverlay({
     document,
-    onAnnotationsChange: (annotations) => annotationChanges.push(annotations),
+    onAnnotationsChange: (annotations, viewport) => {
+      annotationChanges.push(annotations);
+      viewports.push(viewport);
+    },
     onDesignModeChange: (enabled) => designModeChanges.push(enabled),
+    onCaptureReady: (annotations, viewport) => captures.push({ annotations, viewport }),
   });
 
   return {
     overlay,
     annotationChanges,
+    viewports,
     designModeChanges,
+    captures,
     latest: () => annotationChanges[annotationChanges.length - 1] ?? [],
     shadow: () => shadowRoots[shadowRoots.length - 1]!,
   };
@@ -139,6 +153,103 @@ describe("annotation overlay", () => {
     // Marks outlive design mode — they are what the screenshot has to show.
     clickPageElement(document.getElementById("copy")!);
     expect(latest()).toHaveLength(1);
+  });
+
+  it("reports the page's own viewport alongside the marks", () => {
+    const { overlay, viewports } = harness();
+
+    for (const [property, value] of Object.entries({
+      innerWidth: 684,
+      innerHeight: 820,
+      devicePixelRatio: 2,
+    })) {
+      Object.defineProperty(window, property, { configurable: true, value });
+    }
+
+    overlay.setDesignMode(true);
+    clickPageElement(document.getElementById("cta")!);
+
+    // The marks are measured in the page's viewport, not the panel's rect —
+    // and the panel can be resized between marking and sending.
+    expect(viewports[viewports.length - 1]).toEqual({
+      width: 684,
+      height: 820,
+      dpr: 2,
+    });
+  });
+
+  it("settles the overlay before a capture and acks what the page then holds", () => {
+    const { overlay, shadow, captures } = harness();
+    const button = document.getElementById("cta")!;
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+
+    overlay.setDesignMode(true);
+    button.dispatchEvent(
+      new MouseEvent("pointermove", { bubbles: true, cancelable: true, composed: true }),
+    );
+    clickPageElement(button);
+    clickPageElement(shadow().querySelector('[data-slot="annotation-badge"]')!);
+
+    const comment = shadow().querySelector<HTMLInputElement>(
+      '[data-slot="annotation-comment"]',
+    )!;
+    const highlight = shadow().querySelector<HTMLElement>(
+      '[data-slot="annotation-highlight"]',
+    )!;
+
+    comment.value = "Too small to hit";
+
+    overlay.prepareCapture();
+
+    // Nothing of the overlay's own chrome may reach the screenshot, and the
+    // comment being typed has to reach the payload — a keyboard-driven Send
+    // never blurs the input, so committing on the way out is the only chance.
+    expect(comment.hidden).toBe(true);
+    expect(highlight.hidden).toBe(true);
+    expect(captures[captures.length - 1]).toEqual({
+      annotations: [expect.objectContaining({ index: 1, comment: "Too small to hit" })],
+      // Measured now: the panel may have been dragged since the mark was made.
+      viewport: { width: 900, height: window.innerHeight, dpr: window.devicePixelRatio },
+    });
+  });
+
+  it("drops the hover highlight when the pointer leaves the page", () => {
+    const { overlay, shadow } = harness();
+    const button = document.getElementById("cta")!;
+    const hover = (target: Element) =>
+      target.dispatchEvent(
+        new MouseEvent("pointermove", { bubbles: true, cancelable: true, composed: true }),
+      );
+    const leave = (target: Element, relatedTarget: Element | null) =>
+      target.dispatchEvent(
+        new MouseEvent("mouseout", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          relatedTarget,
+        }),
+      );
+
+    overlay.setDesignMode(true);
+    hover(button);
+
+    const highlight = shadow().querySelector<HTMLElement>(
+      '[data-slot="annotation-highlight"]',
+    )!;
+
+    expect(highlight.hidden).toBe(false);
+
+    // Moving between two elements is not leaving: the highlight has to follow
+    // the pointer, and the next pointermove is what moves it.
+    leave(button, document.getElementById("copy"));
+    expect(highlight.hidden).toBe(false);
+
+    // Reaching the toolbar takes the pointer out of the page entirely, and a
+    // highlight that follows the pointer must not go on framing an element the
+    // pointer has left.
+    leave(button, null);
+    expect(highlight.hidden).toBe(true);
   });
 
   it("ignores clicks that land on its own overlay", () => {

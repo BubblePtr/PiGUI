@@ -1,5 +1,8 @@
 import { describeAnnotatedElement } from "./browser-annotation";
-import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@/shared/browser-protocol";
 
 /**
  * The design-mode overlay, as it runs inside the embedded page's isolated
@@ -33,6 +36,11 @@ type MarkerEntry = {
 export type BrowserAnnotationOverlay = {
   setDesignMode(enabled: boolean): void;
   clearAnnotations(): void;
+  /**
+   * Put the overlay out of shot and say what it holds, so main can photograph
+   * the page without the overlay's own chrome on it.
+   */
+  prepareCapture(): void;
   dispose(): void;
 };
 
@@ -62,8 +70,16 @@ function applyStyles(element: HTMLElement, styles: Record<string, string>) {
 
 export function createAnnotationOverlay(options: {
   document: Document;
-  onAnnotationsChange: (annotations: BrowserAnnotationElement[]) => void;
+  onAnnotationsChange: (
+    annotations: BrowserAnnotationElement[],
+    viewport: BrowserAnnotationViewport,
+  ) => void;
   onDesignModeChange: (enabled: boolean) => void;
+  /** The ack main waits for before it shoots. */
+  onCaptureReady: (
+    annotations: BrowserAnnotationElement[],
+    viewport: BrowserAnnotationViewport,
+  ) => void;
 }): BrowserAnnotationOverlay {
   const doc = options.document;
   // The earliest node in the capture path, so page handlers registered later
@@ -137,8 +153,26 @@ export function createAnnotationOverlay(options: {
     return host;
   }
 
+  /**
+   * The page's own viewport, which is the space every rect above was measured
+   * in — and, unlike the panel's rect on the other side of the IPC, it is
+   * still the right one when the user resizes the panel before sending.
+   */
+  function readViewport(): BrowserAnnotationViewport {
+    const view = doc.defaultView;
+
+    return {
+      width: view?.innerWidth ?? 0,
+      height: view?.innerHeight ?? 0,
+      dpr: view?.devicePixelRatio ?? 1,
+    };
+  }
+
   function notify() {
-    options.onAnnotationsChange(annotations.map((annotation) => ({ ...annotation })));
+    options.onAnnotationsChange(
+      annotations.map((annotation) => ({ ...annotation })),
+      readViewport(),
+    );
   }
 
   /** The element the user is pointing at, or null when it is our own overlay. */
@@ -361,6 +395,21 @@ export function createAnnotationOverlay(options: {
     }
   }
 
+  /**
+   * The pointer left the document — `relatedTarget` is null only then, which
+   * is what tells this apart from moving between two elements in the page.
+   *
+   * Purely what the user sees: the highlight follows the pointer, so it has to
+   * stop framing an element once the pointer is off the page and over the
+   * toolbar. Keeping it out of the screenshot is `prepareCapture`'s job, which
+   * covers the keyboard route this cannot.
+   */
+  function handlePointerOut(event: Event) {
+    if (designMode && !(event as MouseEvent).relatedTarget) {
+      hideHighlight();
+    }
+  }
+
   function handlePointerEvent(event: Event) {
     if (!designMode) {
       return;
@@ -420,6 +469,7 @@ export function createAnnotationOverlay(options: {
     listenerTarget.addEventListener(type, handlePointerEvent, true);
   }
   listenerTarget.addEventListener("pointermove", handlePointerMove, true);
+  listenerTarget.addEventListener("mouseout", handlePointerOut, true);
   listenerTarget.addEventListener("keydown", handleKeyDown, true);
   // Scroll does not bubble, so the capture phase is the only way to hear one
   // from a nested container; passive, because this never cancels anything.
@@ -434,6 +484,22 @@ export function createAnnotationOverlay(options: {
       // No notification back: this is main answering its own command, and an
       // echo would fight the renderer's own state.
       applyDesignMode(enabled);
+    },
+
+    prepareCapture() {
+      // Closing the bubble commits it: a Send driven from the keyboard never
+      // blurs the input, so this is the only moment the comment the user just
+      // typed can still reach the payload. It also takes the input and the
+      // hover box out of the frame — both are overlay chrome, and neither
+      // belongs in a screenshot of the user's page.
+      setCommentOpen(null);
+      hideHighlight();
+      // Measured now rather than when the mark was made: the panel can have
+      // been dragged wider since, and the shot is being taken at this size.
+      options.onCaptureReady(
+        annotations.map((annotation) => ({ ...annotation })),
+        readViewport(),
+      );
     },
 
     clearAnnotations() {
@@ -453,6 +519,7 @@ export function createAnnotationOverlay(options: {
         listenerTarget.removeEventListener(type, handlePointerEvent, true);
       }
       listenerTarget.removeEventListener("pointermove", handlePointerMove, true);
+      listenerTarget.removeEventListener("mouseout", handlePointerOut, true);
       listenerTarget.removeEventListener("keydown", handleKeyDown, true);
       listenerTarget.removeEventListener("scroll", scheduleMarkerSync, true);
       listenerTarget.removeEventListener("resize", scheduleMarkerSync, true);

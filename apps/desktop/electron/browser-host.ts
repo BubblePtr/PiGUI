@@ -1,4 +1,7 @@
 import type {
+  BrowserAnnotationCapture,
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
   BrowserViewRect,
   BrowserViewSnapshot,
   BrowserViewState,
@@ -22,12 +25,21 @@ import type {
 export const browserTitlebarBandPx = 40;
 
 /**
+ * How long main waits for the page to say it is out of shot before taking the
+ * screenshot anyway. A page with no annotation preload listening — one that
+ * replaced its document before the overlay reported in — would otherwise leave
+ * the toolbar waiting forever.
+ */
+export const browserCaptureAckTimeoutMs = 500;
+
+/**
  * Enumerated rather than prefix-sniffed: main routes on this set, so a future
  * backend command that happens to start with `browser_` still reaches the
  * backend instead of being swallowed here.
  */
 const browserCommands = new Set([
   "browser_capture",
+  "browser_capture_annotation",
   "browser_navigate",
   "browser_back",
   "browser_forward",
@@ -193,11 +205,17 @@ export type BrowserHostView = {
   /** Design mode lives in the page's isolated world; this is the command. */
   setDesignMode(enabled: boolean): void;
   clearAnnotations(): void;
+  /** Asks the overlay to put itself out of shot and report what it holds. */
+  prepareCapture(): void;
   reload(): void;
   destroy(): void;
   readState(): BrowserViewSnapshot;
-  /** PNG data URL of the view as it stands, or null if it cannot be read. */
-  capture(): Promise<string | null>;
+  /**
+   * PNG data URL of the view as it stands, or null if it cannot be read.
+   * `maxWidth` is in CSS pixels; see `browser_capture_annotation` below for
+   * why the annotation capture passes one and the overlay still does not.
+   */
+  capture(maxWidth?: number): Promise<string | null>;
 };
 
 export type BrowserHostDependencies = {
@@ -211,7 +229,7 @@ export type BrowserHost = {
   invoke(
     command: string,
     args?: Record<string, unknown>,
-  ): Promise<BrowserViewState | string | null>;
+  ): Promise<BrowserViewState | BrowserAnnotationCapture | string | null>;
   allowsNavigationTo(url: string): boolean;
   /** `setWindowOpenHandler`: no new windows; an allowed target loads in place. */
   handleWindowOpen(url: string): void;
@@ -226,6 +244,19 @@ export type BrowserHost = {
   isDesignModeEnabled(): boolean;
   /** Design mode the page left by itself (Escape), so main stops re-applying it. */
   recordDesignMode(enabled: boolean): void;
+  /**
+   * What the page reports as the user marks. Kept so a capture can go ahead
+   * with the last known marks when the page does not answer the prepare.
+   */
+  recordAnnotations(
+    annotations: BrowserAnnotationElement[],
+    viewport: BrowserAnnotationViewport | null,
+  ): void;
+  /** The page is out of shot: whatever capture is waiting can go ahead. */
+  recordCaptureReady(
+    annotations: BrowserAnnotationElement[],
+    viewport: BrowserAnnotationViewport,
+  ): void;
   /**
    * `did-fail-load` on the main frame. Chromium commits its error page under
    * the URL that failed, so without this the next navigate to that same URL
@@ -267,6 +298,12 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
   let navigationId = 0;
   let loadFailed = false;
   let designMode = false;
+  let marks: Omit<BrowserAnnotationCapture, "image" | "url"> = {
+    annotations: [],
+    viewport: null,
+  };
+  /** Set while a capture is waiting for the page to say it is out of shot. */
+  let pendingCaptureAck: ((settled: typeof marks) => void) | null = null;
 
   /** The view's own answer, stamped with the navigation the renderer asked for. */
   function readState(): BrowserViewState | null {
@@ -330,6 +367,56 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     return readState();
   }
 
+  /**
+   * The capture handshake. The overlay draws in the page itself — an open
+   * comment bubble and the hover box would both be photographed — and the
+   * comment being typed has not reached main until the bubble is closed. So
+   * the page is asked to settle first and answers with what it then holds,
+   * measured at the size the shot is about to be taken at.
+   */
+  function awaitCaptureAck(active: BrowserHostView) {
+    active.prepareCapture();
+
+    return new Promise<typeof marks>((resolve) => {
+      const timer = setTimeout(() => settle(marks), browserCaptureAckTimeoutMs);
+      const settle = (settled: typeof marks) => {
+        clearTimeout(timer);
+        if (pendingCaptureAck === settle) {
+          pendingCaptureAck = null;
+        }
+        resolve(settled);
+      };
+
+      pendingCaptureAck = settle;
+    });
+  }
+
+  async function captureForAnnotations(): Promise<BrowserAnnotationCapture | null> {
+    if (!view) {
+      return null;
+    }
+
+    const settled = await awaitCaptureAck(view);
+
+    // The view can be gone by the time the page answers — a Session switch
+    // disposes it — and there is nothing to photograph then.
+    if (!view) {
+      return null;
+    }
+
+    return {
+      // Downsampled to the panel's own CSS width: `capturePage` answers in
+      // device pixels, so on a 2x display a wide panel is a PNG approaching
+      // the 8 MiB an image attachment may weigh, for pixels the model cannot
+      // use. The overlay still (`browser_capture`) keeps them, because it is
+      // displayed at the placeholder's size.
+      image: await view.capture(bounds?.width),
+      annotations: settled.annotations,
+      viewport: settled.viewport,
+      url: view.readState().url,
+    };
+  }
+
   function setBounds(rect: BrowserViewRect) {
     const contentSize = deps.getContentSize();
 
@@ -378,7 +465,12 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
           view?.clearAnnotations();
           return null;
         case "browser_capture":
+          // Full resolution and no handshake: this still stands in for the
+          // native view while a DOM overlay is open, so it has to show the page
+          // exactly as it is, marks and all.
           return view ? view.capture() : null;
+        case "browser_capture_annotation":
+          return captureForAnnotations();
         case "browser_open_external":
           await deps.openExternal(normalizeBrowserUrl(readUrlArgument(args)));
           return null;
@@ -413,6 +505,15 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       designMode = enabled;
     },
 
+    recordAnnotations(annotations, viewport) {
+      marks = { annotations, viewport };
+    },
+
+    recordCaptureReady(annotations, viewport) {
+      marks = { annotations, viewport };
+      pendingCaptureAck?.(marks);
+    },
+
     recordLoadFailure() {
       loadFailed = true;
     },
@@ -423,6 +524,10 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       bounds = null;
       visibilityRequested = false;
       designMode = false;
+      marks = { annotations: [], viewport: null };
+      // A capture waiting on a page that is going away has to be let go, or it
+      // sits on its timeout with a view it can no longer photograph.
+      pendingCaptureAck?.(marks);
     },
   };
 }

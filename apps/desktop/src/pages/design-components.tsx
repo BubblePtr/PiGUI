@@ -279,7 +279,7 @@ function BrowserSurfaceGallery() {
   return (
     <GallerySection title="BrowserSurface">
       <VariantRow>
-        <Variant caption="live — the body is the placeholder the native WebContentsView paints behind">
+        <Variant caption="live, nothing marked — the body is the placeholder the native WebContentsView paints behind, and Send to composer has nothing to send">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address={address}
@@ -296,10 +296,11 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
-        <Variant caption="design mode on, two elements marked — the marks themselves live in the page's own overlay">
+        <Variant caption="design mode on, two elements marked — the marks live in the page's own overlay, and Send to composer drops them plus a screenshot into the chat draft">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address="http://localhost:5173/"
@@ -316,6 +317,51 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="sending — the page is settling its overlay for the shot, so the action is out of reach until it answers">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              annotationCount={2}
+              canGoBack={false}
+              canGoForward={false}
+              designMode
+              isSending
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+              onSendToComposer={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="notice — one line about the last send, in plain text: a layer here would swap the live page for a still">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              annotationCount={2}
+              canGoBack={false}
+              canGoForward={false}
+              designMode
+              notice="Sent without a screenshot — the page could not be photographed."
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -337,6 +383,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -357,6 +404,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -377,6 +425,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -397,6 +446,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -417,6 +467,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>

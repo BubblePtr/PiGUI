@@ -241,12 +241,23 @@ describe("Design components layer", () => {
     expect(within(section).getByText("No page loaded")).toBeInTheDocument();
     // Design mode is a toolbar state of this surface, so the gallery has to
     // carry it too — pressed toggle and the count of what is marked.
-    expect(within(section).getByTestId("browser-annotation-count")).toHaveTextContent("2");
+    expect(within(section).getAllByTestId("browser-annotation-count")[0]).toHaveTextContent(
+      "2",
+    );
     expect(
       within(section)
         .getAllByRole("button", { name: "Design" })
         .some((button) => button.getAttribute("aria-pressed") === "true"),
     ).toBe(true);
+
+    // Send to composer is the point of design mode, and it has two states
+    // worth showing: nothing marked yet, and something to send.
+    const send = within(section).getAllByRole("button", { name: "Send to composer" });
+
+    expect(send.some((button) => !button.hasAttribute("disabled"))).toBe(true);
+    expect(send.some((button) => button.hasAttribute("disabled"))).toBe(true);
+    // And what a send leaves behind when it could not do all of it.
+    expect(within(section).getByTestId("browser-surface-notice")).toBeInTheDocument();
   });
 
   it("registers the ContextUsageMeter in every level it can reach", () => {

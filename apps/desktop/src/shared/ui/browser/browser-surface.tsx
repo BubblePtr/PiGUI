@@ -38,6 +38,8 @@ export function BrowserSurface({
   canGoForward,
   annotationCount,
   designMode,
+  isSending,
+  notice,
   snapshot,
   viewportRef,
   onAddressChange,
@@ -48,6 +50,7 @@ export function BrowserSurface({
   onOpenExternal,
   onClearAnnotations,
   onDesignModeChange,
+  onSendToComposer,
 }: {
   address: string;
   state: BrowserSurfaceState;
@@ -56,6 +59,13 @@ export function BrowserSurface({
   /** Elements marked in the page; the marks themselves live in the page. */
   annotationCount: number;
   designMode: boolean;
+  /** A send is in flight; the page is settling its overlay for the shot. */
+  isSending?: boolean;
+  /**
+   * One line about the last send — no composer took it, or it went without its
+   * screenshot. Plain text: a layer here would swap the live page for a still.
+   */
+  notice?: string | null;
   /**
    * Still of the page, shown instead of the native view while a DOM overlay
    * is open — the native view would otherwise cover it.
@@ -70,6 +80,8 @@ export function BrowserSurface({
   onOpenExternal: () => void;
   onClearAnnotations: () => void;
   onDesignModeChange: (designMode: boolean) => void;
+  /** Drops the marks and a screenshot of them into this Session's composer. */
+  onSendToComposer: () => void;
 }) {
   const hasChrome = state.kind !== "narrow" && state.kind !== "unsupported";
   const isLive = state.kind === "live";
@@ -143,6 +155,20 @@ export function BrowserSurface({
             variant="ghost"
             onClick={onClearAnnotations}
           />
+          {/* The action design mode exists for, so it is the one control here
+              that carries its own label. Nothing to send without a mark: the
+              prompt would be a URL and a screenshot with no question on it. */}
+          <Button
+            // Disabled while one is in flight: the page has to settle its
+            // overlay before the shot, and a second click during that would
+            // paste the block into the draft twice. Astryx only dedupes
+            // `clickAction`, and that is a layer-free promise this button
+            // cannot use.
+            isDisabled={!isLive || annotationCount === 0 || isSending}
+            label="Send to composer"
+            size="sm"
+            onClick={onSendToComposer}
+          />
           <IconButton
             icon={<LinkExternal className="size-4" />}
             isDisabled={!isLive}
@@ -152,6 +178,18 @@ export function BrowserSurface({
             onClick={onOpenExternal}
           />
         </div>
+      ) : null}
+      {hasChrome && notice ? (
+        // Its own line rather than a layer or a toast: the native view covers
+        // anything that floats, and this has to be readable next to the page
+        // it is about.
+        <p
+          className="shrink-0 pb-1.5 text-xs text-muted"
+          data-testid="browser-surface-notice"
+          role="status"
+        >
+          {notice}
+        </p>
       ) : null}
       <div className="min-h-0 flex-1">
         <BrowserSurfaceBody

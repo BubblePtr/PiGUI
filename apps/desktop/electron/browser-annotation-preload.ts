@@ -24,11 +24,22 @@ import { createAnnotationOverlay } from "./browser-annotation-overlay";
 
 const overlay = createAnnotationOverlay({
   document,
-  onAnnotationsChange(annotations) {
-    ipcRenderer.send(browserAnnotationChannel, { type: "annotations", annotations });
+  onAnnotationsChange(annotations, viewport) {
+    ipcRenderer.send(browserAnnotationChannel, {
+      type: "annotations",
+      annotations,
+      viewport,
+    });
   },
   onDesignModeChange(enabled) {
     ipcRenderer.send(browserAnnotationChannel, { type: "design-mode", enabled });
+  },
+  onCaptureReady(annotations, viewport) {
+    ipcRenderer.send(browserAnnotationChannel, {
+      type: "capture-ready",
+      annotations,
+      viewport,
+    });
   },
 });
 
@@ -41,6 +52,9 @@ ipcRenderer.on(
         break;
       case "clear-annotations":
         overlay.clearAnnotations();
+        break;
+      case "prepare-capture":
+        overlay.prepareCapture();
         break;
     }
   },

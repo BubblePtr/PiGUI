@@ -1,5 +1,6 @@
 import { invoke, onBrowserEvent } from "@/shared/runtime";
 import type {
+  BrowserAnnotationCapture,
   BrowserEvent,
   BrowserViewRect,
   BrowserViewState,
@@ -58,6 +59,15 @@ export function clearBrowserAnnotations() {
  *  covering it. Null when there is no view to photograph. */
 export function captureBrowser() {
   return invoke<string | null>("browser_capture");
+}
+
+/**
+ * The screenshot that goes to Pi, with the marks it was taken against. Main
+ * has the page settle its overlay first and re-measure, so the answer describes
+ * one moment — never the render state this side happens to be holding.
+ */
+export function captureBrowserAnnotation() {
+  return invoke<BrowserAnnotationCapture | null>("browser_capture_annotation");
 }
 
 export function openBrowserUrlExternally(url: string) {

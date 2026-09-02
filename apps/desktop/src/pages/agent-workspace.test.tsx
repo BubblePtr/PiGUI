@@ -44,6 +44,7 @@ import {
 } from "@/entities/session/session-projection";
 import { createSessionRuntimeModel } from "@/entities/session/session-runtime-model";
 import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
+import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
 import { saveVisibleModels } from "@/entities/model/visible-models";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
@@ -2291,6 +2292,105 @@ describe("AgentWorkspaceSessionsPage", () => {
       "Resume from the saved composer",
     );
     expect(screen.queryByLabelText("Target Project")).not.toBeInTheDocument();
+  });
+
+  it("takes an injected block into the draft it already has, screenshot and all", async () => {
+    // The browser surface hands the composer marked-up page annotations from
+    // outside the chat column (#151). jsdom has no object URLs, and the
+    // attachment path makes one for every image preview.
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: () => "blob:annotations",
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: () => {},
+    });
+
+    let projection = applySessionProjectionEvent(
+      createSessionProjection({
+        id: "annotated-session",
+        projectId: "pig-docs",
+        initialPrompt: "Review the preview",
+        createdAt: "2026-06-26T08:00:00.000Z",
+      }),
+      {
+        type: "runtime-bound",
+        stage: "starting runtime",
+        runtimeId: "runtime-annotated",
+        piSessionId: "pi-session-annotated",
+        occurredAt: "2026-06-26T08:00:01.000Z",
+      },
+    );
+
+    projection = applySessionProjectionEvent(projection, {
+      type: "runtime-state-resynced",
+      state: {
+        piSessionId: "pi-session-annotated",
+        runtimeId: "runtime-annotated",
+        projectId: "pig-docs",
+        cwd: "/Users/void/code/opensource/Pig/docs",
+        status: "idle",
+        events: projection.runtimeEvents,
+        updatedAt: "2026-06-26T08:00:03.000Z",
+      },
+    });
+    saveFollowUpDraft("annotated-session", "Half a thought");
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "annotated-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "gpt-5-codex",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const composer = await screen.findByPlaceholderText("What do you want to know?");
+
+    act(() => {
+      injectIntoComposer({
+        sessionId: "annotated-session",
+        text: "Browser annotations from the embedded preview",
+        files: [
+          new File(["png"], "browser-annotations.png", { type: "image/png" }),
+        ],
+      });
+      // Another Session's surface must not write into this composer.
+      injectIntoComposer({ sessionId: "other-session", text: "Not for you" });
+    });
+
+    // Appended as its own block: whatever the user was already typing is the
+    // point of landing in the draft rather than sending.
+    await waitFor(() =>
+      expect(composer).toHaveValue(
+        "Half a thought\n\nBrowser annotations from the embedded preview",
+      ),
+    );
+    // Persisted like any other draft, so leaving the Session does not lose it.
+    expect(getFollowUpDraft("annotated-session")?.message).toBe(
+      "Half a thought\n\nBrowser annotations from the embedded preview",
+    );
+    // The screenshot rides the existing attachment path: drawer preview, size
+    // check and base64 encoding at submit all come with it.
+    expect(await screen.findByAltText("browser-annotations.png")).toBeInTheDocument();
   });
 
   it("steers an active run as a Live Chat control event instead of a queued message", async () => {

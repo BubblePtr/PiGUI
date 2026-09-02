@@ -19,6 +19,7 @@ function surfaceProps(overrides: Partial<Parameters<typeof BrowserSurface>[0]> =
     onOpenExternal: vi.fn(),
     onClearAnnotations: vi.fn(),
     onDesignModeChange: vi.fn(),
+    onSendToComposer: vi.fn(),
     ...overrides,
   };
 }
@@ -114,6 +115,22 @@ describe("BrowserSurface", () => {
     await user.click(screen.getByRole("button", { name: "Clear marks" }));
 
     expect(props.onClearAnnotations).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends the marks to the composer, but only once there are some", async () => {
+    const user = userEvent.setup();
+    const props = surfaceProps();
+    const view = render(<BrowserSurface {...props} />);
+    const send = () => screen.getByRole("button", { name: "Send to composer" });
+
+    // An unmarked page has nothing to say: the prompt would be a URL and a
+    // screenshot with no question attached to it.
+    expect(send()).toBeDisabled();
+
+    view.rerender(<BrowserSurface {...props} annotationCount={1} />);
+    await user.click(send());
+
+    expect(props.onSendToComposer).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the design controls out of reach until a page is live", () => {
