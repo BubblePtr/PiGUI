@@ -245,9 +245,9 @@ describe("annotation overlay", () => {
     leave(button, document.getElementById("copy"));
     expect(highlight.hidden).toBe(false);
 
-    // Reaching the toolbar takes the pointer out of the page entirely, which
-    // is when a screenshot gets taken — a highlight left on the last hovered
-    // element would be printed on it.
+    // Reaching the toolbar takes the pointer out of the page entirely, and a
+    // highlight that follows the pointer must not go on framing an element the
+    // pointer has left.
     leave(button, null);
     expect(highlight.hidden).toBe(true);
   });

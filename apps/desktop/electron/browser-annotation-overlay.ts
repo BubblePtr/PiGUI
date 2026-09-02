@@ -399,9 +399,10 @@ export function createAnnotationOverlay(options: {
    * The pointer left the document — `relatedTarget` is null only then, which
    * is what tells this apart from moving between two elements in the page.
    *
-   * It matters because leaving the page is how the user reaches the toolbar,
-   * and `Send to composer` photographs the page: a highlight still framing the
-   * last hovered element would be printed on the screenshot Pi reads.
+   * Purely what the user sees: the highlight follows the pointer, so it has to
+   * stop framing an element once the pointer is off the page and over the
+   * toolbar. Keeping it out of the screenshot is `prepareCapture`'s job, which
+   * covers the keyboard route this cannot.
    */
   function handlePointerOut(event: Event) {
     if (designMode && !(event as MouseEvent).relatedTarget) {
