@@ -247,6 +247,13 @@ describe("Design components layer", () => {
         .getAllByRole("button", { name: "Design" })
         .some((button) => button.getAttribute("aria-pressed") === "true"),
     ).toBe(true);
+
+    // Send to composer is the point of design mode, and it has two states
+    // worth showing: nothing marked yet, and something to send.
+    const send = within(section).getAllByRole("button", { name: "Send to composer" });
+
+    expect(send.some((button) => !button.hasAttribute("disabled"))).toBe(true);
+    expect(send.some((button) => button.hasAttribute("disabled"))).toBe(true);
   });
 
   it("registers the ContextUsageMeter in every level it can reach", () => {

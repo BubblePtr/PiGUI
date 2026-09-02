@@ -279,7 +279,7 @@ function BrowserSurfaceGallery() {
   return (
     <GallerySection title="BrowserSurface">
       <VariantRow>
-        <Variant caption="live — the body is the placeholder the native WebContentsView paints behind">
+        <Variant caption="live, nothing marked — the body is the placeholder the native WebContentsView paints behind, and Send to composer has nothing to send">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address={address}
@@ -300,7 +300,7 @@ function BrowserSurfaceGallery() {
             />
           </div>
         </Variant>
-        <Variant caption="design mode on, two elements marked — the marks themselves live in the page's own overlay">
+        <Variant caption="design mode on, two elements marked — the marks live in the page's own overlay, and Send to composer drops them plus a screenshot into the chat draft">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address="http://localhost:5173/"
