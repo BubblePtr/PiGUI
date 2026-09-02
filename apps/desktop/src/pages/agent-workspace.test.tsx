@@ -17,7 +17,6 @@ import type { SessionChanges } from "@pigui/core";
 import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
-  SessionActionsContent,
   SessionChangesPanel,
   SessionToolbarActions,
 } from "@/pages/agent-workspace";
@@ -229,7 +228,7 @@ function getOpenSelectorListbox() {
  */
 async function openSessionSurfaceSheet(
   user: ReturnType<typeof userEvent.setup>,
-  surfaceTitle: "Changes" | "Actions",
+  surfaceTitle: "Changes" | "Terminal",
 ) {
   await user.click(await screen.findByRole("button", { name: "Session inspector" }));
 
@@ -419,17 +418,17 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(navbarActions).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
+    const terminalDialog = await openSessionSurfaceSheet(user, "Terminal");
     const sheetPanel = document.querySelector('[data-slot="sheet-panel"]');
 
     // PiSheet renders the right-side panel; slide-in styling lives in
     // primitives.css, so no per-instance animation suppression is needed.
     expect(sheetPanel).toBeInTheDocument();
-    expect(actionDialog).toBe(sheetPanel);
-    expect(within(actionDialog).queryByText("Diff summary")).not.toBeInTheDocument();
-    expect(within(actionDialog).getByText("Checkout")).toBeInTheDocument();
-    expect(within(actionDialog).getByText("gpt-5-codex")).toBeInTheDocument();
-    expect(within(actionDialog).getByText("$0.042137")).toBeInTheDocument();
+    expect(terminalDialog).toBe(sheetPanel);
+    expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
+    expect(
+      within(terminalDialog).getByText("Terminal requires the desktop app."),
+    ).toBeInTheDocument();
   });
 
   it("reaches both surfaces through one Sheet below the docked breakpoint", async () => {
@@ -455,12 +454,14 @@ describe("AgentWorkspaceSessionsPage", () => {
       screen.queryByTestId("session-inspector-trigger-rail-slot"),
     ).not.toBeInTheDocument();
 
-    await user.click(within(changesDialog).getByRole("radio", { name: "Actions" }));
+    await user.click(within(changesDialog).getByRole("radio", { name: "Terminal" }));
 
-    const actionsDialog = await screen.findByRole("dialog", { name: "Actions" });
+    const terminalDialog = await screen.findByRole("dialog", { name: "Terminal" });
 
-    expect(within(actionsDialog).getByText("Checkout")).toBeInTheDocument();
-    expect(within(actionsDialog).queryByText("Diff summary")).not.toBeInTheDocument();
+    expect(
+      within(terminalDialog).getByText("Terminal requires the desktop app."),
+    ).toBeInTheDocument();
+    expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
   });
 
   it("docks the Session inspector beside Chat on wide Workspaces", async () => {
@@ -512,19 +513,21 @@ describe("AgentWorkspaceSessionsPage", () => {
     await user.click(
       within(screen.getByRole("group", { name: "Session surfaces" })).getByRole(
         "button",
-        { name: "Actions" },
+        { name: "Terminal" },
       ),
     );
 
-    const actionsAside = await screen.findByRole("complementary", { name: "Actions" });
+    const terminalAside = await screen.findByRole("complementary", { name: "Terminal" });
 
-    expect(within(actionsAside).getByText("Checkout")).toBeInTheDocument();
-    expect(within(actionsAside).queryByText("Diff summary")).not.toBeInTheDocument();
+    expect(
+      within(terminalAside).getByText("Terminal requires the desktop app."),
+    ).toBeInTheDocument();
+    expect(within(terminalAside).queryByText("Diff summary")).not.toBeInTheDocument();
 
     // No close button in the docked header; the toolbar toggle is the one
     // way in and out.
     expect(
-      within(actionsAside).queryByRole("button", { name: "Close Session inspector" }),
+      within(terminalAside).queryByRole("button", { name: "Close Session inspector" }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Session inspector" }));
 
@@ -619,9 +622,9 @@ describe("AgentWorkspaceSessionsPage", () => {
         .getByText("2 files ·", { exact: false }),
     ).toBeInTheDocument();
 
-    await user.click(within(rail).getByRole("button", { name: "Actions" }));
+    await user.click(within(rail).getByRole("button", { name: "Terminal" }));
 
-    await screen.findByRole("complementary", { name: "Actions" });
+    await screen.findByRole("complementary", { name: "Terminal" });
     expect(within(rail).getByText("2")).toBeInTheDocument();
     // One read feeds both the panel and the badge.
     expect(
@@ -718,58 +721,6 @@ describe("AgentWorkspaceSessionsPage", () => {
     });
     expect(await findSidebarSessionRow("Persisted cold session")).toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalledWith("list_sessions", expect.anything());
-  });
-
-  it("archives a persisted Session through the backend and removes it from the sidebar", async () => {
-    const user = userEvent.setup();
-    const persisted = {
-      sessionId: "persisted-session-1",
-      runtimeId: "pi-sdk:persisted-session-1",
-      piSessionId: "pi-session-persisted-1",
-      projectId: pigProjectPath,
-      initialPrompt: "Archive this session",
-      cwd: pigProjectPath,
-      status: "completed",
-      updatedAt: "2026-07-18T12:00:00.000Z",
-    };
-    const invoke = vi.fn(async (command: string) => {
-      if (command === "list_session_projections") {
-        return [persisted];
-      }
-
-      if (command === "archive_session") {
-        return {
-          ...persisted,
-          status: "archived",
-          archivedAt: "2026-07-18T12:05:00.000Z",
-          updatedAt: "2026-07-18T12:05:00.000Z",
-        };
-      }
-
-      throw new Error(`unexpected backend command ${command}`);
-    });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
-      onBackendEvent: vi.fn(() => vi.fn()),
-      onWindowFocusChanged: vi.fn(() => vi.fn()),
-    };
-
-    renderProjectSessions();
-
-    expect(await findSidebarSessionRow("Archive this session")).toBeInTheDocument();
-
-    const actionsSheet = await openSessionSurfaceSheet(user, "Actions");
-
-    fireEvent.click(
-      within(actionsSheet).getByRole("button", { name: "Archive Session" }),
-    );
-
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("archive_session", {
-        sessionId: "persisted-session-1",
-      });
-    });
-    expect(querySidebarSessionRow("Archive this session")).toBeUndefined();
   });
 
   it("reloads projections and resumes the selected Session after backend recovery", async () => {
@@ -1060,51 +1011,33 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__;
   });
 
-  it("does not expose deferred terminal, file tree, or abort placeholders", async () => {
+  it("exposes the Terminal surface on the rail, without file tree or abort placeholders", async () => {
+    const user = userEvent.setup();
+    setDockedSessionInspectorLayout(true);
+
     renderProjectSessions();
 
     const sessionsView = await screen.findByTestId("project-sessions-view");
 
-    expect(within(sessionsView).queryByText(/terminal/i)).not.toBeInTheDocument();
     expect(within(sessionsView).queryByText(/file tree|file explorer/i)).not.toBeInTheDocument();
     expect(within(sessionsView).queryByText("Abort")).not.toBeInTheDocument();
-  });
 
-  it("disables archive for the selected active run in the action surface", async () => {
-    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
 
-    renderProjectSessions();
+    const rail = await screen.findByRole("group", { name: "Session surfaces" });
+    const terminalToggle = within(rail).getByRole("button", { name: "Terminal" });
 
-    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
-    const archiveButton = within(actionDialog).getByRole("button", {
-      name: "Archive Session",
-    });
+    expect(terminalToggle).toBeInTheDocument();
 
-    expect(archiveButton).toBeDisabled();
+    // Outside Electron the panel degrades to its calm empty state, no crash.
+    await user.click(terminalToggle);
+
     expect(
-      within(actionDialog).getByText("Active runs cannot be archived."),
+      await screen.findByRole("complementary", { name: "Terminal" }),
     ).toBeInTheDocument();
   });
 
-  it("uses the sidebar-selected Session for toolbar actions", async () => {
-    const user = userEvent.setup();
-
-    renderProjectSessions();
-
-    await user.click(await findSidebarSessionRow("Trace boundary pass"));
-
-    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
-    const archiveButton = within(actionDialog).getByRole("button", {
-      name: "Archive Session",
-    });
-
-    expect(archiveButton).toBeEnabled();
-    expect(
-      within(actionDialog).queryByText("Active runs cannot be archived."),
-    ).not.toBeInTheDocument();
-  });
-
-  it("stops the selected active run from the composer and unlocks archive", async () => {
+  it("stops the selected active run from the composer", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
@@ -1130,13 +1063,6 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(liveChat).queryByText("Stopped")).not.toBeInTheDocument();
     expect(
       within(liveChat).queryByText("Pi stopped the active run."),
-    ).not.toBeInTheDocument();
-
-    const actionDialog = await openSessionSurfaceSheet(user, "Actions");
-
-    expect(within(actionDialog).getByRole("button", { name: "Archive Session" })).toBeEnabled();
-    expect(
-      within(actionDialog).queryByText("Active runs cannot be archived."),
     ).not.toBeInTheDocument();
   });
 
@@ -4779,13 +4705,6 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       screen.getByLabelText("Live Chat messages").closest(".max-w-\\[96rem\\]"),
     ).toBeNull();
-
-    render(<SessionActionsContent workspace={workspace} projection={projection} />);
-
-    expect(screen.getByText("gpt-5-codex")).toBeInTheDocument();
-    expect(screen.getByText("openai")).toBeInTheDocument();
-    expect(screen.getByText("$0.012345")).toBeInTheDocument();
-    expect(screen.getByText("1.3K")).toBeInTheDocument();
   });
 
   it("shows the runtime-unavailable warning for stale Projection data without hiding the composer", () => {
@@ -5786,127 +5705,6 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveChat.querySelector('[data-slot="chain-of-thought"]')).not.toBeInTheDocument();
   });
 
-  it("shows managed checkout root and runtime cwd while keeping advanced checkout details collapsed", () => {
-    const workspace = {
-      id: "pig-docs",
-      name: "Pig Docs",
-      projectRoot: "/Users/void/code/opensource/Pig/packages/web",
-      repoRoot: "/Users/void/code/opensource/Pig",
-      selectedSessionId: "session-background",
-      liveMessages: [],
-      runTimeline: [],
-      checkout: {
-        mode: "Foreground local checkout",
-        root: "/Users/void/code/opensource/Pig",
-        runtimeCwd: "/Users/void/code/opensource/Pig/packages/web",
-      },
-      summary: {
-        model: "gpt-5-codex",
-        totalCostUsd: 0,
-        totalTokens: 0,
-      },
-    };
-    const projection = applySessionProjectionEvent(
-      createSessionProjection({
-        id: "session-background",
-        projectId: "pig-docs",
-        initialPrompt: "Run in the isolated checkout",
-        createdAt: "2026-06-27T08:00:00.000Z",
-      }),
-      {
-        type: "checkout-selected",
-        stage: "preparing checkout",
-        checkout: {
-          mode: "managed-worktree",
-          root: "/tmp/pig-worktrees/session-background",
-          repoRoot: "/Users/void/code/opensource/Pig",
-          projectRoot: "/Users/void/code/opensource/Pig/packages/web",
-          projectRelativePath: "packages/web",
-          executionCheckoutRoot: "/tmp/pig-worktrees/session-background",
-          diffRoot: "/tmp/pig-worktrees/session-background",
-          runtimeCwd: "/tmp/pig-worktrees/session-background/packages/web",
-          sessionBound: true,
-          disposable: true,
-          cleanupCandidate: false,
-          permanent: false,
-          createdAt: "2026-06-27T08:00:00.000Z",
-        },
-        occurredAt: "2026-06-27T08:00:00.000Z",
-      },
-    );
-
-    render(<SessionActionsContent workspace={workspace} projection={projection} />);
-
-    expect(screen.getByText("PiGUI-managed worktree")).toBeInTheDocument();
-    expect(screen.getByText("/tmp/pig-worktrees/session-background")).toBeInTheDocument();
-    expect(
-      screen.getByText("/tmp/pig-worktrees/session-background/packages/web"),
-    ).toBeInTheDocument();
-    const advancedDetails = screen
-      .getByText("Advanced checkout details")
-      .closest("details");
-
-    expect(advancedDetails).not.toBeNull();
-    expect(advancedDetails).not.toHaveAttribute("open");
-    expect(
-      within(advancedDetails as HTMLElement).getByText(
-        "/Users/void/code/opensource/Pig/packages/web",
-      ),
-    ).not.toBeVisible();
-  });
-
-  it("shows a clear non-Git state in the action surface", () => {
-    const workspace = {
-      id: "notes",
-      name: "Notes",
-      projectRoot: "/Users/void/Documents/notes-without-git",
-      repoRoot: "/Users/void/Documents/notes-without-git",
-      selectedSessionId: "session-notes",
-      liveMessages: [],
-      runTimeline: [],
-      checkout: {
-        mode: "Foreground local checkout",
-        root: "/Users/void/Documents/notes-without-git",
-        runtimeCwd: "/Users/void/Documents/notes-without-git",
-      },
-      summary: {
-        model: "gpt-5-codex",
-        totalCostUsd: 0,
-        totalTokens: 0,
-      },
-    };
-    const projection = applySessionProjectionEvent(
-      createSessionProjection({
-        id: "session-notes",
-        projectId: "notes",
-        initialPrompt: "Run in notes",
-        createdAt: "2026-06-30T08:00:00.000Z",
-      }),
-      {
-        type: "checkout-selected",
-        stage: "preparing checkout",
-        checkout: {
-          mode: "foreground-local",
-          root: "/Users/void/Documents/notes-without-git",
-          projectRoot: "/Users/void/Documents/notes-without-git",
-          projectRelativePath: ".",
-          executionCheckoutRoot: "/Users/void/Documents/notes-without-git",
-          runtimeCwd: "/Users/void/Documents/notes-without-git",
-          sessionBound: false,
-          disposable: false,
-          cleanupCandidate: false,
-          permanent: true,
-          createdAt: "2026-06-30T08:00:00.000Z",
-        },
-        occurredAt: "2026-06-30T08:00:00.000Z",
-      },
-    );
-
-    render(<SessionActionsContent workspace={workspace} projection={projection} />);
-
-    expect(screen.getByText("No Git repository")).toBeInTheDocument();
-    expect(screen.getByText("Git-only actions are unavailable for this Project.")).toBeInTheDocument();
-  });
 });
 
 // Context occupancy rides the composer footer line — the hint row under the
@@ -5996,7 +5794,6 @@ describe("Context usage placement", () => {
           loading: false,
           refresh: () => {},
         }}
-        workspace={workspace}
         projection={boundProjection()}
       />,
     );

@@ -35,11 +35,11 @@ function renderInspector({
 
 describe("SessionInspector", () => {
   it("names the panel after the active surface and renders its content", () => {
-    renderInspector({ activeSurfaceId: "actions" });
+    renderInspector({ activeSurfaceId: "terminal" });
 
-    const inspector = screen.getByRole("complementary", { name: "Actions" });
+    const inspector = screen.getByRole("complementary", { name: "Terminal" });
 
-    expect(within(inspector).getByText("Actions surface content")).toBeInTheDocument();
+    expect(within(inspector).getByText("Terminal surface content")).toBeInTheDocument();
   });
 
   it("puts every registered surface on the rail", () => {
@@ -61,9 +61,9 @@ describe("SessionInspector", () => {
     const user = userEvent.setup();
     const { onActiveSurfaceChange } = renderInspector();
 
-    await user.click(screen.getByRole("button", { name: "Actions" }));
+    await user.click(screen.getByRole("button", { name: "Terminal" }));
 
-    expect(onActiveSurfaceChange).toHaveBeenCalledWith("actions");
+    expect(onActiveSurfaceChange).toHaveBeenCalledWith("terminal");
   });
 
   // Astryx single-select ToggleButtonGroup reports null when the pressed button

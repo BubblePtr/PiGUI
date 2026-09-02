@@ -7,6 +7,10 @@ import { createInMemorySessionEventJournal } from "./persistence/session-event-j
 import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
 import type { PiRuntimeDriver } from "./gateway/runtime-gateway";
+import type {
+  TerminalManager,
+  TerminalManagerEvent,
+} from "./drivers/terminal";
 
 const createAgentSession = vi.hoisted(() => vi.fn());
 const sessionManagerOpen = vi.hoisted(() => vi.fn());
@@ -91,6 +95,54 @@ function createFakeSdkAgentSession() {
 }
 
 const tempDirs: string[] = [];
+
+function createFakeTerminalManager() {
+  const created: Array<{
+    sessionId: string;
+    piSessionId: string;
+    cwd: string;
+    cols: number;
+    rows: number;
+  }> = [];
+  let listener: ((event: TerminalManagerEvent) => void) | undefined;
+  const write = vi.fn();
+  const resize = vi.fn();
+  const close = vi.fn();
+  const manager: TerminalManager = {
+    create: async (input) => {
+      created.push(input);
+
+      return {
+        terminalId: "term-fake-1",
+        sessionId: input.sessionId,
+        cwd: input.cwd,
+        status: "running",
+      };
+    },
+    list: () => [],
+    attach: () => ({ scrollback: "replay", end: 6 }),
+    write,
+    resize,
+    close,
+    onEvent: (next) => {
+      listener = next;
+
+      return () => {};
+    },
+    disposeAll: () => {},
+  };
+
+  return {
+    manager,
+    created,
+    write,
+    resize,
+    close,
+    emit(event: TerminalManagerEvent) {
+      listener?.(event);
+    },
+  };
+}
 
 async function tempDataDir() {
   const dir = await mkdtemp(join(tmpdir(), "pigui-service-"));
@@ -1023,5 +1075,279 @@ describe("backend service", () => {
     await expect(projections.get("session-old")).resolves.toMatchObject({
       updatedAt: "2026-08-01T12:03:34.764Z",
     });
+  });
+
+  it("opens terminals in the session checkout root and forwards terminal events", async () => {
+    const projections = createInMemorySessionProjectionStore();
+
+    await projections.save({
+      sessionId: "session-term",
+      runtimeId: "runtime-term",
+      piSessionId: "pi-term",
+      projectId: "project-1",
+      cwd: "/projection/cwd",
+      status: "idle",
+      checkout: {
+        root: "/source/repo",
+        executionCheckoutRoot: "/checkout",
+      },
+      updatedAt: "2026-09-02T00:00:00.000Z",
+    });
+
+    const terminalManager = createFakeTerminalManager();
+    // The checkout root must short-circuit cwd resolution; a live runtime is
+    // never consulted when the projection records a checkout.
+    const runtimeDriver = {
+      getSnapshot: vi.fn(async () => {
+        throw new Error("runtime is not live");
+      }),
+      onEvent: vi.fn(() => () => {}),
+    } as unknown as PiRuntimeDriver;
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      sessionProjectionStore: projections,
+      runtimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      terminalManager: terminalManager.manager,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-open-terminal",
+        method: "open_terminal",
+        params: { sessionId: "session-term", cols: 120, rows: 40 },
+      }),
+    ).resolves.toEqual({
+      id: "req-open-terminal",
+      result: {
+        terminalId: "term-fake-1",
+        sessionId: "session-term",
+        cwd: "/checkout",
+        status: "running",
+      },
+    });
+    expect(terminalManager.created).toEqual([
+      {
+        sessionId: "session-term",
+        piSessionId: "pi-term",
+        cwd: "/checkout",
+        cols: 120,
+        rows: 40,
+      },
+    ]);
+    expect(runtimeDriver.getSnapshot).not.toHaveBeenCalled();
+
+    const events: unknown[] = [];
+    service.onEvent((event) => {
+      events.push(event);
+    });
+    terminalManager.emit({
+      kind: "output",
+      terminalId: "term-fake-1",
+      sessionId: "session-term",
+      piSessionId: "pi-term",
+      data: "hello",
+      end: 5,
+    });
+    terminalManager.emit({
+      kind: "exit",
+      terminalId: "term-fake-1",
+      sessionId: "session-term",
+      piSessionId: "pi-term",
+      exitCode: 0,
+    });
+
+    expect(events).toEqual([
+      {
+        type: "event",
+        event: {
+          id: expect.stringMatching(/^evt-/),
+          seq: 0,
+          sessionId: "session-term",
+          piSessionId: "pi-term",
+          type: "terminal_output",
+          ts: expect.any(String),
+          payload: { terminalId: "term-fake-1", data: "hello", end: 5 },
+        },
+      },
+      {
+        type: "event",
+        event: {
+          id: expect.stringMatching(/^evt-/),
+          seq: 0,
+          sessionId: "session-term",
+          piSessionId: "pi-term",
+          type: "terminal_exit",
+          ts: expect.any(String),
+          payload: { terminalId: "term-fake-1", exitCode: 0 },
+        },
+      },
+    ]);
+  });
+
+  it("falls back to the runtime snapshot cwd when the session has no checkout", async () => {
+    const projections = createInMemorySessionProjectionStore();
+
+    await projections.save({
+      sessionId: "session-term-live",
+      runtimeId: "runtime-term-live",
+      piSessionId: "pi-term-live",
+      projectId: "project-1",
+      cwd: "/projection/cwd",
+      status: "idle",
+      updatedAt: "2026-09-02T00:00:00.000Z",
+    });
+
+    const runtimeDriver = {
+      getSnapshot: vi.fn(async () => ({
+        sessionId: "session-term-live",
+        runtimeId: "runtime-term-live",
+        piSessionId: "pi-term-live",
+        projectId: "project-1",
+        cwd: "/runtime/cwd",
+        status: "idle" as const,
+        events: [],
+        updatedAt: "2026-09-02T00:00:00.000Z",
+      })),
+      onEvent: vi.fn(() => () => {}),
+    } as unknown as PiRuntimeDriver;
+    const terminalManager = createFakeTerminalManager();
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      sessionProjectionStore: projections,
+      runtimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      terminalManager: terminalManager.manager,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-open-terminal",
+        method: "open_terminal",
+        params: { sessionId: "session-term-live", cols: 80, rows: 24 },
+      }),
+    ).resolves.toEqual({
+      id: "req-open-terminal",
+      result: expect.objectContaining({ cwd: "/runtime/cwd" }),
+    });
+    expect(terminalManager.created).toEqual([
+      expect.objectContaining({
+        sessionId: "session-term-live",
+        piSessionId: "pi-term-live",
+        cwd: "/runtime/cwd",
+      }),
+    ]);
+  });
+
+  it("rejects open_terminal without a projection, checkout, or runtime cwd", async () => {
+    const projections = createInMemorySessionProjectionStore();
+
+    await projections.save({
+      sessionId: "session-term-cold",
+      runtimeId: "runtime-term-cold",
+      piSessionId: "pi-term-cold",
+      projectId: "project-1",
+      cwd: "/projection/cwd",
+      status: "completed",
+      updatedAt: "2026-09-02T00:00:00.000Z",
+    });
+
+    const runtimeDriver = {
+      getSnapshot: vi.fn(async () => {
+        throw new Error('Pi SDK runtime "pi-term-cold" was not found.');
+      }),
+      onEvent: vi.fn(() => () => {}),
+    } as unknown as PiRuntimeDriver;
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      sessionProjectionStore: projections,
+      runtimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      terminalManager: createFakeTerminalManager().manager,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-open-cold",
+        method: "open_terminal",
+        params: { sessionId: "session-term-cold", cols: 80, rows: 24 },
+      }),
+    ).resolves.toEqual({
+      id: "req-open-cold",
+      error: "Session has no checkout or runtime cwd to open a terminal in.",
+    });
+    await expect(
+      service.handleRequest({
+        id: "req-open-missing",
+        method: "open_terminal",
+        params: { sessionId: "session-gone", cols: 80, rows: 24 },
+      }),
+    ).resolves.toEqual({
+      id: "req-open-missing",
+      error: 'Session projection "session-gone" was not found.',
+    });
+  });
+
+  it("routes terminal input, resize, attach, list, and close to the terminal manager", async () => {
+    const terminalManager = createFakeTerminalManager();
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      sessionProjectionStore: createInMemorySessionProjectionStore(),
+      runtimeJournal: createInMemorySessionEventJournal(),
+      terminalManager: terminalManager.manager,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-input",
+        method: "terminal_input",
+        params: { terminalId: "term-fake-1", data: "\r" },
+      }),
+    ).resolves.toEqual({ id: "req-input", result: null });
+    expect(terminalManager.write).toHaveBeenCalledWith("term-fake-1", "\r");
+
+    await expect(
+      service.handleRequest({
+        id: "req-input-missing-data",
+        method: "terminal_input",
+        params: { terminalId: "term-fake-1" },
+      }),
+    ).resolves.toEqual({ id: "req-input-missing-data", error: "data is required" });
+
+    await expect(
+      service.handleRequest({
+        id: "req-resize",
+        method: "resize_terminal",
+        params: { terminalId: "term-fake-1", cols: 0, rows: 9999 },
+      }),
+    ).resolves.toEqual({ id: "req-resize", result: null });
+    expect(terminalManager.resize).toHaveBeenCalledWith("term-fake-1", 1, 500);
+
+    await expect(
+      service.handleRequest({
+        id: "req-attach",
+        method: "attach_terminal",
+        params: { terminalId: "term-fake-1" },
+      }),
+    ).resolves.toEqual({ id: "req-attach", result: { scrollback: "replay", end: 6 } });
+    await expect(
+      service.handleRequest({
+        id: "req-list",
+        method: "list_terminals",
+        params: { sessionId: "session-term" },
+      }),
+    ).resolves.toEqual({ id: "req-list", result: [] });
+    await expect(
+      service.handleRequest({
+        id: "req-close",
+        method: "close_terminal",
+        params: { terminalId: "term-fake-1" },
+      }),
+    ).resolves.toEqual({ id: "req-close", result: null });
+    expect(terminalManager.close).toHaveBeenCalledWith("term-fake-1");
   });
 });

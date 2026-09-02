@@ -110,8 +110,12 @@ export function SessionInspector({
         {/* Fills the titlebar band beside Chat's title; the hairline under the
             band is the sessions view's, not ours. Display only: the toolbar
             toggle at the rail's head owns open/close, so a close button here
-            would duplicate it 40px away. */}
-        <header className="flex h-10 shrink-0 items-center gap-2 px-4">
+            would duplicate it 40px away. Flush surfaces (registry
+            flushContent) drop the horizontal padding so their rows align with
+            the edge-to-edge content below. */}
+        <header
+          className={`flex h-10 shrink-0 items-center gap-2 ${surface.flushContent ? "" : "px-4"}`}
+        >
           <h2
             className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
             id={headingId}
@@ -123,7 +127,13 @@ export function SessionInspector({
             {surface.hint}
           </span>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4">
+        <div
+          className={
+            surface.flushContent
+              ? "min-h-0 flex-1 overflow-y-auto"
+              : "min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4"
+          }
+        >
           {children}
         </div>
       </div>

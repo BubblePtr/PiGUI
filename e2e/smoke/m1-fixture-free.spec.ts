@@ -84,26 +84,25 @@ test.describe("M2: Reliable lifecycle", () => {
         testApp.project!,
         testApp.projection!,
       );
-      // Default window is 1280×840, so the inspector docks; the rail switches
-      // it from Changes to Actions.
-      await testApp.window.getByLabel("Session inspector").click();
+      // Archive lives on the sidebar row's action menu (the inspector's
+      // Actions surface was removed; the row menu is the remaining entry).
       await testApp.window
-        .getByRole("group", { name: "Session surfaces" })
-        .getByRole("button", { name: "Actions" })
+        .getByRole("button", {
+          name: `Session actions for ${testApp.projection!.initialPrompt}`,
+        })
         .click();
 
-      const archive = testApp.window.getByRole("button", {
-        name: "Archive Session",
-      });
+      const archive = testApp.window.getByRole("menuitem", { name: "Archive Session" });
 
-      await expect(archive).toBeEnabled();
       await archive.click();
-      await expect(testApp.window.getByText("This Session is archived.")).toBeVisible();
-      await expect(archive).toBeDisabled();
       await expect.poll(async () => (await testApp.readProjection())?.status).toBe(
         "archived",
       );
       expect((await testApp.readProjection())?.archivedAt).toBeTruthy();
+      // Archived Sessions leave the sidebar list.
+      await expect(
+        sessionRowButton(testApp.window, testApp.projection!.initialPrompt),
+      ).toHaveCount(0);
     } finally {
       await testApp.close();
     }
