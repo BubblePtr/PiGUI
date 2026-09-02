@@ -40,6 +40,12 @@ export function setBrowserVisible(visible: boolean) {
   return invoke<BrowserViewState | null>("browser_set_visible", { visible });
 }
 
+/** Still of the page, so a DOM overlay can be shown without the native view
+ *  covering it. Null when there is no view to photograph. */
+export function captureBrowser() {
+  return invoke<string | null>("browser_capture");
+}
+
 export function openBrowserUrlExternally(url: string) {
   return invoke<null>("browser_open_external", { url });
 }

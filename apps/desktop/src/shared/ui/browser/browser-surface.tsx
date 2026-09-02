@@ -33,6 +33,7 @@ export function BrowserSurface({
   state,
   canGoBack,
   canGoForward,
+  snapshot,
   viewportRef,
   onAddressChange,
   onAddressSubmit,
@@ -45,6 +46,11 @@ export function BrowserSurface({
   state: BrowserSurfaceState;
   canGoBack: boolean;
   canGoForward: boolean;
+  /**
+   * Still of the page, shown instead of the native view while a DOM overlay
+   * is open — the native view would otherwise cover it.
+   */
+  snapshot?: string | null;
   viewportRef?: Ref<HTMLDivElement>;
   onAddressChange: (address: string) => void;
   onAddressSubmit: (address: string) => void;
@@ -106,6 +112,7 @@ export function BrowserSurface({
       ) : null}
       <div className="min-h-0 flex-1">
         <BrowserSurfaceBody
+          snapshot={snapshot}
           state={state}
           viewportRef={viewportRef}
           onReload={onReload}
@@ -117,10 +124,12 @@ export function BrowserSurface({
 
 function BrowserSurfaceBody({
   state,
+  snapshot,
   viewportRef,
   onReload,
 }: {
   state: BrowserSurfaceState;
+  snapshot?: string | null;
   viewportRef?: Ref<HTMLDivElement>;
   onReload: () => void;
 }) {
@@ -166,14 +175,27 @@ function BrowserSurfaceBody({
         />
       );
     case "live":
-      // Deliberately empty: the native view paints over this rect, and its
-      // bounds are this element's own `getBoundingClientRect()`.
+      // Empty unless a DOM overlay is up: the native view paints over this
+      // rect, and its bounds are this element's own `getBoundingClientRect()`.
+      // While an overlay needs to be visible the native view steps aside and
+      // this still of the page stands in for it, filling the same rect so
+      // nothing shifts.
       return (
         <div
           className="h-full w-full"
           data-testid="browser-viewport"
           ref={viewportRef}
-        />
+        >
+          {snapshot ? (
+            <img
+              alt=""
+              className="h-full w-full"
+              data-testid="browser-snapshot"
+              src={snapshot}
+              style={{ objectFit: "fill" }}
+            />
+          ) : null}
+        </div>
       );
   }
 }

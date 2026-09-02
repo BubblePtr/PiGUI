@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { BrowserViewState } from "@/shared/browser-protocol";
 import {
   browserTitlebarBandPx,
   createBrowserHost,
@@ -56,6 +57,10 @@ function createFakeView() {
     destroy() {
       view.destroyed = true;
       calls.push("destroy");
+    },
+    async capture() {
+      calls.push("capture");
+      return "data:image/png;base64,SNAPSHOT";
     },
     readState() {
       return { url, canGoBack: false, canGoForward: false };
@@ -206,14 +211,18 @@ describe("browser host commands", () => {
 
   it("stamps a fresh navigation id on every navigate", async () => {
     const { host } = createHostHarness();
+    // The command group is heterogeneous (capture answers with a data URL), so
+    // the navigate results need narrowing before the ids can be compared.
+    const navigate = async (url: string) =>
+      (await host.invoke("browser_navigate", { url })) as BrowserViewState;
 
-    const first = await host.invoke("browser_navigate", { url: "http://a.test/" });
-    const second = await host.invoke("browser_navigate", { url: "http://b.test/" });
+    const first = await navigate("http://a.test/");
+    const second = await navigate("http://b.test/");
 
-    expect(second!.navigationId).toBe(first!.navigationId + 1);
+    expect(second.navigationId).toBe(first.navigationId + 1);
     // Events main forwards carry whatever id is current, so a page still
     // talking after a Project switch is distinguishable from the new one.
-    expect(host.currentNavigationId()).toBe(second!.navigationId);
+    expect(host.currentNavigationId()).toBe(second.navigationId);
   });
 
   it("refuses to navigate to a non-http scheme and never creates a view for it", async () => {
@@ -305,8 +314,25 @@ describe("browser host commands", () => {
     await expect(host.invoke("browser_teleport")).rejects.toThrow(/browser_teleport/);
   });
 
+  it("captures the page as a data URL, and answers null with no view to capture", async () => {
+    const { host, views } = createHostHarness();
+
+    // The surface asks for a still whenever a DOM overlay opens; before the
+    // first navigate there is nothing to photograph, and inventing a blank
+    // one would flash over the page.
+    await expect(host.invoke("browser_capture")).resolves.toBeNull();
+    expect(views).toHaveLength(0);
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+
+    await expect(host.invoke("browser_capture")).resolves.toBe(
+      "data:image/png;base64,SNAPSHOT",
+    );
+  });
+
   it("claims only the commands it implements, so the backend keeps the rest", () => {
     for (const command of [
+      "browser_capture",
       "browser_navigate",
       "browser_back",
       "browser_forward",

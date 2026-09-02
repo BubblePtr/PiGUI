@@ -269,6 +269,10 @@ function SessionInspectorGallery() {
   );
 }
 
+/** Inline 2x2 PNG: the gallery needs a real image source, not a live view. */
+const gallerySnapshot =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAF0lEQVR4nGP8//8/AwwwMSAB7BwmJIUQDgB7pgMBfxRcVAAAAABJRU5ErkJggg==";
+
 function BrowserSurfaceGallery() {
   const [address, setAddress] = useState("localhost:5173");
 
@@ -283,6 +287,23 @@ function BrowserSurfaceGallery() {
               canGoForward={false}
               state={{ kind: "live" }}
               onAddressChange={setAddress}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="live + snapshot — a DOM overlay is open, so a still of the page stands in for the native view">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              canGoBack
+              canGoForward={false}
+              snapshot={gallerySnapshot}
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
               onAddressSubmit={() => {}}
               onBack={() => {}}
               onForward={() => {}}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   browserBack,
   browserForward,
+  captureBrowser,
   navigateBrowser,
   openBrowserUrlExternally,
   reloadBrowser,
@@ -20,6 +21,7 @@ import {
   type BrowserSurfaceState,
 } from "@/shared/ui/browser/browser-surface";
 import { useBrowserViewBounds } from "@/shared/ui/browser/use-browser-view-bounds";
+import { useOverlayPresence } from "@/shared/ui/browser/use-overlay-presence";
 
 /**
  * Browser surface content: drives the one native `WebContentsView` the main
@@ -51,6 +53,7 @@ export function SessionBrowserPanel({
   const [canGoForward, setCanGoForward] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasPage, setHasPage] = useState(false);
+  const [snapshot, setSnapshot] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Null means "nothing of mine is loaded": drop every event until this
   // component's own navigate answers with an id.
@@ -135,15 +138,47 @@ export function SessionBrowserPanel({
 
   useBrowserViewBounds(viewportRef, pushBounds, state.kind === "live");
 
+  // A native view paints above every DOM layer, so any open overlay — the
+  // inspector rail's own tooltips most of all, which open right against it —
+  // would be covered. While one is up the page is replaced by a still of
+  // itself and the view steps aside.
+  const overlayOpen = useOverlayPresence(available && state.kind === "live");
+
+  useEffect(() => {
+    if (!available || state.kind !== "live" || !overlayOpen) {
+      setSnapshot(null);
+      return;
+    }
+
+    let overlayGone = false;
+
+    void captureBrowser()
+      .then((dataUrl) => {
+        // The overlay can close while the capture is in flight. Showing the
+        // still now would freeze the page over a view that is already right,
+        // and the cleanup below is what makes that ordering safe: a late
+        // still from a previous open/close cycle lands after its own cleanup.
+        if (!overlayGone && dataUrl) {
+          setSnapshot(dataUrl);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      overlayGone = true;
+    };
+  }, [available, overlayOpen, state.kind]);
+
   // Visibility follows the surface state, so the error and empty states hide
-  // the view without a second code path asking for it.
+  // the view without a second code path asking for it — and so does the still
+  // standing in for it.
   useEffect(() => {
     if (!available) {
       return;
     }
 
-    void setBrowserVisible(state.kind === "live").catch(() => {});
-  }, [available, state.kind]);
+    void setBrowserVisible(state.kind === "live" && !snapshot).catch(() => {});
+  }, [available, snapshot, state.kind]);
 
   // Leaving the surface (other surface, inspector closed, Session switch) hides
   // the view without discarding the page.
@@ -178,6 +213,7 @@ export function SessionBrowserPanel({
       address={address}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
+      snapshot={snapshot}
       state={state}
       viewportRef={viewportRef}
       onAddressChange={setAddress}

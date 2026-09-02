@@ -1,5 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
@@ -11,7 +13,7 @@ import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 
 type Invocation = { command: string; args?: Record<string, unknown> };
 
-function installPreload() {
+function installPreload(options: { captureGate?: Promise<void> } = {}) {
   const invocations: Invocation[] = [];
   const listeners: Array<(event: BrowserEvent) => void> = [];
   // Mirrors the host: every navigate answers with a fresh navigation id.
@@ -19,6 +21,11 @@ function installPreload() {
   const api: PiGUIRendererApi = {
     invoke: (async (command: string, args?: Record<string, unknown>) => {
       invocations.push({ command, args });
+
+      if (command === "browser_capture") {
+        await options.captureGate;
+        return "data:image/png;base64,SNAP";
+      }
 
       if (command === "browser_navigate") {
         navigationId += 1;
@@ -47,6 +54,7 @@ function installPreload() {
   return {
     invocations,
     commands: () => invocations.map((invocation) => invocation.command),
+    last: () => invocations[invocations.length - 1],
     emit(event: BrowserEvent) {
       for (const listener of [...listeners]) {
         listener(event);
@@ -228,5 +236,87 @@ describe("SessionBrowserPanel", () => {
         args: { visible: false },
       }),
     );
+  });
+
+  it("stands a still of the page in for the native view while an overlay is open", async () => {
+    const user = userEvent.setup();
+    const preload = installPreload();
+
+    rememberProjectBrowserUrl("project-k", "http://localhost:5173/");
+    render(
+      <>
+        <SessionBrowserPanel docked projectId="project-k" sessionId="session-9" />
+        <Tooltip content="Preview a running dev server" delay={0}>
+          <IconButton icon={<span>i</span>} label="Rail" />
+        </Tooltip>
+      </>,
+    );
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+    expect(screen.queryByTestId("browser-snapshot")).not.toBeInTheDocument();
+
+    // The rail's own tooltip is the case that forced this: it opens right
+    // against the browser and the native view would paint straight over it.
+    await user.hover(screen.getByRole("button", { name: "Rail" }));
+
+    const snapshot = await screen.findByTestId("browser-snapshot");
+
+    expect(snapshot).toHaveAttribute("src", "data:image/png;base64,SNAP");
+    await waitFor(() =>
+      expect(preload.invocations).toContainEqual({
+        command: "browser_set_visible",
+        args: { visible: false },
+      }),
+    );
+
+    await user.unhover(screen.getByRole("button", { name: "Rail" }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("browser-snapshot")).not.toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(preload.last()).toEqual({
+        command: "browser_set_visible",
+        args: { visible: true },
+      }),
+    );
+  });
+
+  it("keeps the native view visible when the overlay closes before its still arrives", async () => {
+    const user = userEvent.setup();
+    let releaseCapture = () => {};
+    const preload = installPreload({
+      captureGate: new Promise<void>((resolve) => {
+        releaseCapture = resolve;
+      }),
+    });
+
+    rememberProjectBrowserUrl("project-l", "http://localhost:5173/");
+    render(
+      <>
+        <SessionBrowserPanel docked projectId="project-l" sessionId="session-10" />
+        <Tooltip content="Preview a running dev server" delay={0}>
+          <IconButton icon={<span>i</span>} label="Rail" />
+        </Tooltip>
+      </>,
+    );
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    await user.hover(screen.getByRole("button", { name: "Rail" }));
+    await waitFor(() => expect(preload.commands()).toContain("browser_capture"));
+
+    // Overlay gone before the still came back: showing it now would freeze the
+    // page for no reason and flash over a view that is already correct.
+    await user.unhover(screen.getByRole("button", { name: "Rail" }));
+    releaseCapture();
+
+    await waitFor(() =>
+      expect(preload.last()).toEqual({
+        command: "browser_set_visible",
+        args: { visible: true },
+      }),
+    );
+    expect(screen.queryByTestId("browser-snapshot")).not.toBeInTheDocument();
   });
 });

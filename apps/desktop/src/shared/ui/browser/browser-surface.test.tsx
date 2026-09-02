@@ -70,6 +70,17 @@ describe("BrowserSurface", () => {
     expect(onReload).toHaveBeenCalledTimes(1);
   });
 
+  it("swaps a still of the page in for the viewport while an overlay is open", () => {
+    renderSurface({ snapshot: "data:image/png;base64,SNAP" });
+
+    const snapshot = screen.getByTestId("browser-snapshot");
+
+    // Same rect as the placeholder the native view was painting into, so the
+    // swap does not shift anything on screen.
+    expect(snapshot).toHaveAttribute("src", "data:image/png;base64,SNAP");
+    expect(screen.getByTestId("browser-viewport")).toContainElement(snapshot);
+  });
+
   it("only offers Open in browser once there is a page to open", () => {
     renderSurface({ state: { kind: "empty" } });
     expect(screen.getByRole("button", { name: "Open in default browser" })).toBeDisabled();

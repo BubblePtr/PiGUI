@@ -46,6 +46,17 @@ function startPreviewServer() {
 }
 
 /** The embedded view is the last web-contents child added to the window. */
+async function readBrowserViewVisible(app: ElectronApplication) {
+  const visible = await app.evaluate(({ BrowserWindow }) =>
+    (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
+      .filter((child): child is Electron.WebContentsView => "webContents" in child)
+      .map((child) => child.getVisible()),
+  );
+
+  return visible[visible.length - 1] ?? false;
+}
+
+/** The embedded view is the last web-contents child added to the window. */
 async function readBrowserViewWidth(app: ElectronApplication) {
   const widths = await app.evaluate(({ BrowserWindow }) =>
     (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
@@ -106,6 +117,22 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     const placeholder = (await window.getByTestId("browser-viewport").boundingBox())!;
 
     expect(await readBrowserViewWidth(testApp.app)).toBeCloseTo(placeholder.width, 0);
+
+    // Hovering the rail opens a tooltip the native view would paint over. In
+    // Chromium the layer opens through `showPopover()`, which mutates no
+    // attribute and moves no node — the Popover API's `toggle` event is the
+    // only signal, and jsdom has no Popover API at all, so this is the one
+    // place the production detection path can be proven.
+    expect(await readBrowserViewVisible(testApp.app)).toBe(true);
+    await aside.getByRole("button", { name: "Changes" }).hover();
+
+    await expect(window.getByTestId("browser-snapshot")).toBeVisible();
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(false);
+
+    // Moving off the rail hands the live view back.
+    await window.getByTestId("browser-viewport").hover();
+    await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
 
     // `_blank` never opens a window; it loads in this same view.
     await embedded

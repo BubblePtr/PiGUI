@@ -464,6 +464,12 @@ function createBrowserView() {
       canGoBack: webContents.navigationHistory.canGoBack(),
       canGoForward: webContents.navigationHistory.canGoForward(),
     }),
+    async capture() {
+      // Whole view, so the still lines up with the placeholder rect exactly.
+      const image = await webContents.capturePage();
+
+      return image.isEmpty() ? null : image.toDataURL();
+    },
   };
 }
 

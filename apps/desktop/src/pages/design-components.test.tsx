@@ -231,6 +231,16 @@ describe("Design components layer", () => {
     expect(screen.getByText("notes.md")).toBeInTheDocument();
   });
 
+  it("shows the BrowserSurface still that stands in for the native view", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "BrowserSurface" });
+
+    expect(within(section).getByTestId("browser-snapshot")).toBeInTheDocument();
+    expect(within(section).getByText(/widen the window/i)).toBeInTheDocument();
+    expect(within(section).getByText("No page loaded")).toBeInTheDocument();
+  });
+
   it("registers the ContextUsageMeter in every level it can reach", () => {
     render(<DesignComponentsLayer />);
 

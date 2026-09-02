@@ -27,6 +27,7 @@ export const browserTitlebarBandPx = 40;
  * backend instead of being swallowed here.
  */
 const browserCommands = new Set([
+  "browser_capture",
   "browser_navigate",
   "browser_back",
   "browser_forward",
@@ -174,6 +175,8 @@ export type BrowserHostView = {
   reload(): void;
   destroy(): void;
   readState(): BrowserViewSnapshot;
+  /** PNG data URL of the view as it stands, or null if it cannot be read. */
+  capture(): Promise<string | null>;
 };
 
 export type BrowserHostDependencies = {
@@ -187,7 +190,7 @@ export type BrowserHost = {
   invoke(
     command: string,
     args?: Record<string, unknown>,
-  ): Promise<BrowserViewState | null>;
+  ): Promise<BrowserViewState | string | null>;
   allowsNavigationTo(url: string): boolean;
   /** `setWindowOpenHandler`: no new windows; an allowed target loads in place. */
   handleWindowOpen(url: string): void;
@@ -330,6 +333,8 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
           visibilityRequested = args?.visible === true;
           applyVisibility();
           return readState();
+        case "browser_capture":
+          return view ? view.capture() : null;
         case "browser_open_external":
           await deps.openExternal(normalizeBrowserUrl(readUrlArgument(args)));
           return null;
