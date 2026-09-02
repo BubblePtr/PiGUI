@@ -31,8 +31,36 @@ export type BrowserViewState = BrowserViewSnapshot & {
   navigationId: number;
 };
 
+/**
+ * One element the user marked in design mode. Produced in the embedded page's
+ * isolated world, validated in main, read by the renderer.
+ *
+ * There is no `reactName`: the isolated world shares the page's DOM but not
+ * its JS wrappers, so React's `__reactFiber$` expando is simply not there
+ * (PRD S2 implementation constraint 1). `source` is the best-effort stand-in,
+ * read from whatever `data-*` attributes the dev server stamped.
+ */
+export type BrowserAnnotationElement = {
+  /** 1-based; the number the marker shows in the page and on the screenshot. */
+  index: number;
+  selector: string;
+  tag: string;
+  text?: string;
+  /** Viewport-relative, as measured when the element was marked. */
+  rect: BrowserViewRect;
+  source?: { file: string; line: number; column?: number };
+  comment?: string;
+};
+
 export type BrowserEvent =
   | ({ type: "did-navigate" } & BrowserViewState)
+  | {
+      type: "annotations-changed";
+      navigationId: number;
+      annotations: BrowserAnnotationElement[];
+    }
+  /** Design mode turned off inside the page (Esc), so the toolbar can follow. */
+  | { type: "design-mode-changed"; navigationId: number; enabled: boolean }
   | {
       type: "did-fail-load";
       navigationId: number;

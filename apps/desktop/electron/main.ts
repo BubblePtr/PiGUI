@@ -17,6 +17,12 @@ import { join } from "node:path";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
 import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
 import {
+  acceptBrowserAnnotationMessage,
+  browserAnnotationChannel,
+  browserAnnotationCommandChannel,
+  type BrowserAnnotationCommand,
+} from "./browser-annotation";
+import {
   createBrowserHost,
   createBrowserSessionProvider,
   isAbortedLoadError,
@@ -31,6 +37,11 @@ type PendingRequest = {
 
 let mainWindow: BrowserWindow | null = null;
 let browserHost: BrowserHost | null = null;
+/**
+ * The embedded view's own webContents, and the only sender the annotation
+ * channel answers to.
+ */
+let browserAnnotationSender: Electron.WebContents | null = null;
 let backendPort: MessagePortMain | null = null;
 let backendProcess: ReturnType<typeof utilityProcess.fork> | null = null;
 let backendRestartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -49,6 +60,14 @@ function rendererUrl() {
 
 function preloadPath() {
   return join(__dirname, "../preload/preload.js");
+}
+
+/**
+ * The annotation layer, and the only script the embedded page ever gets. It is
+ * a separate bundle from the renderer preload on purpose — see that file.
+ */
+function browserAnnotationPreloadPath() {
+  return join(__dirname, "../preload/browser-annotation-preload.js");
 }
 
 function backendPath() {
@@ -362,6 +381,7 @@ function createBrowserView() {
   const view = new WebContentsView({
     webPreferences: {
       session: browserViewSession().electronSession,
+      preload: browserAnnotationPreloadPath(),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -370,6 +390,7 @@ function createBrowserView() {
   });
   const { webContents } = view;
 
+  browserAnnotationSender = webContents;
   view.setBackgroundColor(
     nativeTheme.shouldUseDarkColors
       ? browserViewBackground.dark
@@ -460,6 +481,10 @@ function createBrowserView() {
       ),
     goBack: () => webContents.navigationHistory.goBack(),
     goForward: () => webContents.navigationHistory.goForward(),
+    setDesignMode: (enabled: boolean) =>
+      sendAnnotationCommand(webContents, { type: "set-design-mode", enabled }),
+    clearAnnotations: () =>
+      sendAnnotationCommand(webContents, { type: "clear-annotations" }),
     reload: () => webContents.reload(),
     destroy: () => {
       // Disposal also runs after the window is gone (quit). Tearing the
@@ -472,6 +497,7 @@ function createBrowserView() {
       if (!window.isDestroyed()) {
         window.contentView.removeChildView(view);
       }
+      browserAnnotationSender = null;
     },
     readState: () => ({
       url: webContents.getURL(),
@@ -486,6 +512,63 @@ function createBrowserView() {
     },
   };
 }
+
+function sendAnnotationCommand(
+  contents: Electron.WebContents,
+  command: BrowserAnnotationCommand,
+) {
+  if (!contents.isDestroyed()) {
+    contents.send(browserAnnotationCommandChannel, command);
+  }
+}
+
+/**
+ * The embedded page's one way in. Everything it says is checked twice: the
+ * sender must be this window's own view (`pigui:invoke` checks nothing, which
+ * is why annotations never travel on it), and the message must be one of the
+ * three shapes the protocol knows.
+ */
+ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
+  const message = acceptBrowserAnnotationMessage({
+    sender: event.sender,
+    trustedSender: browserAnnotationSender,
+    message: payload,
+  });
+
+  if (!message) {
+    return;
+  }
+
+  const host = getBrowserHost();
+  const navigationId = host.currentNavigationId();
+
+  switch (message.type) {
+    case "ready":
+      // A new document carries a new overlay: no marks on it, and design mode
+      // has to be put back if the user never left it.
+      sendAnnotationCommand(event.sender, {
+        type: "set-design-mode",
+        enabled: host.isDesignModeEnabled(),
+      });
+      emitBrowserEvent({ type: "annotations-changed", navigationId, annotations: [] });
+      break;
+    case "annotations":
+      emitBrowserEvent({
+        type: "annotations-changed",
+        navigationId,
+        annotations: message.annotations,
+      });
+      break;
+    case "design-mode":
+      host.recordDesignMode(message.enabled);
+      emitBrowserEvent({
+        type: "design-mode-changed",
+        navigationId,
+        enabled: message.enabled,
+      });
+      break;
+  }
+});
 
 function getBrowserHost() {
   browserHost ??= createBrowserHost({

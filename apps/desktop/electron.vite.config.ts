@@ -53,8 +53,15 @@ const mainBuild = {
 
 const preloadBuild = {
   rollupOptions: {
+    // Two entries that must stay self-contained: a sandboxed preload's
+    // `require` cannot resolve a relative chunk, so neither may import a module
+    // the other does (PRD S2 constraint 6). They share types only.
     input: {
       preload: resolve(__dirname, "electron/preload.ts"),
+      "browser-annotation-preload": resolve(
+        __dirname,
+        "electron/browser-annotation-preload.ts",
+      ),
     },
     output: {
       entryFileNames: "[name].js",

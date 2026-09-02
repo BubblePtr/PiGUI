@@ -283,12 +283,36 @@ function BrowserSurfaceGallery() {
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address={address}
+              annotationCount={0}
               canGoBack
               canGoForward={false}
+              designMode={false}
               state={{ kind: "live" }}
               onAddressChange={setAddress}
               onAddressSubmit={() => {}}
               onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="design mode on, two elements marked — the marks themselves live in the page's own overlay">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              annotationCount={2}
+              canGoBack={false}
+              canGoForward={false}
+              designMode
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
@@ -299,13 +323,17 @@ function BrowserSurfaceGallery() {
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address="http://localhost:5173/"
+              annotationCount={0}
               canGoBack
               canGoForward={false}
+              designMode={false}
               snapshot={gallerySnapshot}
               state={{ kind: "live" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
               onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
@@ -316,12 +344,16 @@ function BrowserSurfaceGallery() {
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address=""
+              annotationCount={0}
               canGoBack={false}
               canGoForward={false}
+              designMode={false}
               state={{ kind: "empty" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
               onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
@@ -332,12 +364,16 @@ function BrowserSurfaceGallery() {
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address="http://localhost:5173/"
+              annotationCount={0}
               canGoBack={false}
               canGoForward={false}
+              designMode={false}
               state={{ kind: "error", message: "ERR_CONNECTION_REFUSED" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
               onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
@@ -348,12 +384,16 @@ function BrowserSurfaceGallery() {
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address=""
+              annotationCount={0}
               canGoBack={false}
               canGoForward={false}
+              designMode={false}
               state={{ kind: "narrow" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
               onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
@@ -364,12 +404,16 @@ function BrowserSurfaceGallery() {
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address=""
+              annotationCount={0}
               canGoBack={false}
               canGoForward={false}
+              designMode={false}
               state={{ kind: "unsupported" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
               onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}

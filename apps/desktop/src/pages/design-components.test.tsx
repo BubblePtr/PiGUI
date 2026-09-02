@@ -239,6 +239,14 @@ describe("Design components layer", () => {
     expect(within(section).getByTestId("browser-snapshot")).toBeInTheDocument();
     expect(within(section).getByText(/widen the window/i)).toBeInTheDocument();
     expect(within(section).getByText("No page loaded")).toBeInTheDocument();
+    // Design mode is a toolbar state of this surface, so the gallery has to
+    // carry it too — pressed toggle and the count of what is marked.
+    expect(within(section).getByTestId("browser-annotation-count")).toHaveTextContent("2");
+    expect(
+      within(section)
+        .getAllByRole("button", { name: "Design" })
+        .some((button) => button.getAttribute("aria-pressed") === "true"),
+    ).toBe(true);
   });
 
   it("registers the ContextUsageMeter in every level it can reach", () => {

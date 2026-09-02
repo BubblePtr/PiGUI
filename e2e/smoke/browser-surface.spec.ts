@@ -1,6 +1,6 @@
 import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
 import { createServer, type Server } from "node:http";
-import { launchPiGUI } from "../fixtures/electron-app";
+import { launchPiGUI, type PiGUITestApplication } from "../fixtures/electron-app";
 
 /**
  * Browser surface smoke: drives the real `WebContentsView` the Electron main
@@ -41,9 +41,27 @@ const replacingBody = `<!doctype html>
   <img src="/slow.png" alt="" />
 </body></html>`;
 
+/**
+ * The page the annotation layer has to survive: everything denied but the
+ * document itself, which is what a real app with a tight CSP looks like. The
+ * overlay may not use a `<style>` element or `innerHTML` on such a page.
+ */
+const strictCspBody = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Strict CSP</title></head>
+<body><h1 id="csp-home">Strict CSP preview</h1><button id="cta">Mark me</button></body></html>`;
+
 function startPreviewServer() {
   return new Promise<{ server: Server; origin: string }>((resolve) => {
     const server = createServer((request, response) => {
+      if (request.url === "/csp") {
+        response.writeHead(200, {
+          "content-type": "text/html",
+          "content-security-policy": "default-src 'none'; script-src 'self'",
+        });
+        response.end(strictCspBody);
+        return;
+      }
+
       response.writeHead(200, { "content-type": "text/html" });
       if (request.url === "/next") {
         response.end(nextBody);
@@ -89,30 +107,37 @@ async function readBrowserViewWidth(app: ElectronApplication) {
   return widths.at(-1) ?? 0;
 }
 
+/** Opens the inspector on the Browser surface, with no page loaded yet. */
+async function openBrowserSurface(testApp: PiGUITestApplication) {
+  const { window } = testApp;
+
+  await testApp.resizeWindow(1440, 900);
+  await window.getByRole("button", { name: "New Session", exact: true }).click();
+  await window
+    .getByRole("button", {
+      name: new RegExp(`^${testApp.projection!.initialPrompt}`, "i"),
+    })
+    .click();
+  await window.getByLabel("Session inspector").click();
+
+  const aside = window.getByTestId("session-inspector");
+
+  await expect(aside).toBeVisible();
+  await aside.getByRole("button", { name: "Browser" }).click();
+
+  // No URL remembered for this Project yet.
+  await expect(aside.getByText("No page loaded")).toBeVisible();
+
+  return aside;
+}
+
 test("Browser surface loads a page, follows the panel, and keeps popups in place", async () => {
   const { server, origin } = await startPreviewServer();
   const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
 
   try {
-    await testApp.resizeWindow(1440, 900);
-
     const { window } = testApp;
-
-    await window.getByRole("button", { name: "New Session", exact: true }).click();
-    await window
-      .getByRole("button", {
-        name: new RegExp(`^${testApp.projection!.initialPrompt}`, "i"),
-      })
-      .click();
-    await window.getByLabel("Session inspector").click();
-
-    const aside = window.getByTestId("session-inspector");
-
-    await expect(aside).toBeVisible();
-    await aside.getByRole("button", { name: "Browser" }).click();
-
-    // No URL remembered for this Project yet.
-    await expect(aside.getByText("No page loaded")).toBeVisible();
+    const aside = await openBrowserSurface(testApp);
 
     const viewPage = testApp.app.waitForEvent("window");
 
@@ -177,6 +202,82 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
       .catch(() => undefined);
     await expect(embedded.locator("#next")).toHaveText("PiGUI preview next");
     expect(testApp.app.windows()).toHaveLength(2);
+  } finally {
+    await testApp.close();
+    server.close();
+  }
+});
+
+test("Design mode marks an element on a strict-CSP page and keeps the overlay to itself", async () => {
+  const { server, origin } = await startPreviewServer();
+  const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
+
+  try {
+    const { window } = testApp;
+    const aside = await openBrowserSurface(testApp);
+    const viewPage = testApp.app.waitForEvent("window");
+
+    await aside.getByRole("textbox", { name: "Address" }).fill(`${origin}/csp`);
+    await window.keyboard.press("Enter");
+
+    const embedded: Page = await viewPage;
+
+    await expect(embedded.locator("#csp-home")).toHaveText("Strict CSP preview");
+    expect(await readBrowserViewVisible(testApp.app)).toBe(true);
+
+    await aside.getByRole("button", { name: "Design" }).click();
+
+    // The toolbar is plain buttons on purpose: a layer would trip the overlay
+    // detection and the user would end up marking a frozen screenshot.
+    await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
+    expect(await readBrowserViewVisible(testApp.app)).toBe(true);
+
+    // The host element showing up is design mode actually reaching the page —
+    // it is the one part of the overlay the page can see.
+    await expect
+      .poll(() =>
+        embedded.evaluate(() =>
+          Boolean(document.querySelector("pigui-annotation-overlay")),
+        ),
+      )
+      .toBe(true);
+
+    // Synthesized input cannot reach a native child view, so the page marks
+    // itself; the isolated world's listener still sees the click (S0 spike).
+    await embedded.evaluate(() => document.getElementById("cta")!.click());
+
+    await expect(aside.getByTestId("browser-annotation-count")).toHaveText("1 marked");
+
+    // Everything the overlay draws stays behind a closed shadow root: the page
+    // can find the host and delete it, but never read what is inside.
+    expect(
+      await embedded.evaluate(() => {
+        const host = document.querySelector("pigui-annotation-overlay");
+
+        return {
+          hostFound: Boolean(host),
+          shadowReadable: host ? host.shadowRoot !== null : true,
+          leaksOverlayText: document.documentElement.innerHTML.includes(
+            "What is wrong here?",
+          ),
+        };
+      }),
+    ).toEqual({ hostFound: true, shadowReadable: false, leaksOverlayText: false });
+
+    // Escape inside the page leaves design mode, and the toolbar follows.
+    await embedded.evaluate(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      ),
+    );
+
+    await expect(aside.getByRole("button", { name: "Design" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    await aside.getByRole("button", { name: "Clear marks" }).click();
+    await expect(aside.getByTestId("browser-annotation-count")).toHaveCount(0);
   } finally {
     await testApp.close();
     server.close();

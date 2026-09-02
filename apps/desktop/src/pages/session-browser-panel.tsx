@@ -3,10 +3,12 @@ import {
   browserBack,
   browserForward,
   captureBrowser,
+  clearBrowserAnnotations,
   navigateBrowser,
   openBrowserUrlExternally,
   reloadBrowser,
   setBrowserBounds,
+  setBrowserDesignMode,
   setBrowserVisible,
   subscribeBrowserEvents,
 } from "@/entities/browser/browser-client";
@@ -54,6 +56,9 @@ export function SessionBrowserPanel({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasPage, setHasPage] = useState(false);
   const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [designMode, setDesignMode] = useState(false);
+  // The marks live in the page's own overlay; this side only counts them.
+  const [annotationCount, setAnnotationCount] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Null means "nothing of mine is loaded": drop every event until this
   // component's own navigate answers with an id.
@@ -95,6 +100,13 @@ export function SessionBrowserPanel({
     setLoadError(null);
     setAddress(remembered ?? "");
     setHasPage(Boolean(remembered));
+    // The page this switch brings up starts unmarked and out of design mode.
+    // Main has to hear it too: it re-applies design mode to every document
+    // that reports in, so a reset kept to this side would leave the page
+    // marking while the toolbar says it is not.
+    setDesignMode(false);
+    setAnnotationCount(0);
+    void setBrowserDesignMode(false).catch(() => {});
 
     if (!remembered) {
       acceptedNavigationRef.current = null;
@@ -126,6 +138,14 @@ export function SessionBrowserPanel({
           break;
         case "did-fail-load":
           setLoadError(event.errorDescription || `Load failed (${event.errorCode}).`);
+          break;
+        case "annotations-changed":
+          setAnnotationCount(event.annotations.length);
+          break;
+        case "design-mode-changed":
+          // The page can leave design mode by itself (Escape), and the toolbar
+          // has to stop claiming otherwise.
+          setDesignMode(event.enabled);
           break;
       }
     });
@@ -181,7 +201,9 @@ export function SessionBrowserPanel({
   }, [available, snapshot, state.kind]);
 
   // Leaving the surface (other surface, inspector closed, Session switch) hides
-  // the view without discarding the page.
+  // the view without discarding the page. Design mode and the marks go with
+  // it: the page outlives this component, and one left marking would swallow
+  // every click with no toolbar in sight.
   useEffect(() => {
     if (!available) {
       return;
@@ -189,6 +211,8 @@ export function SessionBrowserPanel({
 
     return () => {
       void setBrowserVisible(false).catch(() => {});
+      void setBrowserDesignMode(false).catch(() => {});
+      void clearBrowserAnnotations().catch(() => {});
     };
   }, [available]);
 
@@ -198,6 +222,10 @@ export function SessionBrowserPanel({
     }
 
     setLoadError(null);
+    // The marks belong to the page being left. The new document does announce
+    // itself, but that announcement is stamped with a navigation id this
+    // component has not accepted yet, so it can never do the clearing.
+    setAnnotationCount(0);
     // Optimistic: the placeholder has to exist (and push its bounds) before the
     // page paints, or the native view shows up at the previous rect first.
     setHasPage(true);
@@ -211,14 +239,21 @@ export function SessionBrowserPanel({
   return (
     <BrowserSurface
       address={address}
+      annotationCount={annotationCount}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
+      designMode={designMode}
       snapshot={snapshot}
       state={state}
       viewportRef={viewportRef}
       onAddressChange={setAddress}
       onAddressSubmit={submitAddress}
       onBack={() => void browserBack().catch(() => {})}
+      onClearAnnotations={() => void clearBrowserAnnotations().catch(() => {})}
+      onDesignModeChange={(enabled) => {
+        setDesignMode(enabled);
+        void setBrowserDesignMode(enabled).catch(() => {});
+      }}
       onForward={() => void browserForward().catch(() => {})}
       onOpenExternal={() => void openBrowserUrlExternally(address).catch(() => {})}
       onReload={() => {

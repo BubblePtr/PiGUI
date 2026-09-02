@@ -40,6 +40,20 @@ export function setBrowserVisible(visible: boolean) {
   return invoke<BrowserViewState | null>("browser_set_visible", { visible });
 }
 
+/**
+ * Design mode runs in the embedded page's isolated world, so this only states
+ * the intent: main relays it to the annotation preload, which owns the overlay.
+ * What the user marked comes back as `annotations-changed`, never as an answer
+ * to these calls.
+ */
+export function setBrowserDesignMode(enabled: boolean) {
+  return invoke<null>("browser_set_design_mode", { enabled });
+}
+
+export function clearBrowserAnnotations() {
+  return invoke<null>("browser_clear_annotations");
+}
+
 /** Still of the page, so a DOM overlay can be shown without the native view
  *  covering it. Null when there is no view to photograph. */
 export function captureBrowser() {
