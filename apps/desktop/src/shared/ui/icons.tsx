@@ -16,6 +16,7 @@ import {
   CommandIcon,
   ComputerIcon,
   Copy01Icon,
+  CrosshairIcon,
   Delete02Icon,
   FileDiffIcon,
   FlashIcon,
@@ -79,6 +80,7 @@ export const Circle = iconComponent(CircleIcon);
 export const Command = iconComponent(CommandIcon);
 export const Computer = iconComponent(ComputerIcon);
 export const Copy = iconComponent(Copy01Icon);
+export const Crosshair = iconComponent(CrosshairIcon);
 export const FileDiff = iconComponent(FileDiffIcon);
 export const Flash = iconComponent(FlashIcon);
 export const FolderClosed = iconComponent(Folder01Icon);

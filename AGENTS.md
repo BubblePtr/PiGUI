@@ -32,6 +32,12 @@ The dev-only `/design` page (`apps/desktop/src/pages/design.tsx`) is the living 
 
 PRD: `.scratch/design-system-gallery/PRD.md`.
 
+## UI intent picker (dev-only)
+
+With the dev server running, the renderer mounts a floating crosshair button (or `Cmd/Ctrl+Shift+X`): click any element to copy a paste-ready block naming the CONTEXT.md region term, the component stack with file:line, and the nearest `data-testid` — use it to point agents at exact UI code. Source locations come from React 19.2 fiber `_debugStack` parsing (`apps/desktop/src/dev/ui-intent/fiber-stack.ts`).
+
+The CONTEXT.md term ↔ code binding table is `apps/desktop/src/dev/ui-intent/regions.ts`. **When you rename or move a region-level component, update that table in the same PR** (a test asserts every bound term still exists as a `**Term**:` heading in CONTEXT.md).
+
 ## Runtime gotchas
 
 - **Never exercise the terminal pty driver (`packages/backend/src/drivers/terminal.ts`) under the Bun runtime** (`bun script.ts`, `bun -e`). Bun's Node-API support breaks `@lydell/node-pty`: the pty spawns, then its fd dies early (`ioctl(2) failed, EBADF`) and output is lost. The production path never hits this — the backend runs in Electron's Node via `utilityProcess`, and vitest runs on Node too — so the rule only applies to one-off debug scripts: run those with `node script.mjs` instead.

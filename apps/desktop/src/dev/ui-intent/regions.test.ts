@@ -1,0 +1,69 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import type { ComponentStackEntry } from "./fiber-stack";
+import { matchRegion, uiRegions } from "./regions";
+
+function componentEntry(name: string): ComponentStackEntry {
+  return { name, kind: "component", file: null, line: null, library: false };
+}
+
+afterEach(() => {
+  document.body.innerHTML = "";
+});
+
+describe("uiRegions registry", () => {
+  it("only binds terms that exist as **Term**: headings in CONTEXT.md", () => {
+    // vitest runs from the repo root (the root vite.config.ts assumes it too).
+    const context = readFileSync(resolve(process.cwd(), "CONTEXT.md"), "utf8");
+
+    for (const region of uiRegions) {
+      expect(context, `missing CONTEXT.md term: ${region.term}`).toContain(
+        `**${region.term}**:`,
+      );
+    }
+  });
+
+  it("gives every region at least one matcher", () => {
+    for (const region of uiRegions) {
+      const { components = [], testIds = [], selectors = [] } = region.match;
+      expect(
+        components.length + testIds.length + selectors.length,
+        `region ${region.term} has no matcher`,
+      ).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("matchRegion", () => {
+  it("matches a component on the fiber stack, innermost first", () => {
+    const stack = [componentEntry("PiTraceLedger"), componentEntry("SessionDetailView")];
+    expect(matchRegion(stack, null)?.region.term).toBe("Ledger");
+  });
+
+  it("treats earlier stack entries as more specific", () => {
+    const stack = [componentEntry("SessionDetailView"), componentEntry("PiTraceLedger")];
+    expect(matchRegion(stack, null)?.region.term).toBe("Trace Cockpit");
+  });
+
+  it("prefers the clicked element's own attributes over the stack", () => {
+    document.body.innerHTML = `<div data-testid="session-detail-view"><p data-slot="trace-tally" id="t">x</p></div>`;
+    const element = document.getElementById("t");
+
+    expect(
+      element && matchRegion([componentEntry("SessionDetailView")], element)?.region.term,
+    ).toBe("Tally");
+  });
+
+  it("falls back to DOM ancestors when the stack has no match", () => {
+    document.body.innerHTML = `<div data-testid="sidebar-projects"><span id="s">x</span></div>`;
+    const element = document.getElementById("s");
+
+    expect(element && matchRegion([], element)?.region.term).toBe("Project Sidebar");
+  });
+
+  it("returns null when nothing matches", () => {
+    document.body.innerHTML = `<div><span id="n">x</span></div>`;
+    expect(matchRegion([], document.getElementById("n") ?? null)).toBeNull();
+  });
+});
