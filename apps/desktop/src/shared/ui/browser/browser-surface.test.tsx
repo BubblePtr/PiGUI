@@ -3,20 +3,28 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
 
-function renderSurface(overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {}) {
-  const props = {
+function surfaceProps(overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {}) {
+  return {
     address: "",
     state: { kind: "live" } as const,
     canGoBack: false,
     canGoForward: false,
+    annotationCount: 0,
+    designMode: false,
     onAddressChange: vi.fn(),
     onAddressSubmit: vi.fn(),
     onBack: vi.fn(),
     onForward: vi.fn(),
     onReload: vi.fn(),
     onOpenExternal: vi.fn(),
+    onClearAnnotations: vi.fn(),
+    onDesignModeChange: vi.fn(),
     ...overrides,
   };
+}
+
+function renderSurface(overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {}) {
+  const props = surfaceProps(overrides);
 
   render(<BrowserSurface {...props} />);
 
@@ -79,6 +87,39 @@ describe("BrowserSurface", () => {
     // swap does not shift anything on screen.
     expect(snapshot).toHaveAttribute("src", "data:image/png;base64,SNAP");
     expect(screen.getByTestId("browser-viewport")).toContainElement(snapshot);
+  });
+
+  it("turns design mode on from the toolbar", async () => {
+    const user = userEvent.setup();
+    const onDesignModeChange = vi.fn();
+
+    renderSurface({ onDesignModeChange });
+
+    await user.click(screen.getByRole("button", { name: "Design" }));
+
+    expect(onDesignModeChange).toHaveBeenCalledWith(true, expect.anything());
+  });
+
+  it("reports how many elements are marked and clears them only when there are", async () => {
+    const user = userEvent.setup();
+    const props = surfaceProps();
+    const view = render(<BrowserSurface {...props} />);
+
+    expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear marks" })).toBeDisabled();
+
+    view.rerender(<BrowserSurface {...props} annotationCount={2} designMode />);
+
+    expect(screen.getByTestId("browser-annotation-count")).toHaveTextContent("2");
+    await user.click(screen.getByRole("button", { name: "Clear marks" }));
+
+    expect(props.onClearAnnotations).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the design controls out of reach until a page is live", () => {
+    renderSurface({ state: { kind: "empty" } });
+
+    expect(screen.getByRole("button", { name: "Design" })).toBeDisabled();
   });
 
   it("only offers Open in browser once there is a page to open", () => {

@@ -3,10 +3,12 @@ import {
   browserBack,
   browserForward,
   captureBrowser,
+  clearBrowserAnnotations,
   navigateBrowser,
   openBrowserUrlExternally,
   reloadBrowser,
   setBrowserBounds,
+  setBrowserDesignMode,
   setBrowserVisible,
   subscribeBrowserEvents,
 } from "@/entities/browser/browser-client";
@@ -15,7 +17,11 @@ import {
   rememberProjectBrowserUrl,
 } from "@/entities/browser/browser-url-memory";
 import { isElectronRuntime } from "@/shared/runtime";
-import type { BrowserViewRect, BrowserViewState } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserViewRect,
+  BrowserViewState,
+} from "@/shared/browser-protocol";
 import {
   BrowserSurface,
   type BrowserSurfaceState,
@@ -54,6 +60,10 @@ export function SessionBrowserPanel({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasPage, setHasPage] = useState(false);
   const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [designMode, setDesignMode] = useState(false);
+  // What the page reports it is showing markers for. The marks live in the
+  // page's own overlay; this side only mirrors them.
+  const [annotations, setAnnotations] = useState<BrowserAnnotationElement[]>([]);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Null means "nothing of mine is loaded": drop every event until this
   // component's own navigate answers with an id.
@@ -127,6 +137,14 @@ export function SessionBrowserPanel({
         case "did-fail-load":
           setLoadError(event.errorDescription || `Load failed (${event.errorCode}).`);
           break;
+        case "annotations-changed":
+          setAnnotations(event.annotations);
+          break;
+        case "design-mode-changed":
+          // The page can leave design mode by itself (Escape), and the toolbar
+          // has to stop claiming otherwise.
+          setDesignMode(event.enabled);
+          break;
       }
     });
   }, [applyNavigation, available]);
@@ -181,7 +199,9 @@ export function SessionBrowserPanel({
   }, [available, snapshot, state.kind]);
 
   // Leaving the surface (other surface, inspector closed, Session switch) hides
-  // the view without discarding the page.
+  // the view without discarding the page. Design mode goes with it: the page
+  // outlives this component, and one left marking would swallow every click
+  // with no toolbar in sight.
   useEffect(() => {
     if (!available) {
       return;
@@ -189,6 +209,7 @@ export function SessionBrowserPanel({
 
     return () => {
       void setBrowserVisible(false).catch(() => {});
+      void setBrowserDesignMode(false).catch(() => {});
     };
   }, [available]);
 
@@ -211,14 +232,21 @@ export function SessionBrowserPanel({
   return (
     <BrowserSurface
       address={address}
+      annotationCount={annotations.length}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
+      designMode={designMode}
       snapshot={snapshot}
       state={state}
       viewportRef={viewportRef}
       onAddressChange={setAddress}
       onAddressSubmit={submitAddress}
       onBack={() => void browserBack().catch(() => {})}
+      onClearAnnotations={() => void clearBrowserAnnotations().catch(() => {})}
+      onDesignModeChange={(enabled) => {
+        setDesignMode(enabled);
+        void setBrowserDesignMode(enabled).catch(() => {});
+      }}
       onForward={() => void browserForward().catch(() => {})}
       onOpenExternal={() => void openBrowserUrlExternally(address).catch(() => {})}
       onReload={() => {

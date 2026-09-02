@@ -3,12 +3,15 @@ import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import {
   ArrowLeft,
   ArrowRight,
+  Crosshair,
   Globe,
   LinkExternal,
   RefreshCw,
+  Trash2,
 } from "@/shared/ui/icons";
 
 /**
@@ -33,6 +36,8 @@ export function BrowserSurface({
   state,
   canGoBack,
   canGoForward,
+  annotationCount,
+  designMode,
   snapshot,
   viewportRef,
   onAddressChange,
@@ -41,11 +46,16 @@ export function BrowserSurface({
   onForward,
   onReload,
   onOpenExternal,
+  onClearAnnotations,
+  onDesignModeChange,
 }: {
   address: string;
   state: BrowserSurfaceState;
   canGoBack: boolean;
   canGoForward: boolean;
+  /** Elements marked in the page; the marks themselves live in the page. */
+  annotationCount: number;
+  designMode: boolean;
   /**
    * Still of the page, shown instead of the native view while a DOM overlay
    * is open — the native view would otherwise cover it.
@@ -58,8 +68,11 @@ export function BrowserSurface({
   onForward: () => void;
   onReload: () => void;
   onOpenExternal: () => void;
+  onClearAnnotations: () => void;
+  onDesignModeChange: (designMode: boolean) => void;
 }) {
   const hasChrome = state.kind !== "narrow" && state.kind !== "unsupported";
+  const isLive = state.kind === "live";
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
@@ -100,9 +113,36 @@ export function BrowserSurface({
             onChange={onAddressChange}
             onEnter={() => onAddressSubmit(address)}
           />
+          {/* Plain buttons only. Anything that opens a layer — Popover,
+              Tooltip, Select — would trip the overlay detection and freeze the
+              page into a still, leaving the user marking up a screenshot. */}
+          <ToggleButton
+            icon={<Crosshair className="size-4" />}
+            isDisabled={!isLive}
+            isPressed={designMode}
+            label="Design"
+            size="sm"
+            onPressedChange={onDesignModeChange}
+          />
+          {annotationCount > 0 ? (
+            <span
+              className="shrink-0 text-xs tabular-nums text-muted"
+              data-testid="browser-annotation-count"
+            >
+              {annotationCount} marked
+            </span>
+          ) : null}
+          <IconButton
+            icon={<Trash2 className="size-4" />}
+            isDisabled={!isLive || annotationCount === 0}
+            label="Clear marks"
+            size="sm"
+            variant="ghost"
+            onClick={onClearAnnotations}
+          />
           <IconButton
             icon={<LinkExternal className="size-4" />}
-            isDisabled={state.kind !== "live"}
+            isDisabled={!isLive}
             label="Open in default browser"
             size="sm"
             variant="ghost"
