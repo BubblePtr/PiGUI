@@ -172,6 +172,15 @@ const devOnlyRoutes = import.meta.env.DEV
     ]
   : [];
 
+// Dev-only UI intent picker (floating crosshair button / Cmd+Ctrl+Shift+X).
+// Same DEV-gated lazy pattern as the design route: the module never lands in
+// production bundles.
+const DevUiIntentPicker = import.meta.env.DEV
+  ? React.lazy(async () => ({
+      default: (await import("@/dev/ui-intent/ui-intent-picker")).UiIntentPicker,
+    }))
+  : null;
+
 const router = createRouter({
   ...(isElectronRuntime() ? { history: createHashHistory() } : {}),
   routeTree: rootRoute.addChildren([
@@ -199,6 +208,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <SessionProjectionsProvider>
           <RouterProvider router={router} />
+          {DevUiIntentPicker ? (
+            <React.Suspense fallback={null}>
+              <DevUiIntentPicker />
+            </React.Suspense>
+          ) : null}
         </SessionProjectionsProvider>
       </QueryClientProvider>
     </Theme>
