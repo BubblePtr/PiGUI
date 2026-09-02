@@ -47,6 +47,22 @@ export function isBrowserCommand(command: string) {
   return browserCommands.has(command);
 }
 
+/**
+ * Chromium's ERR_ABORTED. `webContents.loadURL()` rejects with it whenever a
+ * page supersedes its own pending navigation (baidu.com does this on load), so
+ * it means "superseded", never "broken". `did-fail-load` already ignores the
+ * same code.
+ */
+export function isAbortedLoadError(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const { errno, code } = error as { errno?: unknown; code?: unknown };
+
+  return errno === -3 || code === "ERR_ABORTED";
+}
+
 /** `will-navigate` guard for navigation the embedded page starts itself. */
 export function isAllowedBrowserUrl(url: string) {
   try {
@@ -286,8 +302,14 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     try {
       await active.loadUrl(target);
     } catch (error) {
-      loadFailed = true;
-      throw error;
+      // An aborted load is not a failure: the page navigated again before its
+      // first request finished, so the request went away while the page it
+      // replaced it with is loading fine. Main normalises this too; the guard
+      // is repeated here so no caller of the host can be told otherwise.
+      if (!isAbortedLoadError(error)) {
+        loadFailed = true;
+        throw error;
+      }
     }
 
     loadFailed = false;

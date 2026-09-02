@@ -19,6 +19,7 @@ import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protoco
 import {
   createBrowserHost,
   createBrowserSessionProvider,
+  isAbortedLoadError,
   isBrowserCommand,
   type BrowserHost,
 } from "./browser-host";
@@ -443,7 +444,20 @@ function createBrowserView() {
   return {
     setBounds: (bounds: Electron.Rectangle) => view.setBounds(bounds),
     setVisible: (visible: boolean) => view.setVisible(visible),
-    loadUrl: (url: string) => webContents.loadURL(url).then(() => undefined),
+    loadUrl: (url: string) =>
+      webContents.loadURL(url).then(
+        () => undefined,
+        (error: unknown) => {
+          // A page that supersedes its own pending navigation (baidu.com does
+          // it on load) rejects the original loadURL with ERR_ABORTED while
+          // the replacement loads fine. `did-fail-load` already ignores the
+          // same code; the promise has to agree or the surface shows an error
+          // over a page that is on screen and working.
+          if (!isAbortedLoadError(error)) {
+            throw error;
+          }
+        },
+      ),
     goBack: () => webContents.navigationHistory.goBack(),
     goForward: () => webContents.navigationHistory.goForward(),
     reload: () => webContents.reload(),

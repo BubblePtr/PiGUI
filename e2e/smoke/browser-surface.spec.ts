@@ -29,11 +29,33 @@ const nextBody = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Preview next</title></head>
 <body><h1 id="next">PiGUI preview next</h1></body></html>`;
 
+/**
+ * Replaces itself while still parsing, which is what baidu.com does on load:
+ * Electron rejects the original `loadURL` with ERR_ABORTED even though the
+ * page the user ends up on loaded fine.
+ */
+const replacingBody = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Redirecting</title></head>
+<body>
+  <script>location.replace("/next");</script>
+  <img src="/slow.png" alt="" />
+</body></html>`;
+
 function startPreviewServer() {
   return new Promise<{ server: Server; origin: string }>((resolve) => {
     const server = createServer((request, response) => {
       response.writeHead(200, { "content-type": "text/html" });
-      response.end(request.url === "/next" ? nextBody : pageBody);
+      if (request.url === "/next") {
+        response.end(nextBody);
+        return;
+      }
+      if (request.url === "/slow.png") {
+        // Never answered: the replacing document's load event stays pending,
+        // so the navigation the address bar asked for is still in flight when
+        // the page replaces it — which is what produces ERR_ABORTED.
+        return;
+      }
+      response.end(request.url === "/replacing" ? replacingBody : pageBody);
     });
 
     server.listen(0, "127.0.0.1", () => {
@@ -133,6 +155,19 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     await window.getByTestId("browser-viewport").hover();
     await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
     await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
+
+    // A page that replaces itself mid-load aborts the request the address bar
+    // asked for. The page is fine, so the surface must not flip to its error
+    // state over a page that is on screen and working.
+    await aside.getByRole("textbox", { name: "Address" }).fill(`${origin}/replacing`);
+    await window.keyboard.press("Enter");
+    await expect(embedded.locator("#next")).toHaveText("PiGUI preview next");
+    await expect(window.getByTestId("browser-viewport")).toBeVisible();
+    await expect(window.getByText("The page did not load")).toHaveCount(0);
+
+    await aside.getByRole("textbox", { name: "Address" }).fill(origin);
+    await window.keyboard.press("Enter");
+    await expect(embedded.locator("#home")).toHaveText("PiGUI preview home");
 
     // `_blank` never opens a window; it loads in this same view.
     await embedded

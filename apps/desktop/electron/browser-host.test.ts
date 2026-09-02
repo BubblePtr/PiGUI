@@ -199,6 +199,31 @@ describe("browser host commands", () => {
     expect(views[0].loadCount()).toBe(3);
   });
 
+  it("treats an aborted load as a success, because the page replaced it", async () => {
+    const { host, views } = createHostHarness();
+    // A page that navigates again before its first load finishes (baidu.com
+    // does) makes Electron reject the original loadURL with ERR_ABORTED. The
+    // page is fine; only the superseded request went away.
+    const aborted = Object.assign(new Error("ERR_ABORTED (-3) loading 'https://www.baidu.com/'"), {
+      errno: -3,
+      code: "ERR_ABORTED",
+    });
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    views[0].loadRejection = aborted;
+
+    await expect(
+      host.invoke("browser_navigate", { url: "https://www.baidu.com/" }),
+    ).resolves.toMatchObject({ url: "https://www.baidu.com/" });
+
+    views[0].loadRejection = null;
+    // Not a failure, so re-entering the surface still short-circuits rather
+    // than reloading the page the user is looking at.
+    await host.invoke("browser_navigate", { url: "https://www.baidu.com/" });
+
+    expect(views[0].loadCount()).toBe(2);
+  });
+
   it("short-circuits again once a load has succeeded", async () => {
     const { host, views } = createHostHarness();
 
