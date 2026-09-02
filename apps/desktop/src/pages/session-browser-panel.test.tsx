@@ -9,6 +9,10 @@ import {
   getProjectBrowserUrl,
   rememberProjectBrowserUrl,
 } from "@/entities/browser/browser-url-memory";
+import {
+  subscribeComposerInjections,
+  type ComposerInjection,
+} from "@/entities/session/composer-injections";
 import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 
 type Invocation = { command: string; args?: Record<string, unknown> };
@@ -24,6 +28,10 @@ function installPreload(options: { captureGate?: Promise<void> } = {}) {
 
       if (command === "browser_capture") {
         await options.captureGate;
+        return "data:image/png;base64,SNAP";
+      }
+
+      if (command === "browser_capture_annotation") {
         return "data:image/png;base64,SNAP";
       }
 
@@ -264,6 +272,7 @@ describe("SessionBrowserPanel", () => {
     preload.emit({
       type: "annotations-changed",
       navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
       annotations: [
         { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
         { index: 2, selector: "#copy", tag: "p", rect: { x: 0, y: 0, width: 8, height: 8 } },
@@ -304,6 +313,57 @@ describe("SessionBrowserPanel", () => {
     );
   });
 
+  it("hands the marks and a screenshot of them to this Session's composer", async () => {
+    const user = userEvent.setup();
+    const preload = installPreload();
+    const injections: ComposerInjection[] = [];
+    const unsubscribe = subscribeComposerInjections("session-13", (injection) =>
+      injections.push(injection),
+    );
+
+    rememberProjectBrowserUrl("project-s", "http://localhost:5173/");
+    render(<SessionBrowserPanel docked projectId="project-s" sessionId="session-13" />);
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    preload.emit({
+      type: "annotations-changed",
+      navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
+      annotations: [
+        {
+          index: 1,
+          selector: "#cta",
+          tag: "button",
+          rect: { x: 0, y: 0, width: 8, height: 8 },
+          comment: "Too small to hit",
+        },
+      ],
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Send to composer" }));
+    await waitFor(() => expect(injections).toHaveLength(1));
+
+    const [injection] = injections;
+
+    // The page, the space the marks were measured in, and every mark — the
+    // template core renders is what Pi ends up reading.
+    expect(injection!.text).toContain("- URL: http://localhost:5173/");
+    expect(injection!.text).toContain("- Viewport: 684×820 @2x");
+    expect(injection!.text).toContain("#1 `#cta` (button) — Too small to hit");
+
+    const [screenshot] = injection!.files ?? [];
+
+    // A real File, so it rides the composer's existing image path rather than
+    // a second one built for this surface.
+    expect(preload.commands()).toContain("browser_capture_annotation");
+    expect(screenshot).toBeInstanceOf(File);
+    expect(screenshot!.type).toBe("image/png");
+    expect(screenshot!.size).toBeGreaterThan(0);
+
+    unsubscribe();
+  });
+
   it("drops the marks as soon as it asks for another page", async () => {
     const user = userEvent.setup();
     const preload = installPreload();
@@ -316,6 +376,7 @@ describe("SessionBrowserPanel", () => {
     preload.emit({
       type: "annotations-changed",
       navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
       annotations: [
         { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
       ],
@@ -351,6 +412,7 @@ describe("SessionBrowserPanel", () => {
     preload.emit({
       type: "annotations-changed",
       navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
       annotations: [
         { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
       ],

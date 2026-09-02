@@ -1,5 +1,8 @@
 import { describeAnnotatedElement } from "./browser-annotation";
-import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@/shared/browser-protocol";
 
 /**
  * The design-mode overlay, as it runs inside the embedded page's isolated
@@ -62,7 +65,10 @@ function applyStyles(element: HTMLElement, styles: Record<string, string>) {
 
 export function createAnnotationOverlay(options: {
   document: Document;
-  onAnnotationsChange: (annotations: BrowserAnnotationElement[]) => void;
+  onAnnotationsChange: (
+    annotations: BrowserAnnotationElement[],
+    viewport: BrowserAnnotationViewport,
+  ) => void;
   onDesignModeChange: (enabled: boolean) => void;
 }): BrowserAnnotationOverlay {
   const doc = options.document;
@@ -137,8 +143,26 @@ export function createAnnotationOverlay(options: {
     return host;
   }
 
+  /**
+   * The page's own viewport, which is the space every rect above was measured
+   * in — and, unlike the panel's rect on the other side of the IPC, it is
+   * still the right one when the user resizes the panel before sending.
+   */
+  function readViewport(): BrowserAnnotationViewport {
+    const view = doc.defaultView;
+
+    return {
+      width: view?.innerWidth ?? 0,
+      height: view?.innerHeight ?? 0,
+      dpr: view?.devicePixelRatio ?? 1,
+    };
+  }
+
   function notify() {
-    options.onAnnotationsChange(annotations.map((annotation) => ({ ...annotation })));
+    options.onAnnotationsChange(
+      annotations.map((annotation) => ({ ...annotation })),
+      readViewport(),
+    );
   }
 
   /** The element the user is pointing at, or null when it is our own overlay. */

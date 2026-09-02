@@ -168,6 +168,7 @@ describe("acceptBrowserAnnotationMessage", () => {
     tag: "button",
     rect: { x: 1, y: 2, width: 3, height: 4 },
   };
+  const viewport = { width: 684, height: 820, dpr: 2 };
 
   it("refuses a sender that is not the embedded view", () => {
     expect(
@@ -197,7 +198,11 @@ describe("acceptBrowserAnnotationMessage", () => {
       { type: "design-mode" },
       { type: "design-mode", enabled: "yes" },
       { type: "annotations" },
-      { type: "annotations", annotations: {} },
+      { type: "annotations", annotations: {}, viewport },
+      // The viewport is what the marks were measured in; annotations without
+      // one describe positions in an unknown space.
+      { type: "annotations", annotations: [] },
+      { type: "annotations", annotations: [], viewport: { width: 684, height: 820 } },
     ]) {
       expect(
         acceptBrowserAnnotationMessage({ sender: trustedSender, trustedSender, message }),
@@ -211,6 +216,7 @@ describe("acceptBrowserAnnotationMessage", () => {
       trustedSender,
       message: {
         type: "annotations",
+        viewport,
         annotations: [
           annotation,
           { ...annotation, index: 2, selector: 42 },
@@ -219,7 +225,11 @@ describe("acceptBrowserAnnotationMessage", () => {
       },
     });
 
-    expect(accepted).toEqual({ type: "annotations", annotations: [annotation] });
+    expect(accepted).toEqual({
+      type: "annotations",
+      annotations: [annotation],
+      viewport,
+    });
   });
 
   it("rebuilds each annotation, so page-supplied extras never travel on", () => {
@@ -228,6 +238,7 @@ describe("acceptBrowserAnnotationMessage", () => {
       trustedSender,
       message: {
         type: "annotations",
+        viewport,
         annotations: [
           {
             ...annotation,

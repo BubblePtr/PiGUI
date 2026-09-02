@@ -55,6 +55,11 @@ export type BrowserEvent =
       type: "annotations-changed";
       navigationId: number;
       annotations: BrowserAnnotationElement[];
+      /**
+       * The page's own viewport as it measured those rects, and null for the
+       * reset a fresh document announces — it has measured nothing yet.
+       */
+      viewport: BrowserAnnotationViewport | null;
     }
   /** Design mode turned off inside the page (Esc), so the toolbar can follow. */
   | { type: "design-mode-changed"; navigationId: number; enabled: boolean }

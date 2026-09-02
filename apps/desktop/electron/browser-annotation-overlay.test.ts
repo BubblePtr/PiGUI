@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@/shared/browser-protocol";
 import {
   annotationOverlayHostTag,
   createAnnotationOverlay,
@@ -17,17 +20,22 @@ let overlay: BrowserAnnotationOverlay | null = null;
 
 function harness() {
   const annotationChanges: BrowserAnnotationElement[][] = [];
+  const viewports: BrowserAnnotationViewport[] = [];
   const designModeChanges: boolean[] = [];
 
   overlay = createAnnotationOverlay({
     document,
-    onAnnotationsChange: (annotations) => annotationChanges.push(annotations),
+    onAnnotationsChange: (annotations, viewport) => {
+      annotationChanges.push(annotations);
+      viewports.push(viewport);
+    },
     onDesignModeChange: (enabled) => designModeChanges.push(enabled),
   });
 
   return {
     overlay,
     annotationChanges,
+    viewports,
     designModeChanges,
     latest: () => annotationChanges[annotationChanges.length - 1] ?? [],
     shadow: () => shadowRoots[shadowRoots.length - 1]!,
@@ -139,6 +147,29 @@ describe("annotation overlay", () => {
     // Marks outlive design mode — they are what the screenshot has to show.
     clickPageElement(document.getElementById("copy")!);
     expect(latest()).toHaveLength(1);
+  });
+
+  it("reports the page's own viewport alongside the marks", () => {
+    const { overlay, viewports } = harness();
+
+    for (const [property, value] of Object.entries({
+      innerWidth: 684,
+      innerHeight: 820,
+      devicePixelRatio: 2,
+    })) {
+      Object.defineProperty(window, property, { configurable: true, value });
+    }
+
+    overlay.setDesignMode(true);
+    clickPageElement(document.getElementById("cta")!);
+
+    // The marks are measured in the page's viewport, not the panel's rect —
+    // and the panel can be resized between marking and sending.
+    expect(viewports[viewports.length - 1]).toEqual({
+      width: 684,
+      height: 820,
+      dpr: 2,
+    });
   });
 
   it("drops the hover highlight when the pointer leaves the page", () => {

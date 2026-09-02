@@ -60,6 +60,15 @@ export function captureBrowser() {
   return invoke<string | null>("browser_capture");
 }
 
+/**
+ * The same page, but sized for a prompt rather than for the placeholder: main
+ * brings a HiDPI capture back down to the panel's CSS width, keeping the PNG
+ * under the 8 MiB an image attachment may weigh.
+ */
+export function captureBrowserAnnotation() {
+  return invoke<string | null>("browser_capture_annotation");
+}
+
 export function openBrowserUrlExternally(url: string) {
   return invoke<null>("browser_open_external", { url });
 }

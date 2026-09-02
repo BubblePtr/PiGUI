@@ -1,4 +1,7 @@
-import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@/shared/browser-protocol";
 
 /**
  * The annotation layer's vocabulary: the two IPC channels between main and the
@@ -21,7 +24,12 @@ export type BrowserAnnotationMessage =
   /** A fresh document's overlay is live: it has no annotations yet. */
   | { type: "ready" }
   | { type: "design-mode"; enabled: boolean }
-  | { type: "annotations"; annotations: BrowserAnnotationElement[] };
+  | {
+      type: "annotations";
+      annotations: BrowserAnnotationElement[];
+      /** The space the rects were measured in, straight from the page. */
+      viewport: BrowserAnnotationViewport;
+    };
 
 export type BrowserAnnotationCommand =
   | { type: "set-design-mode"; enabled: boolean }
@@ -183,6 +191,19 @@ function readRect(value: unknown) {
     : null;
 }
 
+function readViewportValue(value: unknown): BrowserAnnotationViewport | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const { width, height, dpr } = value as Record<string, unknown>;
+  const measures = [width, height, dpr].map(finiteNumber);
+
+  return measures.every((measure) => measure !== null)
+    ? { width: measures[0]!, height: measures[1]!, dpr: measures[2]! }
+    : null;
+}
+
 function readSourceValue(value: unknown) {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -274,7 +295,11 @@ export function acceptBrowserAnnotationMessage<Sender>(input: {
         ? { type: "design-mode", enabled: message.enabled }
         : null;
     case "annotations": {
-      if (!Array.isArray(message.annotations)) {
+      const viewport = readViewportValue(message.viewport);
+
+      // Rects without the viewport they were measured in describe positions in
+      // an unknown space, so the message is not usable without one.
+      if (!Array.isArray(message.annotations) || !viewport) {
         return null;
       }
 
@@ -283,7 +308,7 @@ export function acceptBrowserAnnotationMessage<Sender>(input: {
         .map(readAnnotation)
         .filter((annotation): annotation is BrowserAnnotationElement => annotation !== null);
 
-      return { type: "annotations", annotations };
+      return { type: "annotations", annotations, viewport };
     }
     default:
       return null;

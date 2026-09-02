@@ -48,6 +48,7 @@ export function BrowserSurface({
   onOpenExternal,
   onClearAnnotations,
   onDesignModeChange,
+  onSendToComposer,
 }: {
   address: string;
   state: BrowserSurfaceState;
@@ -70,6 +71,8 @@ export function BrowserSurface({
   onOpenExternal: () => void;
   onClearAnnotations: () => void;
   onDesignModeChange: (designMode: boolean) => void;
+  /** Drops the marks and a screenshot of them into this Session's composer. */
+  onSendToComposer: () => void;
 }) {
   const hasChrome = state.kind !== "narrow" && state.kind !== "unsupported";
   const isLive = state.kind === "live";
@@ -142,6 +145,15 @@ export function BrowserSurface({
             size="sm"
             variant="ghost"
             onClick={onClearAnnotations}
+          />
+          {/* The action design mode exists for, so it is the one control here
+              that carries its own label. Nothing to send without a mark: the
+              prompt would be a URL and a screenshot with no question on it. */}
+          <Button
+            isDisabled={!isLive || annotationCount === 0}
+            label="Send to composer"
+            size="sm"
+            onClick={onSendToComposer}
           />
           <IconButton
             icon={<LinkExternal className="size-4" />}

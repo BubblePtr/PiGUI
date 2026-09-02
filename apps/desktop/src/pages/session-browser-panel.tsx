@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  formatBrowserAnnotationPrompt,
+  type BrowserAnnotationElement,
+  type BrowserAnnotationViewport,
+} from "@pigui/core";
+import {
   browserBack,
   browserForward,
   captureBrowser,
+  captureBrowserAnnotation,
   clearBrowserAnnotations,
   navigateBrowser,
   openBrowserUrlExternally,
@@ -16,6 +22,7 @@ import {
   getProjectBrowserUrl,
   rememberProjectBrowserUrl,
 } from "@/entities/browser/browser-url-memory";
+import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { isElectronRuntime } from "@/shared/runtime";
 import type { BrowserViewRect, BrowserViewState } from "@/shared/browser-protocol";
 import {
@@ -57,9 +64,18 @@ export function SessionBrowserPanel({
   const [hasPage, setHasPage] = useState(false);
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [designMode, setDesignMode] = useState(false);
-  // The marks live in the page's own overlay; this side only counts them.
-  const [annotationCount, setAnnotationCount] = useState(0);
+  // The marks live in the page's own overlay; this side keeps the copy the
+  // page reports, with the viewport it measured them in. One state rather than
+  // two, because marks without that viewport cannot be turned into a payload.
+  const [marks, setMarks] = useState<{
+    annotations: BrowserAnnotationElement[];
+    viewport: BrowserAnnotationViewport;
+  } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  // The address bar is an input the user can type in without navigating, so
+  // what it holds is not necessarily what is loaded. The payload has to name
+  // the page the marks are actually on.
+  const loadedUrlRef = useRef("");
   // Null means "nothing of mine is loaded": drop every event until this
   // component's own navigate answers with an id.
   const acceptedNavigationRef = useRef<number | null>(null);
@@ -70,6 +86,7 @@ export function SessionBrowserPanel({
       setLoadError(null);
       setHasPage(true);
       setAddress(view.url);
+      loadedUrlRef.current = view.url;
       setCanGoBack(view.canGoBack);
       setCanGoForward(view.canGoForward);
       // Redirects mean the typed text is not what loaded; memory follows the
@@ -105,7 +122,7 @@ export function SessionBrowserPanel({
     // that reports in, so a reset kept to this side would leave the page
     // marking while the toolbar says it is not.
     setDesignMode(false);
-    setAnnotationCount(0);
+    setMarks(null);
     void setBrowserDesignMode(false).catch(() => {});
 
     if (!remembered) {
@@ -140,7 +157,13 @@ export function SessionBrowserPanel({
           setLoadError(event.errorDescription || `Load failed (${event.errorCode}).`);
           break;
         case "annotations-changed":
-          setAnnotationCount(event.annotations.length);
+          // A fresh document announces itself with no marks and no viewport;
+          // so does clearing them. Either way there is nothing to send.
+          setMarks(
+            event.viewport && event.annotations.length
+              ? { annotations: event.annotations, viewport: event.viewport }
+              : null,
+          );
           break;
         case "design-mode-changed":
           // The page can leave design mode by itself (Escape), and the toolbar
@@ -225,7 +248,7 @@ export function SessionBrowserPanel({
     // The marks belong to the page being left. The new document does announce
     // itself, but that announcement is stamped with a navigation id this
     // component has not accepted yet, so it can never do the clearing.
-    setAnnotationCount(0);
+    setMarks(null);
     // Optimistic: the placeholder has to exist (and push its bounds) before the
     // page paints, or the native view shows up at the previous rect first.
     setHasPage(true);
@@ -236,10 +259,37 @@ export function SessionBrowserPanel({
       });
   };
 
+  /**
+   * The one thing design mode is for: the marks and a screenshot of them land
+   * in this Session's composer as a draft the user can still edit, so the
+   * choice between sending, queueing and steering stays theirs (PRD decision
+   * 5, and "Send now" was ruled out).
+   */
+  const sendToComposer = async () => {
+    if (!marks) {
+      return;
+    }
+
+    // Capture first: the prompt says the screenshot carries the same numbers,
+    // and a failure there must not also cost the user their annotations.
+    const screenshot = await captureBrowserAnnotation().catch(() => null);
+
+    injectIntoComposer({
+      sessionId,
+      text: formatBrowserAnnotationPrompt({
+        url: loadedUrlRef.current,
+        viewport: marks.viewport,
+        elements: marks.annotations,
+        capturedAt: new Date().toISOString(),
+      }),
+      files: screenshot ? [pngFileFromDataUrl(screenshot)] : [],
+    });
+  };
+
   return (
     <BrowserSurface
       address={address}
-      annotationCount={annotationCount}
+      annotationCount={marks?.annotations.length ?? 0}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
       designMode={designMode}
@@ -266,8 +316,25 @@ export function SessionBrowserPanel({
 
         void reloadBrowser().catch(() => {});
       }}
+      onSendToComposer={() => void sendToComposer().catch(() => {})}
     />
   );
+}
+
+/**
+ * The capture comes back as a data URL and the composer's attachment path
+ * wants a `File` — that path is what gives the screenshot its drawer preview,
+ * its size check and its base64 encoding at submit.
+ */
+function pngFileFromDataUrl(dataUrl: string) {
+  const binary = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], "browser-annotations.png", { type: "image/png" });
 }
 
 function surfaceState(input: {

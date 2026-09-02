@@ -562,13 +562,19 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
         type: "set-design-mode",
         enabled: host.isDesignModeEnabled(),
       });
-      emitBrowserEvent({ type: "annotations-changed", navigationId, annotations: [] });
+      emitBrowserEvent({
+        type: "annotations-changed",
+        navigationId,
+        annotations: [],
+        viewport: null,
+      });
       break;
     case "annotations":
       emitBrowserEvent({
         type: "annotations-changed",
         navigationId,
         annotations: message.annotations,
+        viewport: message.viewport,
       });
       break;
     case "design-mode":

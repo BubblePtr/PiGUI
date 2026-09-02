@@ -24,8 +24,12 @@ import { createAnnotationOverlay } from "./browser-annotation-overlay";
 
 const overlay = createAnnotationOverlay({
   document,
-  onAnnotationsChange(annotations) {
-    ipcRenderer.send(browserAnnotationChannel, { type: "annotations", annotations });
+  onAnnotationsChange(annotations, viewport) {
+    ipcRenderer.send(browserAnnotationChannel, {
+      type: "annotations",
+      annotations,
+      viewport,
+    });
   },
   onDesignModeChange(enabled) {
     ipcRenderer.send(browserAnnotationChannel, { type: "design-mode", enabled });

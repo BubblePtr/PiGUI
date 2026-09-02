@@ -296,6 +296,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -316,6 +317,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -337,6 +339,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -357,6 +360,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -377,6 +381,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -397,6 +402,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
@@ -417,6 +423,7 @@ function BrowserSurfaceGallery() {
               onForward={() => {}}
               onOpenExternal={() => {}}
               onReload={() => {}}
+              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
