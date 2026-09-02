@@ -208,7 +208,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
   }
 });
 
-test("Design mode marks an element on a strict-CSP page and keeps the overlay to itself", async () => {
+test("Design mode marks a strict-CSP page, keeps the overlay to itself, and sends the marks to the composer", async () => {
   const { server, origin } = await startPreviewServer();
   const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
 
@@ -263,6 +263,19 @@ test("Design mode marks an element on a strict-CSP page and keeps the overlay to
         };
       }),
     ).toEqual({ hostFound: true, shadowReadable: false, leaksOverlayText: false });
+
+    // What design mode is for: the marks and a screenshot of them land in this
+    // Session's composer as a draft, never as a sent prompt.
+    await aside.getByRole("button", { name: "Send to composer" }).click();
+
+    const composer = window.getByTestId("full-chat-composer");
+
+    // No comment was typed — the bubble lives in the closed shadow root, out of
+    // reach of any driver — so this also covers the uncommented row.
+    await expect(composer.getByRole("textbox")).toHaveValue(
+      /#1 `#cta` \(button\) — \(no comment\)/,
+    );
+    await expect(composer.getByAltText("browser-annotations.png")).toBeVisible();
 
     // Escape inside the page leaves design mode, and the toolbar follows.
     await embedded.evaluate(() =>
