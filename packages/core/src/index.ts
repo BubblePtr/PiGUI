@@ -102,3 +102,10 @@ export {
   type RuntimeGatewaySequencer,
   type RuntimeGatewaySequencerOptions,
 } from "./runtime-gateway";
+
+export {
+  formatBrowserAnnotationPrompt,
+  type BrowserAnnotationElement,
+  type BrowserAnnotationPayload,
+  type BrowserAnnotationViewport,
+} from "./browser-annotation";

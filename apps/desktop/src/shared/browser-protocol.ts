@@ -7,6 +7,11 @@
  * renderer share only the shapes below.
  */
 
+import type {
+  BrowserAnnotationElement,
+  BrowserAnnotationViewport,
+} from "@pigui/core";
+
 export type BrowserViewRect = {
   x: number;
   y: number;
@@ -32,25 +37,17 @@ export type BrowserViewState = BrowserViewSnapshot & {
 };
 
 /**
- * One element the user marked in design mode. Produced in the embedded page's
- * isolated world, validated in main, read by the renderer.
+ * What the user marked in design mode lives in `@pigui/core`: the shapes
+ * outgrew the wire — the renderer assembles a payload out of them and core's
+ * `formatBrowserAnnotationPrompt` renders it for Pi. They are re-exported here
+ * so main, the annotation preload and the renderer keep reading one protocol
+ * module.
  *
- * There is no `reactName`: the isolated world shares the page's DOM but not
- * its JS wrappers, so React's `__reactFiber$` expando is simply not there
- * (PRD S2 implementation constraint 1). `source` is the best-effort stand-in,
- * read from whatever `data-*` attributes the dev server stamped.
+ * Type-only on purpose. The annotation preload reaches this module (through
+ * `electron/browser-annotation.ts`) and has to stay self-contained, so nothing
+ * here may become a runtime import (PRD S2 implementation constraint 6).
  */
-export type BrowserAnnotationElement = {
-  /** 1-based; the number the marker shows in the page and on the screenshot. */
-  index: number;
-  selector: string;
-  tag: string;
-  text?: string;
-  /** Viewport-relative, as measured when the element was marked. */
-  rect: BrowserViewRect;
-  source?: { file: string; line: number; column?: number };
-  comment?: string;
-};
+export type { BrowserAnnotationElement, BrowserAnnotationViewport };
 
 export type BrowserEvent =
   | ({ type: "did-navigate" } & BrowserViewState)
