@@ -1,5 +1,6 @@
 import { invoke, onBrowserEvent } from "@/shared/runtime";
 import type {
+  BrowserAnnotationCapture,
   BrowserEvent,
   BrowserViewRect,
   BrowserViewState,
@@ -61,12 +62,12 @@ export function captureBrowser() {
 }
 
 /**
- * The same page, but sized for a prompt rather than for the placeholder: main
- * brings a HiDPI capture back down to the panel's CSS width, keeping the PNG
- * under the 8 MiB an image attachment may weigh.
+ * The screenshot that goes to Pi, with the marks it was taken against. Main
+ * has the page settle its overlay first and re-measure, so the answer describes
+ * one moment — never the render state this side happens to be holding.
  */
 export function captureBrowserAnnotation() {
-  return invoke<string | null>("browser_capture_annotation");
+  return invoke<BrowserAnnotationCapture | null>("browser_capture_annotation");
 }
 
 export function openBrowserUrlExternally(url: string) {

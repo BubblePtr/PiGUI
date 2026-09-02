@@ -34,6 +34,13 @@ const overlay = createAnnotationOverlay({
   onDesignModeChange(enabled) {
     ipcRenderer.send(browserAnnotationChannel, { type: "design-mode", enabled });
   },
+  onCaptureReady(annotations, viewport) {
+    ipcRenderer.send(browserAnnotationChannel, {
+      type: "capture-ready",
+      annotations,
+      viewport,
+    });
+  },
 });
 
 ipcRenderer.on(
@@ -45,6 +52,9 @@ ipcRenderer.on(
         break;
       case "clear-annotations":
         overlay.clearAnnotations();
+        break;
+      case "prepare-capture":
+        overlay.prepareCapture();
         break;
     }
   },

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserViewState } from "@/shared/browser-protocol";
 import {
+  browserCaptureAckTimeoutMs,
   browserTitlebarBandPx,
   createBrowserHost,
   createBrowserSessionProvider,
@@ -50,6 +51,9 @@ function createFakeView() {
     },
     setDesignMode(enabled) {
       calls.push(`setDesignMode(${enabled})`);
+    },
+    prepareCapture() {
+      calls.push("prepareCapture");
     },
     clearAnnotations() {
       calls.push("clearAnnotations");
@@ -152,6 +156,18 @@ describe("resolveBrowserViewBounds", () => {
 });
 
 describe("browser host commands", () => {
+  /** What the page reported while marking, and what it acks at capture time. */
+  const marked = {
+    annotations: [
+      { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
+    ],
+    viewport: { width: 684, height: 820, dpr: 2 },
+  };
+  const acked = {
+    annotations: [{ ...marked.annotations[0]!, comment: "Too small to hit" }],
+    viewport: { width: 900, height: 820, dpr: 2 },
+  };
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -372,9 +388,11 @@ describe("browser host commands", () => {
     });
 
     await host.invoke("browser_capture");
-    await expect(host.invoke("browser_capture_annotation")).resolves.toBe(
-      "data:image/png;base64,SNAPSHOT",
-    );
+
+    const capture = host.invoke("browser_capture_annotation");
+
+    host.recordCaptureReady([], marked.viewport);
+    await capture;
 
     // The still that stands in for the native view keeps every device pixel,
     // because it is shown at the placeholder's own size. The one that becomes
@@ -382,6 +400,58 @@ describe("browser host commands", () => {
     // approaching the 8 MiB image ceiling, and the model gains nothing from it.
     expect(views[0]!.calls).toContain("capture()");
     expect(views[0]!.calls).toContain("capture(684)");
+  });
+
+  it("has the page settle its overlay before the shot, and sends what it acked", async () => {
+    const { host, views } = createHostHarness();
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    await host.invoke("browser_set_bounds", {
+      rect: { x: 748, y: 40, width: 684, height: 820 },
+    });
+    // What main heard while the user was still marking.
+    host.recordAnnotations(marked.annotations, marked.viewport);
+
+    const capture = host.invoke("browser_capture_annotation");
+
+    // The page answers the prepare with the comment it has just committed and
+    // a viewport measured now, after the panel was dragged wider.
+    host.recordCaptureReady(acked.annotations, acked.viewport);
+
+    expect(await capture).toEqual({
+      image: "data:image/png;base64,SNAPSHOT",
+      annotations: acked.annotations,
+      viewport: acked.viewport,
+      url: "http://localhost:5173/",
+    });
+    // Order is the whole point: shooting first would print the open comment
+    // bubble and a stale hover box onto what Pi reads.
+    expect(views[0]!.calls.slice(-2)).toEqual(["prepareCapture", "capture(684)"]);
+  });
+
+  it("shoots anyway when the page never answers, using what main last heard", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { host, views } = createHostHarness();
+
+      await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+      host.recordAnnotations(marked.annotations, marked.viewport);
+
+      const capture = host.invoke("browser_capture_annotation");
+
+      // No annotation preload is listening — a page that replaced the document
+      // before its overlay reported in, say. The toolbar must not hang on it.
+      await vi.advanceTimersByTimeAsync(browserCaptureAckTimeoutMs);
+
+      expect(await capture).toMatchObject({
+        annotations: marked.annotations,
+        viewport: marked.viewport,
+      });
+      expect(views[0]!.calls).toContain("capture()");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("drives design mode through the view and remembers it for the next document", async () => {

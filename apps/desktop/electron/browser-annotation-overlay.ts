@@ -36,6 +36,11 @@ type MarkerEntry = {
 export type BrowserAnnotationOverlay = {
   setDesignMode(enabled: boolean): void;
   clearAnnotations(): void;
+  /**
+   * Put the overlay out of shot and say what it holds, so main can photograph
+   * the page without the overlay's own chrome on it.
+   */
+  prepareCapture(): void;
   dispose(): void;
 };
 
@@ -70,6 +75,11 @@ export function createAnnotationOverlay(options: {
     viewport: BrowserAnnotationViewport,
   ) => void;
   onDesignModeChange: (enabled: boolean) => void;
+  /** The ack main waits for before it shoots. */
+  onCaptureReady: (
+    annotations: BrowserAnnotationElement[],
+    viewport: BrowserAnnotationViewport,
+  ) => void;
 }): BrowserAnnotationOverlay {
   const doc = options.document;
   // The earliest node in the capture path, so page handlers registered later
@@ -473,6 +483,22 @@ export function createAnnotationOverlay(options: {
       // No notification back: this is main answering its own command, and an
       // echo would fight the renderer's own state.
       applyDesignMode(enabled);
+    },
+
+    prepareCapture() {
+      // Closing the bubble commits it: a Send driven from the keyboard never
+      // blurs the input, so this is the only moment the comment the user just
+      // typed can still reach the payload. It also takes the input and the
+      // hover box out of the frame — both are overlay chrome, and neither
+      // belongs in a screenshot of the user's page.
+      setCommentOpen(null);
+      hideHighlight();
+      // Measured now rather than when the mark was made: the panel can have
+      // been dragged wider since, and the shot is being taken at this size.
+      options.onCaptureReady(
+        annotations.map((annotation) => ({ ...annotation })),
+        readViewport(),
+      );
     },
 
     clearAnnotations() {

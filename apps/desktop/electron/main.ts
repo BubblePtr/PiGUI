@@ -485,6 +485,8 @@ function createBrowserView() {
       sendAnnotationCommand(webContents, { type: "set-design-mode", enabled }),
     clearAnnotations: () =>
       sendAnnotationCommand(webContents, { type: "clear-annotations" }),
+    prepareCapture: () =>
+      sendAnnotationCommand(webContents, { type: "prepare-capture" }),
     reload: () => webContents.reload(),
     destroy: () => {
       // Disposal also runs after the window is gone (quit). Tearing the
@@ -512,8 +514,8 @@ function createBrowserView() {
         return null;
       }
 
-      // `capturePage` answers in device pixels, so a HiDPI display doubles
-      // every dimension. Resizing by width alone keeps the aspect ratio.
+      // Resizing by width alone keeps the aspect ratio; who asks for a cap,
+      // and why, is `browser_capture_annotation` in browser-host.ts.
       const captured = image.getSize();
       const resized =
         maxWidth && maxWidth > 0 && captured.width > maxWidth
@@ -562,6 +564,7 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
         type: "set-design-mode",
         enabled: host.isDesignModeEnabled(),
       });
+      host.recordAnnotations([], null);
       emitBrowserEvent({
         type: "annotations-changed",
         navigationId,
@@ -570,12 +573,21 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
       });
       break;
     case "annotations":
+      // Kept on the host as well as forwarded: a capture whose prepare goes
+      // unanswered falls back to the last marks that arrived here.
+      host.recordAnnotations(message.annotations, message.viewport);
       emitBrowserEvent({
         type: "annotations-changed",
         navigationId,
         annotations: message.annotations,
         viewport: message.viewport,
       });
+      break;
+    case "capture-ready":
+      // The answer to a prepare — it releases the capture waiting on it. The
+      // renderer hears about these marks in the capture's own result, not as
+      // an event, so the two cannot disagree.
+      host.recordCaptureReady(message.annotations, message.viewport);
       break;
     case "design-mode":
       host.recordDesignMode(message.enabled);

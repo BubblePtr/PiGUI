@@ -22,6 +22,10 @@ function harness() {
   const annotationChanges: BrowserAnnotationElement[][] = [];
   const viewports: BrowserAnnotationViewport[] = [];
   const designModeChanges: boolean[] = [];
+  const captures: {
+    annotations: BrowserAnnotationElement[];
+    viewport: BrowserAnnotationViewport;
+  }[] = [];
 
   overlay = createAnnotationOverlay({
     document,
@@ -30,6 +34,7 @@ function harness() {
       viewports.push(viewport);
     },
     onDesignModeChange: (enabled) => designModeChanges.push(enabled),
+    onCaptureReady: (annotations, viewport) => captures.push({ annotations, viewport }),
   });
 
   return {
@@ -37,6 +42,7 @@ function harness() {
     annotationChanges,
     viewports,
     designModeChanges,
+    captures,
     latest: () => annotationChanges[annotationChanges.length - 1] ?? [],
     shadow: () => shadowRoots[shadowRoots.length - 1]!,
   };
@@ -169,6 +175,42 @@ describe("annotation overlay", () => {
       width: 684,
       height: 820,
       dpr: 2,
+    });
+  });
+
+  it("settles the overlay before a capture and acks what the page then holds", () => {
+    const { overlay, shadow, captures } = harness();
+    const button = document.getElementById("cta")!;
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+
+    overlay.setDesignMode(true);
+    button.dispatchEvent(
+      new MouseEvent("pointermove", { bubbles: true, cancelable: true, composed: true }),
+    );
+    clickPageElement(button);
+    clickPageElement(shadow().querySelector('[data-slot="annotation-badge"]')!);
+
+    const comment = shadow().querySelector<HTMLInputElement>(
+      '[data-slot="annotation-comment"]',
+    )!;
+    const highlight = shadow().querySelector<HTMLElement>(
+      '[data-slot="annotation-highlight"]',
+    )!;
+
+    comment.value = "Too small to hit";
+
+    overlay.prepareCapture();
+
+    // Nothing of the overlay's own chrome may reach the screenshot, and the
+    // comment being typed has to reach the payload — a keyboard-driven Send
+    // never blurs the input, so committing on the way out is the only chance.
+    expect(comment.hidden).toBe(true);
+    expect(highlight.hidden).toBe(true);
+    expect(captures[captures.length - 1]).toEqual({
+      annotations: [expect.objectContaining({ index: 1, comment: "Too small to hit" })],
+      // Measured now: the panel may have been dragged since the mark was made.
+      viewport: { width: 900, height: window.innerHeight, dpr: window.devicePixelRatio },
     });
   });
 

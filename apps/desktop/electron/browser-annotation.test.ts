@@ -298,6 +298,26 @@ describe("acceptBrowserAnnotationMessage", () => {
     expect(first.source).toEqual({ file: "src/app.tsx", line: 3, column: 1 });
   });
 
+  it("validates a capture ack exactly like the marks it carries", () => {
+    expect(
+      acceptBrowserAnnotationMessage({
+        sender: trustedSender,
+        trustedSender,
+        message: { type: "capture-ready", viewport, annotations: [annotation] },
+      }),
+    ).toEqual({ type: "capture-ready", viewport, annotations: [annotation] });
+
+    // The ack is what the screenshot is taken against, so a viewport it cannot
+    // state is not something to shoot on.
+    expect(
+      acceptBrowserAnnotationMessage({
+        sender: trustedSender,
+        trustedSender,
+        message: { type: "capture-ready", annotations: [annotation] },
+      }),
+    ).toBeNull();
+  });
+
   it("passes the whitelisted lifecycle messages through", () => {
     expect(
       acceptBrowserAnnotationMessage({

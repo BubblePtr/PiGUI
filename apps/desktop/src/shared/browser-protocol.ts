@@ -49,6 +49,20 @@ export type BrowserViewState = BrowserViewSnapshot & {
  */
 export type { BrowserAnnotationElement, BrowserAnnotationViewport };
 
+/**
+ * What `browser_capture_annotation` answers with: the screenshot and the marks
+ * it was taken against, which the page settled and re-measured for this shot.
+ * They travel together because a payload assembled from two moments would
+ * describe a viewport the picture was not taken in.
+ */
+export type BrowserAnnotationCapture = {
+  /** PNG data URL, or null when the page could not be photographed. */
+  image: string | null;
+  annotations: BrowserAnnotationElement[];
+  viewport: BrowserAnnotationViewport | null;
+  url: string;
+};
+
 export type BrowserEvent =
   | ({ type: "did-navigate" } & BrowserViewState)
   | {

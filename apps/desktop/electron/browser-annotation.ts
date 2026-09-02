@@ -20,20 +20,28 @@ export const browserAnnotationChannel = "pigui:browser-annotation";
 /** Main → page. Design mode is a command, never a page-side decision. */
 export const browserAnnotationCommandChannel = "pigui:browser-annotation-command";
 
+/** Marks, and the space they were measured in — always reported together. */
+type AnnotationsPayload = {
+  annotations: BrowserAnnotationElement[];
+  viewport: BrowserAnnotationViewport;
+};
+
 export type BrowserAnnotationMessage =
   /** A fresh document's overlay is live: it has no annotations yet. */
   | { type: "ready" }
   | { type: "design-mode"; enabled: boolean }
-  | {
-      type: "annotations";
-      annotations: BrowserAnnotationElement[];
-      /** The space the rects were measured in, straight from the page. */
-      viewport: BrowserAnnotationViewport;
-    };
+  | ({ type: "annotations" } & AnnotationsPayload)
+  /**
+   * The overlay has put itself out of shot — comment bubble committed and
+   * closed, hover highlight hidden — and states what it holds right now. Main
+   * waits for this before `capturePage`.
+   */
+  | ({ type: "capture-ready" } & AnnotationsPayload);
 
 export type BrowserAnnotationCommand =
   | { type: "set-design-mode"; enabled: boolean }
-  | { type: "clear-annotations" };
+  | { type: "clear-annotations" }
+  | { type: "prepare-capture" };
 
 const maxTextLength = 120;
 const maxCommentLength = 500;
@@ -275,9 +283,29 @@ function readAnnotation(value: unknown): BrowserAnnotationElement | null {
   };
 }
 
+function readAnnotationsPayload(
+  message: Record<string, unknown>,
+): AnnotationsPayload | null {
+  const viewport = readViewportValue(message.viewport);
+
+  // Rects without the viewport they were measured in describe positions in an
+  // unknown space, so the message is not usable without one.
+  if (!Array.isArray(message.annotations) || !viewport) {
+    return null;
+  }
+
+  return {
+    annotations: message.annotations
+      .slice(0, maxAnnotations)
+      .map(readAnnotation)
+      .filter((annotation): annotation is BrowserAnnotationElement => annotation !== null),
+    viewport,
+  };
+}
+
 /**
  * The gate on the annotation channel: the message has to come from the
- * embedded view's own webContents, and it has to be one of the three shapes
+ * embedded view's own webContents, and it has to be one of the shapes
  * this protocol knows. `ipcMain.handle("pigui:invoke")` has no sender check —
  * that is precisely why annotations get their own channel (PRD S2
  * implementation constraint 2).
@@ -304,21 +332,11 @@ export function acceptBrowserAnnotationMessage<Sender>(input: {
       return typeof message.enabled === "boolean"
         ? { type: "design-mode", enabled: message.enabled }
         : null;
-    case "annotations": {
-      const viewport = readViewportValue(message.viewport);
+    case "annotations":
+    case "capture-ready": {
+      const payload = readAnnotationsPayload(message);
 
-      // Rects without the viewport they were measured in describe positions in
-      // an unknown space, so the message is not usable without one.
-      if (!Array.isArray(message.annotations) || !viewport) {
-        return null;
-      }
-
-      const annotations = message.annotations
-        .slice(0, maxAnnotations)
-        .map(readAnnotation)
-        .filter((annotation): annotation is BrowserAnnotationElement => annotation !== null);
-
-      return { type: "annotations", annotations, viewport };
+      return payload ? { type: message.type, ...payload } : null;
     }
     default:
       return null;
