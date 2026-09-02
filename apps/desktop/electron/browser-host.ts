@@ -34,6 +34,8 @@ const browserCommands = new Set([
   "browser_reload",
   "browser_set_bounds",
   "browser_set_visible",
+  "browser_set_design_mode",
+  "browser_clear_annotations",
   "browser_open_external",
 ]);
 const allowedProtocols = new Set(["http:", "https:"]);
@@ -188,6 +190,9 @@ export type BrowserHostView = {
   loadUrl(url: string): Promise<void>;
   goBack(): void;
   goForward(): void;
+  /** Design mode lives in the page's isolated world; this is the command. */
+  setDesignMode(enabled: boolean): void;
+  clearAnnotations(): void;
   reload(): void;
   destroy(): void;
   readState(): BrowserViewSnapshot;
@@ -214,6 +219,13 @@ export type BrowserHost = {
   allowsPermission(permission: string): boolean;
   /** The id main stamps on every event it forwards to the renderer. */
   currentNavigationId(): number;
+  /**
+   * Whether the page should be in design mode. Each document gets its own
+   * overlay, so main re-applies this whenever a fresh one reports for duty.
+   */
+  isDesignModeEnabled(): boolean;
+  /** Design mode the page left by itself (Escape), so main stops re-applying it. */
+  recordDesignMode(enabled: boolean): void;
   /**
    * `did-fail-load` on the main frame. Chromium commits its error page under
    * the URL that failed, so without this the next navigate to that same URL
@@ -254,6 +266,7 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
   let visibilityRequested = false;
   let navigationId = 0;
   let loadFailed = false;
+  let designMode = false;
 
   /** The view's own answer, stamped with the navigation the renderer asked for. */
   function readState(): BrowserViewState | null {
@@ -355,6 +368,15 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
           visibilityRequested = args?.visible === true;
           applyVisibility();
           return readState();
+        case "browser_set_design_mode":
+          // Deliberately not `ensureView()`: turning Design on over the empty
+          // state has nothing to mark up, and creating a view would paint one.
+          designMode = args?.enabled === true;
+          view?.setDesignMode(designMode);
+          return null;
+        case "browser_clear_annotations":
+          view?.clearAnnotations();
+          return null;
         case "browser_capture":
           return view ? view.capture() : null;
         case "browser_open_external":
@@ -383,6 +405,14 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       return navigationId;
     },
 
+    isDesignModeEnabled() {
+      return designMode;
+    },
+
+    recordDesignMode(enabled) {
+      designMode = enabled;
+    },
+
     recordLoadFailure() {
       loadFailed = true;
     },
@@ -392,6 +422,7 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       view = null;
       bounds = null;
       visibilityRequested = false;
+      designMode = false;
     },
   };
 }

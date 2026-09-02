@@ -48,6 +48,12 @@ function createFakeView() {
     goBack() {
       calls.push("goBack");
     },
+    setDesignMode(enabled) {
+      calls.push(`setDesignMode(${enabled})`);
+    },
+    clearAnnotations() {
+      calls.push("clearAnnotations");
+    },
     goForward() {
       calls.push("goForward");
     },
@@ -355,6 +361,40 @@ describe("browser host commands", () => {
     );
   });
 
+  it("drives design mode through the view and remembers it for the next document", async () => {
+    const { host, views } = createHostHarness();
+
+    // Turning Design on over the empty state must not conjure a view: there is
+    // no page to mark up yet.
+    await host.invoke("browser_set_design_mode", { enabled: true });
+    expect(views).toHaveLength(0);
+    expect(host.isDesignModeEnabled()).toBe(true);
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    await host.invoke("browser_set_design_mode", { enabled: true });
+    await host.invoke("browser_clear_annotations");
+
+    expect(views[0]!.calls).toContain("setDesignMode(true)");
+    expect(views[0]!.calls).toContain("clearAnnotations");
+  });
+
+  it("records design mode the page left on its own without commanding it back", async () => {
+    const { host, views } = createHostHarness();
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    await host.invoke("browser_set_design_mode", { enabled: true });
+
+    // Escape inside the page. Main learns about it so the next document is not
+    // put back into design mode, but the page is already out of it — telling
+    // it again would fight the overlay's own state.
+    const callsBefore = views[0]!.calls.length;
+
+    host.recordDesignMode(false);
+
+    expect(host.isDesignModeEnabled()).toBe(false);
+    expect(views[0]!.calls).toHaveLength(callsBefore);
+  });
+
   it("claims only the commands it implements, so the backend keeps the rest", () => {
     for (const command of [
       "browser_capture",
@@ -364,6 +404,8 @@ describe("browser host commands", () => {
       "browser_reload",
       "browser_set_bounds",
       "browser_set_visible",
+      "browser_set_design_mode",
+      "browser_clear_annotations",
       "browser_open_external",
     ]) {
       expect(isBrowserCommand(command)).toBe(true);
