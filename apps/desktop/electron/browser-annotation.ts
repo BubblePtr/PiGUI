@@ -43,8 +43,17 @@ const maxAnnotations = 200;
 /** `file:line` or `file:line:column`, with a file part that is not empty. */
 const sourcePattern = /^(.+?):(\d+)(?::(\d+))?$/;
 
+/**
+ * One line, then at most `max` characters of it.
+ *
+ * The prompt Pi reads is one row per mark, so a newline anywhere in a field is
+ * a page writing rows of its own. Core's formatter defends its own template
+ * too; this is the boundary where nothing from the page gets in unshaped.
+ */
 function clampText(value: string, max: number) {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+  const line = value.replace(/[\r\n]+/g, " ");
+
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
 function resolvesUniquely(element: Element, selector: string) {
@@ -63,9 +72,10 @@ function identifyingSelector(element: Element) {
   }
 
   const testId = element.getAttribute("data-testid");
-  const testIdSelector = testId
-    ? `[data-testid="${testId.replace(/["\\]/g, "\\$&")}"]`
-    : null;
+  // `CSS.escape` rather than escaping quotes by hand: a test id is page data
+  // and can hold a newline, which is a parse error inside a CSS string —
+  // Chromium throws on the selector, jsdom matches nothing at all.
+  const testIdSelector = testId ? `[data-testid="${CSS.escape(testId)}"]` : null;
 
   return testIdSelector && resolvesUniquely(element, testIdSelector)
     ? testIdSelector
