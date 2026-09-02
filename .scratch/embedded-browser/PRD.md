@@ -95,6 +95,23 @@ type BrowserAnnotationPayload = {
 
 spike 代码放 `apps/desktop/src/proto/browser/`(沿用 `/proto/surfaces` 的做法),结论回写本文后拆除。
 
+### 结论(2026-09-02 执行,Electron 42.5.0 / Playwright 1.61.1 / macOS)
+
+spike 用一个独立的 CJS Electron 入口(`spike-main.cjs` + 两个 preload + 一个模拟 Chat/面板/表头布局的宿主页),把一个带 `Content-Security-Policy: default-src 'none'; script-src 'self'` 与 `X-Frame-Options: DENY` 的本地 http 页装进 `WebContentsView`,再用 Playwright `_electron.launch` 驱动。三项结论如下,结论产出后 spike 代码已拆除。
+
+1. **`ResizeObserver` → IPC → `setBounds` 的占位 div 驱动是成立的:11 次面板宽度变更后,主进程 `view.getBounds()` 与占位 div 的 `getBoundingClientRect()` 逐像素相等(x/y/width/height 全等,`settledMatchesRect: true`),且始终落在窗口内容区内、`y` 恒 ≥ 40 不侵占表头带(`withinContent: true`、`headerBandClear: true`)。**
+   证据:11 组样本形如 `width 700 → rect {x:748,y:40,w:684,h:820}` / `settled {x:748,y:40,w:684,h:820}`;窗口内容区 `1440×868`。
+   **但"不闪"未被证明**:11 次采样中有 1 次在 DOM 写宽度后的首次读里,原生视图仍停在旧 bounds(`immediateMatchesRect` 第 10 项为 `false`),下一次读(≤120ms)才对齐。也就是原生视图比 DOM 落后约一个 IPC 往返;离散跳变看不出来,连续拖拽时会表现为视图边缘滞后于分隔线。**记为 ADR-0029 已知限制**,S1 不为此加节流/预测补偿。
+
+2. **Playwright 能直接拿到 `WebContentsView` 的 contents:`app.windows()` 返回 2 个 Page(宿主 `spike-host.html` 与视图内 `http://127.0.0.1:<port>/`),视图 URL 与主进程 `webContents.getURL()` 一致(`viewReachableViaPlaywrightPage: true`)。**
+   证据:`playwrightWindowUrls: ["file://…/spike-host.html", "http://127.0.0.1:60797/"]`,`viewUrlFromMain: "http://127.0.0.1:60797/"`;`webContents.getAllWebContents()` 里两条的 `type` 都是 `"window"` —— 这正是 Playwright 把它当 Page 暴露的原因。
+   **因此不需要主进程 `__e2e_*` 截图/URL 命令**:E2E 可用 `app.windows()` 里按 URL 挑出嵌入页,直接断言其 DOM。注意 fixture 现有的 `app.firstWindow()` 仍返回宿主窗口(视图后创建),不受影响。
+
+3. **isolated world 的 closed Shadow DOM 覆盖层在严格 CSP 页上可用,且页面脚本读不到它:页面探针拿到 `hostFound: true` 但 `shadowRootReadable: false`、`overlayGlobalsVisible: []`、`documentTextMentionsOverlay: false`;主世界派发的 click 被 isolated world 的监听器收到并回传 `{selector: "#cta", tag: "button", text: "Click me"}`。**
+   证据:`spike3.pageProbe` 与 `spike3.ipcResults.selectorClicks`。宿主元素本身(`<pigui-spike-overlay>`)在页面 DOM 里可见且可被删除 —— 这是 Shadow DOM 的固有边界,**记为 ADR-0029 已知限制**(敌意页面能移除覆盖层宿主,但读不到其内容;S2 不做防删)。
+
+**一处对第 3 节实现口径的补正(不改决策,只补实现)**:`will-navigate` **只对页面自身发起的导航生效**,主进程 `webContents.loadURL()` 不触发它 —— spike 里 `loadURL("file:///etc/hosts")` 返回 `"loaded"`,`navigationBlocks` 为空,视图真的停在了 `file:///etc/hosts`。而 `browser_navigate` 走的正是主进程 `loadURL`。因此协议白名单必须**在命令入口先校验 URL**,`will-navigate` 只负责拦页面自己发起的跳转;两处都要有,少任何一处都会漏。第 3 节"导航只放行 http/https"的意图不变。
+
 ## v1 范围(切片)
 
 1. **S0 spike**:上文三项验证,产出结论段。
