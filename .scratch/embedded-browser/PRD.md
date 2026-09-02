@@ -116,10 +116,10 @@ spike 用一个独立的 CJS Electron 入口(`spike-main.cjs` + 两个 preload +
 ## v1 范围(切片)
 
 1. **S0 spike**:上文三项验证,产出结论段。
-2. **S1 宿主 + surface(只嵌 URL,无标注)**:主进程 `browser_*` 命令组(`open` / `navigate` / `back` / `forward` / `reload` / `set_bounds` / `set_visible` / `open_external` / `dispose`)+ `pigui:browser-event`(`did-navigate` / `title-updated` / `did-fail-load` / `console`);`surface-registry.ts` 注册 `browser`;地址栏表头;按 Project 记 URL;断点以下空态;安全边界第 3 节全部项。
-3. **S2 标注层**:preload + isolated world + Shadow DOM 覆盖层;design mode 开关;悬停高亮、点击选中、序号、评论;selector 生成与 `reactName` / `source` best-effort 提取。
-4. **S3 载荷回传**:core 里的类型 + `formatBrowserAnnotationPrompt`;`capturePage` 叠印序号;`Send to composer` 落草稿。
-5. **S4 收尾**:ADR-0029(宿主形态、安全边界、已知限制、解冻 Browser 并修 ADR-0028 / registry 注释 / `self-built-ui.md`);`/design` 页登记新组件(地址栏、design mode 工具条、空态);renderer CSP 卫生项可并入或单独 issue。
+2. **S1 宿主 + surface(只嵌 URL,无标注)**(PR #149,已合入):主进程 `browser_*` 命令组(`open` / `navigate` / `back` / `forward` / `reload` / `set_bounds` / `set_visible` / `open_external` / `dispose`)+ `pigui:browser-event`(`did-navigate` / `title-updated` / `did-fail-load` / `console`);`surface-registry.ts` 注册 `browser`;地址栏表头;按 Project 记 URL;断点以下空态;安全边界第 3 节全部项。
+3. **S2 标注层**(#150):preload + isolated world + Shadow DOM 覆盖层;design mode 开关;悬停高亮、点击选中、序号、评论;selector 生成与 `reactName` / `source` best-effort 提取。
+4. **S3 载荷回传**(#151):core 里的类型 + `formatBrowserAnnotationPrompt`;`capturePage` 叠印序号;`Send to composer` 落草稿。
+5. **S4 收尾**(#152):ADR-0029(宿主形态、安全边界、已知限制、解冻 Browser 并修 ADR-0028 / registry 注释 / `self-built-ui.md`);`/design` 页登记新组件(地址栏、design mode 工具条、空态);renderer CSP 卫生项可并入或单独 issue。
 
 ## 验收标准
 
@@ -142,7 +142,18 @@ spike 用一个独立的 CJS Electron 入口(`spike-main.cjs` + 两个 preload +
 - 页面内代理操作(让 Pi 点击 / 填表 / 截图的 browser-use 能力)——这是另一个产品能力,不在标注范围。
 - 远程 / WebSocket transport 下的浏览器(视图只存在于本机主进程)。
 
-## 待确认(材料性分歧才列,其余已直接拍板)
+## 已拍板(2026-09-02,原「待确认」两条)
 
-- **Send to composer vs 直接发送**:本文选"落草稿"。若期望一键直发(Codex 式),S3 加一个 `Send now` 即可,不影响其他设计。
-- **`persist:` 分区**:选了持久化以保留 dev 站点登录态。若担心跨项目串 cookie,可改为按 Project 分区(`persist:pigui-browser:<projectId>`),代价是每个项目首次都要登录。
+- **Send to composer vs 直接发送**:只落草稿,**不加 `Send now`**。三条 prompt 路径(新 prompt / steer / queue)由用户在 composer 里自行选择。
+- **`persist:` 分区**:保持全局单分区 `persist:pigui-browser`。分区名只在主进程一处,将来要按 Project 隔离只改字符串并把 projectId 传进主进程即可。
+- **切片节奏**:S2 → S3 → S4 各自独立 PR。
+
+## S2 / S3 实现约束(2026-09-02 评估后补,决策不变,只补实现口径)
+
+1. **`reactName` 不做,`source` 只读 `data-*`。** preload 在 isolated world 运行:DOM 共享,但 JS wrapper 对象按 world 独立,主世界挂在节点上的 `__reactFiber$` expando 在 isolated world 里不存在;且 `_debugStack` 只在 React dev build 有。第 5 节的 `reactName` 字段保留在类型里但 v1 一律省略;经主世界注入或 CDP 获取留作后续 issue。
+2. **标注消息走独立 IPC channel,主进程按 `event.sender` 校验只认该 view 的 webContents。** `ipcMain.handle("pigui:invoke")` 没有 sender 校验,今天安全只是因为 `WebContentsView` 没有 preload;一旦挂上 preload,嵌入页就能打到后端命令面。第 3 节「页面 → PiGUI 只经白名单化的标注消息」的落地口径即此。
+3. **design mode 工具条只用普通按钮,评论输入框放在页内 Shadow DOM 覆盖层里。** 第 6 节的弹层快照机制会在 PiGUI 任何 Popover / Tooltip / Select 打开时把原生视图换成静态截图,若工具条用了弹层,用户会在冻结截图上标注。
+4. **截图叠印序号不用 canvas。** 序号标记本来就渲染在页面内,`capturePage` 自然带上;捕获前隐藏 hover 高亮即可。2x DPR 宽面板下 PNG 接近 8 MiB base64 上限,S3 必须降采样。
+5. **composer 没有外部注入口,S3 要建一个。** 草稿是 `FullChatComposer` 的局部 state,`follow-up-drafts.ts` 的 localStorage 只存文本且已挂载的 composer 不重读;附件只在内存。做法:在既有 CustomEvent 范式旁加注入事件,composer 订阅;截图经 `attachments.addFiles` 造 `File` 走既有附件路径。**只支持当前 Session 已挂载的 composer**,不把图片塞进 localStorage。
+6. **新 preload 不得与现有 `preload.ts` 共享模块。** electron-vite 多入口会抽公共 chunk,sandbox preload 的 `require` 不支持相对路径 chunk;build 后 `out/preload/` 必须是两个自包含文件。preload 可以 import `@pigui/core`(会被打进产物)。
+7. **E2E 页内操作只能 `embedded.evaluate(...)` 派发**:嵌入页在 renderer 命中测试树之外,Playwright actionability 无法解析。
