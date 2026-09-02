@@ -281,6 +281,7 @@ export function SessionBrowserPanel({
         viewport: marks.viewport,
         elements: marks.annotations,
         capturedAt: new Date().toISOString(),
+        screenshot: screenshot !== null,
       }),
       files: screenshot ? [pngFileFromDataUrl(screenshot)] : [],
     });

@@ -41,29 +41,58 @@ export type BrowserAnnotationPayload = {
   viewport: BrowserAnnotationViewport;
   elements: BrowserAnnotationElement[];
   capturedAt: string;
+  /**
+   * Whether a screenshot goes with this text. It changes what the prompt can
+   * claim and how an element is located, so it is not the caller's to describe
+   * in prose.
+   */
+  screenshot: boolean;
 };
 
-const heading =
-  "Browser annotations from the embedded preview — the attached screenshot shows the same numbered markers.";
+const headings = {
+  withScreenshot:
+    "Browser annotations from the embedded preview — the attached screenshot shows the same numbered markers.",
+  withoutScreenshot:
+    "Browser annotations from the embedded preview — no screenshot could be taken, so each mark carries its viewport rect instead.",
+};
+
+/**
+ * One line of it. Main folds the same fields on the way in, but the template's
+ * promise — one row per mark — is core's to keep for every caller of a public
+ * function, not something to inherit from a well-behaved one.
+ */
+function oneLine(value: string) {
+  return value.replace(/[\r\n]+/g, " ");
+}
 
 function formatSource(source: NonNullable<BrowserAnnotationElement["source"]>) {
-  return source.column
-    ? `${source.file}:${source.line}:${source.column}`
-    : `${source.file}:${source.line}`;
+  const file = oneLine(source.file);
+
+  return source.column ? `${file}:${source.line}:${source.column}` : `${file}:${source.line}`;
+}
+
+function formatRect(rect: BrowserAnnotationElement["rect"]) {
+  return `${rect.width}×${rect.height} at (${rect.x}, ${rect.y})`;
 }
 
 /**
  * The markdown block the `Send to composer` action drops into the draft.
  *
  * Fixed on purpose: this is the contract Pi reads, so the shape of it is
- * pinned by tests rather than tuned per call site. Rects are left out — the
- * numbered markers on the screenshot are what locate an element, and a rect
- * recorded before a scroll would point somewhere else. Text and comments
- * arrive already clamped (main rebuilds every annotation field by field), so
- * nothing is truncated a third time here.
+ * pinned by tests rather than tuned per call site. Text and comments arrive
+ * already clamped (main rebuilds every annotation field by field), so nothing
+ * is truncated a second time here.
+ *
+ * Rects appear only when the screenshot does not. With one, the numbered
+ * markers are what locate an element and a rect measured before a scroll would
+ * point somewhere else; without one, the rect is the only locator left.
  */
 export function formatBrowserAnnotationPrompt(payload: BrowserAnnotationPayload) {
-  const lines = [heading, "", `- URL: ${payload.url}`];
+  const lines = [
+    payload.screenshot ? headings.withScreenshot : headings.withoutScreenshot,
+    "",
+    `- URL: ${payload.url}`,
+  ];
 
   if (payload.title) {
     lines.push(`- Title: ${payload.title}`);
@@ -79,13 +108,17 @@ export function formatBrowserAnnotationPrompt(payload: BrowserAnnotationPayload)
     // it, and dropping the row would silently lose that.
     lines.push(
       "",
-      `#${element.index} \`${element.selector}\` (${element.tag}) — ${
-        element.comment ?? "(no comment)"
+      `#${element.index} \`${oneLine(element.selector)}\` (${oneLine(element.tag)}) — ${
+        element.comment ? oneLine(element.comment) : "(no comment)"
       }`,
     );
 
+    if (!payload.screenshot) {
+      lines.push(`  - rect: ${formatRect(element.rect)}`);
+    }
+
     if (element.text) {
-      lines.push(`  - text: "${element.text}"`);
+      lines.push(`  - text: "${oneLine(element.text)}"`);
     }
 
     if (element.source) {
