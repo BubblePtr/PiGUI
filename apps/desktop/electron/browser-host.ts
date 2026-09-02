@@ -111,6 +111,43 @@ export function resolveBrowserViewBounds(input: {
   };
 }
 
+export type BrowserHostSession = {
+  setPermissionRequestHandler(handler: (permission: string) => boolean): void;
+  setPermissionCheckHandler(handler: (permission: string) => boolean): void;
+  blockDownloads(): void;
+};
+
+/**
+ * Hands out the embedded browser's session, configured exactly once.
+ *
+ * `session.fromPartition` returns the same persistent object for the life of
+ * the app, so configuring it per view would matter: the permission handlers
+ * replace each other harmlessly, but blocking downloads is a listener
+ * registration, and a view recreated after `browser_dispose` would stack
+ * another copy every time.
+ */
+export function createBrowserSessionProvider<Session extends BrowserHostSession>(
+  createSession: () => Session,
+  allowsPermission: (permission: string) => boolean,
+) {
+  let configured: Session | null = null;
+
+  return () => {
+    if (configured) {
+      return configured;
+    }
+
+    const browserSession = createSession();
+
+    browserSession.setPermissionRequestHandler(allowsPermission);
+    browserSession.setPermissionCheckHandler(allowsPermission);
+    browserSession.blockDownloads();
+    configured = browserSession;
+
+    return configured;
+  };
+}
+
 export type BrowserHostView = {
   setBounds(bounds: BrowserViewRect): void;
   setVisible(visible: boolean): void;

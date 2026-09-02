@@ -16,7 +16,12 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
 import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
-import { createBrowserHost, isBrowserCommand, type BrowserHost } from "./browser-host";
+import {
+  createBrowserHost,
+  createBrowserSessionProvider,
+  isBrowserCommand,
+  type BrowserHost,
+} from "./browser-host";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -320,21 +325,31 @@ function emitBrowserEvent(event: BrowserEvent) {
   mainWindow?.webContents.send(browserEventChannel, event);
 }
 
-function configureBrowserSession() {
-  const browserSession = session.fromPartition(browserPartition);
+const browserViewSession = createBrowserSessionProvider(
+  () => {
+    const electronSession = session.fromPartition(browserPartition);
 
-  browserSession.setPermissionRequestHandler((_contents, permission, callback) => {
-    callback(getBrowserHost().allowsPermission(permission));
-  });
-  browserSession.setPermissionCheckHandler((_contents, permission) =>
-    getBrowserHost().allowsPermission(permission),
-  );
-  browserSession.on("will-download", (event) => {
-    event.preventDefault();
-  });
-
-  return browserSession;
-}
+    return {
+      electronSession,
+      setPermissionRequestHandler(allow: (permission: string) => boolean) {
+        electronSession.setPermissionRequestHandler(
+          (_contents, permission, callback) => callback(allow(permission)),
+        );
+      },
+      setPermissionCheckHandler(allow: (permission: string) => boolean) {
+        electronSession.setPermissionCheckHandler((_contents, permission) =>
+          allow(permission),
+        );
+      },
+      blockDownloads() {
+        electronSession.on("will-download", (event) => {
+          event.preventDefault();
+        });
+      },
+    };
+  },
+  (permission) => getBrowserHost().allowsPermission(permission),
+);
 
 function createBrowserView() {
   const window = mainWindow;
@@ -345,7 +360,7 @@ function createBrowserView() {
 
   const view = new WebContentsView({
     webPreferences: {
-      session: configureBrowserSession(),
+      session: browserViewSession().electronSession,
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   browserTitlebarBandPx,
   createBrowserHost,
+  createBrowserSessionProvider,
   normalizeBrowserUrl,
   resolveBrowserViewBounds,
   type BrowserHostView,
@@ -285,5 +286,59 @@ describe("browser host security handlers", () => {
     ]) {
       expect(host.allowsPermission(permission)).toBe(false);
     }
+  });
+});
+
+function createFakeSession() {
+  const registrations = {
+    permissionRequest: 0,
+    permissionCheck: 0,
+    downloadBlockers: 0,
+  };
+  let permissionHandler: ((permission: string) => boolean) | null = null;
+
+  return {
+    registrations,
+    decidePermission: (permission: string) => permissionHandler?.(permission),
+    setPermissionRequestHandler(handler: (permission: string) => boolean) {
+      registrations.permissionRequest += 1;
+      permissionHandler = handler;
+    },
+    setPermissionCheckHandler() {
+      registrations.permissionCheck += 1;
+    },
+    blockDownloads() {
+      registrations.downloadBlockers += 1;
+    },
+  };
+}
+
+describe("browser session provider", () => {
+  it("configures the shared persistent session once, however often the view is recreated", () => {
+    const persistent = createFakeSession();
+    let built = 0;
+    const provide = createBrowserSessionProvider(
+      () => {
+        built += 1;
+        return persistent;
+      },
+      () => false,
+    );
+
+    // Disposing and re-creating the view asks for the session again, and
+    // `session.fromPartition` hands back the same object every time. Permission
+    // handlers replace, but a download blocker is a listener: registering it
+    // per view would stack one copy per recreation.
+    expect(provide()).toBe(persistent);
+    expect(provide()).toBe(persistent);
+    expect(provide()).toBe(persistent);
+
+    expect(built).toBe(1);
+    expect(persistent.registrations).toEqual({
+      permissionRequest: 1,
+      permissionCheck: 1,
+      downloadBlockers: 1,
+    });
+    expect(persistent.decidePermission("geolocation")).toBe(false);
   });
 });
