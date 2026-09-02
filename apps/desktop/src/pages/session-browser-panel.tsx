@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   browserBack,
   browserForward,
-  disposeBrowser,
   navigateBrowser,
   openBrowserUrlExternally,
   reloadBrowser,
@@ -26,9 +25,17 @@ import { useBrowserViewBounds } from "@/shared/ui/browser/use-browser-view-bound
  * Browser surface content: drives the one native `WebContentsView` the main
  * process owns for this window.
  *
- * There is a single view per window, so the panel is the only place allowed to
- * navigate it. The URL memory is per Project, because a dev server belongs to
- * a Project, not to one Session (PRD decision 2).
+ * Two consequences of that single view shape run through this component. Only
+ * the instance that can actually host it — docked, in Electron — is allowed to
+ * send it any command, because the Sheet fallback below the dock breakpoint
+ * outlives the docked instance across a resize and would otherwise hide the
+ * view its replacement just showed. And because the view survives Project and
+ * Session switches, its events are matched against the navigation id of this
+ * component's own last navigate; anything older belongs to a page the user has
+ * already left.
+ *
+ * The URL memory is per Project, because a dev server belongs to a Project,
+ * not to one Session (PRD decision 2).
  */
 export function SessionBrowserPanel({
   projectId,
@@ -45,18 +52,36 @@ export function SessionBrowserPanel({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasPage, setHasPage] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Null means "nothing of mine is loaded": drop every event until this
+  // component's own navigate answers with an id.
+  const acceptedNavigationRef = useRef<number | null>(null);
   const available = isElectronRuntime() && docked;
-  // `browser_navigate` answers with the view's state, which is the only signal
-  // when it short-circuits an already-loaded URL and no event follows.
-  const applyViewState = useCallback((view: BrowserViewState) => {
-    setAddress(view.url);
-    setCanGoBack(view.canGoBack);
-    setCanGoForward(view.canGoForward);
-  }, []);
 
-  // Bring out the Project's last preview, or clear the view so another
-  // Project's page is not sitting behind the empty state. Switching Sessions
-  // reuses this component, so `sessionId` has to drive the restore.
+  const applyNavigation = useCallback(
+    (view: BrowserViewState) => {
+      setLoadError(null);
+      setHasPage(true);
+      setAddress(view.url);
+      setCanGoBack(view.canGoBack);
+      setCanGoForward(view.canGoForward);
+      // Redirects mean the typed text is not what loaded; memory follows the
+      // page, not the keystrokes.
+      rememberProjectBrowserUrl(projectId, view.url);
+    },
+    [projectId],
+  );
+  const acceptNavigation = useCallback(
+    (view: BrowserViewState) => {
+      acceptedNavigationRef.current = view.navigationId;
+      applyNavigation(view);
+    },
+    [applyNavigation],
+  );
+
+  // Bring out the Project's last preview, or fall back to the empty state.
+  // Switching Sessions reuses this component, so `sessionId` has to drive the
+  // restore. The view is never disposed here: it keeps the previous page
+  // loaded but hidden, which is what makes coming back instant (PRD section 6).
   useEffect(() => {
     if (!available) {
       return;
@@ -69,30 +94,18 @@ export function SessionBrowserPanel({
     setHasPage(Boolean(remembered));
 
     if (!remembered) {
+      acceptedNavigationRef.current = null;
       setCanGoBack(false);
       setCanGoForward(false);
-      void disposeBrowser().catch(() => {});
       return;
     }
 
     void navigateBrowser(remembered)
-      .then(applyViewState)
+      .then(acceptNavigation)
       .catch((error: unknown) => {
         setLoadError(errorMessage(error));
       });
-  }, [applyViewState, available, projectId, sessionId]);
-
-  // Leaving the surface (other surface, inspector closed, Session switch) hides
-  // the view without discarding the page, so coming back is instant.
-  useEffect(() => {
-    if (!isElectronRuntime()) {
-      return;
-    }
-
-    return () => {
-      void setBrowserVisible(false).catch(() => {});
-    };
-  }, []);
+  }, [acceptNavigation, available, projectId, sessionId]);
 
   useEffect(() => {
     if (!available) {
@@ -100,21 +113,20 @@ export function SessionBrowserPanel({
     }
 
     return subscribeBrowserEvents((event) => {
+      if (event.navigationId !== acceptedNavigationRef.current) {
+        return;
+      }
+
       switch (event.type) {
         case "did-navigate":
-          setLoadError(null);
-          setHasPage(true);
-          applyViewState(event);
-          // Redirects and in-page navigation mean the typed text is not what
-          // loaded; memory follows the page, not the keystrokes.
-          rememberProjectBrowserUrl(projectId, event.url);
+          applyNavigation(event);
           break;
         case "did-fail-load":
           setLoadError(event.errorDescription || `Load failed (${event.errorCode}).`);
           break;
       }
     });
-  }, [applyViewState, available, projectId]);
+  }, [applyNavigation, available]);
 
   const pushBounds = useCallback((rect: BrowserViewRect) => {
     void setBrowserBounds(rect).catch(() => {});
@@ -123,15 +135,27 @@ export function SessionBrowserPanel({
 
   useBrowserViewBounds(viewportRef, pushBounds, state.kind === "live");
 
-  // Visibility follows the surface state, so the narrow and error states hide
-  // the native view without a second code path asking for it.
+  // Visibility follows the surface state, so the error and empty states hide
+  // the view without a second code path asking for it.
   useEffect(() => {
-    if (!isElectronRuntime()) {
+    if (!available) {
       return;
     }
 
     void setBrowserVisible(state.kind === "live").catch(() => {});
-  }, [state.kind]);
+  }, [available, state.kind]);
+
+  // Leaving the surface (other surface, inspector closed, Session switch) hides
+  // the view without discarding the page.
+  useEffect(() => {
+    if (!available) {
+      return;
+    }
+
+    return () => {
+      void setBrowserVisible(false).catch(() => {});
+    };
+  }, [available]);
 
   const submitAddress = (next: string) => {
     if (!next.trim()) {
@@ -143,7 +167,7 @@ export function SessionBrowserPanel({
     // page paints, or the native view shows up at the previous rect first.
     setHasPage(true);
     void navigateBrowser(next)
-      .then(applyViewState)
+      .then(acceptNavigation)
       .catch((error: unknown) => {
         setLoadError(errorMessage(error));
       });
@@ -162,6 +186,8 @@ export function SessionBrowserPanel({
       onForward={() => void browserForward().catch(() => {})}
       onOpenExternal={() => void openBrowserUrlExternally(address).catch(() => {})}
       onReload={() => {
+        // A failed load left the view on Chromium's error page, so there is
+        // nothing to reload — the address has to be requested again.
         if (loadError) {
           submitAddress(address);
           return;

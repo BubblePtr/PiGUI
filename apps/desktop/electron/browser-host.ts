@@ -1,4 +1,8 @@
-import type { BrowserViewRect, BrowserViewState } from "@/shared/browser-protocol";
+import type {
+  BrowserViewRect,
+  BrowserViewSnapshot,
+  BrowserViewState,
+} from "@/shared/browser-protocol";
 
 /**
  * Policy and lifecycle for the embedded browser surface, with every Electron
@@ -17,7 +21,21 @@ import type { BrowserViewRect, BrowserViewState } from "@/shared/browser-protoco
  */
 export const browserTitlebarBandPx = 40;
 
-const browserCommandPrefix = "browser_";
+/**
+ * Enumerated rather than prefix-sniffed: main routes on this set, so a future
+ * backend command that happens to start with `browser_` still reaches the
+ * backend instead of being swallowed here.
+ */
+const browserCommands = new Set([
+  "browser_navigate",
+  "browser_back",
+  "browser_forward",
+  "browser_reload",
+  "browser_set_bounds",
+  "browser_set_visible",
+  "browser_open_external",
+  "browser_dispose",
+]);
 const allowedProtocols = new Set(["http:", "https:"]);
 /**
  * A bare `localhost:5173` looks like a scheme; a real scheme is never followed
@@ -26,7 +44,7 @@ const allowedProtocols = new Set(["http:", "https:"]);
 const schemePattern = /^[a-z][a-z0-9+.-]*:(?!\d)/i;
 
 export function isBrowserCommand(command: string) {
-  return command.startsWith(browserCommandPrefix);
+  return browserCommands.has(command);
 }
 
 /** `will-navigate` guard for navigation the embedded page starts itself. */
@@ -156,7 +174,7 @@ export type BrowserHostView = {
   goForward(): void;
   reload(): void;
   destroy(): void;
-  readState(): BrowserViewState;
+  readState(): BrowserViewSnapshot;
 };
 
 export type BrowserHostDependencies = {
@@ -176,6 +194,14 @@ export type BrowserHost = {
   handleWindowOpen(url: string): void;
   /** v1 grants no page permissions at all. */
   allowsPermission(permission: string): boolean;
+  /** The id main stamps on every event it forwards to the renderer. */
+  currentNavigationId(): number;
+  /**
+   * `did-fail-load` on the main frame. Chromium commits its error page under
+   * the URL that failed, so without this the next navigate to that same URL
+   * would be short-circuited as "already showing" and Retry would do nothing.
+   */
+  recordLoadFailure(): void;
   dispose(): void;
 };
 
@@ -208,6 +234,13 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
   let view: BrowserHostView | null = null;
   let bounds: BrowserViewRect | null = null;
   let visibilityRequested = false;
+  let navigationId = 0;
+  let loadFailed = false;
+
+  /** The view's own answer, stamped with the navigation the renderer asked for. */
+  function readState(): BrowserViewState | null {
+    return view ? { ...view.readState(), navigationId } : null;
+  }
 
   /**
    * A view with no bounds yet sits at 0,0 and would cover the whole window,
@@ -242,16 +275,27 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
   async function navigate(url: string) {
     const target = normalizeBrowserUrl(url);
 
-    // Re-entering the surface must not reload the page and lose its state.
-    if (view && view.readState().url === target) {
-      return view.readState();
+    navigationId += 1;
+
+    // Re-entering the surface must not reload the page and lose its state —
+    // unless the URL is only showing because its load failed, in which case
+    // the view is on Chromium's error page and Retry has to really reload.
+    if (view && !loadFailed && view.readState().url === target) {
+      return readState();
     }
 
     const active = ensureView();
 
-    await active.loadUrl(target);
+    try {
+      await active.loadUrl(target);
+    } catch (error) {
+      loadFailed = true;
+      throw error;
+    }
 
-    return active.readState();
+    loadFailed = false;
+
+    return readState();
   }
 
   function setBounds(rect: BrowserViewRect) {
@@ -269,7 +313,7 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     view.setBounds(bounds);
     applyVisibility();
 
-    return view.readState();
+    return readState();
   }
 
   return {
@@ -279,24 +323,26 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
           return navigate(readUrlArgument(args));
         case "browser_back":
           view?.goBack();
-          return view?.readState() ?? null;
+          return readState();
         case "browser_forward":
           view?.goForward();
-          return view?.readState() ?? null;
+          return readState();
         case "browser_reload":
           view?.reload();
-          return view?.readState() ?? null;
+          return readState();
         case "browser_set_bounds":
           return setBounds(readRectArgument(args));
         case "browser_set_visible":
           visibilityRequested = args?.visible === true;
           applyVisibility();
-          return view?.readState() ?? null;
+          return readState();
         case "browser_open_external":
           await deps.openExternal(normalizeBrowserUrl(readUrlArgument(args)));
           return null;
         case "browser_dispose":
           destroyView();
+          navigationId += 1;
+          loadFailed = false;
           return null;
         default:
           throw new Error(`Unknown browser command "${command}".`);
@@ -315,6 +361,14 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
 
     allowsPermission() {
       return false;
+    },
+
+    currentNavigationId() {
+      return navigationId;
+    },
+
+    recordLoadFailure() {
+      loadFailed = true;
     },
 
     dispose() {

@@ -84,6 +84,7 @@ type BrowserAnnotationPayload = {
 | macOS `transparent + vibrancy` 会被不透明子视图开洞 | 视图区域本就在面板内、面板本身不透明,给 `WebContentsView` 设 `backgroundColor` 为面板底色,不出现玻璃缺口 |
 | `-webkit-app-region: drag` 表头与红绿灯 | bounds 永不覆盖表头带;由上一条 40px 扣除保证 |
 | 视图与 Session 生命周期 | inspector 收起、切到其他 surface、Session 切换时 `setVisible(false)`;窗口关闭时销毁 view;不因视图存在而阻止 utilityProcess 重启逻辑 |
+| 切到「该 Project 没有记忆 URL」的 Session 时,上一个 Project 的页面仍留在视图里 | 只 `setVisible(false)`,**不销毁** —— 销毁会同时丢掉「重进不重载」的短路。页面因此在内存里存活但不可见,直到窗口关闭或被下一次导航替换。渲染层不会把它的迟到事件记到新 Project 头上:主进程给每次 `browser_navigate` / `browser_dispose` 递增一个 navigation id,`did-navigate` / `did-fail-load` 都带上它,渲染层只认自己最近一次 navigate 返回的那个 id;空态下这个 id 为 null,即一律不认 |
 
 ## Spike(先于一切切片,不进主线)
 

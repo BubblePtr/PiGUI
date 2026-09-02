@@ -403,6 +403,9 @@ function createBrowserView() {
   const emitNavigation = () => {
     emitBrowserEvent({
       type: "did-navigate",
+      // Stamped so the renderer can tell this page's events from those of the
+      // page it showed for the Project the user just left.
+      navigationId: getBrowserHost().currentNavigationId(),
       url: webContents.getURL(),
       canGoBack: webContents.navigationHistory.canGoBack(),
       canGoForward: webContents.navigationHistory.canGoForward(),
@@ -423,8 +426,13 @@ function createBrowserView() {
         return;
       }
 
+      // The view is now on Chromium's error page, committed under the URL that
+      // failed; the host has to know or it would treat the next attempt at
+      // that URL as "already showing".
+      getBrowserHost().recordLoadFailure();
       emitBrowserEvent({
         type: "did-fail-load",
+        navigationId: getBrowserHost().currentNavigationId(),
         url: validatedURL,
         errorCode,
         errorDescription,

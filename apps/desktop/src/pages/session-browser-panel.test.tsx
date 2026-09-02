@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
-import { rememberProjectBrowserUrl } from "@/entities/browser/browser-url-memory";
+import {
+  getProjectBrowserUrl,
+  rememberProjectBrowserUrl,
+} from "@/entities/browser/browser-url-memory";
 import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 
 type Invocation = { command: string; args?: Record<string, unknown> };
@@ -11,12 +14,20 @@ type Invocation = { command: string; args?: Record<string, unknown> };
 function installPreload() {
   const invocations: Invocation[] = [];
   const listeners: Array<(event: BrowserEvent) => void> = [];
+  // Mirrors the host: every navigate answers with a fresh navigation id.
+  let navigationId = 0;
   const api: PiGUIRendererApi = {
     invoke: (async (command: string, args?: Record<string, unknown>) => {
       invocations.push({ command, args });
 
       if (command === "browser_navigate") {
-        return { url: String(args?.url), canGoBack: false, canGoForward: false };
+        navigationId += 1;
+        return {
+          url: String(args?.url),
+          canGoBack: false,
+          canGoForward: false,
+          navigationId,
+        };
       }
 
       return null;
@@ -69,14 +80,20 @@ describe("SessionBrowserPanel", () => {
     expect(await screen.findByDisplayValue("http://localhost:5173/")).toBeInTheDocument();
   });
 
-  it("disposes the view when the Project has no remembered URL", async () => {
+  it("only hides the view when the Project has no remembered URL", async () => {
     const preload = installPreload();
 
     render(<SessionBrowserPanel docked projectId="project-b" sessionId="session-2" />);
 
-    // Otherwise the previous Project's page would stay loaded behind the
-    // empty state, one Session switch away from being shown again.
-    await waitFor(() => expect(preload.commands()).toContain("browser_dispose"));
+    await waitFor(() =>
+      expect(preload.invocations).toContainEqual({
+        command: "browser_set_visible",
+        args: { visible: false },
+      }),
+    );
+    // Switching away must not destroy the view (PRD section 6): the page stays
+    // loaded and invisible so coming back is instant.
+    expect(preload.commands()).not.toContain("browser_dispose");
     expect(preload.commands()).not.toContain("browser_navigate");
     expect(screen.getByText("No page loaded")).toBeInTheDocument();
   });
@@ -86,8 +103,6 @@ describe("SessionBrowserPanel", () => {
     const preload = installPreload();
 
     render(<SessionBrowserPanel docked projectId="project-c" sessionId="session-3" />);
-
-    await waitFor(() => expect(preload.commands()).toContain("browser_dispose"));
 
     const address = screen.getByRole("textbox", { name: "Address" });
 
@@ -105,6 +120,7 @@ describe("SessionBrowserPanel", () => {
     // navigation event, not the keystrokes.
     preload.emit({
       type: "did-navigate",
+      navigationId: 1,
       url: "http://localhost:5173/app",
       canGoBack: true,
       canGoForward: false,
@@ -135,6 +151,7 @@ describe("SessionBrowserPanel", () => {
 
     preload.emit({
       type: "did-fail-load",
+      navigationId: 1,
       url: "http://localhost:5173/",
       errorCode: -102,
       errorDescription: "ERR_CONNECTION_REFUSED",
@@ -144,22 +161,54 @@ describe("SessionBrowserPanel", () => {
     expect(screen.queryByTestId("browser-viewport")).not.toBeInTheDocument();
   });
 
-  it("never creates or shows the view below the dock breakpoint", async () => {
+  it("never touches the view from the Sheet fallback, mounted or unmounting", async () => {
     const preload = installPreload();
 
     rememberProjectBrowserUrl("project-e", "http://localhost:5173/");
-    render(
+
+    const view = render(
       <SessionBrowserPanel docked={false} projectId="project-e" sessionId="session-6" />,
     );
 
     expect(screen.getByText(/widen the window/i)).toBeInTheDocument();
-    await waitFor(() =>
-      expect(preload.invocations).toContainEqual({
-        command: "browser_set_visible",
-        args: { visible: false },
-      }),
-    );
+
+    view.unmount();
+    await waitFor(() => expect(screen.queryByText(/widen the window/i)).toBeNull());
+
+    // Crossing back above the breakpoint, this instance unmounts only after
+    // Base UI's exit transition — later than the docked instance that already
+    // showed the view. A late `visible: false` from here would blank it.
+    expect(preload.commands()).not.toContain("browser_set_visible");
     expect(preload.commands()).not.toContain("browser_navigate");
+  });
+
+  it("drops navigation events left over from the previous Project's page", async () => {
+    const preload = installPreload();
+
+    rememberProjectBrowserUrl("project-g", "http://localhost:5173/");
+
+    const view = render(
+      <SessionBrowserPanel docked projectId="project-g" sessionId="session-8" />,
+    );
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    view.rerender(
+      <SessionBrowserPanel docked projectId="project-h" sessionId="session-8" />,
+    );
+    await waitFor(() => expect(screen.getByText("No page loaded")).toBeInTheDocument());
+
+    // The single view is still showing project-g's page and can still emit.
+    preload.emit({
+      type: "did-navigate",
+      navigationId: 1,
+      url: "http://localhost:5173/late",
+      canGoBack: false,
+      canGoForward: false,
+    });
+
+    expect(getProjectBrowserUrl("project-h")).toBeNull();
+    expect(screen.getByText("No page loaded")).toBeInTheDocument();
   });
 
   it("hides the view when the surface unmounts but keeps the page alive", async () => {

@@ -3,6 +3,7 @@ import {
   browserTitlebarBandPx,
   createBrowserHost,
   createBrowserSessionProvider,
+  isBrowserCommand,
   normalizeBrowserUrl,
   resolveBrowserViewBounds,
   type BrowserHostView,
@@ -17,11 +18,15 @@ function createFakeView() {
     bounds: { x: number; y: number; width: number; height: number } | null;
     visible: boolean;
     destroyed: boolean;
+    loadRejection: Error | null;
+    loadCount: () => number;
   } = {
     calls,
     bounds: null,
     visible: false,
     destroyed: false,
+    loadRejection: null,
+    loadCount: () => calls.filter((call) => call.startsWith("loadUrl")).length,
     setBounds(bounds) {
       view.bounds = bounds;
       calls.push(`setBounds(${bounds.x},${bounds.y},${bounds.width},${bounds.height})`);
@@ -31,8 +36,13 @@ function createFakeView() {
       calls.push(`setVisible(${visible})`);
     },
     async loadUrl(next) {
-      url = next;
       calls.push(`loadUrl(${next})`);
+      // Chromium commits its error page under the requested URL, so a failed
+      // load leaves getURL() reporting the target just like a good one.
+      url = next;
+      if (view.loadRejection) {
+        throw view.loadRejection;
+      }
     },
     goBack() {
       calls.push("goBack");
@@ -152,7 +162,62 @@ describe("browser host commands", () => {
     await host.invoke("browser_navigate", { url: "localhost:5173" });
 
     expect(views).toHaveLength(1);
-    expect(views[0].calls.filter((call) => call.startsWith("loadUrl"))).toHaveLength(1);
+    expect(views[0].loadCount()).toBe(1);
+  });
+
+  it("retries a URL the view is only showing because its load failed", async () => {
+    const { host, views } = createHostHarness();
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    // The error page sits under the requested URL, so "already showing" and
+    // "already failed" look identical from getURL() alone — Retry and
+    // re-entering the surface would both become no-ops.
+    host.recordLoadFailure();
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+
+    expect(views[0].loadCount()).toBe(2);
+  });
+
+  it("remembers a rejected load as a failure without being told", async () => {
+    const { host, views } = createHostHarness();
+
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    views[0].loadRejection = new Error("ERR_CONNECTION_REFUSED");
+
+    await expect(
+      host.invoke("browser_navigate", { url: "http://localhost:4000/" }),
+    ).rejects.toThrow("ERR_CONNECTION_REFUSED");
+
+    views[0].loadRejection = null;
+    await host.invoke("browser_navigate", { url: "http://localhost:4000/" });
+
+    expect(views[0].loadCount()).toBe(3);
+  });
+
+  it("short-circuits again once a load has succeeded", async () => {
+    const { host, views } = createHostHarness();
+
+    host.recordLoadFailure();
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+
+    expect(views[0].loadCount()).toBe(1);
+  });
+
+  it("stamps a fresh navigation id on every navigate and dispose", async () => {
+    const { host } = createHostHarness();
+
+    const first = await host.invoke("browser_navigate", { url: "http://a.test/" });
+    const second = await host.invoke("browser_navigate", { url: "http://b.test/" });
+
+    expect(second!.navigationId).toBe(first!.navigationId + 1);
+    // Events main forwards carry whatever id is current, so a page still
+    // talking after a Project switch is distinguishable from the new one.
+    expect(host.currentNavigationId()).toBe(second!.navigationId);
+
+    await host.invoke("browser_dispose");
+
+    expect(host.currentNavigationId()).toBe(second!.navigationId + 1);
   });
 
   it("refuses to navigate to a non-http scheme and never creates a view for it", async () => {
@@ -242,6 +307,26 @@ describe("browser host commands", () => {
     const { host } = createHostHarness();
 
     await expect(host.invoke("browser_teleport")).rejects.toThrow(/browser_teleport/);
+  });
+
+  it("claims only the commands it implements, so the backend keeps the rest", () => {
+    for (const command of [
+      "browser_navigate",
+      "browser_back",
+      "browser_forward",
+      "browser_reload",
+      "browser_set_bounds",
+      "browser_set_visible",
+      "browser_open_external",
+      "browser_dispose",
+    ]) {
+      expect(isBrowserCommand(command)).toBe(true);
+    }
+
+    // Sniffing the `browser_` prefix would hijack any future backend command
+    // that happens to start with it.
+    expect(isBrowserCommand("browser_screenshot")).toBe(false);
+    expect(isBrowserCommand("list_terminals")).toBe(false);
   });
 });
 

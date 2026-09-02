@@ -124,4 +124,40 @@ describe("renderer runtime bridge", () => {
     expect(refetch).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
+
+  it("strips Electron's remote-method wrapper from invoke errors", async () => {
+    // Electron re-throws a handler's error wrapped in its own channel prefix,
+    // which would otherwise be read out verbatim in surface error states.
+    window.pigui = {
+      invoke: (() =>
+        Promise.reject(
+          new Error(
+            "Error invoking remote method 'pigui:invoke': Error: The browser surface only opens http and https pages.",
+          ),
+        )) as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
+      onWindowFocusChanged: vi.fn(),
+    };
+
+    await expect(invoke("browser_navigate")).rejects.toThrowError(
+      new Error("The browser surface only opens http and https pages."),
+    );
+  });
+
+  it("leaves an error that carries no wrapper untouched", async () => {
+    window.pigui = {
+      invoke: (() =>
+        Promise.reject(
+          new Error("PiGUI backend utility process is not connected."),
+        )) as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
+      onWindowFocusChanged: vi.fn(),
+    };
+
+    await expect(invoke("list_sessions")).rejects.toThrowError(
+      new Error("PiGUI backend utility process is not connected."),
+    );
+  });
 });
