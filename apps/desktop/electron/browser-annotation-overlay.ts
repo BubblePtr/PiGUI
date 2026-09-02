@@ -22,6 +22,14 @@ import type { BrowserAnnotationElement } from "@/shared/browser-protocol";
 
 export const annotationOverlayHostTag = "pigui-annotation-overlay";
 
+type MarkerEntry = {
+  annotation: BrowserAnnotationElement;
+  /** Kept so the marker can be re-measured; the rect it reported cannot. */
+  element: Element;
+  marker: HTMLElement;
+  comment: HTMLInputElement;
+};
+
 export type BrowserAnnotationOverlay = {
   setDesignMode(enabled: boolean): void;
   clearAnnotations(): void;
@@ -62,13 +70,14 @@ export function createAnnotationOverlay(options: {
   // cannot swallow the events design mode needs.
   const listenerTarget: EventTarget = doc.defaultView ?? doc;
   const annotations: BrowserAnnotationElement[] = [];
-  const markers = new Map<number, { marker: HTMLElement; comment: HTMLInputElement }>();
+  const markers = new Map<number, MarkerEntry>();
 
   let designMode = false;
   let host: HTMLElement | null = null;
   let highlight: HTMLElement | null = null;
   let markerLayer: HTMLElement | null = null;
   let openComment: number | null = null;
+  let markerSyncFrame = 0;
 
   function ensureHost() {
     if (host) {
@@ -116,7 +125,10 @@ export function createAnnotationOverlay(options: {
       position: "absolute",
       top: "0",
       left: "0",
-      "pointer-events": "none",
+      // Design mode can be turned on before the document has a root element to
+      // hang this on, so the layer arms itself from the current state rather
+      // than waiting for the next toggle.
+      "pointer-events": designMode ? "auto" : "none",
     });
 
     root.append(highlight, markerLayer);
@@ -131,11 +143,13 @@ export function createAnnotationOverlay(options: {
 
   /** The element the user is pointing at, or null when it is our own overlay. */
   function pageTarget(event: Event) {
-    const target = event.target;
+    // `event.target` is retargeted to the shadow host at the window, which for
+    // a page's own (open) shadow DOM would name the wrapper instead of what
+    // the user pointed at. The composed path names the real element — and
+    // stops at our host for our own closed root, which is how clicks on a
+    // badge or a bubble are still told apart from clicks on the page.
+    const [target] = event.composedPath();
 
-    // A closed shadow root retargets everything inside it to the host, which
-    // is how clicks on a badge or a comment bubble are told apart from clicks
-    // on the page.
     return target instanceof Element && target !== host ? target : null;
   }
 
@@ -161,31 +175,93 @@ export function createAnnotationOverlay(options: {
     highlight.hidden = false;
   }
 
+  /**
+   * A comment reaches main when the bubble is committed — Enter, a blur, or the
+   * bubble closing — never per keystroke: every notification is a full IPC
+   * round trip carrying the whole list.
+   */
+  function commitComment(entry: MarkerEntry) {
+    const value = entry.comment.value;
+
+    if (value === (entry.annotation.comment ?? "")) {
+      return;
+    }
+
+    if (value) {
+      entry.annotation.comment = value;
+    } else {
+      delete entry.annotation.comment;
+    }
+    notify();
+  }
+
   function setCommentOpen(index: number | null) {
+    const open = openComment === null ? null : markers.get(openComment);
+
+    if (open) {
+      commitComment(open);
+    }
+
     openComment = index;
-    for (const [markerIndex, parts] of markers) {
-      parts.comment.hidden = markerIndex !== index;
+    for (const [markerIndex, entry] of markers) {
+      entry.comment.hidden = markerIndex !== index;
     }
     if (index !== null) {
       markers.get(index)?.comment.focus();
     }
   }
 
-  function renderMarker(annotation: BrowserAnnotationElement) {
+  /**
+   * Markers are fixed to the viewport and re-measured, not pinned to where the
+   * element was when it was marked: a scroll — of the window or of any nested
+   * container — or a reflow would otherwise leave the number sitting over
+   * something else, in the page and on S3's screenshot alike.
+   */
+  function positionMarker(entry: MarkerEntry) {
+    // `hidden` cannot win against the important display below, and an element
+    // a re-render took away measures as 0,0 — which would park the number in
+    // the corner of the viewport rather than take it off screen.
+    if (!entry.element.isConnected) {
+      applyStyles(entry.marker, { display: "none" });
+      return;
+    }
+
+    const rect = entry.element.getBoundingClientRect();
+
+    applyStyles(entry.marker, {
+      display: "flex",
+      left: `${rect.x}px`,
+      top: `${rect.y}px`,
+    });
+  }
+
+  function scheduleMarkerSync() {
+    const view = doc.defaultView;
+
+    if (!view || markerSyncFrame || markers.size === 0) {
+      return;
+    }
+
+    markerSyncFrame = view.requestAnimationFrame(() => {
+      markerSyncFrame = 0;
+      for (const entry of markers.values()) {
+        positionMarker(entry);
+      }
+    });
+  }
+
+  function renderMarker(annotation: BrowserAnnotationElement, element: Element) {
     if (!ensureHost() || !markerLayer) {
       return;
     }
 
-    const view = doc.defaultView;
     const marker = doc.createElement("div");
 
+    marker.dataset.slot = "annotation-marker";
+    // Placement and display both come from positionMarker below, which is the
+    // only thing that knows whether the element is still on the page.
     applyStyles(marker, {
-      position: "absolute",
-      // Document coordinates, so a marker stays on its element as the page
-      // scrolls. The reported rect stays viewport-relative, as measured.
-      left: `${annotation.rect.x + (view?.scrollX ?? 0)}px`,
-      top: `${annotation.rect.y + (view?.scrollY ?? 0)}px`,
-      display: "flex",
+      position: "fixed",
       "align-items": "flex-start",
       gap: "4px",
     });
@@ -232,32 +308,25 @@ export function createAnnotationOverlay(options: {
       font: `400 12px/16px ${overlayFont}`,
       "box-shadow": "0 1px 3px rgba(0, 0, 0, 0.35)",
     });
-    comment.addEventListener("input", () => {
-      // The same object the list holds: clearing the marks takes their bubbles
-      // with them, so a bubble can never outlive its annotation.
-      if (comment.value) {
-        annotation.comment = comment.value;
-      } else {
-        delete annotation.comment;
-      }
-      notify();
-    });
-    comment.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        setCommentOpen(null);
-      }
-    });
+
+    const entry: MarkerEntry = { annotation, element, marker, comment };
+
+    // A blur is a commit; Enter and Escape go through the overlay's own
+    // keydown handler, which is the only one that sees them.
+    comment.addEventListener("change", () => commitComment(entry));
+    comment.addEventListener("blur", () => commitComment(entry));
 
     marker.append(badge, comment);
     markerLayer.append(marker);
-    markers.set(annotation.index, { marker, comment });
+    markers.set(annotation.index, entry);
+    positionMarker(entry);
   }
 
   function addAnnotation(element: Element) {
     const annotation = describeAnnotatedElement(element, annotations.length + 1);
 
     annotations.push(annotation);
-    renderMarker(annotation);
+    renderMarker(annotation, element);
     notify();
   }
 
@@ -315,14 +384,23 @@ export function createAnnotationOverlay(options: {
   }
 
   function handleKeyDown(event: Event) {
-    const keyboardEvent = event as KeyboardEvent;
+    const { key } = event as KeyboardEvent;
+    const fromOverlay = !pageTarget(event);
 
-    // Typing a comment must not trigger the page's own keyboard shortcuts.
-    if (!pageTarget(event)) {
+    // Typing a comment must not trigger the page's own keyboard shortcuts —
+    // which also means the bubble's own listeners never see the keys, so Enter
+    // is answered here rather than on the input.
+    if (fromOverlay) {
       event.stopPropagation();
+
+      if (key === "Enter" && openComment !== null) {
+        event.preventDefault();
+        setCommentOpen(null);
+        return;
+      }
     }
 
-    if (!designMode || keyboardEvent.key !== "Escape") {
+    if (!designMode || key !== "Escape") {
       return;
     }
 
@@ -343,6 +421,13 @@ export function createAnnotationOverlay(options: {
   }
   listenerTarget.addEventListener("pointermove", handlePointerMove, true);
   listenerTarget.addEventListener("keydown", handleKeyDown, true);
+  // Scroll does not bubble, so the capture phase is the only way to hear one
+  // from a nested container; passive, because this never cancels anything.
+  listenerTarget.addEventListener("scroll", scheduleMarkerSync, {
+    capture: true,
+    passive: true,
+  });
+  listenerTarget.addEventListener("resize", scheduleMarkerSync, true);
 
   return {
     setDesignMode(enabled) {
@@ -352,12 +437,14 @@ export function createAnnotationOverlay(options: {
     },
 
     clearAnnotations() {
+      // No commit on the way out: clearing throws the marks away, comments and
+      // all, so there is nothing left to report but the empty list.
+      openComment = null;
       annotations.length = 0;
       for (const { marker } of markers.values()) {
         marker.remove();
       }
       markers.clear();
-      openComment = null;
       notify();
     },
 
@@ -367,6 +454,8 @@ export function createAnnotationOverlay(options: {
       }
       listenerTarget.removeEventListener("pointermove", handlePointerMove, true);
       listenerTarget.removeEventListener("keydown", handleKeyDown, true);
+      listenerTarget.removeEventListener("scroll", scheduleMarkerSync, true);
+      listenerTarget.removeEventListener("resize", scheduleMarkerSync, true);
       host?.remove();
       host = null;
       highlight = null;

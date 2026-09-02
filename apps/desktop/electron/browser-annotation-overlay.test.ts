@@ -35,7 +35,36 @@ function harness() {
 }
 
 function clickPageElement(element: Element) {
-  element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  element.dispatchEvent(
+    new MouseEvent("click", { bubbles: true, cancelable: true, composed: true }),
+  );
+}
+
+function pressKey(target: EventTarget, key: string) {
+  target.dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, composed: true }),
+  );
+}
+
+function rectAt(x: number, y: number) {
+  return {
+    x,
+    y,
+    width: 40,
+    height: 20,
+    left: x,
+    top: y,
+    right: x + 40,
+    bottom: y + 20,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
+/** jsdom runs rAF on a timer; two frames is enough for a scheduled sync. */
+function nextFrames() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
 }
 
 beforeEach(() => {
@@ -124,8 +153,8 @@ describe("annotation overlay", () => {
     expect(annotationChanges).toHaveLength(0);
   });
 
-  it("records a comment typed into a marker's bubble", () => {
-    const { overlay, shadow, designModeChanges, latest } = harness();
+  it("sends a comment once it is committed, not on every keystroke", () => {
+    const { overlay, shadow, annotationChanges, latest } = harness();
 
     overlay.setDesignMode(true);
     clickPageElement(document.getElementById("cta")!);
@@ -141,18 +170,108 @@ describe("annotation overlay", () => {
     clickPageElement(badge);
     expect(comment.hidden).toBe(false);
 
+    const changesBeforeTyping = annotationChanges.length;
+
     comment.value = "This button is too small";
     comment.dispatchEvent(new Event("input", { bubbles: true }));
 
-    expect(latest()[0]!.comment).toBe("This button is too small");
+    // Typing must not cost an IPC round trip per character.
+    expect(annotationChanges).toHaveLength(changesBeforeTyping);
 
-    // Escape closes the bubble the user is in before it means "stop marking".
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
-    );
+    // Enter closes the bubble. The overlay's own keydown handler runs in the
+    // capture phase at the window, so it is the only one that can see this.
+    pressKey(comment, "Enter");
+
+    expect(comment.hidden).toBe(true);
+    expect(latest()[0]!.comment).toBe("This button is too small");
+  });
+
+  it("closes an open bubble on Escape before it stops marking, keeping the text", () => {
+    const { overlay, shadow, designModeChanges, latest } = harness();
+
+    overlay.setDesignMode(true);
+    clickPageElement(document.getElementById("cta")!);
+    clickPageElement(shadow().querySelector('[data-slot="annotation-badge"]')!);
+
+    const comment = shadow().querySelector<HTMLInputElement>(
+      '[data-slot="annotation-comment"]',
+    )!;
+
+    comment.value = "Too small";
+    pressKey(comment, "Escape");
 
     expect(comment.hidden).toBe(true);
     expect(designModeChanges).toEqual([]);
+    expect(latest()[0]!.comment).toBe("Too small");
+  });
+
+  it("marks the element inside the page's own shadow root, not its host", () => {
+    const { overlay, latest } = harness();
+    const widget = document.createElement("div");
+
+    widget.id = "widget";
+    document.body.append(widget);
+
+    const inner = document.createElement("a");
+
+    inner.textContent = "Inner link";
+    widget.attachShadow({ mode: "open" }).append(inner);
+
+    overlay.setDesignMode(true);
+    clickPageElement(inner);
+
+    // `event.target` is retargeted to the host at the window; the composed
+    // path still names what the user actually pointed at.
+    expect(latest()[0]).toMatchObject({ tag: "a", text: "Inner link" });
+  });
+
+  it("keeps a marker on its element as the page scrolls", async () => {
+    const { overlay, shadow } = harness();
+    const button = document.getElementById("cta")!;
+    const measure = vi.spyOn(button, "getBoundingClientRect");
+
+    measure.mockReturnValue(rectAt(12, 200));
+    overlay.setDesignMode(true);
+    clickPageElement(button);
+
+    const marker = shadow().querySelector<HTMLElement>('[data-slot="annotation-marker"]')!;
+
+    expect(marker.style.top).toBe("200px");
+
+    measure.mockReturnValue(rectAt(12, 40));
+    window.dispatchEvent(new Event("scroll"));
+    await nextFrames();
+
+    // A marker pinned to where the element was would sit over the wrong thing
+    // in the page and on S3's screenshot.
+    expect(marker.style.top).toBe("40px");
+
+    // An element a re-render took away has no position to sit at; the marker
+    // must not fall back to the top-left corner of the viewport.
+    button.remove();
+    window.dispatchEvent(new Event("scroll"));
+    await nextFrames();
+
+    expect(marker.style.display).toBe("none");
+  });
+
+  it("arms its markers when the overlay is built after design mode was on", () => {
+    const { overlay, shadow } = harness();
+    const root = document.documentElement;
+    const button = document.getElementById("cta")!;
+
+    // A preload runs before the document has a root element to hang the
+    // overlay on, and main re-applies design mode the moment it reports in.
+    root.remove();
+    overlay.setDesignMode(true);
+    document.append(root);
+
+    clickPageElement(button);
+
+    expect(
+      shadow().querySelector<HTMLElement>('[data-slot="annotation-markers"]')!.style
+        .pointerEvents,
+    ).toBe("auto");
   });
 
   it("clears every mark on demand", () => {
