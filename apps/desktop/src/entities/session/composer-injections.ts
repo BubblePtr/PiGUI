@@ -6,9 +6,11 @@
  * wants to hand the user something to send — hence a window event, the same
  * paradigm the follow-up drafts next door already use.
  *
- * Only a composer that is mounted for that Session can take an injection.
- * Nothing is queued for one that is not: the annotations stay in the page and
- * the surface can send them again. Images especially must not be persisted —
+ * Only a composer that is mounted for that Session can take an injection, and
+ * `injectIntoComposer` says whether one did. Nothing is queued for one that is
+ * not — an archived Session is a read-only projection with no composer at all
+ * — so the sender has to be able to tell the user that, with the annotations
+ * still on the page to send again. Images especially must not be persisted:
  * `follow-up-drafts.ts` is localStorage, and a screenshot does not belong
  * there (PRD S3 implementation constraint 5).
  */
@@ -24,10 +26,27 @@ export type ComposerInjection = {
 
 const composerInjectionEvent = "pigui:composer-injection";
 
+/** The envelope: `delivered` is the subscriber's answer back to the sender. */
+type ComposerInjectionEnvelope = {
+  injection: ComposerInjection;
+  delivered: boolean;
+};
+
+/**
+ * Returns whether a composer took it. Dispatch is synchronous, so the answer
+ * is known by the time this returns — and a caller that hears "no" can say so
+ * rather than let the user believe their marks were sent somewhere.
+ */
 export function injectIntoComposer(injection: ComposerInjection) {
+  const envelope: ComposerInjectionEnvelope = { injection, delivered: false };
+
   window.dispatchEvent(
-    new CustomEvent<ComposerInjection>(composerInjectionEvent, { detail: injection }),
+    new CustomEvent<ComposerInjectionEnvelope>(composerInjectionEvent, {
+      detail: envelope,
+    }),
   );
+
+  return envelope.delivered;
 }
 
 export function subscribeComposerInjections(
@@ -35,13 +54,16 @@ export function subscribeComposerInjections(
   listener: (injection: ComposerInjection) => void,
 ) {
   const handle = (event: Event) => {
-    const injection = (event as CustomEvent<ComposerInjection>).detail;
+    const envelope = (event as CustomEvent<ComposerInjectionEnvelope>).detail;
 
     // One composer is mounted at a time, but it outlives Session switches —
     // an injection aimed at the Session it used to show is not for it.
-    if (injection.sessionId === sessionId) {
-      listener(injection);
+    if (envelope.injection.sessionId !== sessionId) {
+      return;
     }
+
+    envelope.delivered = true;
+    listener(envelope.injection);
   };
 
   window.addEventListener(composerInjectionEvent, handle);

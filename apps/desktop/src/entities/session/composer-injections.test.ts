@@ -12,7 +12,9 @@ describe("composer injections", () => {
     const unsubscribeOther = subscribeComposerInjections("session-2", other);
     const file = new File(["png"], "browser-annotations.png", { type: "image/png" });
 
-    injectIntoComposer({ sessionId: "session-1", text: "Marked up", files: [file] });
+    expect(
+      injectIntoComposer({ sessionId: "session-1", text: "Marked up", files: [file] }),
+    ).toBe(true);
 
     expect(other).not.toHaveBeenCalled();
     expect(mine).toHaveBeenCalledWith({
@@ -25,14 +27,16 @@ describe("composer injections", () => {
     unsubscribeOther();
   });
 
-  it("stops delivering once the composer is gone", () => {
+  it("reports a composer that was not there to take it", () => {
     const listener = vi.fn();
 
     subscribeComposerInjections("session-1", listener)();
-    // Nothing is queued for a composer that is not mounted: the marks stay in
-    // the page and the user can send them again from the surface.
-    injectIntoComposer({ sessionId: "session-1", text: "Marked up" });
 
+    // Nothing is queued for a composer that is not mounted — an archived
+    // Session has none at all — so the caller has to learn that its text went
+    // nowhere and can say so instead of appearing to have sent it.
+    expect(injectIntoComposer({ sessionId: "session-1", text: "Marked up" })).toBe(false);
+    expect(injectIntoComposer({ sessionId: "session-2", text: "Marked up" })).toBe(false);
     expect(listener).not.toHaveBeenCalled();
   });
 });
