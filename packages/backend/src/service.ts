@@ -26,6 +26,10 @@ import {
 import { createNodePiRpcProcess } from "./drivers/pi-rpc";
 import { createPiSdkDriver } from "./drivers/pi-sdk-driver";
 import {
+  createTerminalManager,
+  type TerminalManager,
+} from "./drivers/terminal";
+import {
   createPublicPiSdkRuntimeFactory,
   createPublicPiSdkRuntimeForker,
   createPublicPiSdkRuntimeResumer,
@@ -91,6 +95,7 @@ export type BackendServiceOptions = {
   piSessionListAll?: () => Promise<PiSessionListItem[]>;
   environmentPreflight?: EnvironmentPreflightReader;
   providerAuth?: ProviderAuthService;
+  terminalManager?: TerminalManager;
 };
 
 export function createBackendService(options: BackendServiceOptions = {}): BackendService {
@@ -149,10 +154,33 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
     journal: runtimeJournal,
   });
   const listeners = new Set<(event: BackendRpcEvent) => void>();
+  const terminalManager = options.terminalManager ?? createTerminalManager();
 
   runtimeGateway.onEvent((event) => {
     for (const listener of listeners) {
       listener(event);
+    }
+  });
+
+  // Terminal streams are ephemeral UI plumbing, not session truth: they are
+  // neither journaled nor sequenced (seq 0), just forwarded as envelopes.
+  terminalManager.onEvent((event) => {
+    for (const listener of listeners) {
+      listener({
+        type: "event",
+        event: {
+          id: `evt-${crypto.randomUUID()}`,
+          seq: 0,
+          sessionId: event.sessionId,
+          piSessionId: event.piSessionId,
+          type: event.kind === "output" ? "terminal_output" : "terminal_exit",
+          ts: new Date().toISOString(),
+          payload:
+            event.kind === "output"
+              ? { terminalId: event.terminalId, data: event.data, end: event.end }
+              : { terminalId: event.terminalId, exitCode: event.exitCode },
+        },
+      });
     }
   });
 
@@ -174,6 +202,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             piSessionListAll,
             runtimeGateway,
             runtimeJournal,
+            terminalManager,
           }),
         };
       } catch (error) {
@@ -207,6 +236,7 @@ async function dispatchRequest(input: {
   piSessionListAll: () => Promise<PiSessionListItem[]>;
   runtimeGateway: RuntimeGatewayService;
   runtimeJournal: SessionEventJournal;
+  terminalManager: TerminalManager;
 }) {
   const params = paramsRecord(input.request.params);
 
@@ -283,6 +313,39 @@ async function dispatchRequest(input: {
     case "stop_pi_rpc_runtime":
       await input.piRpc.stop?.();
       return null;
+    case "list_terminals":
+      return input.terminalManager.list(requiredString(params.sessionId, "sessionId"));
+    case "open_terminal":
+      return openTerminal({
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        cols: terminalDimension(params.cols, 80),
+        rows: terminalDimension(params.rows, 24),
+        store: input.sessionProjectionStore,
+        runtimeGateway: input.runtimeGateway,
+        terminalManager: input.terminalManager,
+      });
+    case "attach_terminal":
+      return input.terminalManager.attach(requiredString(params.terminalId, "terminalId"));
+    case "terminal_input": {
+      const data = params.data;
+
+      if (typeof data !== "string") {
+        throw new Error("data is required");
+      }
+
+      input.terminalManager.write(requiredString(params.terminalId, "terminalId"), data);
+      return null;
+    }
+    case "resize_terminal":
+      input.terminalManager.resize(
+        requiredString(params.terminalId, "terminalId"),
+        terminalDimension(params.cols, 80),
+        terminalDimension(params.rows, 24),
+      );
+      return null;
+    case "close_terminal":
+      input.terminalManager.close(requiredString(params.terminalId, "terminalId"));
+      return null;
     default:
       throw new Error(`Unknown backend RPC method "${input.request.method}".`);
   }
@@ -314,6 +377,76 @@ async function getSessionChanges(input: {
     checkoutRoot: root,
     diffRoot,
   });
+}
+
+async function openTerminal(input: {
+  sessionId: string;
+  cols: number;
+  rows: number;
+  store: SessionProjectionStore;
+  runtimeGateway: RuntimeGatewayService;
+  terminalManager: TerminalManager;
+}) {
+  const projection = await input.store.get(input.sessionId);
+
+  if (!projection) {
+    throw new Error(`Session projection "${input.sessionId}" was not found.`);
+  }
+
+  const cwd = await resolveTerminalCwd({
+    projection,
+    runtimeGateway: input.runtimeGateway,
+  });
+
+  return input.terminalManager.create({
+    sessionId: input.sessionId,
+    piSessionId: projection.piSessionId,
+    cwd,
+    cols: input.cols,
+    rows: input.rows,
+  });
+}
+
+// Terminals open in the session's execution checkout when one was recorded;
+// otherwise they fall back to the cwd of the live runtime snapshot.
+async function resolveTerminalCwd(input: {
+  projection: PersistedSessionProjection;
+  runtimeGateway: RuntimeGatewayService;
+}) {
+  const checkout = isRecord(input.projection.checkout)
+    ? input.projection.checkout
+    : undefined;
+  const checkoutRoot =
+    optionalString(checkout?.executionCheckoutRoot) ??
+    optionalString(checkout?.root);
+
+  if (checkoutRoot) {
+    return checkoutRoot;
+  }
+
+  const snapshot = await input.runtimeGateway.handleRequest({
+    id: `open-terminal-${crypto.randomUUID()}`,
+    method: "get_runtime_snapshot",
+    params: { piSessionId: input.projection.piSessionId },
+  });
+  const result = isRecord(snapshot.result) ? snapshot.result : undefined;
+  const runtimeCwd = snapshot.error ? undefined : optionalString(result?.cwd);
+
+  if (runtimeCwd) {
+    return runtimeCwd;
+  }
+
+  throw new Error("Session has no checkout or runtime cwd to open a terminal in.");
+}
+
+function terminalDimension(value: unknown, fallback: number) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(500, Math.max(1, Math.round(parsed)));
 }
 
 async function listSessionProjections(input: {

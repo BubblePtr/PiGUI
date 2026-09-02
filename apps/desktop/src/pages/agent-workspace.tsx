@@ -63,7 +63,6 @@ import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-sta
 import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
 import { invoke } from "@/shared/runtime";
 import {
-  Archive,
   Box,
   ChevronDown,
   Computer,
@@ -126,18 +125,12 @@ import {
 } from "@/entities/session/session-drafts";
 import {
   applySessionProjectionEvent,
-  canArchiveSessionProjection,
   createSessionProjection,
   isSessionProjectionArchived,
   getSessionProjectionListItems,
   isSessionProjectionActive,
   type SessionProjection,
 } from "@/entities/session/session-projection";
-import {
-  archiveSessionProjection,
-  formatCost,
-  formatTokens,
-} from "@/entities/session/sessions";
 import {
   sessionChangesBadge,
   useSessionChanges,
@@ -150,6 +143,8 @@ import {
   saveLastModelSelection,
 } from "@/entities/session/last-model-preference";
 import { getVisibleModels } from "@/entities/model/visible-models";
+import type { TerminalInstanceInfo } from "@/entities/terminal/terminal-client";
+import { SessionTerminalPanel } from "@/pages/session-terminal-panel";
 import { settingsModelsSectionId } from "@/pages/settings";
 import {
   sessionProjectionFromPersistedProjection,
@@ -202,14 +197,6 @@ type AgentWorkspaceFixture = {
     totalCostUsd: number;
     totalTokens: number;
   };
-};
-
-type SessionActionsContentProps = {
-  workspace: AgentWorkspaceFixture;
-  projection?: SessionProjection | null;
-  archiveError?: string | null;
-  isArchiving?: boolean;
-  onArchive?: () => void;
 };
 
 type SessionChangesPanelProps = {
@@ -2140,7 +2127,7 @@ export function SessionChangesPanel({
     changes?.files.find((file) => file.path === selectedPath) ?? null;
 
   return (
-    <section aria-labelledby="session-diff-heading">
+    <section aria-labelledby="session-diff-heading" className="pb-2 pt-3">
       <div className="flex min-h-8 items-center justify-between gap-3">
         <div className="min-w-0">
           <h3
@@ -2328,247 +2315,17 @@ export function SessionChangesPanel({
   );
 }
 
-export function SessionActionsContent({
-  workspace,
-  projection,
-  archiveError,
-  isArchiving = false,
-  onArchive,
-}: SessionActionsContentProps) {
-  const checkout = projection?.checkout
-    ? {
-        mode: checkoutModeLabel(projection.checkout.mode),
-        root:
-          projection.checkout.executionCheckoutRoot ??
-          projection.checkout.diffRoot ??
-          projection.checkout.root,
-        runtimeCwd: projection.checkout.runtimeCwd,
-        repoRoot: projection.checkout.repoRoot,
-        projectRoot: projection.checkout.projectRoot,
-        projectRelativePath: projection.checkout.projectRelativePath,
-        diffRoot: projection.checkout.diffRoot,
-        sessionBound: projection.checkout.sessionBound,
-        disposable: projection.checkout.disposable,
-        cleanupCandidate: projection.checkout.cleanupCandidate,
-        permanent: projection.checkout.permanent,
-      }
-    : {
-        ...workspace.checkout,
-        repoRoot: workspace.repoRoot,
-        projectRoot: workspace.projectRoot,
-        projectRelativePath: ".",
-        diffRoot: workspace.checkout.root,
-        sessionBound: false,
-        disposable: false,
-        cleanupCandidate: false,
-        permanent: true,
-      };
-  const summary = projection
-    ? {
-        provider: projection.summary.provider,
-        model: projection.summary.model ?? workspace.summary.model,
-        totalCostUsd: projection.summary.totalCostUsd,
-        totalTokens: projection.summary.totalTokens,
-      }
-    : {
-        provider: null,
-        ...workspace.summary,
-      };
-  const archiveAllowed = Boolean(
-    projection &&
-      !isSessionProjectionArchived(projection) &&
-      canArchiveSessionProjection(projection),
-  );
-  const hasGitRepository = Boolean(checkout.repoRoot);
-
-  return (
-    <div className="grid gap-5">
-      {!hasGitRepository ? (
-        <section className="rounded-md border border-default/70 bg-surface px-3 py-2">
-          <h3 className="text-sm font-semibold text-foreground">
-            No Git repository
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Git-only actions are unavailable for this Project.
-          </p>
-        </section>
-      ) : null}
-
-      <section>
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <GitBranch className="size-4 text-muted" />
-          Checkout
-        </h3>
-        <dl className="mt-3 grid gap-3 text-sm">
-          <div>
-            <dt className="text-xs font-medium uppercase text-muted">Mode</dt>
-            <dd className="mt-1 break-words text-foreground">
-              {checkout.mode}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase text-muted">Root</dt>
-            <dd className="mt-1 break-words text-foreground">
-              {checkout.root}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase text-muted">
-              Runtime cwd
-            </dt>
-            <dd className="mt-1 break-words text-foreground">
-              {checkout.runtimeCwd}
-            </dd>
-          </div>
-        </dl>
-        <details className="mt-4 rounded-md border border-default/70 px-3 py-2 text-sm">
-          <summary className="cursor-default text-muted">
-            Advanced checkout details
-          </summary>
-          <dl className="mt-3 grid gap-3">
-            {checkout.repoRoot ? (
-              <div>
-                <dt className="text-xs font-medium uppercase text-muted">
-                  Repo root
-                </dt>
-                <dd className="mt-1 break-words text-foreground">
-                  {checkout.repoRoot}
-                </dd>
-              </div>
-            ) : null}
-            {checkout.projectRoot ? (
-              <div>
-                <dt className="text-xs font-medium uppercase text-muted">
-                  Project root
-                </dt>
-                <dd className="mt-1 break-words text-foreground">
-                  {checkout.projectRoot}
-                </dd>
-              </div>
-            ) : null}
-            {checkout.projectRelativePath ? (
-              <div>
-                <dt className="text-xs font-medium uppercase text-muted">
-                  Project relative path
-                </dt>
-                <dd className="mt-1 break-words text-foreground">
-                  {checkout.projectRelativePath}
-                </dd>
-              </div>
-            ) : null}
-            {checkout.diffRoot && checkout.diffRoot !== checkout.root ? (
-              <div>
-                <dt className="text-xs font-medium uppercase text-muted">
-                  Diff root
-                </dt>
-                <dd className="mt-1 break-words text-foreground">
-                  {checkout.diffRoot}
-                </dd>
-              </div>
-            ) : null}
-            <div>
-              <dt className="text-xs font-medium uppercase text-muted">
-                Lifecycle
-              </dt>
-              <dd className="mt-1 break-words text-foreground">
-                {[
-                  checkout.sessionBound ? "Session-bound" : "Shared checkout",
-                  checkout.disposable ? "Disposable" : "Retained",
-                  checkout.cleanupCandidate ? "Cleanup candidate" : null,
-                  checkout.permanent ? "Permanent" : null,
-                ]
-                  .filter(Boolean)
-                  .join(" / ")}
-              </dd>
-            </div>
-          </dl>
-        </details>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-semibold text-foreground">
-          Model and cost
-        </h3>
-        <dl className="mt-3 grid gap-3 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-muted">Model</dt>
-            <dd className="min-w-0 truncate text-right font-medium text-foreground">
-              {summary.model}
-            </dd>
-          </div>
-          {summary.provider ? (
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-muted">Provider</dt>
-              <dd className="font-medium text-foreground">
-                {summary.provider}
-              </dd>
-            </div>
-          ) : null}
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-muted">Cost</dt>
-            <dd className="font-medium text-foreground">
-              {formatCost(summary.totalCostUsd)}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-muted">Tokens</dt>
-            <dd className="font-medium text-foreground">
-              {formatTokens(summary.totalTokens)}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-semibold text-foreground">Archive</h3>
-        <div className="mt-3">
-          <Button
-            icon={<Archive className="size-4" />}
-            isDisabled={!archiveAllowed || isArchiving}
-            isLoading={isArchiving}
-            label="Archive Session"
-            size="sm"
-            variant="secondary"
-            onClick={onArchive}
-          />
-        </div>
-        {!archiveAllowed && projection && !isSessionProjectionArchived(projection) ? (
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Active runs cannot be archived.
-          </p>
-        ) : null}
-        {projection && isSessionProjectionArchived(projection) ? (
-          <p className="mt-2 text-sm leading-6 text-muted">
-            This Session is archived.
-          </p>
-        ) : null}
-        {archiveError ? (
-          <p className="mt-2 text-sm leading-6 text-danger" role="alert">
-            {archiveError}
-          </p>
-        ) : null}
-      </section>
-    </div>
-  );
-}
-
 /** Renders whichever surface the inspector (or its Sheet fallback) is showing. */
 function SessionSurfaceContent({
   surfaceId,
-  workspace,
   projection,
-  archiveError,
-  isArchiving,
   sessionChanges,
-  onArchive,
+  onTerminalInstancesChange,
 }: {
   surfaceId: SessionSurfaceId;
-  workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
-  archiveError?: string | null;
-  isArchiving?: boolean;
   sessionChanges: SessionChangesView;
-  onArchive?: () => void;
+  onTerminalInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
 }) {
   if (surfaceId === "changes") {
     return (
@@ -2583,15 +2340,21 @@ function SessionSurfaceContent({
     );
   }
 
-  return (
-    <SessionActionsContent
-      archiveError={archiveError}
-      isArchiving={isArchiving}
-      workspace={workspace}
-      projection={projection}
-      onArchive={onArchive}
-    />
-  );
+  if (surfaceId === "terminal") {
+    // No projection means no checkout, so there is nothing to host a shell in.
+    if (!projection) {
+      return null;
+    }
+
+    return (
+      <SessionTerminalPanel
+        sessionId={projection.id}
+        onInstancesChange={onTerminalInstancesChange}
+      />
+    );
+  }
+
+  return null;
 }
 
 /**
@@ -2715,29 +2478,23 @@ async function restoreProjectionRuntimeState(input: {
 }
 
 export function SessionToolbarActions({
-  workspace,
   projection,
   activeSurfaceId = "changes",
-  archiveError,
   dockInspector = false,
   inspectorOpen = false,
-  isArchiving,
   sessionChanges,
   onActiveSurfaceChange = () => {},
-  onArchive,
   onInspectorOpenChange = () => {},
+  onTerminalInstancesChange,
 }: {
-  workspace: AgentWorkspaceFixture;
   projection?: SessionProjection | null;
   activeSurfaceId?: SessionSurfaceId;
-  archiveError?: string | null;
   dockInspector?: boolean;
   inspectorOpen?: boolean;
-  isArchiving?: boolean;
   sessionChanges: SessionChangesView;
   onActiveSurfaceChange?: (surfaceId: SessionSurfaceId) => void;
-  onArchive?: () => void;
   onInspectorOpenChange?: (isOpen: boolean) => void;
+  onTerminalInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
 }) {
   return (
     <>
@@ -2753,13 +2510,10 @@ export function SessionToolbarActions({
         onOpenChange={onInspectorOpenChange}
       >
         <SessionSurfaceContent
-          archiveError={archiveError}
-          isArchiving={isArchiving}
           sessionChanges={sessionChanges}
           surfaceId={activeSurfaceId}
-          workspace={workspace}
           projection={projection}
-          onArchive={onArchive}
+          onTerminalInstancesChange={onTerminalInstancesChange}
         />
       </SessionInspectorSheet>
     </>
@@ -3791,8 +3545,9 @@ export function AgentWorkspaceSessionsPage() {
       current.length > 0 ? current : defaultSidebarProjectSessionProjections,
     );
   }, [browserDevelopmentData, setSessionProjections]);
-  const [isArchiving, setIsArchiving] = useState(false);
-  const [archiveError, setArchiveError] = useState<string | null>(null);
+  // Shell count for the Terminal rail badge, reported up by the Terminal
+  // surface while it is mounted; reset per Session below.
+  const [terminalInstanceCount, setTerminalInstanceCount] = useState(0);
   // Open state and the active surface are Workspace-level, so switching
   // Sessions keeps the inspector where the user left it.
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -3808,7 +3563,7 @@ export function AgentWorkspaceSessionsPage() {
     ) ?? null;
   // One read for the panel and the rail badge. The docked rail carries the
   // Changes count whatever surface is showing, so it needs the diff even on
-  // Actions; the Sheet has no rail, so there it follows the active surface.
+  // Terminal; the Sheet has no rail, so there it follows the active surface.
   const sessionChanges = useSessionChanges({
     sessionId: selectedSessionProjection?.id ?? null,
     enabled: inspectorOpen && (dockInspector || activeSurfaceId === "changes"),
@@ -3823,7 +3578,7 @@ export function AgentWorkspaceSessionsPage() {
   );
 
   useEffect(() => {
-    setArchiveError(null);
+    setTerminalInstanceCount(0);
   }, [selectedSessionId]);
 
   // After hydrate (or when project sessions appear), select the first valid session.
@@ -3872,31 +3627,8 @@ export function AgentWorkspaceSessionsPage() {
       ),
     );
   };
-  const handleArchiveSession = async () => {
-    if (!selectedSessionProjection || isArchiving) {
-      return;
-    }
-
-    setIsArchiving(true);
-    setArchiveError(null);
-
-    try {
-      const archived = sessionProjectionFromPersistedProjection(
-        await archiveSessionProjection(selectedSessionProjection.id),
-      );
-
-      setSessionProjections((projections) =>
-        projections.map((projection) =>
-          projection.id === archived.id ? archived : projection,
-        ),
-      );
-    } catch (error) {
-      setArchiveError(
-        error instanceof Error ? error.message : "PiGUI could not archive the Session.",
-      );
-    } finally {
-      setIsArchiving(false);
-    }
+  const handleTerminalInstancesChange = (instances: TerminalInstanceInfo[]) => {
+    setTerminalInstanceCount(instances.length);
   };
 
   if (registryProjects.length === 0) {
@@ -3950,16 +3682,13 @@ export function AgentWorkspaceSessionsPage() {
       toolbarActions={selectedSessionProjection ? (
         <SessionToolbarActions
           activeSurfaceId={activeSurfaceId}
-          archiveError={archiveError}
           dockInspector={dockInspector}
           inspectorOpen={inspectorOpen}
-          isArchiving={isArchiving}
           sessionChanges={sessionChanges}
-          workspace={workspace}
           projection={selectedSessionProjection}
           onActiveSurfaceChange={setActiveSurfaceId}
-          onArchive={() => void handleArchiveSession()}
           onInspectorOpenChange={setInspectorOpen}
+          onTerminalInstancesChange={handleTerminalInstancesChange}
         />
       ) : undefined}
     >
@@ -3968,17 +3697,18 @@ export function AgentWorkspaceSessionsPage() {
           dockInspector && inspectorOpen ? (
             <SessionInspector
               activeSurfaceId={activeSurfaceId}
-              badges={{ changes: sessionChangesBadge(sessionChanges.changes) }}
+              badges={{
+                changes: sessionChangesBadge(sessionChanges.changes),
+                terminal:
+                  terminalInstanceCount > 0 ? String(terminalInstanceCount) : undefined,
+              }}
               onActiveSurfaceChange={setActiveSurfaceId}
             >
               <SessionSurfaceContent
-                archiveError={archiveError}
-                isArchiving={isArchiving}
                 sessionChanges={sessionChanges}
                 surfaceId={activeSurfaceId}
-                workspace={workspace}
                 projection={selectedSessionProjection}
-                onArchive={() => void handleArchiveSession()}
+                onTerminalInstancesChange={handleTerminalInstancesChange}
               />
             </SessionInspector>
           ) : undefined

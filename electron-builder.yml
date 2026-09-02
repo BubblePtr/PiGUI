@@ -16,6 +16,15 @@ files:
   - package.json
   # Main, preload, and renderer dependencies are bundled by electron-vite.
   - "!node_modules/**/*"
+  # The one runtime exception: node-pty stays external (native N-API module)
+  # and is staged as real files by scripts/stage-node-pty.mjs (bun only links
+  # it into a store dir electron-builder cannot reach).
+  - "node_modules/@lydell/**/*"
+
+# Native modules (pty.node) cannot be dlopen'd from inside the asar, and
+# node-pty's spawn-helper is exec'd as a subprocess — unpack the whole scope.
+asarUnpack:
+  - "node_modules/@lydell/**/*"
 
 artifactName: ${productName}-${version}-${arch}.${ext}
 

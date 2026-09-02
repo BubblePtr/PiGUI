@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { GallerySection } from "@/pages/design";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
@@ -48,6 +48,10 @@ import {
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
+import {
+  TerminalView,
+  type TerminalViewHandle,
+} from "@/shared/ui/terminal/terminal-view";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import { ComposerAttachmentDrawer } from "@/shared/ui/composer-attachments/composer-attachment-drawer";
 import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-insert-menu";
@@ -235,14 +239,14 @@ function SessionInspectorGallery() {
             </SessionInspector>
           </div>
         </Variant>
-        <Variant caption="Actions active — same panel, rail switches the surface">
+        <Variant caption="Terminal active — same panel, rail switches the surface; flushContent drops the header/content padding">
           <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
             <SessionInspector
-              activeSurfaceId="actions"
+              activeSurfaceId="terminal"
               onActiveSurfaceChange={() => {}}
             >
               <p className="text-sm text-muted">
-                Checkout, model and cost, archive.
+                Session-scoped shells, edge-to-edge.
               </p>
             </SessionInspector>
           </div>
@@ -257,6 +261,35 @@ function SessionInspectorGallery() {
               isOpen={isOpen}
               onOpenChange={setIsOpen}
             />
+          </div>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+function TerminalViewGallery() {
+  const terminalRef = useRef<TerminalViewHandle>(null);
+
+  useEffect(() => {
+    // Child effects run first, so the xterm instance is already open and the
+    // handle is live by the time this writes.
+    terminalRef.current?.write(
+      [
+        "\x1b[32m$\x1b[0m bun run typecheck",
+        "tsc --noEmit — clean",
+        "\x1b[31mfatal:\x1b[0m not a git repository (sample output, not a live shell)",
+        "",
+      ].join("\r\n"),
+    );
+  }, []);
+
+  return (
+    <GallerySection title="TerminalView">
+      <VariantRow>
+        <Variant caption="live xterm mount — output written via the ref handle, chrome colors from the token bridge">
+          <div className="h-48 w-[30rem] overflow-hidden rounded-md border border-separator">
+            <TerminalView ref={terminalRef} className="h-full" />
           </div>
         </Variant>
       </VariantRow>
@@ -1530,6 +1563,7 @@ export function DesignComponentsLayer() {
       <PiBarChartGallery />
       <PiSheetGallery />
       <SessionInspectorGallery />
+      <TerminalViewGallery />
       <PiTraceLedgerGallery />
       <PiTraceStripGallery />
       <PiTraceInspectorGallery />

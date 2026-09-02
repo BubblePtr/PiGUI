@@ -1,0 +1,358 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import {
+  attachTerminal,
+  closeTerminal,
+  listTerminals,
+  openTerminal,
+  resizeTerminal,
+  sendTerminalInput,
+  subscribeTerminalEvents,
+  type TerminalInstanceInfo,
+} from "@/entities/terminal/terminal-client";
+import { isElectronRuntime } from "@/shared/runtime";
+import { Cancel, Plus, Terminal } from "@/shared/ui/icons";
+import {
+  TerminalView,
+  type TerminalViewHandle,
+} from "@/shared/ui/terminal/terminal-view";
+
+/**
+ * Terminal surface content (ADR-0028): the rail keeps a single icon while the
+ * panel owns the instances — a compact tab strip on top, one xterm viewport
+ * below. The strip is hand-rolled because every tab carries its own close
+ * button; Astryx TabList renders each Tab as a single <button>, which cannot
+ * legally nest one.
+ */
+
+const defaultTerminalSize = { cols: 80, rows: 24 };
+
+/**
+ * The xterm view for one instance. Mount order matters: subscribe first so no
+ * output is missed, then attach and replay the backend's scrollback buffer.
+ * Live chunks that race the attach round-trip are held and de-duplicated by
+ * stream offset (`end`) once attach reports where its scrollback ends, so old
+ * and new bytes neither interleave nor repeat. Unmounting disposes the view
+ * only; the backend instance stays alive and the next mount re-attaches.
+ */
+function ActiveTerminal({
+  instance,
+  onSizeChange,
+}: {
+  instance: TerminalInstanceInfo;
+  onSizeChange: (cols: number, rows: number) => void;
+}) {
+  const viewRef = useRef<TerminalViewHandle>(null);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+
+    let disposed = false;
+    let attached = false;
+    const pending: Array<{ data: string; end?: number }> = [];
+    const write = (data: string, end?: number) => {
+      if (attached) {
+        view.write(data);
+      } else {
+        pending.push({ data, end });
+      }
+    };
+
+    const unsubscribe = subscribeTerminalEvents({
+      onOutput: (terminalId, data, end) => {
+        if (terminalId === instance.terminalId) {
+          write(data, end);
+        }
+      },
+      onExit: (terminalId, exitCode) => {
+        if (terminalId === instance.terminalId) {
+          write(`\r\n[process exited with code ${exitCode}]`);
+        }
+      },
+    });
+
+    void attachTerminal(instance.terminalId)
+      .then(({ scrollback, end: attachEnd }) => {
+        if (disposed) {
+          return;
+        }
+
+        if (scrollback) {
+          view.write(scrollback);
+        }
+        if (instance.status === "exited") {
+          // The exit event fired before this view existed; the code may be
+          // unknown for instances that came back from listTerminals.
+          view.write(
+            instance.exitCode === undefined
+              ? "\r\n[process exited]"
+              : `\r\n[process exited with code ${instance.exitCode}]`,
+          );
+        }
+        for (const chunk of pending) {
+          if (chunk.end === undefined) {
+            view.write(chunk.data);
+            continue;
+          }
+          if (chunk.end <= attachEnd) {
+            continue; // Already inside the replayed scrollback.
+          }
+          const start = chunk.end - chunk.data.length;
+          view.write(chunk.data.slice(Math.max(0, attachEnd - start)));
+        }
+        attached = true;
+      })
+      .catch(() => {
+        // A dead instance leaves the viewport blank; the next mount retries.
+      });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+    // Only the instance identity re-runs this: a status flip to "exited" must
+    // not re-attach, or the scrollback replay would duplicate the buffer. The
+    // status/exitCode reads above are the mount-time snapshot, which is
+    // exactly what the "already exited before this view existed" check wants.
+  }, [instance.terminalId]);
+
+  return (
+    <TerminalView
+      ref={viewRef}
+      className="h-full w-full"
+      onData={(data) => {
+        void sendTerminalInput(instance.terminalId, data).catch(() => {});
+      }}
+      onResize={(cols, rows) => {
+        onSizeChange(cols, rows);
+        void resizeTerminal(instance.terminalId, cols, rows).catch(() => {});
+      }}
+    />
+  );
+}
+
+export function SessionTerminalPanel({
+  sessionId,
+  onInstancesChange,
+}: {
+  sessionId: string;
+  onInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
+}) {
+  const [instances, setInstances] = useState<TerminalInstanceInfo[] | null>(null);
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Reused for every new shell so it starts at the viewport's current
+  // geometry instead of a guess that immediately resizes.
+  const lastSizeRef = useRef(defaultTerminalSize);
+
+  // Attach the Session's existing instances; a Session with none gets one
+  // shell created so the desktop panel is never a dead end.
+  useEffect(() => {
+    if (!isElectronRuntime()) {
+      setUnavailable(true);
+      setInstances([]);
+      return;
+    }
+
+    let cancelled = false;
+    setUnavailable(false);
+    setActionError(null);
+    setInstances(null);
+    setActiveTerminalId(null);
+
+    void (async () => {
+      try {
+        let list = await listTerminals(sessionId);
+        if (list.length === 0) {
+          list = [await openTerminal({ sessionId, ...lastSizeRef.current })];
+        }
+        if (cancelled) {
+          return;
+        }
+        setInstances(list);
+        setActiveTerminalId(list[0]?.terminalId ?? null);
+      } catch {
+        if (!cancelled) {
+          setUnavailable(true);
+          setInstances([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  const markExited = useCallback((terminalId: string, exitCode: number) => {
+    setInstances((current) =>
+      current?.map((instance) =>
+        instance.terminalId === terminalId
+          ? { ...instance, status: "exited", exitCode }
+          : instance,
+      ) ?? current,
+    );
+  }, []);
+
+  // Exits land whatever tab is active, so a background shell's exit still
+  // mutes its tab in the strip.
+  useEffect(() => {
+    if (!isElectronRuntime()) {
+      return;
+    }
+
+    return subscribeTerminalEvents({ onExit: markExited });
+  }, [markExited]);
+
+  useEffect(() => {
+    if (instances) {
+      onInstancesChange?.(instances);
+    }
+  }, [instances, onInstancesChange]);
+
+  const openNewTerminal = async () => {
+    setActionError(null);
+
+    try {
+      const created = await openTerminal({ sessionId, ...lastSizeRef.current });
+      setInstances((current) => [...(current ?? []), created]);
+      setActiveTerminalId(created.terminalId);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "A new terminal could not be opened.",
+      );
+    }
+  };
+
+  const closeInstance = async (terminalId: string) => {
+    const current = instances ?? [];
+    const index = current.findIndex((instance) => instance.terminalId === terminalId);
+    const next = current.filter((instance) => instance.terminalId !== terminalId);
+
+    setInstances(next);
+    if (terminalId === activeTerminalId) {
+      // Activate whichever tab slides into the closed tab's slot.
+      setActiveTerminalId(next[Math.min(index, next.length - 1)]?.terminalId ?? null);
+    }
+
+    try {
+      await closeTerminal(terminalId);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "The terminal could not be closed.",
+      );
+    }
+
+    // Closing the last tab starts a fresh shell; the panel never sits empty.
+    if (next.length === 0) {
+      await openNewTerminal();
+    }
+  };
+
+  if (unavailable) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+        <Terminal className="size-5 text-muted" />
+        <p className="text-sm text-muted">Terminal requires the desktop app.</p>
+      </div>
+    );
+  }
+
+  if (instances === null) {
+    return <p className="pt-3 text-sm text-muted">Opening a shell…</p>;
+  }
+
+  const activeInstance =
+    instances.find((instance) => instance.terminalId === activeTerminalId) ?? null;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Flush surface (registry flushContent): the panel and header run
+          edge-to-edge. py-1.5 makes the strip a second 40px band — the chip
+          row is 28px, so 6px either side matches the inspector header (h-10)
+          exactly. */}
+      <div
+        aria-label="Terminal instances"
+        className="flex shrink-0 items-center gap-1 overflow-x-auto py-1.5"
+        role="tablist"
+      >
+        {instances.map((instance, index) => {
+          const isActive = instance.terminalId === activeTerminalId;
+          const label = `Terminal ${index + 1}`;
+
+          return (
+            <span
+              className={`flex shrink-0 items-center rounded-md text-xs ${
+                isActive
+                  ? "bg-surface-muted text-foreground"
+                  : "text-muted hover:bg-surface-hover"
+              }`}
+              key={instance.terminalId}
+            >
+              <button
+                aria-selected={isActive}
+                className="flex items-center gap-1.5 rounded-l-md py-1 pl-2 pr-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
+                role="tab"
+                title={instance.cwd}
+                type="button"
+                onClick={() => setActiveTerminalId(instance.terminalId)}
+              >
+                <Terminal className="size-3.5" />
+                <span className={instance.status === "exited" ? "text-muted" : undefined}>
+                  {label}
+                </span>
+                {instance.status === "exited" ? (
+                  <span className="text-muted"> (exited)</span>
+                ) : null}
+              </button>
+              <button
+                aria-label={`Close ${label}`}
+                className="rounded-r-md py-1 pl-0.5 pr-1.5 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
+                type="button"
+                onClick={() => void closeInstance(instance.terminalId)}
+              >
+                <Cancel className="size-3" />
+              </button>
+            </span>
+          );
+        })}
+        <IconButton
+          icon={<Plus className="size-4" />}
+          label="New terminal"
+          size="sm"
+          tooltip="New terminal"
+          variant="ghost"
+          onClick={() => void openNewTerminal()}
+        />
+      </div>
+      {actionError ? (
+        <p className="pb-2 text-xs text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      {/* Terminal canvas runs flush to the panel's left edge: the resize
+          handle's 16px hit area centers its line on that edge, so column zero
+          reads 8px off the visible divider. The right inset is xterm's
+          scrollbar lane (slimmed in terminal.css) plus a hair of bottom pad so
+          the last line never kisses the chrome. */}
+      <div
+        className="min-h-0 flex-1 pb-1"
+        data-testid="terminal-viewport"
+      >
+        {activeInstance ? (
+          <ActiveTerminal
+            key={activeInstance.terminalId}
+            instance={activeInstance}
+            onSizeChange={(cols, rows) => {
+              lastSizeRef.current = { cols, rows };
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
