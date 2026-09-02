@@ -321,6 +321,50 @@ function BrowserSurfaceGallery() {
             />
           </div>
         </Variant>
+        <Variant caption="sending — the page is settling its overlay for the shot, so the action is out of reach until it answers">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              annotationCount={2}
+              canGoBack={false}
+              canGoForward={false}
+              designMode
+              isSending
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+              onSendToComposer={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="notice — one line about the last send, in plain text: a layer here would swap the live page for a still">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              annotationCount={2}
+              canGoBack={false}
+              canGoForward={false}
+              designMode
+              notice="Sent without a screenshot — the page could not be photographed."
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onClearAnnotations={() => {}}
+              onDesignModeChange={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+              onSendToComposer={() => {}}
+            />
+          </div>
+        </Variant>
         <Variant caption="live + snapshot — a DOM overlay is open, so a still of the page stands in for the native view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface

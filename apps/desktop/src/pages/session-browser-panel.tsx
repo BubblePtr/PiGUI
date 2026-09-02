@@ -71,6 +71,10 @@ export function SessionBrowserPanel({
     annotations: BrowserAnnotationElement[];
     viewport: BrowserAnnotationViewport;
   } | null>(null);
+  // A send takes a round trip through the page and back; the toolbar says so,
+  // and a second one must not start meanwhile.
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   // The address bar is an input the user can type in without navigating, so
   // what it holds is not necessarily what is loaded. The payload has to name
@@ -123,6 +127,7 @@ export function SessionBrowserPanel({
     // marking while the toolbar says it is not.
     setDesignMode(false);
     setMarks(null);
+    setNotice(null);
     void setBrowserDesignMode(false).catch(() => {});
 
     if (!remembered) {
@@ -249,6 +254,7 @@ export function SessionBrowserPanel({
     // itself, but that announcement is stamped with a navigation id this
     // component has not accepted yet, so it can never do the clearing.
     setMarks(null);
+    setNotice(null);
     // Optimistic: the placeholder has to exist (and push its bounds) before the
     // page paints, or the native view shows up at the previous rect first.
     setHasPage(true);
@@ -264,27 +270,45 @@ export function SessionBrowserPanel({
    * in this Session's composer as a draft the user can still edit, so the
    * choice between sending, queueing and steering stays theirs (PRD decision
    * 5, and "Send now" was ruled out).
+   *
+   * The payload is built from what the capture answers with, not from what
+   * this component happens to be holding: main has the page settle its overlay
+   * and re-measure for the shot, which is also the moment a comment still
+   * being typed is committed. Only if that whole exchange fails does the last
+   * event this side saw stand in for it.
    */
   const sendToComposer = async () => {
-    if (!marks) {
+    if (!marks || sending) {
       return;
     }
 
-    // Capture first: the prompt says the screenshot carries the same numbers,
-    // and a failure there must not also cost the user their annotations.
-    const screenshot = await captureBrowserAnnotation().catch(() => null);
+    setSending(true);
+    setNotice(null);
 
-    injectIntoComposer({
+    const capture = await captureBrowserAnnotation().catch(() => null);
+    const image = capture?.image ?? null;
+    const delivered = injectIntoComposer({
       sessionId,
       text: formatBrowserAnnotationPrompt({
-        url: loadedUrlRef.current,
-        viewport: marks.viewport,
-        elements: marks.annotations,
+        url: capture?.url || loadedUrlRef.current,
+        viewport: capture?.viewport ?? marks.viewport,
+        elements: capture?.annotations.length ? capture.annotations : marks.annotations,
         capturedAt: new Date().toISOString(),
-        screenshot: screenshot !== null,
+        screenshot: image !== null,
       }),
-      files: screenshot ? [pngFileFromDataUrl(screenshot)] : [],
+      files: image ? [pngFileFromDataUrl(image)] : [],
     });
+
+    // The marks stay on the page either way, so every one of these leaves the
+    // user able to try again rather than mark the page a second time.
+    setNotice(
+      !delivered
+        ? "No composer is open for this Session, so nothing was sent. The marks are still on the page."
+        : image
+          ? null
+          : "Sent without a screenshot — the page could not be photographed.",
+    );
+    setSending(false);
   };
 
   return (
@@ -294,6 +318,8 @@ export function SessionBrowserPanel({
       canGoBack={canGoBack}
       canGoForward={canGoForward}
       designMode={designMode}
+      isSending={sending}
+      notice={notice}
       snapshot={snapshot}
       state={state}
       viewportRef={viewportRef}

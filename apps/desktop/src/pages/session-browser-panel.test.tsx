@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BrowserEvent } from "@/shared/browser-protocol";
+import type { BrowserAnnotationCapture, BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
 import {
   getProjectBrowserUrl,
@@ -17,7 +17,33 @@ import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 
 type Invocation = { command: string; args?: Record<string, unknown> };
 
-function installPreload(options: { captureGate?: Promise<void> } = {}) {
+/**
+ * What main answers `browser_capture_annotation` with: the page settled its
+ * overlay, committed the comment being typed and re-measured itself, so this
+ * deliberately differs from what the renderer last heard as an event.
+ */
+const settledCapture: BrowserAnnotationCapture = {
+  image: "data:image/png;base64,SNAP",
+  url: "http://localhost:5173/",
+  viewport: { width: 900, height: 820, dpr: 2 },
+  annotations: [
+    {
+      index: 1,
+      selector: "#cta",
+      tag: "button",
+      rect: { x: 0, y: 0, width: 8, height: 8 },
+      comment: "Too small to hit",
+    },
+  ],
+};
+
+function installPreload(
+  options: {
+    captureGate?: Promise<void>;
+    annotationCapture?: BrowserAnnotationCapture | "fail";
+    annotationCaptureGate?: Promise<void>;
+  } = {},
+) {
   const invocations: Invocation[] = [];
   const listeners: Array<(event: BrowserEvent) => void> = [];
   // Mirrors the host: every navigate answers with a fresh navigation id.
@@ -32,7 +58,13 @@ function installPreload(options: { captureGate?: Promise<void> } = {}) {
       }
 
       if (command === "browser_capture_annotation") {
-        return "data:image/png;base64,SNAP";
+        await options.annotationCaptureGate;
+
+        if (options.annotationCapture === "fail") {
+          throw new Error("The page could not be photographed.");
+        }
+
+        return options.annotationCapture ?? settledCapture;
       }
 
       if (command === "browser_navigate") {
@@ -326,6 +358,8 @@ describe("SessionBrowserPanel", () => {
 
     await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
 
+    // What this side heard while the user was marking: no comment yet, and a
+    // narrower panel than the one the shot is taken in.
     preload.emit({
       type: "annotations-changed",
       navigationId: 1,
@@ -336,26 +370,22 @@ describe("SessionBrowserPanel", () => {
           selector: "#cta",
           tag: "button",
           rect: { x: 0, y: 0, width: 8, height: 8 },
-          comment: "Too small to hit",
         },
       ],
     });
-
-    // Typing an address is not going there, and the payload has to name the
-    // page the marks are actually on.
-    await user.clear(screen.getByRole("textbox", { name: "Address" }));
-    await user.type(screen.getByRole("textbox", { name: "Address" }), "localhost:4000");
 
     await user.click(await screen.findByRole("button", { name: "Send to composer" }));
     await waitFor(() => expect(injections).toHaveLength(1));
 
     const [injection] = injections;
 
-    // The page, the space the marks were measured in, and every mark — the
-    // template core renders is what Pi ends up reading.
+    // Every line comes from the capture's own answer, not from what this side
+    // was holding: the comment was committed by the same handshake that took
+    // the picture, and the viewport was re-measured for it.
     expect(injection!.text).toContain("- URL: http://localhost:5173/");
-    expect(injection!.text).toContain("- Viewport: 684×820 @2x");
+    expect(injection!.text).toContain("- Viewport: 900×820 @2x");
     expect(injection!.text).toContain("#1 `#cta` (button) — Too small to hit");
+    expect(injection!.text).toContain("the attached screenshot shows");
 
     const [screenshot] = injection!.files ?? [];
 
@@ -365,6 +395,129 @@ describe("SessionBrowserPanel", () => {
     expect(screenshot).toBeInstanceOf(File);
     expect(screenshot!.type).toBe("image/png");
     expect(screenshot!.size).toBeGreaterThan(0);
+
+    unsubscribe();
+  });
+
+  it("sends the marks without a screenshot rather than claiming one", async () => {
+    const user = userEvent.setup();
+    const preload = installPreload({ annotationCapture: "fail" });
+    const injections: ComposerInjection[] = [];
+    const unsubscribe = subscribeComposerInjections("session-15", (injection) =>
+      injections.push(injection),
+    );
+
+    rememberProjectBrowserUrl("project-t", "http://localhost:5173/");
+    render(<SessionBrowserPanel docked projectId="project-t" sessionId="session-15" />);
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    preload.emit({
+      type: "annotations-changed",
+      navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
+      annotations: [
+        {
+          index: 1,
+          selector: "#cta",
+          tag: "button",
+          rect: { x: 12, y: 34, width: 56, height: 78 },
+        },
+      ],
+    });
+
+    // Typing an address is not going there, and with no capture to name the
+    // page, the payload falls back to the one that actually loaded.
+    await user.clear(screen.getByRole("textbox", { name: "Address" }));
+    await user.type(screen.getByRole("textbox", { name: "Address" }), "localhost:4000");
+
+    await user.click(await screen.findByRole("button", { name: "Send to composer" }));
+    await waitFor(() => expect(injections).toHaveLength(1));
+
+    const [injection] = injections;
+
+    expect(injection!.files).toEqual([]);
+    expect(injection!.text).toContain("- URL: http://localhost:5173/");
+    // Pi must not be sent looking for markers on a picture that is not there,
+    // and the rect is then the only thing locating the element.
+    expect(injection!.text).toContain("no screenshot could be taken");
+    expect(injection!.text).toContain("  - rect: 56×78 at (12, 34)");
+    expect(screen.getByTestId("browser-surface-notice")).toHaveTextContent(/screenshot/i);
+
+    unsubscribe();
+  });
+
+  it("keeps the marks and says so when no composer is there to take them", async () => {
+    const user = userEvent.setup();
+    const preload = installPreload();
+
+    rememberProjectBrowserUrl("project-u", "http://localhost:5173/");
+    // An archived Session shows a read-only projection with no composer, and
+    // nothing is listening for an injection.
+    render(<SessionBrowserPanel docked projectId="project-u" sessionId="session-16" />);
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    preload.emit({
+      type: "annotations-changed",
+      navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
+      annotations: [
+        { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
+      ],
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Send to composer" }));
+
+    expect(await screen.findByTestId("browser-surface-notice")).toHaveTextContent(
+      /composer/i,
+    );
+    // The marks are still in the page, so the user can open a Session and send
+    // them again rather than mark everything a second time.
+    expect(screen.getByTestId("browser-annotation-count")).toHaveTextContent("1");
+  });
+
+  it("sends once however fast the button is clicked", async () => {
+    const user = userEvent.setup();
+    let releaseCapture = () => {};
+    const preload = installPreload({
+      annotationCaptureGate: new Promise<void>((resolve) => {
+        releaseCapture = resolve;
+      }),
+    });
+    const injections: ComposerInjection[] = [];
+    const unsubscribe = subscribeComposerInjections("session-17", (injection) =>
+      injections.push(injection),
+    );
+
+    rememberProjectBrowserUrl("project-v", "http://localhost:5173/");
+    render(<SessionBrowserPanel docked projectId="project-v" sessionId="session-17" />);
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    preload.emit({
+      type: "annotations-changed",
+      navigationId: 1,
+      viewport: { width: 684, height: 820, dpr: 2 },
+      annotations: [
+        { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
+      ],
+    });
+
+    const send = await screen.findByRole("button", { name: "Send to composer" });
+
+    await user.click(send);
+    // The capture is still in flight; a second click would otherwise queue a
+    // second handshake and paste the block into the draft twice.
+    expect(send).toBeDisabled();
+
+    await user.click(send);
+    releaseCapture();
+
+    await waitFor(() => expect(injections).toHaveLength(1));
+    expect(
+      preload.commands().filter((command) => command === "browser_capture_annotation"),
+    ).toHaveLength(1);
 
     unsubscribe();
   });
