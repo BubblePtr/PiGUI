@@ -113,6 +113,7 @@ import {
   getFollowUpDraft,
   saveFollowUpDraft,
 } from "@/entities/session/follow-up-drafts";
+import { subscribeComposerInjections } from "@/entities/session/composer-injections";
 import {
   clearSessionDraft,
   getSessionDraft,
@@ -719,6 +720,10 @@ function FullChatComposer({
   const [draft, setDraft] = useState(() =>
     sessionId ? getFollowUpDraft(sessionId)?.message ?? "" : "",
   );
+  // What an injection appends to; the subscription below outlives every
+  // keystroke and must not resubscribe for each one.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const [composerError, setComposerError] = useState<string | null>(null);
   // Shelf drawer + footer Add-to-prompt menu. Images ride send_prompt /
   // queue_follow_up / steer_run. Decision: .scratch/composer-attachments/PRD.md
@@ -760,6 +765,34 @@ function FullChatComposer({
     setComposerError(null);
     attachments.clear();
   }, [sessionId, attachments.clear]);
+
+  // A surface outside the chat column — today the browser's `Send to composer`
+  // (#151) — handing the user something to send. It lands in the draft rather
+  // than being sent, so it can be edited, queued or steered like anything the
+  // user typed.
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    return subscribeComposerInjections(sessionId, (injection) => {
+      const current = draftRef.current;
+      const next = current.trim()
+        ? `${current.trimEnd()}\n\n${injection.text}`
+        : injection.text;
+
+      // Through the ref rather than a state updater: persisting the draft is a
+      // side effect, and it also has to be right for a second injection that
+      // lands before React has re-rendered the first.
+      draftRef.current = next;
+      setDraft(next);
+      saveFollowUpDraft(sessionId, next);
+
+      if (injection.files?.length) {
+        attachments.addFiles(injection.files);
+      }
+    });
+  }, [attachments.addFiles, sessionId]);
 
   const submitDraft = async () => {
     const built = await buildPromptWithAttachments(draft, attachments.items);
