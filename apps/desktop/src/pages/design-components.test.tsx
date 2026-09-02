@@ -16,6 +16,7 @@ describe("Design components layer", () => {
       "PiBarChart",
       "PiSheet",
       "TerminalView",
+      "BrowserSurface",
       "PiTraceLedger",
       "PiTraceStrip",
       "PiTraceInspector",

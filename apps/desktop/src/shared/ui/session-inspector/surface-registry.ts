@@ -1,14 +1,14 @@
 import type { ComponentType } from "react";
-import { FileDiff, Terminal } from "@/shared/ui/icons";
+import { FileDiff, Globe, Terminal } from "@/shared/ui/icons";
 
 /**
  * Registry of the Session-scoped surfaces the SessionInspector can host.
  *
  * Metadata only: the panel content stays with the feature that owns the data
- * (Changes, Terminal), so the registry never grows a dependency on
- * Session state. File / Browser surfaces remain deferred by ADR-0007.
+ * (Changes, Terminal, Browser), so the registry never grows a dependency on
+ * Session state. The File surface remains deferred by ADR-0007.
  */
-export type SessionSurfaceId = "changes" | "terminal";
+export type SessionSurfaceId = "changes" | "terminal" | "browser";
 
 export type SessionSurfaceMeta = {
   id: SessionSurfaceId;
@@ -33,6 +33,7 @@ export type SessionSurfaceMeta = {
 export const sessionSurfaceOrder = [
   "changes",
   "terminal",
+  "browser",
 ] as const satisfies readonly SessionSurfaceId[];
 
 export const sessionSurfaces: Record<SessionSurfaceId, SessionSurfaceMeta> = {
@@ -49,6 +50,13 @@ export const sessionSurfaces: Record<SessionSurfaceId, SessionSurfaceMeta> = {
     icon: Terminal,
     hint: "Shells in this Session's checkout",
     multiInstance: true,
+    flushContent: true,
+  },
+  browser: {
+    id: "browser",
+    title: "Browser",
+    icon: Globe,
+    hint: "Preview a running dev server",
     flushContent: true,
   },
 };

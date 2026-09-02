@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { BackendRpcEvent } from "@pigui/backend";
+import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
 
 const api: PiGUIRendererApi = {
@@ -15,6 +16,17 @@ const api: PiGUIRendererApi = {
     ipcRenderer.on("pigui:backend-event", handler);
     return () => {
       ipcRenderer.removeListener("pigui:backend-event", handler);
+    };
+  },
+
+  onBrowserEvent(listener: (event: BrowserEvent) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, event: BrowserEvent) => {
+      listener(event);
+    };
+
+    ipcRenderer.on(browserEventChannel, handler);
+    return () => {
+      ipcRenderer.removeListener(browserEventChannel, handler);
     };
   },
 

@@ -144,6 +144,7 @@ import {
 } from "@/entities/session/last-model-preference";
 import { getVisibleModels } from "@/entities/model/visible-models";
 import type { TerminalInstanceInfo } from "@/entities/terminal/terminal-client";
+import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 import { SessionTerminalPanel } from "@/pages/session-terminal-panel";
 import { settingsModelsSectionId } from "@/pages/settings";
 import {
@@ -2320,11 +2321,14 @@ function SessionSurfaceContent({
   surfaceId,
   projection,
   sessionChanges,
+  docked = false,
   onTerminalInstancesChange,
 }: {
   surfaceId: SessionSurfaceId;
   projection?: SessionProjection | null;
   sessionChanges: SessionChangesView;
+  /** False in the Sheet fallback, where a native browser view cannot paint. */
+  docked?: boolean;
   onTerminalInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
 }) {
   if (surfaceId === "changes") {
@@ -2350,6 +2354,22 @@ function SessionSurfaceContent({
       <SessionTerminalPanel
         sessionId={projection.id}
         onInstancesChange={onTerminalInstancesChange}
+      />
+    );
+  }
+
+  if (surfaceId === "browser") {
+    // The remembered preview URL is keyed by Project, so a Session without a
+    // projection has nothing to restore.
+    if (!projection) {
+      return null;
+    }
+
+    return (
+      <SessionBrowserPanel
+        docked={docked}
+        projectId={projection.projectId}
+        sessionId={projection.id}
       />
     );
   }
@@ -3705,6 +3725,7 @@ export function AgentWorkspaceSessionsPage() {
               onActiveSurfaceChange={setActiveSurfaceId}
             >
               <SessionSurfaceContent
+                docked
                 sessionChanges={sessionChanges}
                 surfaceId={activeSurfaceId}
                 projection={selectedSessionProjection}

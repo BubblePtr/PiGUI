@@ -82,6 +82,7 @@ function setupTerminalBridge(
         listeners.delete(listener);
       };
     },
+    onBrowserEvent: () => () => {},
     onWindowFocusChanged: () => () => {},
   };
 

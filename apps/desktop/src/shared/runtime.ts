@@ -1,5 +1,6 @@
 import browserSessionSummaries from "@/fixtures/browser-session-summaries.json";
 import type { BackendRpcEvent } from "@pigui/backend";
+import type { BrowserEvent } from "@/shared/browser-protocol";
 import type { SessionDetail } from "@/pages/session-detail";
 import type { SessionSummary } from "@/entities/session/sessions";
 
@@ -12,6 +13,8 @@ declare global {
 export type PiGUIRendererApi = {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
   onBackendEvent(listener: (event: BackendRpcEvent) => void): () => void;
+  /** Embedded browser view events; main-process only, never the backend. */
+  onBrowserEvent(listener: (event: BrowserEvent) => void): () => void;
   onWindowFocusChanged(listener: () => void): () => void;
 };
 
@@ -304,4 +307,12 @@ export function onBackendEvent(listener: (event: BackendRpcEvent) => void) {
   }
 
   return window.pigui!.onBackendEvent(listener);
+}
+
+export function onBrowserEvent(listener: (event: BrowserEvent) => void) {
+  if (!isElectronRuntime()) {
+    return () => {};
+  }
+
+  return window.pigui!.onBrowserEvent(listener);
 }

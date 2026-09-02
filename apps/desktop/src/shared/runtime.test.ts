@@ -21,6 +21,7 @@ describe("renderer runtime bridge", () => {
     window.pigui = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -32,6 +33,7 @@ describe("renderer runtime bridge", () => {
     window.pigui = {
       invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -45,6 +47,7 @@ describe("renderer runtime bridge", () => {
     window.pigui = {
       invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -111,6 +114,7 @@ describe("renderer runtime bridge", () => {
     window.pigui = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
       onWindowFocusChanged: onWindowFocusChangedPreload,
     };
 
