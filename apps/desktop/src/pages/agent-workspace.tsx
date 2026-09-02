@@ -3352,6 +3352,12 @@ function LiveSessionColumn({
 }
 
 /**
+ * What the resize handle takes out of the width Chat and the panel share: its
+ * `mx-2` margins plus the 1px divider it draws between them.
+ */
+const resizeHandleGutterPx = 17;
+
+/**
  * The 40px row under the fixed header chrome on the Chat side. The inspector
  * fills the same band with its own header; the hairline under both is drawn
  * once by the sessions view.
@@ -3444,20 +3450,45 @@ export function AgentWorkspaceSessionsView({
       runtimeGeneration={runtimeGeneration}
     />
   );
-  // The viewport-relative upper bound resolves once; the drag itself is
-  // pixel-based (Astryx useResizable).
-  const [asideSizeBounds] = useState(() =>
-    sessionInspectorResizableBounds(
-      typeof window !== "undefined" && window.innerWidth > 0
-        ? window.innerWidth
-        : 1280,
-    ),
+  // The panel's ceiling is whatever Chat's minimum does not need, so it has to
+  // follow the split container rather than resolve once at mount.
+  const [splitElement, setSplitElement] = useState<HTMLDivElement | null>(null);
+  const [splitWidth, setSplitWidth] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth > 0 ? window.innerWidth : 1280,
+  );
+
+  useEffect(() => {
+    if (!splitElement || typeof window === "undefined") {
+      return;
+    }
+
+    const measure = () => setSplitWidth(splitElement.getBoundingClientRect().width);
+    const observer = new ResizeObserver(measure);
+
+    measure();
+    observer.observe(splitElement);
+
+    return () => observer.disconnect();
+  }, [splitElement]);
+
+  const asideSizeBounds = sessionInspectorResizableBounds(
+    Math.max(0, splitWidth - resizeHandleGutterPx),
   );
   const asideResizable = useResizable({
     defaultSize: sessionInspectorDefaultWidthPx,
     minSizePx: asideSizeBounds.minSizePx,
     maxSizePx: asideSizeBounds.maxSizePx,
   });
+  const { resize: resizeAside, size: asideSize } = asideResizable;
+
+  // `useResizable` clamps each drag against the current bounds but keeps the
+  // size it already holds, so a window that shrank under the panel has to be
+  // given its room back explicitly.
+  useEffect(() => {
+    if (asideSize > asideSizeBounds.maxSizePx) {
+      resizeAside(asideSizeBounds.maxSizePx);
+    }
+  }, [asideSize, asideSizeBounds.maxSizePx, resizeAside]);
 
   return (
     <article
@@ -3481,6 +3512,7 @@ export function AgentWorkspaceSessionsView({
           className="flex h-full min-h-0 w-full flex-row"
           data-slot="resizable"
           data-testid="session-workspace-split-view"
+          ref={setSplitElement}
         >
           <div
             className="h-full min-h-0 min-w-0 flex-1"
