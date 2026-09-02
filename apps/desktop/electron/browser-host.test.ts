@@ -204,7 +204,7 @@ describe("browser host commands", () => {
     expect(views[0].loadCount()).toBe(1);
   });
 
-  it("stamps a fresh navigation id on every navigate and dispose", async () => {
+  it("stamps a fresh navigation id on every navigate", async () => {
     const { host } = createHostHarness();
 
     const first = await host.invoke("browser_navigate", { url: "http://a.test/" });
@@ -214,10 +214,6 @@ describe("browser host commands", () => {
     // Events main forwards carry whatever id is current, so a page still
     // talking after a Project switch is distinguishable from the new one.
     expect(host.currentNavigationId()).toBe(second!.navigationId);
-
-    await host.invoke("browser_dispose");
-
-    expect(host.currentNavigationId()).toBe(second!.navigationId + 1);
   });
 
   it("refuses to navigate to a non-http scheme and never creates a view for it", async () => {
@@ -261,23 +257,23 @@ describe("browser host commands", () => {
     expect(views[0].bounds).toEqual({ x: 800, y: 40, width: 200, height: 660 });
   });
 
-  it("re-applies the last bounds and visibility to a view recreated after dispose", async () => {
+  it("applies bounds and visibility that arrived before the view existed", async () => {
     const { host, views } = createHostHarness();
 
-    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
+    // The surface renders its placeholder optimistically, so bounds and
+    // visibility can reach main ahead of the navigate that creates the view.
+    // Dropping them there would leave the view unbounded and never visible.
     await host.invoke("browser_set_bounds", {
       rect: { x: 900, y: 80, width: 500, height: 700 },
     });
     await host.invoke("browser_set_visible", { visible: true });
-    await host.invoke("browser_dispose");
 
-    expect(views[0].destroyed).toBe(true);
+    expect(views).toHaveLength(0);
 
-    await host.invoke("browser_navigate", { url: "http://localhost:4000/" });
+    await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
 
-    expect(views).toHaveLength(2);
-    expect(views[1].bounds).toEqual({ x: 900, y: 80, width: 500, height: 700 });
-    expect(views[1].visible).toBe(true);
+    expect(views[0].bounds).toEqual({ x: 900, y: 80, width: 500, height: 700 });
+    expect(views[0].visible).toBe(true);
   });
 
   it("ignores navigation controls while no view exists", async () => {
@@ -318,7 +314,6 @@ describe("browser host commands", () => {
       "browser_set_bounds",
       "browser_set_visible",
       "browser_open_external",
-      "browser_dispose",
     ]) {
       expect(isBrowserCommand(command)).toBe(true);
     }

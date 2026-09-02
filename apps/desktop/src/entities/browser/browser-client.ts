@@ -12,7 +12,9 @@ import type {
  * reach the Runtime Gateway (ADR-0013).
  *
  * There is no `browser_open`: `browser_navigate` creates the view when it has
- * to, so no caller ever has to know whether one already exists.
+ * to, so no caller ever has to know whether one already exists. Nor is there a
+ * dispose: the view outlives every Project and Session switch (PRD section 6)
+ * and only the window closing takes it down, which main does directly.
  */
 export function navigateBrowser(url: string) {
   return invoke<BrowserViewState>("browser_navigate", { url });
@@ -40,11 +42,6 @@ export function setBrowserVisible(visible: boolean) {
 
 export function openBrowserUrlExternally(url: string) {
   return invoke<null>("browser_open_external", { url });
-}
-
-/** Drops the view so another Project's page is not kept behind an empty state. */
-export function disposeBrowser() {
-  return invoke<null>("browser_dispose");
 }
 
 export function subscribeBrowserEvents(listener: (event: BrowserEvent) => void) {

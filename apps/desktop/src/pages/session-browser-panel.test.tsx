@@ -91,9 +91,8 @@ describe("SessionBrowserPanel", () => {
         args: { visible: false },
       }),
     );
-    // Switching away must not destroy the view (PRD section 6): the page stays
-    // loaded and invisible so coming back is instant.
-    expect(preload.commands()).not.toContain("browser_dispose");
+    // Switching away leaves the view alone (PRD section 6): the page stays
+    // loaded and invisible, so coming back is instant.
     expect(preload.commands()).not.toContain("browser_navigate");
     expect(screen.getByText("No page loaded")).toBeInTheDocument();
   });
@@ -229,6 +228,5 @@ describe("SessionBrowserPanel", () => {
         args: { visible: false },
       }),
     );
-    expect(preload.commands()).not.toContain("browser_dispose");
   });
 });

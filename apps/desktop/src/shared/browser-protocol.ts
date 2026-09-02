@@ -23,10 +23,10 @@ export type BrowserViewSnapshot = {
 
 export type BrowserViewState = BrowserViewSnapshot & {
   /**
-   * Bumped by every `browser_navigate` and `browser_dispose`. There is one
-   * view for the whole window, so a Session or Project switch can still have
-   * the previous page's events in flight; the renderer keeps the id its own
-   * last navigate answered with and drops everything stamped otherwise.
+   * Bumped by every `browser_navigate`. There is one view for the whole
+   * window and it outlives Session and Project switches, so the page the user
+   * just left can still be emitting; the renderer keeps the id its own last
+   * navigate answered with and drops everything stamped otherwise.
    */
   navigationId: number;
 };

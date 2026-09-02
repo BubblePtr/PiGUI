@@ -34,7 +34,6 @@ const browserCommands = new Set([
   "browser_set_bounds",
   "browser_set_visible",
   "browser_open_external",
-  "browser_dispose",
 ]);
 const allowedProtocols = new Set(["http:", "https:"]);
 /**
@@ -139,10 +138,10 @@ export type BrowserHostSession = {
  * Hands out the embedded browser's session, configured exactly once.
  *
  * `session.fromPartition` returns the same persistent object for the life of
- * the app, so configuring it per view would matter: the permission handlers
- * replace each other harmlessly, but blocking downloads is a listener
- * registration, and a view recreated after `browser_dispose` would stack
- * another copy every time.
+ * the app, while the host is rebuilt whenever the window is (on macOS a window
+ * can close and reopen without quitting). Permission handlers replace each
+ * other harmlessly, but blocking downloads is a listener registration, so
+ * configuring per host would stack another copy every time.
  */
 export function createBrowserSessionProvider<Session extends BrowserHostSession>(
   createSession: () => Session,
@@ -267,11 +266,6 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     return view;
   }
 
-  function destroyView() {
-    view?.destroy();
-    view = null;
-  }
-
   async function navigate(url: string) {
     const target = normalizeBrowserUrl(url);
 
@@ -339,11 +333,6 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
         case "browser_open_external":
           await deps.openExternal(normalizeBrowserUrl(readUrlArgument(args)));
           return null;
-        case "browser_dispose":
-          destroyView();
-          navigationId += 1;
-          loadFailed = false;
-          return null;
         default:
           throw new Error(`Unknown browser command "${command}".`);
       }
@@ -372,7 +361,8 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     },
 
     dispose() {
-      destroyView();
+      view?.destroy();
+      view = null;
       bounds = null;
       visibilityRequested = false;
     },
