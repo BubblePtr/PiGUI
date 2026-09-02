@@ -17,11 +17,7 @@ import {
   rememberProjectBrowserUrl,
 } from "@/entities/browser/browser-url-memory";
 import { isElectronRuntime } from "@/shared/runtime";
-import type {
-  BrowserAnnotationElement,
-  BrowserViewRect,
-  BrowserViewState,
-} from "@/shared/browser-protocol";
+import type { BrowserViewRect, BrowserViewState } from "@/shared/browser-protocol";
 import {
   BrowserSurface,
   type BrowserSurfaceState,
@@ -61,9 +57,8 @@ export function SessionBrowserPanel({
   const [hasPage, setHasPage] = useState(false);
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [designMode, setDesignMode] = useState(false);
-  // What the page reports it is showing markers for. The marks live in the
-  // page's own overlay; this side only mirrors them.
-  const [annotations, setAnnotations] = useState<BrowserAnnotationElement[]>([]);
+  // The marks live in the page's own overlay; this side only counts them.
+  const [annotationCount, setAnnotationCount] = useState(0);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Null means "nothing of mine is loaded": drop every event until this
   // component's own navigate answers with an id.
@@ -138,7 +133,7 @@ export function SessionBrowserPanel({
           setLoadError(event.errorDescription || `Load failed (${event.errorCode}).`);
           break;
         case "annotations-changed":
-          setAnnotations(event.annotations);
+          setAnnotationCount(event.annotations.length);
           break;
         case "design-mode-changed":
           // The page can leave design mode by itself (Escape), and the toolbar
@@ -232,7 +227,7 @@ export function SessionBrowserPanel({
   return (
     <BrowserSurface
       address={address}
-      annotationCount={annotations.length}
+      annotationCount={annotationCount}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
       designMode={designMode}

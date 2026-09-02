@@ -220,7 +220,6 @@ export function createAnnotationOverlay(options: {
     comment.dataset.slot = "annotation-comment";
     comment.type = "text";
     comment.placeholder = "What is wrong here?";
-    comment.value = annotation.comment ?? "";
     comment.hidden = true;
     applyStyles(comment, {
       width: "220px",
@@ -234,16 +233,12 @@ export function createAnnotationOverlay(options: {
       "box-shadow": "0 1px 3px rgba(0, 0, 0, 0.35)",
     });
     comment.addEventListener("input", () => {
-      const stored = annotations.find((entry) => entry.index === annotation.index);
-
-      if (!stored) {
-        return;
-      }
-
+      // The same object the list holds: clearing the marks takes their bubbles
+      // with them, so a bubble can never outlive its annotation.
       if (comment.value) {
-        stored.comment = comment.value;
+        annotation.comment = comment.value;
       } else {
-        delete stored.comment;
+        delete annotation.comment;
       }
       notify();
     });
@@ -347,7 +342,6 @@ export function createAnnotationOverlay(options: {
     listenerTarget.addEventListener(type, handlePointerEvent, true);
   }
   listenerTarget.addEventListener("pointermove", handlePointerMove, true);
-  listenerTarget.addEventListener("mousemove", handlePointerMove, true);
   listenerTarget.addEventListener("keydown", handleKeyDown, true);
 
   return {
@@ -372,7 +366,6 @@ export function createAnnotationOverlay(options: {
         listenerTarget.removeEventListener(type, handlePointerEvent, true);
       }
       listenerTarget.removeEventListener("pointermove", handlePointerMove, true);
-      listenerTarget.removeEventListener("mousemove", handlePointerMove, true);
       listenerTarget.removeEventListener("keydown", handleKeyDown, true);
       host?.remove();
       host = null;
