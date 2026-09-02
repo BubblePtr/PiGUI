@@ -54,6 +54,12 @@ function installPreload(options: { captureGate?: Promise<void> } = {}) {
   return {
     invocations,
     commands: () => invocations.map((invocation) => invocation.command),
+    designModeResets: () =>
+      invocations.filter(
+        (invocation) =>
+          invocation.command === "browser_set_design_mode" &&
+          invocation.args?.enabled === false,
+      ).length,
     last: () => invocations[invocations.length - 1],
     emit(event: BrowserEvent) {
       for (const listener of [...listeners]) {
@@ -351,6 +357,11 @@ describe("SessionBrowserPanel", () => {
     });
     expect(await screen.findByTestId("browser-annotation-count")).toHaveTextContent("1");
 
+    // Mounting already reset design mode once, so only a *new* reset proves the
+    // switch did anything. Waiting on "contains one" would pass before the
+    // rerender had run at all.
+    const resetsBeforeSwitch = preload.designModeResets();
+
     view.rerender(
       <SessionBrowserPanel docked projectId="project-r" sessionId="session-15" />,
     );
@@ -359,14 +370,18 @@ describe("SessionBrowserPanel", () => {
     // so a reset kept to this side would leave the page marking with the
     // toolbar saying it is not.
     await waitFor(() =>
-      expect(preload.invocations).toContainEqual({
-        command: "browser_set_design_mode",
-        args: { enabled: false },
-      }),
+      expect(preload.designModeResets()).toBe(resetsBeforeSwitch + 1),
     );
-    expect(screen.getByRole("button", { name: "Design" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
+
+    // Polled, not read once: Astryx renders aria-pressed from a useOptimistic
+    // value that only snaps back to the prop when the click's transition
+    // settles, so the toggle still reads pressed for a moment after the state
+    // behind it flipped.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Design" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      ),
     );
     expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument();
   });
