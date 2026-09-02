@@ -308,6 +308,28 @@ test.describe("M3: Real diff action surface", () => {
       expect(chatBox).not.toBeNull();
       expect(asideBox).not.toBeNull();
       expect(asideBox!.x).toBeGreaterThanOrEqual(chatBox!.x + chatBox!.width);
+
+      // Dragging as far as the handle will go hands the panel everything Chat
+      // does not need — Chat keeps its 400px minimum and no more.
+      const handleAgain = (await testApp.window
+        .getByRole("separator", { name: "Resize Session inspector" })
+        .boundingBox())!;
+
+      await testApp.window.mouse.move(
+        handleAgain.x + handleAgain.width / 2,
+        handleAgain.y + handleAgain.height / 2,
+      );
+      await testApp.window.mouse.down();
+      await testApp.window.mouse.move(0, handleAgain.y + handleAgain.height / 2, {
+        steps: 10,
+      });
+      await testApp.window.mouse.up();
+
+      const chatPane = testApp.window.getByTestId("session-workspace-main-pane");
+
+      await expect
+        .poll(async () => Math.round((await chatPane.boundingBox())?.width ?? 0))
+        .toBeGreaterThanOrEqual(400);
     } finally {
       await testApp.close();
     }

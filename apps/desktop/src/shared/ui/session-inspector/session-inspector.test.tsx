@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
   SessionInspector,
+  sessionInspectorChatMinWidthPx,
   sessionInspectorResizableBounds,
 } from "@/shared/ui/session-inspector/session-inspector";
 import {
@@ -98,12 +99,18 @@ describe("SessionInspector", () => {
     expect(within(rail).getByText("3")).toBeInTheDocument();
   });
 
-  it("bounds the panel width at 340px and 58% of the viewport", () => {
+  it("lets the panel take everything Chat's minimum width does not need", () => {
+    // Chat keeps 400px; the panel may have the rest, so a wide window can give
+    // the Browser surface far more than the old 58% ceiling allowed.
     expect(sessionInspectorResizableBounds(1440)).toEqual({
       minSizePx: 340,
-      maxSizePx: 835,
+      maxSizePx: 1040,
     });
-    // A window narrower than twice the minimum still needs max >= min, or
+    expect(sessionInspectorResizableBounds(sessionInspectorChatMinWidthPx + 340)).toEqual({
+      minSizePx: 340,
+      maxSizePx: 340,
+    });
+    // Narrower than both minimums together still needs max >= min, or
     // useResizable would clamp against an inverted range.
     expect(sessionInspectorResizableBounds(500)).toEqual({
       minSizePx: 340,

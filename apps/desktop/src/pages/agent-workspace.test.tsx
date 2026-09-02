@@ -464,6 +464,58 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
   });
 
+  it("clamps the docked panel when the window no longer has room for it", async () => {
+    const user = userEvent.setup();
+    setDockedSessionInspectorLayout(true);
+
+    // The split container's own ResizeObserver is the production signal, so
+    // the test drives that rather than a stand-in: a controllable observer
+    // plus a measurable container width.
+    let containerWidth = 1440;
+    const notifyResize: Array<() => void> = [];
+
+    class ControllableResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {
+        notifyResize.push(() => this.callback([], this as unknown as ResizeObserver));
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+
+    vi.stubGlobal("ResizeObserver", ControllableResizeObserver);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => ({ width: containerWidth, height: 900, x: 0, y: 0, top: 0, left: 0,
+        right: containerWidth, bottom: 900, toJSON: () => ({}) }) as DOMRect,
+    );
+
+    try {
+      renderProjectSessions();
+      await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+
+      const aside = await screen.findByRole("complementary", { name: "Changes" });
+      const asidePane = aside.closest('[data-slot="resizable-panel"]') as HTMLElement;
+
+      // 1440 container - 17px handle gutter - 400px Chat leaves 1023, so the
+      // 560px default is untouched.
+      expect(asidePane.style.width).toBe("560px");
+
+      containerWidth = 800;
+      act(() => {
+        for (const notify of notifyResize) {
+          notify();
+        }
+      });
+
+      // 800 - 17 - 400 = 383: the panel gives back what Chat now needs instead
+      // of pushing Chat under its minimum.
+      await waitFor(() => expect(asidePane.style.width).toBe("383px"));
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
+  });
+
   it("docks the Session inspector beside Chat on wide Workspaces", async () => {
     const user = userEvent.setup();
     setDockedSessionInspectorLayout(true);
@@ -604,6 +656,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -672,6 +725,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -711,6 +765,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -761,6 +816,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         backendListeners.push(listener);
         return vi.fn();
       }),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -856,6 +912,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -901,6 +958,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -965,6 +1023,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -2698,6 +2757,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
     saveLastModelSelection({
@@ -2768,6 +2828,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     window.pigui = {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
     saveLastModelSelection({

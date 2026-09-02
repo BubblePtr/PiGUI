@@ -22,16 +22,27 @@ const headingId = "session-inspector-heading";
 /** Panel geometry (ADR-0028); the drag itself is Astryx `useResizable`. */
 export const sessionInspectorDefaultWidthPx = 560;
 const minWidthPx = 340;
-const maxWidthViewportRatio = 0.58;
+/**
+ * What Chat keeps for itself. The panel may take everything else — a fixed
+ * fraction of the viewport used to cap it, which left the Browser surface too
+ * narrow on wide windows (ADR-0028, 2026-09-02 revision).
+ */
+export const sessionInspectorChatMinWidthPx = 400;
 
-export function sessionInspectorResizableBounds(viewportWidth: number) {
+/**
+ * @param availableWidth Width Chat and the panel actually share, i.e. the
+ * split container minus whatever sits between them (the resize handle's
+ * gutter). The caller owns that subtraction because it owns the handle.
+ */
+export function sessionInspectorResizableBounds(availableWidth: number) {
   return {
     minSizePx: minWidthPx,
-    // Chat keeps the rest of the viewport; a narrow window must not produce an
-    // inverted range.
+    // Floor, not round: this ceiling exists to protect Chat's minimum, and a
+    // fractional container width must not round the panel a pixel over it.
+    // A window too narrow for both minimums must not produce an inverted range.
     maxSizePx: Math.max(
       minWidthPx,
-      Math.round(viewportWidth * maxWidthViewportRatio),
+      Math.floor(availableWidth - sessionInspectorChatMinWidthPx),
     ),
   };
 }

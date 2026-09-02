@@ -5,13 +5,24 @@ import {
   ipcMain,
   MessageChannelMain,
   nativeImage,
+  nativeTheme,
+  session,
   shell,
+  WebContentsView,
   type MessagePortMain,
   utilityProcess,
 } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
+import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
+import {
+  createBrowserHost,
+  createBrowserSessionProvider,
+  isAbortedLoadError,
+  isBrowserCommand,
+  type BrowserHost,
+} from "./browser-host";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -19,6 +30,7 @@ type PendingRequest = {
 };
 
 let mainWindow: BrowserWindow | null = null;
+let browserHost: BrowserHost | null = null;
 let backendPort: MessagePortMain | null = null;
 let backendProcess: ReturnType<typeof utilityProcess.fork> | null = null;
 let backendRestartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -112,6 +124,8 @@ function createMainWindow() {
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
+    browserHost?.dispose();
+    browserHost = null;
   });
 
   if (rendererUrl()) {
@@ -294,6 +308,199 @@ function revealProjectInFinder(args?: Record<string, unknown>) {
   shell.showItemInFolder(path);
 }
 
+/**
+ * Embedded browser surface. The view is a native child of the window, kept
+ * out of the utilityProcess entirely, and its session is isolated from the
+ * PiGUI renderer's so a dev site's cookies and storage never mix with ours.
+ * `persist:` keeps a local dev login across restarts.
+ */
+const browserPartition = "persist:pigui-browser";
+/**
+ * Matches `--color-background-surface` (theme-neutral `light-dark`). The
+ * native view is opaque, so on macOS it must paint the panel's own colour or
+ * it punches a hole in the window vibrancy before the page's first paint.
+ */
+const browserViewBackground = { light: "#ffffff", dark: "#262626" };
+
+function emitBrowserEvent(event: BrowserEvent) {
+  mainWindow?.webContents.send(browserEventChannel, event);
+}
+
+const browserViewSession = createBrowserSessionProvider(
+  () => {
+    const electronSession = session.fromPartition(browserPartition);
+
+    return {
+      electronSession,
+      setPermissionRequestHandler(allow: (permission: string) => boolean) {
+        electronSession.setPermissionRequestHandler(
+          (_contents, permission, callback) => callback(allow(permission)),
+        );
+      },
+      setPermissionCheckHandler(allow: (permission: string) => boolean) {
+        electronSession.setPermissionCheckHandler((_contents, permission) =>
+          allow(permission),
+        );
+      },
+      blockDownloads() {
+        electronSession.on("will-download", (event) => {
+          event.preventDefault();
+        });
+      },
+    };
+  },
+  (permission) => getBrowserHost().allowsPermission(permission),
+);
+
+function createBrowserView() {
+  const window = mainWindow;
+
+  if (!window) {
+    throw new Error("The PiGUI window is not open.");
+  }
+
+  const view = new WebContentsView({
+    webPreferences: {
+      session: browserViewSession().electronSession,
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+    },
+  });
+  const { webContents } = view;
+
+  view.setBackgroundColor(
+    nativeTheme.shouldUseDarkColors
+      ? browserViewBackground.dark
+      : browserViewBackground.light,
+  );
+  view.setVisible(false);
+  window.contentView.addChildView(view);
+
+  // Page-initiated navigation, main frame and subframes. Two gaps to know
+  // about: main-process loads never reach these hooks (so `browser_navigate`
+  // checks the URL itself), and Chromium decides some navigations before
+  // them — `file:` from an http page is refused upstream and never arrives,
+  // `about:blank` commits without an event at all.
+  webContents.on("will-navigate", (event, url) => {
+    if (!getBrowserHost().allowsNavigationTo(url)) {
+      event.preventDefault();
+    }
+  });
+  webContents.on("will-frame-navigate", (event) => {
+    if (!getBrowserHost().allowsNavigationTo(event.url)) {
+      event.preventDefault();
+    }
+  });
+  webContents.setWindowOpenHandler(({ url }) => {
+    // Loading from inside the handler starts a navigation on the very contents
+    // still waiting for this reply, and the page hangs. Answer the deny first,
+    // then redirect the view on the next tick.
+    setImmediate(() => getBrowserHost().handleWindowOpen(url));
+    return { action: "deny" };
+  });
+
+  const emitNavigation = () => {
+    emitBrowserEvent({
+      type: "did-navigate",
+      // Stamped so the renderer can tell this page's events from those of the
+      // page it showed for the Project the user just left.
+      navigationId: getBrowserHost().currentNavigationId(),
+      url: webContents.getURL(),
+      canGoBack: webContents.navigationHistory.canGoBack(),
+      canGoForward: webContents.navigationHistory.canGoForward(),
+    });
+  };
+
+  webContents.on("did-navigate", emitNavigation);
+  webContents.on("did-navigate-in-page", (_event, _url, isMainFrame) => {
+    if (isMainFrame) {
+      emitNavigation();
+    }
+  });
+  webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      // -3 is ABORTED: a load the user or a redirect replaced, not a failure.
+      if (!isMainFrame || errorCode === -3) {
+        return;
+      }
+
+      // The view is now on Chromium's error page, committed under the URL that
+      // failed; the host has to know or it would treat the next attempt at
+      // that URL as "already showing".
+      getBrowserHost().recordLoadFailure();
+      emitBrowserEvent({
+        type: "did-fail-load",
+        navigationId: getBrowserHost().currentNavigationId(),
+        url: validatedURL,
+        errorCode,
+        errorDescription,
+      });
+    },
+  );
+
+  return {
+    setBounds: (bounds: Electron.Rectangle) => view.setBounds(bounds),
+    setVisible: (visible: boolean) => view.setVisible(visible),
+    loadUrl: (url: string) =>
+      webContents.loadURL(url).then(
+        () => undefined,
+        (error: unknown) => {
+          // A page that supersedes its own pending navigation (baidu.com does
+          // it on load) rejects the original loadURL with ERR_ABORTED while
+          // the replacement loads fine. `did-fail-load` already ignores the
+          // same code; the promise has to agree or the surface shows an error
+          // over a page that is on screen and working.
+          if (!isAbortedLoadError(error)) {
+            throw error;
+          }
+        },
+      ),
+    goBack: () => webContents.navigationHistory.goBack(),
+    goForward: () => webContents.navigationHistory.goForward(),
+    reload: () => webContents.reload(),
+    destroy: () => {
+      // Disposal also runs after the window is gone (quit). Tearing the
+      // contents down is the part that matters — leave it alive and the app
+      // never exits — and touching a destroyed window throws, so order and
+      // guard both.
+      if (!webContents.isDestroyed()) {
+        webContents.close();
+      }
+      if (!window.isDestroyed()) {
+        window.contentView.removeChildView(view);
+      }
+    },
+    readState: () => ({
+      url: webContents.getURL(),
+      canGoBack: webContents.navigationHistory.canGoBack(),
+      canGoForward: webContents.navigationHistory.canGoForward(),
+    }),
+    async capture() {
+      // Whole view, so the still lines up with the placeholder rect exactly.
+      const image = await webContents.capturePage();
+
+      return image.isEmpty() ? null : image.toDataURL();
+    },
+  };
+}
+
+function getBrowserHost() {
+  browserHost ??= createBrowserHost({
+    createView: createBrowserView,
+    getContentSize() {
+      const size = mainWindow?.getContentBounds();
+
+      return size ? { width: size.width, height: size.height } : null;
+    },
+    openExternal: (url) => shell.openExternal(url),
+  });
+
+  return browserHost;
+}
+
 function killBackendForEndToEndTest() {
   if (process.env.PIGUI_E2E !== "1") {
     throw new Error("The PiGUI E2E backend control is disabled.");
@@ -323,6 +530,10 @@ ipcMain.handle(
 
     if (input.command === "reveal_project_in_finder") {
       return revealProjectInFinder(input.args);
+    }
+
+    if (isBrowserCommand(input.command)) {
+      return getBrowserHost().invoke(input.command, input.args);
     }
 
     return invokeBackend(input.command, input.args);

@@ -1,5 +1,6 @@
 import browserSessionSummaries from "@/fixtures/browser-session-summaries.json";
 import type { BackendRpcEvent } from "@pigui/backend";
+import type { BrowserEvent } from "@/shared/browser-protocol";
 import type { SessionDetail } from "@/pages/session-detail";
 import type { SessionSummary } from "@/entities/session/sessions";
 
@@ -12,6 +13,8 @@ declare global {
 export type PiGUIRendererApi = {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
   onBackendEvent(listener: (event: BackendRpcEvent) => void): () => void;
+  /** Embedded browser view events; main-process only, never the backend. */
+  onBrowserEvent(listener: (event: BrowserEvent) => void): () => void;
   onWindowFocusChanged(listener: () => void): () => void;
 };
 
@@ -261,9 +264,26 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
   }
 }
 
+/**
+ * Electron re-throws whatever an `ipcMain.handle` handler raised, wrapped in
+ * its own channel prefix. Surfaces read these messages out to the user, so the
+ * wrapper is stripped once here rather than in every error state.
+ */
+const electronInvokeWrapper = /^Error invoking remote method '[^']*': (?:Error: )?/;
+
+function unwrapInvokeError(error: unknown) {
+  if (!(error instanceof Error) || !electronInvokeWrapper.test(error.message)) {
+    return error;
+  }
+
+  return new Error(error.message.replace(electronInvokeWrapper, ""));
+}
+
 export function invoke<T>(command: string, args?: InvokeArgs) {
   if (isElectronRuntime()) {
-    return window.pigui!.invoke<T>(command, args);
+    return window.pigui!.invoke<T>(command, args).catch((error: unknown) => {
+      throw unwrapInvokeError(error);
+    });
   }
 
   return invokeBrowserFallback<T>(command, args);
@@ -304,4 +324,12 @@ export function onBackendEvent(listener: (event: BackendRpcEvent) => void) {
   }
 
   return window.pigui!.onBackendEvent(listener);
+}
+
+export function onBrowserEvent(listener: (event: BrowserEvent) => void) {
+  if (!isElectronRuntime()) {
+    return () => {};
+  }
+
+  return window.pigui!.onBrowserEvent(listener);
 }

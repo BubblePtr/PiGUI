@@ -56,6 +56,7 @@ describe("default Pi runtime bridge factory", () => {
     window.pigui = {
       invoke,
       onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 

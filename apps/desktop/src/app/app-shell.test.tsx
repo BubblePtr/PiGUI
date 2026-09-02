@@ -222,6 +222,7 @@ describe("AppFrame", () => {
     window.pigui = {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
+      onBrowserEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -659,6 +660,7 @@ describe("AppFrame", () => {
     window.pigui = {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
+      onBrowserEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -683,6 +685,7 @@ describe("AppFrame", () => {
     window.pigui = {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
+      onBrowserEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -720,6 +723,7 @@ describe("AppFrame", () => {
     window.pigui = {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
+      onBrowserEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -747,6 +751,7 @@ describe("AppFrame", () => {
     window.pigui = {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
+      onBrowserEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 

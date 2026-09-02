@@ -47,6 +47,7 @@ import {
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
 import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
 import {
   TerminalView,
@@ -260,6 +261,118 @@ function SessionInspectorGallery() {
               alignToRail
               isOpen={isOpen}
               onOpenChange={setIsOpen}
+            />
+          </div>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+/** Inline 2x2 PNG: the gallery needs a real image source, not a live view. */
+const gallerySnapshot =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAF0lEQVR4nGP8//8/AwwwMSAB7BwmJIUQDgB7pgMBfxRcVAAAAABJRU5ErkJggg==";
+
+function BrowserSurfaceGallery() {
+  const [address, setAddress] = useState("localhost:5173");
+
+  return (
+    <GallerySection title="BrowserSurface">
+      <VariantRow>
+        <Variant caption="live — the body is the placeholder the native WebContentsView paints behind">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address={address}
+              canGoBack
+              canGoForward={false}
+              state={{ kind: "live" }}
+              onAddressChange={setAddress}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="live + snapshot — a DOM overlay is open, so a still of the page stands in for the native view">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              canGoBack
+              canGoForward={false}
+              snapshot={gallerySnapshot}
+              state={{ kind: "live" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="empty — no URL remembered for this Project yet">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address=""
+              canGoBack={false}
+              canGoForward={false}
+              state={{ kind: "empty" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="error — our own state, never Chromium's error page">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address="http://localhost:5173/"
+              canGoBack={false}
+              canGoForward={false}
+              state={{ kind: "error", message: "ERR_CONNECTION_REFUSED" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="narrow — below 1280px the inspector is a Dialog portal, so the chrome goes away with the view">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address=""
+              canGoBack={false}
+              canGoForward={false}
+              state={{ kind: "narrow" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
+            />
+          </div>
+        </Variant>
+        <Variant caption="unsupported — browser-only dev, no Electron main process to host a view">
+          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
+            <BrowserSurface
+              address=""
+              canGoBack={false}
+              canGoForward={false}
+              state={{ kind: "unsupported" }}
+              onAddressChange={() => {}}
+              onAddressSubmit={() => {}}
+              onBack={() => {}}
+              onForward={() => {}}
+              onOpenExternal={() => {}}
+              onReload={() => {}}
             />
           </div>
         </Variant>
@@ -1563,6 +1676,7 @@ export function DesignComponentsLayer() {
       <PiBarChartGallery />
       <PiSheetGallery />
       <SessionInspectorGallery />
+      <BrowserSurfaceGallery />
       <TerminalViewGallery />
       <PiTraceLedgerGallery />
       <PiTraceStripGallery />

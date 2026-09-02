@@ -80,10 +80,11 @@ type BrowserAnnotationPayload = {
 |---|---|
 | 面板宽度上下界只在挂载时算一次;实际宽度随拖拽逐帧变化 | 渲染层在 surface 内容区放一个占位 div,`ResizeObserver` + 窗口 `resize` 把 `getBoundingClientRect()` 经 `browser_set_bounds` 推给主进程;bounds 扣掉 40px 表头、内缩 8px 避开 `ResizeHandle` 的 `mx-2` |
 | <1280px 时 inspector 变成 Base UI Dialog portal,原生视图会盖在遮罩上 | 断点以下**不显示原生视图**,Sheet 内 browser surface 显示"加宽窗口以使用浏览器"空态;视图 `setVisible(false)` 但保留实例 |
-| 弹层(popover / tooltip / model selector / 任何 Dialog)会被原生视图盖住 | v1 接受为已知限制,记入 ADR;备选方案(弹层出现时 `capturePage` 换成静态截图占位)留 v2 |
+| 弹层(popover / tooltip / model selector / 任何 Dialog)会被原生视图盖住 | **v1 已处理**(原定 v2 的截图占位方案提前落地)—— inspector rail 就贴着浏览器,它自己的 tooltip 每次悬停都会被盖住(真机确认),不能留作已知限制。机制:任何 DOM 弹层打开期间,渲染层先 `browser_capture`(主进程 `webContents.capturePage()` → PNG data URL)把页面静态快照铺满占位 div,再 `setVisible(false)` 让原生视图退场;弹层全关后 `setVisible(true)` 并移除快照。弹层在快照回来前就关闭的,快照直接丢弃、原生视图保持可见,不闪白。<br>**弹层检测**(`shared/ui/browser/use-overlay-presence.ts`)必须同时用两种信号,少一种就漏:Astryx 的 Layer(Tooltip / Popover / Menu / Select)把 `[popover]` 元素渲染在触发器自己的子树里、开合走 `showPopover()`,**不改任何属性也不移动节点,MutationObserver 永远不触发**,只能听 Popover API 的 `toggle` 事件(不冒泡,必须捕获阶段);Base UI 的 Dialog / Sheet 则是往 body 挂 `[data-base-ui-portal]` 子树、用 `data-open` 标记,只有 MutationObserver 看得见(判定限定在 portal 内,免得把 chat 列里内联的 Collapsible 当成弹层)。<br>**残余限制**:快照期间页面不可交互(点击、滚动、hover 都到不了真实页面),有动画或视频的页面会明显看到「冻结」一瞬;从弹层打开到换上快照有一次 `capturePage` 往返(真机实测约 17ms),这段极短的时间里弹层仍被原生视图盖住 |
 | macOS `transparent + vibrancy` 会被不透明子视图开洞 | 视图区域本就在面板内、面板本身不透明,给 `WebContentsView` 设 `backgroundColor` 为面板底色,不出现玻璃缺口 |
 | `-webkit-app-region: drag` 表头与红绿灯 | bounds 永不覆盖表头带;由上一条 40px 扣除保证 |
 | 视图与 Session 生命周期 | inspector 收起、切到其他 surface、Session 切换时 `setVisible(false)`;窗口关闭时销毁 view;不因视图存在而阻止 utilityProcess 重启逻辑 |
+| 切到「该 Project 没有记忆 URL」的 Session 时,上一个 Project 的页面仍留在视图里 | 只 `setVisible(false)`,**不销毁** —— 销毁会同时丢掉「重进不重载」的短路。页面因此在内存里存活但不可见,直到窗口关闭或被下一次导航替换。渲染层不会把它的迟到事件记到新 Project 头上:主进程给每次 `browser_navigate` 递增一个 navigation id,`did-navigate` / `did-fail-load` 都带上它,渲染层只认自己最近一次 navigate 返回的那个 id;空态下这个 id 为 null,即一律不认 |
 
 ## Spike(先于一切切片,不进主线)
 
@@ -94,6 +95,23 @@ type BrowserAnnotationPayload = {
 3. preload 在 isolated world 里向一个带严格 CSP 的第三方页面挂 Shadow DOM 覆盖层,页面脚本读不到它,点击能回传 selector。
 
 spike 代码放 `apps/desktop/src/proto/browser/`(沿用 `/proto/surfaces` 的做法),结论回写本文后拆除。
+
+### 结论(2026-09-02 执行,Electron 42.5.0 / Playwright 1.61.1 / macOS)
+
+spike 用一个独立的 CJS Electron 入口(`spike-main.cjs` + 两个 preload + 一个模拟 Chat/面板/表头布局的宿主页),把一个带 `Content-Security-Policy: default-src 'none'; script-src 'self'` 与 `X-Frame-Options: DENY` 的本地 http 页装进 `WebContentsView`,再用 Playwright `_electron.launch` 驱动。三项结论如下,结论产出后 spike 代码已拆除。
+
+1. **`ResizeObserver` → IPC → `setBounds` 的占位 div 驱动是成立的:11 次面板宽度变更后,主进程 `view.getBounds()` 与占位 div 的 `getBoundingClientRect()` 逐像素相等(x/y/width/height 全等,`settledMatchesRect: true`),且始终落在窗口内容区内、`y` 恒 ≥ 40 不侵占表头带(`withinContent: true`、`headerBandClear: true`)。**
+   证据:11 组样本形如 `width 700 → rect {x:748,y:40,w:684,h:820}` / `settled {x:748,y:40,w:684,h:820}`;窗口内容区 `1440×868`。
+   **但"不闪"未被证明**:11 次采样中有 1 次在 DOM 写宽度后的首次读里,原生视图仍停在旧 bounds(`immediateMatchesRect` 第 10 项为 `false`),下一次读(≤120ms)才对齐。也就是原生视图比 DOM 落后约一个 IPC 往返;离散跳变看不出来,连续拖拽时会表现为视图边缘滞后于分隔线。**记为 ADR-0029 已知限制**,S1 不为此加节流/预测补偿。
+
+2. **Playwright 能直接拿到 `WebContentsView` 的 contents:`app.windows()` 返回 2 个 Page(宿主 `spike-host.html` 与视图内 `http://127.0.0.1:<port>/`),视图 URL 与主进程 `webContents.getURL()` 一致(`viewReachableViaPlaywrightPage: true`)。**
+   证据:`playwrightWindowUrls: ["file://…/spike-host.html", "http://127.0.0.1:60797/"]`,`viewUrlFromMain: "http://127.0.0.1:60797/"`;`webContents.getAllWebContents()` 里两条的 `type` 都是 `"window"` —— 这正是 Playwright 把它当 Page 暴露的原因。
+   **因此不需要主进程 `__e2e_*` 截图/URL 命令**:E2E 可用 `app.windows()` 里按 URL 挑出嵌入页,直接断言其 DOM。注意 fixture 现有的 `app.firstWindow()` 仍返回宿主窗口(视图后创建),不受影响。
+
+3. **isolated world 的 closed Shadow DOM 覆盖层在严格 CSP 页上可用,且页面脚本读不到它:页面探针拿到 `hostFound: true` 但 `shadowRootReadable: false`、`overlayGlobalsVisible: []`、`documentTextMentionsOverlay: false`;主世界派发的 click 被 isolated world 的监听器收到并回传 `{selector: "#cta", tag: "button", text: "Click me"}`。**
+   证据:`spike3.pageProbe` 与 `spike3.ipcResults.selectorClicks`。宿主元素本身(`<pigui-spike-overlay>`)在页面 DOM 里可见且可被删除 —— 这是 Shadow DOM 的固有边界,**记为 ADR-0029 已知限制**(敌意页面能移除覆盖层宿主,但读不到其内容;S2 不做防删)。
+
+**一处对第 3 节实现口径的补正(不改决策,只补实现)**:`will-navigate` **只对页面自身发起的导航生效**,主进程 `webContents.loadURL()` 不触发它 —— spike 里 `loadURL("file:///etc/hosts")` 返回 `"loaded"`,`navigationBlocks` 为空,视图真的停在了 `file:///etc/hosts`。而 `browser_navigate` 走的正是主进程 `loadURL`。因此协议白名单必须**在命令入口先校验 URL**,`will-navigate` 只负责拦页面自己发起的跳转;两处都要有,少任何一处都会漏。第 3 节"导航只放行 http/https"的意图不变。
 
 ## v1 范围(切片)
 

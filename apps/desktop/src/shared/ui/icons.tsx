@@ -4,6 +4,7 @@ import {
   AddIcon,
   ArchiveIcon,
   ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowUp02Icon,
   BarChartIcon,
   BotIcon,
@@ -24,8 +25,10 @@ import {
   Folder02Icon,
   FolderOpenIcon,
   GitBranchIcon,
+  Globe02Icon,
   ImageIcon as HugeImageIcon,
   LayoutAlignLeftIcon,
+  LinkSquare02Icon,
   ListTreeIcon,
   Loading03Icon,
   MoreHorizontalIcon,
@@ -67,6 +70,7 @@ function iconComponent(icon: IconSvgElement) {
 export const Activity = iconComponent(ActivityIcon);
 export const Archive = iconComponent(ArchiveIcon);
 export const ArrowLeft = iconComponent(ArrowLeftIcon);
+export const ArrowRight = iconComponent(ArrowRightIcon);
 export const ArrowUp = iconComponent(ArrowUp02Icon);
 export const BarChart3 = iconComponent(BarChartIcon);
 export const Bot = iconComponent(RobotIcon);
@@ -87,7 +91,9 @@ export const FolderClosed = iconComponent(Folder01Icon);
 export const FolderOpen = iconComponent(FolderOpenIcon);
 export const FolderOpenState = iconComponent(Folder02Icon);
 export const GitBranch = iconComponent(GitBranchIcon);
+export const Globe = iconComponent(Globe02Icon);
 export const ImageIcon = iconComponent(HugeImageIcon);
+export const LinkExternal = iconComponent(LinkSquare02Icon);
 export const LayoutAlignLeft = iconComponent(LayoutAlignLeftIcon);
 export const ListTree = iconComponent(ListTreeIcon);
 export const LoaderCircle = iconComponent(Loading03Icon);
