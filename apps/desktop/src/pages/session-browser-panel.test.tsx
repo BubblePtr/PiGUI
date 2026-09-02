@@ -298,6 +298,79 @@ describe("SessionBrowserPanel", () => {
     );
   });
 
+  it("drops the marks as soon as it asks for another page", async () => {
+    const user = userEvent.setup();
+    const preload = installPreload();
+
+    rememberProjectBrowserUrl("project-p", "http://localhost:5173/");
+    render(<SessionBrowserPanel docked projectId="project-p" sessionId="session-14" />);
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+
+    preload.emit({
+      type: "annotations-changed",
+      navigationId: 1,
+      annotations: [
+        { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
+      ],
+    });
+
+    expect(await screen.findByTestId("browser-annotation-count")).toHaveTextContent("1");
+
+    await user.clear(screen.getByRole("textbox", { name: "Address" }));
+    await user.type(screen.getByRole("textbox", { name: "Address" }), "localhost:4000");
+    await user.keyboard("{Enter}");
+
+    // The new document announces itself before its load resolves, so the empty
+    // list main sends back is stamped with a navigation id this component has
+    // not accepted yet and is dropped. Nothing else would clear the count.
+    await waitFor(() =>
+      expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("starts the next Project's page unmarked and out of design mode", async () => {
+    const user = userEvent.setup();
+    const preload = installPreload();
+
+    rememberProjectBrowserUrl("project-q", "http://localhost:5173/");
+    rememberProjectBrowserUrl("project-r", "http://localhost:4000/");
+
+    const view = render(
+      <SessionBrowserPanel docked projectId="project-q" sessionId="session-15" />,
+    );
+
+    await waitFor(() => expect(preload.commands()).toContain("browser_navigate"));
+    await user.click(screen.getByRole("button", { name: "Design" }));
+    preload.emit({
+      type: "annotations-changed",
+      navigationId: 1,
+      annotations: [
+        { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
+      ],
+    });
+    expect(await screen.findByTestId("browser-annotation-count")).toHaveTextContent("1");
+
+    view.rerender(
+      <SessionBrowserPanel docked projectId="project-r" sessionId="session-15" />,
+    );
+
+    // Main has to hear it too: it re-applies design mode to every new document,
+    // so a reset kept to this side would leave the page marking with the
+    // toolbar saying it is not.
+    await waitFor(() =>
+      expect(preload.invocations).toContainEqual({
+        command: "browser_set_design_mode",
+        args: { enabled: false },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Design" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument();
+  });
+
   it("leaves design mode behind when the surface unmounts", async () => {
     const user = userEvent.setup();
     const preload = installPreload();
@@ -313,13 +386,15 @@ describe("SessionBrowserPanel", () => {
     view.unmount();
 
     // The page outlives the surface, so a page left in design mode would keep
-    // swallowing clicks with no toolbar in sight.
+    // swallowing clicks with no toolbar in sight — and marks left on it would
+    // still be there when the surface comes back counting zero of them.
     await waitFor(() =>
       expect(preload.invocations).toContainEqual({
         command: "browser_set_design_mode",
         args: { enabled: false },
       }),
     );
+    expect(preload.commands()).toContain("browser_clear_annotations");
   });
 
   it("stands a still of the page in for the native view while an overlay is open", async () => {

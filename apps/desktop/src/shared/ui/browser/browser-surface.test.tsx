@@ -117,9 +117,15 @@ describe("BrowserSurface", () => {
   });
 
   it("keeps the design controls out of reach until a page is live", () => {
-    renderSurface({ state: { kind: "empty" } });
+    renderSurface({ state: { kind: "empty" }, annotationCount: 2, designMode: true });
 
-    expect(screen.getByRole("button", { name: "Design" })).toBeDisabled();
+    const design = screen.getByRole("button", { name: "Design" });
+
+    expect(design).toBeDisabled();
+    // Nothing is marked where there is no page, so a pressed-but-disabled
+    // toggle and a leftover count would both be lying.
+    expect(design).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument();
   });
 
   it("only offers Open in browser once there is a page to open", () => {

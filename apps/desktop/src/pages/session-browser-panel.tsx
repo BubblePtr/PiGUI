@@ -100,6 +100,13 @@ export function SessionBrowserPanel({
     setLoadError(null);
     setAddress(remembered ?? "");
     setHasPage(Boolean(remembered));
+    // The page this switch brings up starts unmarked and out of design mode.
+    // Main has to hear it too: it re-applies design mode to every document
+    // that reports in, so a reset kept to this side would leave the page
+    // marking while the toolbar says it is not.
+    setDesignMode(false);
+    setAnnotationCount(0);
+    void setBrowserDesignMode(false).catch(() => {});
 
     if (!remembered) {
       acceptedNavigationRef.current = null;
@@ -194,9 +201,9 @@ export function SessionBrowserPanel({
   }, [available, snapshot, state.kind]);
 
   // Leaving the surface (other surface, inspector closed, Session switch) hides
-  // the view without discarding the page. Design mode goes with it: the page
-  // outlives this component, and one left marking would swallow every click
-  // with no toolbar in sight.
+  // the view without discarding the page. Design mode and the marks go with
+  // it: the page outlives this component, and one left marking would swallow
+  // every click with no toolbar in sight.
   useEffect(() => {
     if (!available) {
       return;
@@ -205,6 +212,7 @@ export function SessionBrowserPanel({
     return () => {
       void setBrowserVisible(false).catch(() => {});
       void setBrowserDesignMode(false).catch(() => {});
+      void clearBrowserAnnotations().catch(() => {});
     };
   }, [available]);
 
@@ -214,6 +222,10 @@ export function SessionBrowserPanel({
     }
 
     setLoadError(null);
+    // The marks belong to the page being left. The new document does announce
+    // itself, but that announcement is stamped with a navigation id this
+    // component has not accepted yet, so it can never do the clearing.
+    setAnnotationCount(0);
     // Optimistic: the placeholder has to exist (and push its bounds) before the
     // page paints, or the native view shows up at the previous rect first.
     setHasPage(true);

@@ -119,12 +119,15 @@ export function BrowserSurface({
           <ToggleButton
             icon={<Crosshair className="size-4" />}
             isDisabled={!isLive}
-            isPressed={designMode}
+            // Nothing can be marked where no page is live, so the toggle never
+            // reads as pressed there — a pressed, disabled control claims a
+            // state the user cannot leave.
+            isPressed={isLive && designMode}
             label="Design"
             size="sm"
             onPressedChange={onDesignModeChange}
           />
-          {annotationCount > 0 ? (
+          {isLive && annotationCount > 0 ? (
             <span
               className="shrink-0 text-xs tabular-nums text-muted"
               data-testid="browser-annotation-count"
