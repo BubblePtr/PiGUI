@@ -169,7 +169,7 @@ Assistant Message 内一段连续内容，partType 为 thinking、text、tool_ca
 _Avoid_: Chunk, delta, block, segment, content index
 
 **Thinking**:
-partType 为 thinking 的 Message Part，即模型的推理正文。它属于 trace surface：Live 时只在 Chain of Thought 视口显示当前一句，settled 后折进 Chain of Thought 的时间线。它不是 Interim Output，后者是模型对用户说的话。
+partType 为 thinking 的 Message Part，即模型的推理正文。它属于 trace surface：在 Chain of Thought 里是一行 step（Live 时是「Thinking…」，settled 后是「Thought Ns」），正文展开可读。provider 常常只给摘要甚至不给正文，空正文是正常状态。它不是 Interim Output，后者是模型对用户说的话。
 _Avoid_: Reasoning text, CoT, thought log, trace
 
 **Tool Call**:
@@ -189,7 +189,7 @@ Active Run 最后一个 Turn 里 partType 为 text 的 Message Part，即所属 
 _Avoid_: Response, output, message, reply
 
 **Chain of Thought**:
-Live Chat 中承载一个 Active Run 全部过程内容的折叠区域：Thinking、Tool Call 与 Tool Execution、Interim Output，按 Turn 顺序穿插。Live 阶段它是一行视口加状态头，settled 后是「Thought for Ns」折叠项。它按 Active Run 存在，不按 Assistant Message 存在；它的阶段由 Session Projection 统一推导（见 ADR-0030），组件不自行判断。
+Live Chat 中承载一个 Active Run 全部过程内容的区域：Thinking、Tool Call 与 Tool Execution、Interim Output，按 Turn 顺序排成一列同形的 step。run 期间列表平铺、最后一行是走表的状态行；run(end) 时整列折进「Worked for Ns」头部，折叠只发生一次。它按 Active Run 存在，不按 Assistant Message 存在；它的阶段由 Session Projection 统一推导（见 ADR-0030），组件不自行判断。
 _Avoid_: Reasoning, thinking panel, trace, run timeline, CoT rail
 
 **Execution Checkout**:

@@ -471,6 +471,34 @@ describe("agent runtime event normalizer", () => {
     ]);
   });
 
+  it("names the tool on the opening tool_call part, before execution starts", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
+    // The SDK's partial message already carries the parsed ToolCall block at
+    // toolcall_start; without its name the live trace can only say "Running…"
+    // until execution begins (ADR-0030 §4).
+    const partial = {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", name: "read_file", arguments: {} }],
+    };
+
+    const events = normalizeAll(normalizer, [
+      { type: "agent_start" },
+      { type: "turn_start" },
+      { type: "message_start", message: { role: "assistant", content: [] } },
+      {
+        type: "message_update",
+        message: partial,
+        assistantMessageEvent: { type: "toolcall_start", contentIndex: 0, partial },
+      },
+    ]);
+
+    const openingPart = events.find(
+      (event) => event.type === "message_part" && event.phase === "start",
+    );
+
+    expect(openingPart).toMatchObject({ partType: "tool_call", toolName: "read_file" });
+  });
+
   it("scopes Turn and message identity per turn across a multi-turn tool loop, ignoring toolResult transcript messages", () => {
     const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
     const streamingMessage = { role: "assistant", content: [] };

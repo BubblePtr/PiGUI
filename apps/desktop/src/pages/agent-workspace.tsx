@@ -6,15 +6,10 @@ import {
   SegmentedControlItem,
 } from "@astryxdesign/core/SegmentedControl";
 import { Selector } from "@astryxdesign/core/Selector";
-import {
-  ChatChainOfThought as ChainOfThought,
-  formatThoughtSummary,
-} from "@/shared/ui/chat/chat-chain-of-thought";
-import {
-  ChatThoughtMarkdown,
-  liveThoughtBeatIndex,
-  liveThoughtLine,
-} from "@/shared/ui/chat/chat-thought-markdown";
+import { ChatChainOfThought as ChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
+import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
+import { ChatThoughtStep } from "@/shared/ui/chat/chat-thought-step";
+import { ChatToolStep } from "@/shared/ui/chat/chat-tool-step";
 import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
 import {
   ChatMarkdown as Markdown,
@@ -25,7 +20,6 @@ import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-inp
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
 import {
-  ChatToolGroup,
   type ChatToolItem,
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
@@ -102,6 +96,7 @@ import {
   type SessionRuntimeMessage,
   type SessionRuntimeModel,
 } from "@/entities/session/session-runtime-model";
+import { deriveCotView, type CotStep, type CotView } from "@/entities/session/cot-view";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -164,6 +159,8 @@ type LiveMessage = {
   controlLabel?: string;
   isStreaming?: boolean;
   relatedMessageIds?: string[];
+  /** The Run's Chain of Thought, derived once with the bubble it belongs to. */
+  cotView?: CotView;
 };
 
 type RunTimelineItem = {
@@ -178,7 +175,6 @@ type RunTimelineItem = {
   argsText?: string;
   outputText?: string;
   durationMs?: number;
-  timestamp?: string;
 };
 
 type AgentWorkspaceFixture = {
@@ -345,14 +341,9 @@ function getVisibleProjectRegistry() {
 
 function LiveChatMessage({
   message,
-  modelElapsedMs,
-  timeline = [],
   onForkMessage,
 }: {
   message: LiveMessage;
-  /** Measured model-call time for this answer; absent when unbracketed. */
-  modelElapsedMs?: number;
-  timeline?: RunTimelineItem[];
   onForkMessage?: (message: LiveMessage) => void;
 }) {
   if (message.role === "user") {
@@ -420,19 +411,15 @@ function LiveChatMessage({
             {message.controlLabel}
           </p>
         ) : null}
-        {!message.controlLabel ? (
-          <AssistantRunTrace
-            elapsedMs={modelElapsedMs ?? thoughtElapsedMs(timeline)}
-            isStreaming={message.isStreaming}
-            timeline={timeline}
-          />
+        {!message.controlLabel && message.cotView ? (
+          <AssistantRunTrace view={message.cotView} />
         ) : null}
         {message.body ? (
           <ChatMessage.Content>
             <AssistantMessageContent message={message} />
           </ChatMessage.Content>
         ) : null}
-        {!message.controlLabel && !message.isStreaming ? (
+        {!message.controlLabel && !message.isStreaming && message.body ? (
           <ChatMessageActions className="chat-message__actions--persist">
             <ChatMessageActions.Copy
               aria-label="Copy"
@@ -456,157 +443,71 @@ function LiveChatMessage({
   );
 }
 
-function AssistantRunTrace({
-  elapsedMs,
-  isStreaming = false,
-  timeline,
-}: {
-  elapsedMs?: number;
-  isStreaming?: boolean;
-  timeline: RunTimelineItem[];
-}) {
-  // Remount when stream ends so the settled trigger starts closed (DF-005B).
-  if (isStreaming) {
-    const latest = timeline[timeline.length - 1];
-
-    if (!latest) {
-      return null;
-    }
-
-    return (
-      <ChainOfThought key="streaming" isStreaming>
-        <ChainOfThought.Live pageKey={liveTracePageKey(latest)}>
-          <LiveTracePage item={latest} />
-        </ChainOfThought.Live>
-      </ChainOfThought>
-    );
+/**
+ * One Active Run's Chain of Thought. The phase, the clock anchor and the step
+ * list all come from `deriveCotView`; this only lays them out, so there is no
+ * second opinion about what stage the run is in (ADR-0030 §1).
+ */
+function AssistantRunTrace({ view }: { view: CotView }) {
+  if (view.phase === "hidden") {
+    return null;
   }
 
-  // A measured call is worth disclosing even when the turn left no thinking or
-  // tool steps behind — an answer that took 30s should say so. Without steps
-  // and without a measurement there is nothing to show but a placeholder.
-  if (!timeline.length) {
-    if (elapsedMs === undefined) {
-      return null;
-    }
-    return (
-      <ChainOfThought key="settled">
-        <ChainOfThought.Label>{formatThoughtSummary(elapsedMs)}</ChainOfThought.Label>
-      </ChainOfThought>
-    );
+  const ticking = view.phase === "thinking" || view.phase === "acting";
+
+  // Nothing measured and nothing to disclose: a bare "Worked" header would be
+  // chrome with nothing behind it.
+  if (!ticking && !view.steps.length && view.elapsedMs === undefined) {
+    return null;
   }
 
   return (
-    <ChainOfThought key="settled" defaultExpanded={false}>
-      <ChainOfThought.Trigger>{formatThoughtSummary(elapsedMs)}</ChainOfThought.Trigger>
-      <ChainOfThought.Content>
-        <ChainOfThought.Steps>
-          {groupTimelineSteps(timeline).map((step) =>
-            step.kind === "tools" ? (
-              <ChainOfThought.Step key={step.id}>
-                <ChatToolGroup tools={step.tools} />
-              </ChainOfThought.Step>
+    <ChainOfThought
+      // While the clock runs the component owns it: it walks the Run's anchor
+      // at 100ms rather than the page re-deriving the whole view that often.
+      // Every other phase hands over the frozen number (ADR-0030 §6).
+      {...(ticking
+        ? { startedAtMs: view.anchorMs }
+        : { elapsedMs: view.elapsedMs })}
+      hasSteps={view.steps.length > 0}
+      phase={view.phase}
+    >
+      <ChainOfThought.Steps>
+        {view.steps.map((step) => (
+          <ChainOfThought.Step key={step.id}>
+            {step.kind === "thinking" ? (
+              <ChatThoughtStep step={step} />
+            ) : step.kind === "tools" ? (
+              <ChatToolStep step={step} />
             ) : (
-              <ChainOfThought.Step key={step.item.id}>
-                <ChatThoughtMarkdown text={step.item.meta} />
-              </ChainOfThought.Step>
-            ),
-          )}
-        </ChainOfThought.Steps>
-      </ChainOfThought.Content>
+              // Interim Output is what the model said to the user, so it reads
+              // a shade darker than the steps around it (ADR-0030 §7).
+              <div
+                className="chain-of-thought__interim"
+                data-slot="chat-interim-output"
+              >
+                <ChatThoughtMarkdown text={step.text} />
+              </div>
+            )}
+          </ChainOfThought.Step>
+        ))}
+      </ChainOfThought.Steps>
     </ChainOfThought>
   );
 }
 
-function liveTracePageKey(item: RunTimelineItem) {
-  if (item.kind === "tool") {
-    return `tool:${item.id}`;
-  }
-  return `think:${item.id}:${liveThoughtBeatIndex(item.meta)}`;
-}
-
-function LiveTracePage({ item }: { item: RunTimelineItem }) {
-  if (item.kind === "tool") {
-    return (
-      <ChatToolGroup
-        tools={[
-          {
-            argsText: item.argsText,
-            durationMs: item.durationMs,
-            output: item.outputText,
-            state: item.toolState ?? "input-available",
-            toolCallId: item.toolCallId ?? item.id,
-            toolName: item.toolName ?? item.title,
-          },
-        ]}
-      />
-    );
-  }
-
-  return (
-    <p className="chain-of-thought__page">
-      <ChatThoughtMarkdown text={liveThoughtLine(item.meta)} unwrapLines />
-    </p>
-  );
-}
-
 /**
- * Legacy-bridge fallback: trace items carry only closing stamps, so this spans
- * the steps rather than the calls — it loses each call's opening wait and has
- * nothing to measure below two steps. Kept for bridges that mint no message
- * boundaries; the runtime-model path measures the calls themselves.
+ * Legacy-bridge fallback: the `runtimeEvents` pipeline mints no Message
+ * boundaries, so its trace has no Run to phase and no anchor to measure. It
+ * settles immediately with an unnumbered header — the same shape, without the
+ * timing — and goes away with the pipeline itself.
  */
-function thoughtElapsedMs(timeline: RunTimelineItem[]) {
-  const times = timeline
-    .map((item) => (item.timestamp ? Date.parse(item.timestamp) : Number.NaN))
-    .filter((value) => Number.isFinite(value));
-  if (times.length < 2) {
-    return undefined;
-  }
-  return Math.max(...times) - Math.min(...times);
-}
-
-/**
- * Wall clock the model itself spent on one answer: every call the bubble
- * collapses, each measured between its own message boundaries. Tool execution
- * sits between calls and each tool row already reports its own duration, so
- * summing the calls keeps the two disclosures from charging the same seconds
- * twice. Undefined when no call in the run was bracketed — the caller keeps
- * its older estimate rather than pass off a guess as a measurement.
- */
-function runModelElapsedMs(model: SessionRuntimeModel, messageIds: string[]) {
-  let totalMs = 0;
-
-  for (const messageId of messageIds) {
-    const message = model.messages.get(messageId);
-
-    if (!message || message.phase !== "final" || !message.startedAt) {
-      continue;
-    }
-
-    const spanMs = Date.parse(message.updatedAt) - Date.parse(message.startedAt);
-
-    // A pair that is not a plausible positive span contributes nothing, so a
-    // skewed clock or an unparsable stamp degrades to the estimate.
-    if (Number.isFinite(spanMs) && spanMs > 0) {
-      totalMs += spanMs;
-    }
-  }
-
-  return totalMs > 0 ? totalMs : undefined;
-}
-
-type TimelineStep =
-  | { kind: "tools"; id: string; tools: ChatToolItem[] }
-  | { kind: "item"; item: RunTimelineItem };
-
-/** Consecutive tool items fold into one Astryx tool-call group. */
-function groupTimelineSteps(timeline: RunTimelineItem[]): TimelineStep[] {
-  const steps: TimelineStep[] = [];
+function settledCotViewFromTimeline(timeline: RunTimelineItem[]): CotView {
+  const steps: CotStep[] = [];
 
   for (const item of timeline) {
     if (item.kind !== "tool") {
-      steps.push({ kind: "item", item });
+      steps.push({ kind: "thinking", id: item.id, text: item.meta, live: false });
       continue;
     }
 
@@ -618,16 +519,17 @@ function groupTimelineSteps(timeline: RunTimelineItem[]): TimelineStep[] {
       toolCallId: item.toolCallId ?? item.id,
       toolName: item.toolName ?? item.title,
     };
-    const lastStep = steps[steps.length - 1];
+    const last = steps[steps.length - 1];
 
-    if (lastStep?.kind === "tools") {
-      lastStep.tools.push(tool);
+    // Consecutive calls are one step, exactly as they are on the phase path.
+    if (last?.kind === "tools") {
+      last.tools.push(tool);
     } else {
-      steps.push({ kind: "tools", id: item.id, tools: [tool] });
+      steps.push({ kind: "tools", id: item.id, tools: [tool], live: false });
     }
   }
 
-  return steps;
+  return { phase: "settled", steps };
 }
 
 function AssistantMessageContent({ message }: { message: LiveMessage }) {
@@ -954,111 +856,11 @@ function liveImagesFromPrompt(images?: RuntimePromptImage[]) {
   }));
 }
 
-function orderedRuntimeModelAssistantMessageIds(
-  model: SessionRuntimeModel,
-  runId: string,
-) {
-  const ids: string[] = [];
-
-  for (const entry of model.order) {
-    if (entry.kind !== "message") {
-      continue;
-    }
-
-    const message = model.messages.get(entry.id);
-
-    if (
-      message?.role === "assistant" &&
-      message.runId === runId &&
-      !message.abandoned
-    ) {
-      ids.push(message.messageId);
-    }
-  }
-
-  return [...new Set(ids)];
-}
-
 function latestRuntimeModelRunId(model: SessionRuntimeModel) {
   const runs = [...model.runs.values()];
   const activeRun = [...runs].reverse().find((run) => !run.endedAt);
 
   return activeRun?.runId ?? runs[runs.length - 1]?.runId;
-}
-
-function relatedRuntimeModelMessageIds(
-  model: SessionRuntimeModel,
-  message: LiveMessage,
-) {
-  if (!message.runId) {
-    return relatedMessageIdsFor(message);
-  }
-
-  const relatedMessageIds = orderedRuntimeModelAssistantMessageIds(
-    model,
-    message.runId,
-  );
-
-  return relatedMessageIds.length ? relatedMessageIds : relatedMessageIdsFor(message);
-}
-
-function collapseRuntimeModelAssistantRunMessages(
-  model: SessionRuntimeModel,
-  messages: LiveMessage[],
-) {
-  // Agent-core emits one assistant message per turn; Live Chat presents one
-  // Active Run as one answer bubble while preserving every turn's trace.
-  const collapsedMessages: LiveMessage[] = [];
-  const answerIndexByRunId = new Map<string, number>();
-
-  for (const message of messages) {
-    if (!isAssistantAnswerMessage(message) || !message.runId) {
-      collapsedMessages.push(message);
-      continue;
-    }
-
-    const relatedMessageIds = [
-      ...new Set([
-        ...relatedRuntimeModelMessageIds(model, message),
-        ...relatedMessageIdsFor(message),
-      ]),
-    ];
-    const nextMessage = {
-      ...message,
-      relatedMessageIds,
-    };
-    const existingIndex = answerIndexByRunId.get(message.runId);
-
-    if (existingIndex === undefined) {
-      answerIndexByRunId.set(message.runId, collapsedMessages.length);
-      collapsedMessages.push(nextMessage);
-      continue;
-    }
-
-    collapsedMessages[existingIndex] = {
-      ...nextMessage,
-      relatedMessageIds: [
-        ...new Set([
-          ...relatedMessageIdsFor(collapsedMessages[existingIndex]),
-          ...relatedMessageIds,
-        ]),
-      ],
-    };
-  }
-
-  return collapsedMessages;
-}
-
-function serializeModelDetail(value: unknown) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (value === undefined) {
-    return "";
-  }
-
-  return JSON.stringify(value);
 }
 
 /**
@@ -1108,6 +910,11 @@ function liveMessagesFromRuntimeModel(
   const model = projection.runtimeModel;
   const streamingAllowed = projection.status === "running" && !projection.stale;
   const messages: LiveMessage[] = [];
+  // One answer bubble per Active Run, minted at the Run's first model call and
+  // never again: agent-core opens a Message per Turn, but only the Final
+  // Answer is addressed to the user — every other Turn's text is Interim
+  // Output and belongs in the Chain of Thought (ADR-0030 §7).
+  const answeredRunIds = new Set<string>();
   let errorCursor = 0;
 
   for (const entry of model.order) {
@@ -1135,28 +942,59 @@ function liveMessagesFromRuntimeModel(
 
     const message = model.messages.get(entry.id);
 
-    // Abandoned retry partials are closed boundaries, not answers.
-    if (!message || message.abandoned) {
+    if (!message) {
       continue;
     }
 
-    const body = chatTextFromModelMessage(message);
-    const images = chatImagesFromModelMessage(message);
-    const isStreaming = streamingAllowed && message.phase === "streaming";
+    const runId = message.runId;
 
-    if (!body && !images.length && !message.controlLabel && !isStreaming) {
+    if (!runId || message.role !== "assistant" || message.controlLabel) {
+      // Abandoned retry partials are closed boundaries, not answers.
+      if (message.abandoned) {
+        continue;
+      }
+
+      const body = chatTextFromModelMessage(message);
+      const images = chatImagesFromModelMessage(message);
+      const isStreaming = streamingAllowed && message.phase === "streaming";
+
+      if (!body && !images.length && !message.controlLabel && !isStreaming) {
+        continue;
+      }
+
+      messages.push({
+        id: message.messageId,
+        role: message.role,
+        body,
+        ...(images.length ? { images } : {}),
+        ...(message.runId ? { runId: message.runId } : {}),
+        ...(message.piEntryId ? { piEntryId: message.piEntryId } : {}),
+        ...(message.controlLabel ? { controlLabel: message.controlLabel } : {}),
+        ...(isStreaming ? { isStreaming: true } : {}),
+      });
+
       continue;
     }
+
+    if (answeredRunIds.has(runId)) {
+      continue;
+    }
+
+    answeredRunIds.add(runId);
+
+    const cotView = deriveCotView(model, runId, { streamingAllowed, nowMs: clockNowMs });
 
     messages.push({
+      // The Run's first Message anchors the bubble's place in the log; an
+      // abandoned one still holds it, so a retry does not reorder the chat.
       id: message.messageId,
-      role: message.role,
-      body,
-      ...(images.length ? { images } : {}),
-      ...(message.runId ? { runId: message.runId } : {}),
-      ...(message.piEntryId ? { piEntryId: message.piEntryId } : {}),
-      ...(message.controlLabel ? { controlLabel: message.controlLabel } : {}),
-      ...(isStreaming ? { isStreaming: true } : {}),
+      role: "assistant",
+      runId,
+      body: cotView.answer?.text ?? "",
+      // Streaming here means "the Run is still in flight": it gates the
+      // incremental renderer and holds the ActionBar back until run(end).
+      ...(cotView.phase === "settled" ? {} : { isStreaming: true }),
+      cotView,
     });
   }
 
@@ -1165,28 +1003,29 @@ function liveMessagesFromRuntimeModel(
     messages,
     clockNowMs,
   );
-  const collapsedMessages = collapseRuntimeModelAssistantRunMessages(
-    model,
-    messagesWithPlaceholder,
-  );
-  const hasInitialPromptMessage = collapsedMessages.some(
+  const hasInitialPromptMessage = messagesWithPlaceholder.some(
     (message) => message.role === "user" && message.body === projection.initialPrompt,
   );
 
   const withInitial = hasInitialPromptMessage
-    ? collapsedMessages
+    ? messagesWithPlaceholder
     : [
         {
           id: `${projection.id}-initial-prompt`,
           role: "user" as const,
           body: projection.initialPrompt,
         },
-        ...collapsedMessages,
+        ...messagesWithPlaceholder,
       ];
 
   return appendProcessingQueuedFollowUpsAsUserMessages(projection, withInitial);
 }
 
+/**
+ * The wait before the model answers at all. Once a Message opens, the Chain of
+ * Thought takes over and says what is happening; until then there is no trace
+ * to show, so the wait itself has to be the message (ADR-0030 §5, `hidden`).
+ */
 function appendModelRunningPlaceholder(
   projection: SessionProjection,
   messages: LiveMessage[],
@@ -1196,150 +1035,41 @@ function appendModelRunningPlaceholder(
     return messages;
   }
 
-  const hasAssistantShell = messages.some(
-    (message) => message.role === "assistant" && !message.controlLabel,
-  );
-  const hasAssistantMessage = messages.some(
-    (message) =>
-      message.role === "assistant" &&
-      !message.controlLabel &&
-      message.body.trim().length > 0,
-  );
+  const model = projection.runtimeModel;
+  const runId = latestRuntimeModelRunId(model);
 
-  if (hasAssistantMessage) {
+  if (!runId) {
     return messages;
   }
 
-  const model = projection.runtimeModel;
-  const runId = latestRuntimeModelRunId(model);
-  const relatedMessageIds = runId
-    ? orderedRuntimeModelAssistantMessageIds(model, runId)
-    : [];
-  const traceMessageId = [...relatedMessageIds]
-    .reverse()
-    .find((messageId) => {
-      const message = model.messages.get(messageId);
+  // Scoped to the Run that is actually waiting: an earlier Run's answer says
+  // nothing about whether this one has been picked up.
+  const runHasModelCall = [...model.messages.values()].some(
+    (message) => message.role === "assistant" && message.runId === runId,
+  );
 
-      return message?.parts.some(
-        (part) => part.partType === "thinking" || part.partType === "tool_call",
-      );
-    });
-  const hasModelActivity =
-    model.tools.size > 0 ||
-    [...model.messages.values()].some(
-      (message) => message.role === "assistant" && message.parts.length > 0,
-    );
+  if (runHasModelCall) {
+    return messages;
+  }
+
   const latestTimestampMs = Date.parse(model.updatedAt ?? projection.updatedAt);
   const elapsedMs = Number.isFinite(latestTimestampMs)
     ? Math.max(0, clockNowMs - latestTimestampMs)
     : 0;
-  if (hasModelActivity && hasAssistantShell) {
-    return messages;
-  }
-  const body = hasModelActivity
-    ? ""
-    : elapsedMs >= modelFirstResponseWatchdogMs
-      ? stalledModelResponsePlaceholder
-      : contactingModelPlaceholder;
 
   return [
     ...messages,
     {
-      id: traceMessageId ?? `${projection.id}-running-placeholder`,
+      id: `${projection.id}-running-placeholder`,
       role: "assistant",
-      ...(runId ? { runId } : {}),
-      ...(relatedMessageIds.length ? { relatedMessageIds } : {}),
-      body,
+      runId,
+      body:
+        elapsedMs >= modelFirstResponseWatchdogMs
+          ? stalledModelResponsePlaceholder
+          : contactingModelPlaceholder,
       isStreaming: true,
     },
   ];
-}
-
-function runTimelineFromRuntimeModel(
-  projection: SessionProjection,
-): RunTimelineItem[] | null {
-  if (!runtimeModelIsActive(projection)) {
-    return null;
-  }
-
-  const model = projection.runtimeModel;
-  const messageIdByToolCallId = new Map<string, string>();
-
-  for (const message of model.messages.values()) {
-    for (const part of message.parts) {
-      if (part.toolCallId) {
-        messageIdByToolCallId.set(part.toolCallId, message.messageId);
-      }
-    }
-  }
-
-  const items: RunTimelineItem[] = [];
-
-  for (const entry of model.order) {
-    if (entry.kind === "message") {
-      const message = model.messages.get(entry.id);
-
-      for (const part of message?.parts ?? []) {
-        if (part.partType === "thinking" && part.body) {
-          items.push({
-            id: part.partId,
-            kind: "thinking",
-            title: "Thinking",
-            meta: part.body,
-            messageId: message?.messageId,
-            ...(message?.updatedAt ? { timestamp: message.updatedAt } : {}),
-          });
-        }
-      }
-
-      continue;
-    }
-
-    if (entry.kind !== "tool") {
-      continue;
-    }
-
-    const tool = model.tools.get(entry.id);
-
-    if (!tool) {
-      continue;
-    }
-
-    const toolName = tool.name ?? "Tool";
-    const argsText =
-      tool.args !== undefined ? serializeModelDetail(tool.args) : tool.argsText;
-    const outputText =
-      tool.result !== undefined ? serializeModelDetail(tool.result) : undefined;
-
-    const durationMs =
-      tool.phase === "done" && tool.startedAt
-        ? Date.parse(tool.updatedAt) - Date.parse(tool.startedAt)
-        : undefined;
-
-    items.push({
-      id: tool.toolCallId,
-      kind: "tool",
-      title: `Tool: ${toolName}`,
-      meta: outputText ?? argsText ?? "",
-      messageId: messageIdByToolCallId.get(tool.toolCallId),
-      toolCallId: tool.toolCallId,
-      toolName,
-      toolState:
-        tool.phase === "done"
-          ? tool.isError
-            ? "output-error"
-            : "output-available"
-          : "input-available",
-      argsText,
-      outputText,
-      timestamp: tool.updatedAt,
-      ...(durationMs !== undefined && Number.isFinite(durationMs)
-        ? { durationMs }
-        : {}),
-    });
-  }
-
-  return items;
 }
 
 function liveMessagesFromProjection(
@@ -1601,7 +1331,6 @@ function runTimelineFromProjection(
         title: "Thinking",
         meta: event.body,
         messageId: event.messageId,
-        timestamp: event.timestamp,
       });
       continue;
     }
@@ -1631,7 +1360,6 @@ function runTimelineFromProjection(
           event.kind === "tool-result" ? "output-available" : "input-available",
         argsText: event.kind === "tool-call" ? event.body : undefined,
         outputText: event.kind === "tool-result" ? event.body : undefined,
-        timestamp: event.timestamp,
       };
 
       toolItemIndexes.set(toolIdentity, items.length);
@@ -1659,7 +1387,6 @@ function runTimelineFromProjection(
       outputText:
         event.kind === "tool-result" ? event.body : existingItem.outputText,
       meta: event.kind === "tool-result" ? event.body : existingItem.meta,
-      timestamp: event.timestamp,
       ...(durationMs !== undefined && Number.isFinite(durationMs) && durationMs >= 0
         ? { durationMs }
         : {}),
@@ -2958,14 +2685,16 @@ function LiveSessionColumn({
     ? (liveMessagesFromRuntimeModel(liveProjection, effectiveClockNowMs) ??
       liveMessagesFromProjection(liveProjection, effectiveClockNowMs))
     : [];
-  const projectionTimeline = liveProjection
-    ? (runTimelineFromRuntimeModel(liveProjection) ??
-      runTimelineFromProjection(liveProjection))
-    : [];
   const liveMessages = projectionMessages.length
     ? projectionMessages
     : workspace.liveMessages;
-  const runTimeline = liveProjection ? projectionTimeline : workspace.runTimeline;
+  // Only the legacy pipeline still routes a trace through timeline items; the
+  // runtime-model path derives its view with the bubble it belongs to.
+  const runTimeline = !liveProjection
+    ? workspace.runTimeline
+    : runtimeModelIsActive(liveProjection)
+      ? []
+      : runTimelineFromProjection(liveProjection);
   const fallbackTraceMessageId = runTimeline.some((item) => !item.messageId)
     ? [...liveMessages]
         .reverse()
@@ -2974,19 +2703,26 @@ function LiveSessionColumn({
             message.role === "assistant" && !message.controlLabel,
         )?.id
     : undefined;
-  const timelineForMessage = (message: LiveMessage) => {
+  // Legacy pipeline only: the runtime-model path derives its view alongside
+  // the bubble, so there is nothing here to attach.
+  const withLegacyCotView = (message: LiveMessage) => {
+    if (message.cotView || !isAssistantAnswerMessage(message)) {
+      return message;
+    }
+
     const relatedMessageIds = new Set(relatedMessageIdsFor(message));
 
-    return runTimeline.filter((item) =>
-      item.messageId
-        ? relatedMessageIds.has(item.messageId)
-        : message.id === fallbackTraceMessageId,
-    );
+    return {
+      ...message,
+      cotView: settledCotViewFromTimeline(
+        runTimeline.filter((item) =>
+          item.messageId
+            ? relatedMessageIds.has(item.messageId)
+            : message.id === fallbackTraceMessageId,
+        ),
+      ),
+    };
   };
-  const modelElapsedForMessage = (message: LiveMessage) =>
-    liveProjection
-      ? runModelElapsedMs(liveProjection.runtimeModel, relatedMessageIdsFor(message))
-      : undefined;
   const readOnlyProjection = isReadOnlyProjection(liveProjection);
   const runtimeUnavailableProjection =
     isRuntimeUnavailableProjection(liveProjection) ? liveProjection : null;
@@ -3349,8 +3085,7 @@ function LiveSessionColumn({
               {liveMessages.map((message) => (
                 <LiveChatMessage
                   key={message.id}
-                  message={message}
-                  modelElapsedMs={modelElapsedForMessage(message)}
+                  message={withLegacyCotView(message)}
                   onForkMessage={
                     liveProjection?.sessionFile &&
                     liveProjection.piSessionId &&
@@ -3358,7 +3093,6 @@ function LiveSessionColumn({
                       ? (forkMessage) => void handleForkMessage(forkMessage)
                       : undefined
                   }
-                  timeline={timelineForMessage(message)}
                 />
               ))}
             </ChatConversation.Content>

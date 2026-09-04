@@ -31,10 +31,7 @@ import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
 import { ChatStatusLine } from "@/shared/ui/chat/chat-status-line";
 import { ChatThoughtStep, type ChatThoughtStepItem } from "@/shared/ui/chat/chat-thought-step";
 import { ChatToolStep, type ChatToolStepItem } from "@/shared/ui/chat/chat-tool-step";
-import {
-  ChatThoughtMarkdown,
-  liveThoughtLine,
-} from "@/shared/ui/chat/chat-thought-markdown";
+import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import {
   ChatChainOfThoughtRail,
   type ChainOfThoughtRailPart,
@@ -1328,49 +1325,13 @@ function ChatChainOfThoughtGallery() {
   return (
     <GallerySection title="ChatChainOfThought">
       <div className="flex max-w-xl flex-col gap-4">
-        <Variant caption="streaming, live viewport">
-          <ChatChainOfThought elapsedMs={2500} isStreaming>
-            <ChatChainOfThought.Live>
-              <p className="chain-of-thought__page">
-                <ChatThoughtMarkdown
-                  unwrapLines
-                  text={liveThoughtLine(
-                    "The remap is missing.\n**The failing assertion is in session-runtime-model.test.ts.**",
-                  )}
-                />
-              </p>
-            </ChatChainOfThought.Live>
-          </ChatChainOfThought>
-        </Variant>
-        <Variant caption="settled, nothing to expand (plain label, no control)">
-          <ChatChainOfThought>
-            <ChatChainOfThought.Label>Thought for 5s</ChatChainOfThought.Label>
-          </ChatChainOfThought>
-        </Variant>
-        <Variant caption="collapsed, settled">
-          <ChatChainOfThought>
-            <ChatChainOfThought.Trigger>Thought for 12s</ChatChainOfThought.Trigger>
-            <ChatChainOfThought.Content>
-              <ChatChainOfThought.Steps>
-                <ChatChainOfThought.Step>
-                  <ChatThoughtMarkdown text="The replay projection dropped the tool_call part after a fork." />
-                </ChatChainOfThought.Step>
-                <ChatChainOfThought.Step>
-                  <ChatToolGroup
-                    tools={[
-                      {
-                        toolCallId: "design-read",
-                        toolName: "Read",
-                        state: "output-available",
-                        durationMs: 320,
-                        argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
-                        output: "part.toolCallId  // never remapped",
-                      },
-                    ]}
-                  />
-                </ChatChainOfThought.Step>
-              </ChatChainOfThought.Steps>
-            </ChatChainOfThought.Content>
+        <Variant caption='phase="thinking" (flat, status line)'>
+          <ChatChainOfThought elapsedMs={3_200} phase="thinking">
+            <ChatChainOfThought.Steps>
+              <ChatChainOfThought.Step>
+                <ChatThoughtStep step={liveThought} />
+              </ChatChainOfThought.Step>
+            </ChatChainOfThought.Steps>
           </ChatChainOfThought>
         </Variant>
         <Variant caption='phase="acting" (flat, status line)'>
@@ -1388,11 +1349,16 @@ function ChatChainOfThoughtGallery() {
             </ChatChainOfThought.Steps>
           </ChatChainOfThought>
         </Variant>
-        <Variant caption='phase="answering" (heartbeat gone)'>
+        <Variant caption='phase="answering" (heartbeat gone, Interim Output in the list)'>
           <ChatChainOfThought elapsedMs={26_400} phase="answering">
             <ChatChainOfThought.Steps>
               <ChatChainOfThought.Step>
                 <ChatThoughtStep step={settledThought} />
+              </ChatChainOfThought.Step>
+              <ChatChainOfThought.Step>
+                <div className="chain-of-thought__interim">
+                  <ChatThoughtMarkdown text="Let me read the ADR before answering." />
+                </div>
               </ChatChainOfThought.Step>
               <ChatChainOfThought.Step>
                 <ChatToolStep step={settledToolBurst} />
@@ -1412,37 +1378,20 @@ function ChatChainOfThoughtGallery() {
             </ChatChainOfThought.Steps>
           </ChatChainOfThought>
         </Variant>
+        <Variant caption='phase="settled", expanded'>
+          <ChatChainOfThought defaultExpanded elapsedMs={16_400} phase="settled">
+            <ChatChainOfThought.Steps>
+              <ChatChainOfThought.Step>
+                <ChatThoughtStep step={settledThought} />
+              </ChatChainOfThought.Step>
+              <ChatChainOfThought.Step>
+                <ChatToolStep step={settledToolBurst} />
+              </ChatChainOfThought.Step>
+            </ChatChainOfThought.Steps>
+          </ChatChainOfThought>
+        </Variant>
         <Variant caption='phase="settled", nothing to disclose'>
           <ChatChainOfThought elapsedMs={2_400} hasSteps={false} phase="settled" />
-        </Variant>
-        <Variant caption="expanded, settled">
-          <ChatChainOfThought defaultExpanded>
-            <ChatChainOfThought.Trigger>Thought for 12s</ChatChainOfThought.Trigger>
-            <ChatChainOfThought.Content>
-              <ChatChainOfThought.Steps>
-                <ChatChainOfThought.Step>
-                  <ChatThoughtMarkdown text="Looking at `remapEntryId` — **toolCallId is never remapped**." />
-                </ChatChainOfThought.Step>
-                <ChatChainOfThought.Step>
-                  <ChatToolGroup
-                    tools={[
-                      {
-                        toolCallId: "design-read-open",
-                        toolName: "Read",
-                        state: "output-available",
-                        durationMs: 320,
-                        argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
-                        output: "part.toolCallId  // never remapped",
-                      },
-                    ]}
-                  />
-                </ChatChainOfThought.Step>
-                <ChatChainOfThought.Step>
-                  <ChatThoughtMarkdown text="Grep is empty — no remapToolCallId helper exists yet." />
-                </ChatChainOfThought.Step>
-              </ChatChainOfThought.Steps>
-            </ChatChainOfThought.Content>
-          </ChatChainOfThought>
         </Variant>
       </div>
     </GallerySection>

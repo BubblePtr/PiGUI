@@ -35,6 +35,13 @@ export type CotStep =
 
 export type CotView = {
   phase: CotPhase;
+  /**
+   * The Run's single clock anchor: its first surviving model call, as an epoch
+   * stamp. Handed to the component so it can walk the clock itself instead of
+   * the page re-deriving the whole view every 100ms. Absent until the Run has
+   * a Message to anchor on — during a retry gap, most of all.
+   */
+  anchorMs?: number;
   /** Time from the Run's first model call to the first answer token. */
   elapsedMs?: number;
   /** Steps in Turn order; the last one may still be live. */
@@ -71,6 +78,10 @@ function toolItem(
   const executed = tool?.phase === "done";
   const startedMs = parseTime(tool?.startedAt);
   const endedMs = executed ? parseTime(tool?.updatedAt) : undefined;
+  // Execution is the authority on the name once it starts; before that the
+  // opening part boundary already carried it, so a call whose arguments are
+  // still streaming is named rather than anonymous (ADR-0030 §4).
+  const toolName = tool?.name || part.name;
   const state: ChatToolItem["state"] = executed
     ? tool?.isError
       ? "output-error"
@@ -82,8 +93,7 @@ function toolItem(
   return {
     state,
     ...(part.toolCallId ? { toolCallId: part.toolCallId } : {}),
-    // The part stream carries no tool name — it arrives with tool(start).
-    ...(tool?.name ? { toolName: tool.name } : {}),
+    ...(toolName ? { toolName } : {}),
     ...(part.body ? { argsText: part.body } : {}),
     ...(tool?.result !== undefined ? { output: serializeToolDetail(tool.result) } : {}),
     ...(startedMs !== undefined && endedMs !== undefined
@@ -249,6 +259,7 @@ export function deriveCotView(
 
   return {
     phase,
+    ...(anchorMs !== undefined ? { anchorMs } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
     steps,
     ...(answer ? { answer } : {}),
