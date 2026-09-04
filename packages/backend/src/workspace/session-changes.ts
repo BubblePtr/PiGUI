@@ -374,6 +374,55 @@ async function listLocalBranches(repositoryRoot: string) {
     .filter(Boolean);
 }
 
+// Short names of remote-tracking refs (origin/feat/x → feat/x), matching
+// Cursor's picker. origin wins when two remotes share a name. Symbolic
+// remote HEAD is not a branch the user can switch onto.
+async function listRemoteTrackingBranches(repositoryRoot: string) {
+  const result = await runGit({
+    cwd: repositoryRoot,
+    args: [
+      "for-each-ref",
+      "--format=%(refname:short)",
+      "--sort=refname",
+      "refs/remotes",
+    ],
+  });
+  const byName = new Map<string, string>();
+
+  for (const ref of result.stdout
+    .toString("utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)) {
+    const slash = ref.indexOf("/");
+    if (slash <= 0) continue;
+    const remote = ref.slice(0, slash);
+    const name = ref.slice(slash + 1);
+    if (!name || name === "HEAD") continue;
+    const existing = byName.get(name);
+    if (!existing || remote === "origin") {
+      byName.set(name, ref);
+    }
+  }
+
+  return byName;
+}
+
+function mergeBranchNames(
+  headBranch: string | null,
+  localBranches: string[],
+  remoteTracking: Map<string, string>,
+) {
+  const local = new Set(localBranches);
+  const remoteOnly = [...remoteTracking.keys()].filter((name) => !local.has(name));
+  const rest = [
+    ...localBranches.filter((name) => name !== headBranch),
+    ...remoteOnly,
+  ];
+
+  return headBranch ? [headBranch, ...rest.filter((name) => name !== headBranch)] : rest;
+}
+
 function parseWorktreeList(stdout: string) {
   const records: Array<{ path: string; branch: string | null }> = [];
 
@@ -545,8 +594,12 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
       }
 
       const localBranches = await listLocalBranches(inspected.repositoryRoot);
+      const remoteTracking = await listRemoteTrackingBranches(
+        inspected.repositoryRoot,
+      );
+      const startPoint = remoteTracking.get(input.branch);
 
-      if (!localBranches.includes(input.branch)) {
+      if (!localBranches.includes(input.branch) && !startPoint) {
         throw new Error(`Unknown local branch "${input.branch}".`);
       }
 
@@ -571,10 +624,17 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
           : null;
 
       if (current !== input.branch) {
-        await runGit({
-          cwd: inspected.repositoryRoot,
-          args: ["switch", "--no-guess", "--", input.branch],
-        });
+        if (localBranches.includes(input.branch)) {
+          await runGit({
+            cwd: inspected.repositoryRoot,
+            args: ["switch", "--no-guess", "--", input.branch],
+          });
+        } else if (startPoint) {
+          await runGit({
+            cwd: inspected.repositoryRoot,
+            args: ["switch", "-c", input.branch, "--track", "--", startPoint],
+          });
+        }
       }
 
       return reader.read(input);
@@ -614,12 +674,12 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
         detached: hasHead && branchResult.exitCode !== 0,
       };
       const localBranches = await listLocalBranches(repositoryRoot);
-      const branches = head.branch
-        ? [
-            head.branch,
-            ...localBranches.filter((name) => name !== head.branch),
-          ]
-        : localBranches;
+      const remoteTracking = await listRemoteTrackingBranches(repositoryRoot);
+      const branches = mergeBranchNames(
+        head.branch,
+        localBranches,
+        remoteTracking,
+      );
       const occupiedBranches = await listOccupiedBranches(repositoryRoot);
       const status = await runGit({
         cwd: repositoryRoot,

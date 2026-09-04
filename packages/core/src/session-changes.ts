@@ -34,7 +34,11 @@ export type SessionChanges = {
     branch: string | null;
     detached: boolean;
   };
-  /** Local branch names (`refs/heads`), current first when it is one of them. */
+  /**
+   * Branch names shown in the composer picker: local heads (`refs/heads`) plus
+   * remote-tracking names that have no local counterpart (`origin/feat/x` is
+   * listed as `feat/x`). Current branch first when it is one of them.
+   */
   branches?: string[];
   /**
    * Local branches already checked out in another Git worktree. The current
