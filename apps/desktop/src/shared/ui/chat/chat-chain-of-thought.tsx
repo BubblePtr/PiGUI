@@ -34,7 +34,7 @@ function useTickingElapsed(startedAtMs: number | undefined, enabled: boolean) {
   }, [enabled]);
 
   if (startedAtMs === undefined) {
-    return 0;
+    return undefined;
   }
   return Math.max(0, now - startedAtMs);
 }

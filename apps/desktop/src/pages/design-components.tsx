@@ -1648,6 +1648,9 @@ function ChatStatusLineGallery() {
         <Variant caption='phase="acting"'>
           <ChatStatusLine elapsedMs={26_400} phase="acting" />
         </Variant>
+        <Variant caption="no anchor yet (retry gap)">
+          <ChatStatusLine phase="thinking" />
+        </Variant>
         <Variant caption="reduced motion: shimmer and heartbeat hold still (OS setting)">
           <ChatStatusLine elapsedMs={62_100} phase="acting" />
         </Variant>

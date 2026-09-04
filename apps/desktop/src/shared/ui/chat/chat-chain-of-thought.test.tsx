@@ -106,18 +106,20 @@ describe("ChatChainOfThought phase", () => {
     expect(screen.getByText("3.2s")).toBeInTheDocument();
   });
 
-  // Replay fixtures carry historical timestamps and no anchor; starting a clock
-  // at mount would pass the time since the page opened off as the run's wait.
-  it("does not start a clock of its own when the anchor is missing", () => {
+  // Replay fixtures and retry gaps carry no anchor; a clock started at mount
+  // would pass the time since the page opened off as the run's wait, and a
+  // frozen "0.0s" would claim the run just started (ADR-0030 §6).
+  it("shows no clock at all when the anchor is missing", () => {
     vi.useFakeTimers();
 
-    renderPhase("thinking");
+    const { container } = renderPhase("thinking");
 
     act(() => {
       vi.advanceTimersByTime(5000);
     });
 
-    expect(screen.getByText("0.0s")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="chat-status-line"]')).toBeInTheDocument();
+    expect(container.querySelector(".chat-status-line__clock")).not.toBeInTheDocument();
   });
 });
 

@@ -367,6 +367,11 @@ describe("Design components layer", () => {
 
     expect(within(status).getByText('phase="thinking"')).toBeInTheDocument();
     expect(within(status).getByText('phase="acting"')).toBeInTheDocument();
+    // The retry-gap shape: heartbeat and status word without a clock.
+    expect(within(status).getByText("no anchor yet (retry gap)")).toBeInTheDocument();
+    expect(status.querySelectorAll(".chat-status-line").length).toBe(
+      status.querySelectorAll(".chat-status-line__clock").length + 1,
+    );
   });
 
   it("shows the CoT block flat while live and folded once settled", () => {

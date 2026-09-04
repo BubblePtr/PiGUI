@@ -62,7 +62,12 @@ export function ChatStatusLine({
   phase,
 }: {
   className?: string;
-  elapsedMs: number;
+  /**
+   * Absent while the Run has no clock anchor — a retry gap, most of all. The
+   * line still beats and still names what is happening; only the number goes,
+   * because "0.0s" would claim the run just started (ADR-0030 §6).
+   */
+  elapsedMs?: number;
   phase: ChatStatusPhase;
 }) {
   return (
@@ -73,9 +78,11 @@ export function ChatStatusLine({
     >
       <ChatPixelLoader />
       <TextShimmer className="chat-status-line__word">
-        {statusWord(phase, elapsedMs)}…
+        {statusWord(phase, elapsedMs ?? 0)}…
       </TextShimmer>
-      <span className="chat-status-line__clock">{formatLiveElapsed(elapsedMs)}</span>
+      {elapsedMs === undefined ? null : (
+        <span className="chat-status-line__clock">{formatLiveElapsed(elapsedMs)}</span>
+      )}
     </p>
   );
 }
