@@ -53,15 +53,19 @@ describe("formatSessionListTime", () => {
     expect(formatted).toMatch(/^\d{2}:\d{2}$/);
   });
 
-  it("formats other-day timestamps as a short local date", () => {
+  it("formats other-day timestamps as compact day-count ago", () => {
     const now = new Date(2026, 6, 30, 18, 0, 0);
-    const earlier = new Date(2026, 6, 28, 9, 5, 0);
-    const formatted = formatSessionListTime(earlier.toISOString(), now);
-    const expected = new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-    }).format(earlier);
+    const yesterday = new Date(2026, 6, 29, 9, 5, 0);
+    const twoDaysAgo = new Date(2026, 6, 28, 9, 5, 0);
 
-    expect(formatted).toBe(expected);
+    expect(formatSessionListTime(yesterday.toISOString(), now)).toBe("1d ago");
+    expect(formatSessionListTime(twoDaysAgo.toISOString(), now)).toBe("2d ago");
+  });
+
+  it("keeps counting calendar days across year boundaries", () => {
+    const now = new Date(2026, 0, 2, 12, 0, 0);
+    const earlier = new Date(2025, 11, 31, 9, 0, 0);
+
+    expect(formatSessionListTime(earlier.toISOString(), now)).toBe("2d ago");
   });
 });

@@ -70,13 +70,13 @@ export function formatSessionListTime(
     }).format(date);
   }
 
-  const sameYear = date.getFullYear() === now.getFullYear();
+  // Calendar days, not elapsed 24h buckets: yesterday is always 1d ago even
+  // if the wait was 8 hours, and DST cannot stretch or shrink the count.
+  const startOfThen = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const startOfNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((startOfNow - startOfThen) / 86_400_000);
 
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    ...(sameYear ? {} : { year: "2-digit" }),
-  }).format(date);
+  return `${Math.max(1, days)}d ago`;
 }
 
 export function formatCost(value: number) {

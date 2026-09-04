@@ -14,7 +14,24 @@ export function formatWorkedFor(ms: number | undefined) {
     return "Worked";
   }
 
-  return `Worked for ${Math.max(1, Math.round(ms / 1000))}s`;
+  // Round to whole seconds first, then split: a 59.6s wait should read as
+  // 1m 0s, not 60s, and a 59m 59.6s wait as 1h 0m 0s, not 60m 0s.
+  const totalSeconds = Math.max(1, Math.round(ms / 1000));
+
+  if (totalSeconds < 60) {
+    return `Worked for ${totalSeconds}s`;
+  }
+
+  if (totalSeconds < 3600) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `Worked for ${minutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `Worked for ${hours}h ${minutes}m ${seconds}s`;
 }
 
 /**

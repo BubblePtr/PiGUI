@@ -259,13 +259,10 @@ describe("AppFrame", () => {
     expect(activeRunIndicator).not.toHaveClass("animate-spin");
     expect(activeRunIndicator.querySelector("svg")).toHaveAttribute("viewBox", "0 0 16 16");
     expect(activeRunIndicator.querySelectorAll('[data-slot="dot-matrix-dot"]')).toHaveLength(16);
-    const activeTimeLabel = new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-    }).format(new Date("2026-06-26T08:06:00.000Z"));
-    // Fixture timestamps are not "today", so chips use local short date (not UTC HH:mm slice).
+    // Fixture timestamps are not "today", so chips use compact day-count ago
+    // (not a short date, and not a UTC HH:mm slice).
     const activeSessionRow = getSessionRow(projectNavigation, "Agent Workspace shell");
-    const activeTime = within(activeSessionRow).getByText(activeTimeLabel);
+    const activeTime = within(activeSessionRow).getByText(/^\d+d ago$/);
 
     expect(activeTime).toHaveClass("text-muted", "text-[10px]", "leading-none");
     // The time chip lives on the session row itself, not inside an action button.

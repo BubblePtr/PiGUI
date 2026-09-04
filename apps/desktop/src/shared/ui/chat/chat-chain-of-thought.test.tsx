@@ -20,6 +20,19 @@ describe("formatWorkedFor", () => {
     expect(formatWorkedFor(400)).toBe("Worked for 1s");
     expect(formatWorkedFor(16_400)).toBe("Worked for 16s");
   });
+
+  it("splits into minutes once the wait reaches a minute", () => {
+    expect(formatWorkedFor(59_400)).toBe("Worked for 59s");
+    expect(formatWorkedFor(59_600)).toBe("Worked for 1m 0s");
+    expect(formatWorkedFor(75_400)).toBe("Worked for 1m 15s");
+    expect(formatWorkedFor(3_599_400)).toBe("Worked for 59m 59s");
+  });
+
+  it("splits into hours once the wait reaches an hour", () => {
+    expect(formatWorkedFor(3_599_600)).toBe("Worked for 1h 0m 0s");
+    expect(formatWorkedFor(3_665_000)).toBe("Worked for 1h 1m 5s");
+    expect(formatWorkedFor(7_322_400)).toBe("Worked for 2h 2m 2s");
+  });
 });
 
 describe("ChatChainOfThought phase", () => {
