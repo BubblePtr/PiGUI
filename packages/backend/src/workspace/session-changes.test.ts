@@ -45,6 +45,17 @@ async function repository() {
   return root;
 }
 
+async function repositoryWithOrigin() {
+  const root = await repository();
+  const origin = await tempDirectory();
+  await git(origin, "init", "--bare");
+  await git(root, "remote", "add", "origin", origin);
+  const current = await gitStdout(root, "symbolic-ref", "--short", "HEAD");
+  await git(root, "push", "-u", "origin", current);
+
+  return { root, current };
+}
+
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((directory) =>
@@ -115,6 +126,48 @@ describe("session changes reader", () => {
     expect(result.branches).toHaveLength(3);
   });
 
+  it("lists remote-tracking branches that have no local head, without an origin/ prefix", async () => {
+    const { root, current } = await repositoryWithOrigin();
+    await git(root, "push", "origin", `${current}:feat/composer-git`);
+    await git(root, "fetch", "origin");
+    await git(root, "branch", "fix/spacing");
+
+    const result = await createNodeSessionChangesReader().read({
+      sessionId: "remotes",
+      checkoutRoot: root,
+      diffRoot: root,
+    });
+
+    expect(result.branches?.[0]).toBe(current);
+    expect(result.branches).toEqual(
+      expect.arrayContaining([current, "feat/composer-git", "fix/spacing"]),
+    );
+    expect(result.branches).not.toContain("origin/feat/composer-git");
+    expect(result.branches?.filter((name) => name === "feat/composer-git")).toHaveLength(
+      1,
+    );
+  });
+
+  it("does not list a remote-tracking name that already exists as a local head", async () => {
+    const { root, current } = await repositoryWithOrigin();
+    await git(root, "branch", "feat/composer-git");
+    await git(root, "push", "origin", "feat/composer-git");
+    await git(root, "fetch", "origin");
+
+    const result = await createNodeSessionChangesReader().read({
+      sessionId: "remote-dup",
+      checkoutRoot: root,
+      diffRoot: root,
+    });
+
+    expect(result.branches).toEqual(
+      expect.arrayContaining([current, "feat/composer-git"]),
+    );
+    expect(result.branches?.filter((name) => name === "feat/composer-git")).toHaveLength(
+      1,
+    );
+  });
+
   it("switches the Session checkout onto the named local branch", async () => {
     const root = await repository();
     await git(root, "branch", "feat/composer-git");
@@ -131,6 +184,32 @@ describe("session changes reader", () => {
     expect(result.head?.detached).toBe(false);
     await expect(gitStdout(root, "symbolic-ref", "--short", "HEAD")).resolves.toBe(
       "feat/composer-git",
+    );
+  });
+
+  it("creates a local tracking branch when switching onto a remote-only name", async () => {
+    const { root, current } = await repositoryWithOrigin();
+    await git(root, "push", "origin", `${current}:feat/composer-git`);
+    await git(root, "fetch", "origin");
+    const reader = createNodeSessionChangesReader();
+
+    const result = await reader.checkoutBranch({
+      sessionId: "remote-switch",
+      checkoutRoot: root,
+      diffRoot: root,
+      branch: "feat/composer-git",
+    });
+
+    expect(result.head?.branch).toBe("feat/composer-git");
+    expect(result.head?.detached).toBe(false);
+    await expect(gitStdout(root, "symbolic-ref", "--short", "HEAD")).resolves.toBe(
+      "feat/composer-git",
+    );
+    await expect(
+      gitStdout(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"),
+    ).resolves.toBe("origin/feat/composer-git");
+    expect(result.branches).toEqual(
+      expect.arrayContaining([current, "feat/composer-git"]),
     );
   });
 

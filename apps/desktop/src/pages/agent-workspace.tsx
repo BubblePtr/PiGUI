@@ -1,11 +1,14 @@
 import { Button } from "@astryxdesign/core/Button";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { Popover } from "@astryxdesign/core/Popover";
 import { ResizeHandle, useResizable } from "@astryxdesign/core/Resizable";
 import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@astryxdesign/core/SegmentedControl";
-import { Selector, SelectorOption } from "@astryxdesign/core/Selector";
+import { Selector } from "@astryxdesign/core/Selector";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { ChatChainOfThought as ChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import { ChatThoughtStep } from "@/shared/ui/chat/chat-thought-step";
@@ -58,6 +61,7 @@ import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-stat
 import { invoke } from "@/shared/runtime";
 import {
   Box,
+  Check,
   ChevronDown,
   Computer,
   FolderClosed,
@@ -1598,20 +1602,15 @@ function gitBranchPickerOptions(
     value: name,
     label: name,
     disabled: occupied.has(name),
-    icon: (
-      <GitBranch
-        aria-hidden="true"
-        className="pigui-compact-menu-item-icon text-muted"
-      />
-    ),
   }));
 }
 
 /**
- * Live-composer counterpart of ProjectPicker: same ghost Selector chrome,
- * Git branch instead of a Project. Lists local heads so the menu matches the
- * repo, then `git switch`es the Session checkout onto the chosen branch.
- * Branches held by another worktree stay visible but cannot be selected.
+ * Live-composer counterpart of ProjectPicker's ghost chip, with the searchable
+ * menu chrome of ModelSelectorControl: `gap-1 p-1` around the field and list,
+ * balanced rows so names are not flush against the popover edge. Selecting a
+ * remote-only name creates a local tracking branch; occupied worktrees stay
+ * visible but unselectable.
  */
 function GitBranchPicker({
   branch,
@@ -1624,44 +1623,105 @@ function GitBranchPicker({
   occupiedBranches: Array<{ branch: string; path: string }>;
   onBranchChange: (branch: string) => void;
 }) {
-  const occupiedNames = new Set(occupiedBranches.map((item) => item.branch));
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const options = gitBranchPickerOptions(branch, branches, occupiedBranches);
+  const needle = query.trim().toLowerCase();
+  const listed = needle
+    ? options.filter((option) => option.label.toLowerCase().includes(needle))
+    : options;
 
   return (
     <div className="min-w-0 max-w-full" data-testid="git-branch-status">
-      <Selector
-        data-testid="git-branch-status-trigger"
-        isLabelHidden
+      <Popover
+        alignment="start"
+        isOpen={isOpen}
         label="Git branch"
-        options={gitBranchPickerOptions(branch, branches, occupiedBranches)}
-        renderOption={(option) => {
-          const occupied = occupiedBranches.find(
-            (item) => item.branch === option.value,
-          );
-          return (
-            <SelectorOption
-              description={occupied ? occupiedBranchHint(occupied.path) : undefined}
-              label={option.label}
+        placement="above"
+        content={
+          <div
+            className="flex w-full flex-col gap-1 p-1"
+            data-testid="git-branch-status-menu"
+          >
+            <TextInput
+              isLabelHidden
+              label="Search branches"
+              placeholder="Search branches..."
+              size="sm"
+              value={query}
+              width="100%"
+              onChange={setQuery}
             />
-          );
-        }}
-        size="sm"
-        startIcon={
-          <GitBranch
-            aria-hidden="true"
-            className="size-4 shrink-0 text-muted"
-            data-testid="git-branch-status-icon"
-          />
-        }
-        value={branch}
-        variant="ghost"
-        onChange={(value) => {
-          if (!value || value === branch || occupiedNames.has(value)) {
-            return;
-          }
+            <List
+              aria-label="Git branch"
+              className="max-h-72 overflow-y-auto"
+              density="balanced"
+            >
+              {listed.map((option) => {
+                const occupied = occupiedBranches.find(
+                  (item) => item.branch === option.value,
+                );
+                return (
+                  <ListItem
+                    description={
+                      occupied ? occupiedBranchHint(occupied.path) : undefined
+                    }
+                    endContent={
+                      option.value === branch ? (
+                        <Check aria-hidden="true" className="size-4 shrink-0" />
+                      ) : undefined
+                    }
+                    isDisabled={option.disabled}
+                    isSelected={option.value === branch}
+                    key={option.value}
+                    label={option.label}
+                    role="option"
+                    startContent={
+                      <GitBranch
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-muted"
+                      />
+                    }
+                    onClick={() => {
+                      if (option.disabled || option.value === branch) {
+                        return;
+                      }
 
-          onBranchChange(value);
+                      onBranchChange(option.value);
+                      setIsOpen(false);
+                      setQuery("");
+                    }}
+                  />
+                );
+              })}
+            </List>
+          </div>
+        }
+        onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setQuery("");
+          }
         }}
-      />
+      >
+        <Button
+          className="min-w-0 max-w-full flex-nowrap gap-1.5 px-2 text-muted"
+          data-testid="git-branch-status-trigger"
+          label="Git branch"
+          size="sm"
+          variant="ghost"
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <GitBranch
+              aria-hidden="true"
+              className="size-4 shrink-0"
+              data-testid="git-branch-status-icon"
+            />
+            <span className="truncate">{branch}</span>
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
+          </span>
+        </Button>
+      </Popover>
     </div>
   );
 }

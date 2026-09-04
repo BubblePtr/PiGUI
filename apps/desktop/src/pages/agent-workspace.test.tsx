@@ -6591,7 +6591,7 @@ describe("Context usage placement", () => {
         branch: "feat/composer-git",
         detached: false,
       },
-      branches: ["feat/composer-git", "main", "fix/spacing"],
+      branches: ["feat/composer-git", "main", "fix/spacing", "feat/chat-chain-of-thought-rail"],
       files: [],
       totals: {
         files: 0,
@@ -6651,7 +6651,6 @@ describe("Context usage placement", () => {
     const icon = footer?.querySelector('[data-testid="git-branch-status-icon"]');
 
     expect(trigger).toHaveTextContent("feat/composer-git");
-    expect(footer?.querySelector(".astryx-selector")).toBeInTheDocument();
     expect(icon).toBeInTheDocument();
     expect(ring).toBeInTheDocument();
     expect(
@@ -6683,7 +6682,7 @@ describe("Context usage placement", () => {
     ).toHaveTextContent("deadbee");
   });
 
-  it("lists every local branch in the git selector", async () => {
+  it("lists local and remote-tracking branch names in the git selector", async () => {
     const user = userEvent.setup();
     renderSessionsView(boundProjection(), idleSessionChanges(gitChanges()));
 
@@ -6696,6 +6695,20 @@ describe("Context usage placement", () => {
     expect(
       screen.getByRole("option", { name: "fix/spacing" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "feat/chat-chain-of-thought-rail" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Search branches..."),
+    ).toBeInTheDocument();
+    // Same inset as the composer model selector popover (`gap-1 p-1`), not
+    // Astryx Selector's sm item padding which sits flush against the chrome.
+    expect(screen.getByTestId("git-branch-status-menu")).toHaveClass(
+      "flex",
+      "flex-col",
+      "gap-1",
+      "p-1",
+    );
   });
 
   it("disables a branch already checked out in another worktree and explains why", async () => {
