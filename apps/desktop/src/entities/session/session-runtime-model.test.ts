@@ -262,6 +262,176 @@ describe("session runtime model", () => {
     expect(model.messages.get(messageId)?.startedAt).toBeUndefined();
   });
 
+  it("brackets a part with its own start and end stamps, unmoved by streaming deltas", () => {
+    let model = createSessionRuntimeModel();
+
+    model = applyAll(model, [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" },
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "thinking",
+          phase: "start",
+          bodyMode: "snapshot",
+          body: "",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "thinking",
+          phase: "update",
+          bodyMode: "delta",
+          body: "Reading",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    // The CoT clock reads part(start); a delta must never restate it.
+    expect(model.messages.get(messageId)?.parts[0]).toMatchObject({
+      startedAt: "2026-07-02T10:00:03.000Z",
+      done: false,
+    });
+    expect(model.messages.get(messageId)?.parts[0].endedAt).toBeUndefined();
+
+    model = applyAll(model, [
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:07.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "thinking",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: "Reading the repo.",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:09.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId, partType: "thinking", body: "Reading the repo." }],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    // The authoritative end snapshot rebuilds the parts; both boundaries have
+    // to survive it, or the part's span dies the moment the message closes.
+    expect(model.messages.get(messageId)?.parts[0]).toMatchObject({
+      startedAt: "2026-07-02T10:00:03.000Z",
+      endedAt: "2026-07-02T10:00:07.000Z",
+      done: true,
+    });
+  });
+
+  it("closes a part left open at the message boundary with the message's own end stamp", () => {
+    // An aborted run: the streaming part never gets its own part(end), but the
+    // message end does close it, so the span is measurable rather than absent.
+    const model = applyAll(createSessionRuntimeModel(), [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "text",
+          phase: "update",
+          bodyMode: "delta",
+          body: "Working on it",
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:06.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [{ partId, partType: "text", body: "Working on it" }],
+          surface: "chat",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    expect(model.messages.get(messageId)?.parts[0]).toMatchObject({
+      endedAt: "2026-07-02T10:00:06.000Z",
+    });
+    // No part(start) arrived, so the opening stamp stays absent rather than
+    // being guessed from the first delta.
+    expect(model.messages.get(messageId)?.parts[0].startedAt).toBeUndefined();
+  });
+
   it("keeps Session Status owned by run events: a retrying status never completes the session", () => {
     let model = createSessionRuntimeModel();
 
