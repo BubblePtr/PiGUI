@@ -72,6 +72,12 @@ export type AgentRuntimeEvent =
       bodyMode: AgentBodyMode;
       body: string;
       toolCallId?: string;
+      // Tool name on a tool_call part, known from the opening boundary — the
+      // native toolCallId only arrives with part(end) and the execution
+      // lifecycle only with tool(start), so without this the live trace has
+      // nothing to name for as long as the arguments stream (ADR-0030 §4).
+      // Absent on every other part type and on bridges that cannot supply it.
+      toolName?: string;
       surface: "chat" | "trace";
       origin: AgentEventOrigin;
     }

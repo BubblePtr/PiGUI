@@ -227,7 +227,22 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  /* A nowrap step row reports its full width as min-content and hands it up
+     the tree, bursting the chat column when the split is dragged narrow. The
+     rows below thread `min-width: 0` for the same reason, but that only holds
+     while every descendant remembers to; containing the inline size stops the
+     leak at the block, whatever a future row does. */
+  contain: inline-size;
   font-size: var(--font-size-base);
+}
+
+/* Astryx lays the assistant body out with align-items: start, so it is
+   fit-content, and the block above contains its own inline size — nothing
+   inside asks for width any more. Without this a settled trace collapses the
+   whole message to the width of its header (measured: 672px → 147px). */
+.chat-message__body:has(> .chain-of-thought) {
+  align-self: stretch;
+  width: 100%;
 }
 
 .chain-of-thought__trigger {
@@ -239,6 +254,8 @@
   padding: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-base);
+  line-height: 1.5;
+  min-height: 1.5em;
   cursor: pointer;
 }
 
@@ -254,111 +271,6 @@
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-base);
-}
-
-.chain-of-thought[data-streaming="true"] .chain-of-thought__trigger {
-  color: var(--color-text-secondary);
-}
-
-.chain-of-thought__live-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-normal);
-  line-height: 1.5;
-}
-
-.chain-of-thought__live-label .text-shimmer {
-  line-height: inherit;
-  overflow: visible;
-  padding-block: 0.15em;
-}
-
-.chain-of-thought__elapsed {
-  margin-inline-start: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-mono, ui-monospace, monospace);
-  font-size: inherit;
-  line-height: inherit;
-  font-variant-numeric: tabular-nums;
-}
-
-.chain-of-thought__live {
-  margin-block-start: var(--spacing-2);
-  min-width: 0;
-  max-width: 100%;
-}
-
-.chain-of-thought__flip {
-  position: relative;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 1.5em;
-}
-
-.chain-of-thought__flip-page {
-  width: 100%;
-  min-width: 0;
-}
-
-.chain-of-thought__flip-page[data-motion="in"] {
-  animation: chain-of-thought-flip-in var(--duration-slow-max) var(--ease-standard)
-    both;
-}
-
-.chain-of-thought__flip-page[data-motion="out"] {
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  animation: chain-of-thought-flip-out var(--duration-slow-max) var(--ease-standard)
-    both;
-}
-
-@keyframes chain-of-thought-flip-in {
-  from {
-    transform: translateY(1.5em);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes chain-of-thought-flip-out {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateY(-1.5em);
-    opacity: 0;
-  }
-}
-
-.chain-of-thought__page {
-  display: flex;
-  align-items: center;
-  margin: 0;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  height: 1.5em;
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-
-.chain-of-thought__page .chat-thought-md {
-  display: block;
-  flex: 1 1 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
 }
 
 .chat-pixel-loader {
@@ -395,57 +307,29 @@
     animation: none;
     opacity: 0.15;
   }
-
-  .chain-of-thought__flip-page[data-motion] {
-    animation: none;
-  }
 }
 
-.chain-of-thought__content {
-  margin-block-start: var(--spacing-2);
-}
-
+/* Every row is one line, so spacing-3 between them would read as unrelated
+   blocks rather than one trace. */
 .chain-of-thought__steps {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
-}
-
-.chain-of-thought__step-label {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-medium);
-}
-
-.chain-of-thought__step-body {
-  margin-block-start: var(--spacing-0-5);
-  color: var(--color-text-secondary);
-  overflow-wrap: anywhere;
-}
-
-/* —— CoT phase machine (ADR-0030) —— */
-
-/* Steps sit closer together than the legacy list: every row is one line, so
-   spacing-3 between them reads as unrelated blocks. */
-.chain-of-thought[data-phase] .chain-of-thought__steps {
   gap: var(--spacing-2);
 }
 
-/* On the phase path each list item is a one-line step row; the legacy body
-   wrapper must not push it down. */
-.chain-of-thought[data-phase] .chain-of-thought__step-body {
-  margin-block-start: 0;
-}
-
-/* Flat while the run is in flight — no header, so no offset under one. */
-.chain-of-thought[data-phase]:not([data-phase="settled"]) .chain-of-thought__content {
-  margin-block-start: 0;
+/* Interim Output is what the model said to the user mid-run, so it reads a
+   shade darker than the step rows it sits between (ADR-0030 §7). */
+.chain-of-thought__interim {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 /* The whole list folds into the header at run(end); Base UI measures it. */
-.chain-of-thought[data-phase] .chain-of-thought__content {
+.chain-of-thought__content {
+  margin-block-start: var(--spacing-2);
   height: var(--collapsible-panel-height);
   overflow: hidden;
   transition:
@@ -453,21 +337,21 @@
     opacity var(--cot-flip-duration) var(--ease-standard);
 }
 
-.chain-of-thought[data-phase] .chain-of-thought__content[data-starting-style],
-.chain-of-thought[data-phase] .chain-of-thought__content[data-ending-style] {
+/* Flat while the run is in flight — no header, so no offset under one. */
+.chain-of-thought:not([data-phase="settled"]) .chain-of-thought__content {
+  margin-block-start: 0;
+}
+
+.chain-of-thought__content[data-starting-style],
+.chain-of-thought__content[data-ending-style] {
   height: 0;
   opacity: 0;
 }
 
-.chain-of-thought[data-phase] .chain-of-thought__trigger {
-  line-height: 1.5;
-  min-height: 1.5em;
-}
-
 /* —— Inline pager —— */
 
-/* Spans with no margin, unlike the block-level .chain-of-thought__live: inside
-   a trigger, a top margin drops the label below the chevron's centre line. */
+/* Spans, not blocks, and no margin of their own: inside a trigger a top margin
+   would drop the label below the chevron's centre line. */
 .chat-inline-pager,
 .chat-inline-pager__flip {
   display: inline-flex;
@@ -661,7 +545,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .chat-inline-pager__page[data-motion],
-  .chain-of-thought[data-phase] .chain-of-thought__content,
+  .chain-of-thought__content,
   .chat-step__chevron {
     animation: none;
     transition: none;

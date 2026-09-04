@@ -104,9 +104,16 @@ function message(turn: number, index = 1) {
 
       return {
         id: partId,
-        start: (ms: number): Beat => ({
+        start: (ms: number, toolName?: string): Beat => ({
           ms,
-          event: { ...partBase, phase: "start", bodyMode: "snapshot", body: "", origin: "sdk" },
+          event: {
+            ...partBase,
+            phase: "start",
+            bodyMode: "snapshot",
+            body: "",
+            ...(toolName ? { toolName } : {}),
+            origin: "sdk",
+          },
         }),
         delta: (ms: number, body: string): Beat => ({
           ms,
@@ -469,6 +476,31 @@ describe("CoT view derivation", () => {
     expect(final.answer).toBeUndefined();
   });
 
+  it("keeps the last thing the model said as the answer when a run is aborted mid tool call", () => {
+    const m1 = message(1);
+    const text = m1.part(0, "text");
+    const call = m1.part(1, "tool_call");
+
+    // Stop pressed while the model was issuing a call after speaking. Live,
+    // the tool_call demotes that text to Interim Output; once the run settles
+    // no later Message can take the answer slot, so the text is the Final
+    // Answer and keeps its bubble and ActionBar (ADR-0030 §7).
+    const { phases, final, viewAt } = replay([
+      runStart(0),
+      m1.start(100),
+      text.start(200),
+      text.end(400, "Reading the two files now."),
+      call.start(500),
+      runEnd(600, "aborted"),
+    ]);
+
+    expect(phases).toEqual(["hidden", "thinking", "answering", "acting", "settled"]);
+
+    expect(viewAt(500).answer).toBeUndefined();
+    expect(final.answer).toEqual({ text: "Reading the two files now.", streaming: false });
+    expect(final.steps.some((step) => step.kind === "interim")).toBe(false);
+  });
+
   it("still produces a Thought step when the provider gives no thinking body", () => {
     const m1 = message(1);
     const thought = m1.part(0, "thinking");
@@ -503,6 +535,57 @@ describe("CoT view derivation", () => {
       elapsedMs: 100,
       answer: { text: "Hello", streaming: true },
     });
+  });
+
+  it("names a live tool step from the part boundary, before execution starts", () => {
+    const m1 = message(1);
+    const call = m1.part(0, "tool_call");
+    const args = '{"path":"a.ts"}';
+
+    // Large arguments stream for seconds; the label may not sit on "Running…"
+    // until tool(start) finally names the call (ADR-0030 §4).
+    const { viewAt } = replay([
+      runStart(0),
+      m1.start(100),
+      call.start(200, "read_file"),
+      call.end(600, args, "call-1"),
+      toolStart(700, "call-1", "read_file"),
+    ]);
+
+    expect(viewAt(200).steps).toEqual([
+      {
+        kind: "tools",
+        id: `${m1.id}-tools-0`,
+        live: true,
+        activeToolCallId: undefined,
+        tools: [{ state: "input-streaming", toolName: "read_file" }],
+      },
+    ]);
+  });
+
+  it("exposes the clock anchor so the component, not the page, walks the clock", () => {
+    const abandoned = message(1, 1);
+    const retried = message(1, 2);
+    const answer = retried.part(0, "text");
+
+    // The anchor is the Run's first surviving model call and nothing else: it
+    // is what the live clock counts from and what the settled span measures
+    // against, so the two can never disagree (ADR-0030 §6).
+    const { viewAt } = replay([
+      runStart(0),
+      abandoned.start(100),
+      abandoned.end(200, [], { abandoned: true }),
+      retried.start(400),
+      answer.start(500),
+      answer.end(700, "Hello"),
+      retried.end(800, [answer.snapshot("Hello")]),
+      runEnd(900),
+    ]);
+
+    expect(viewAt(0).anchorMs).toBeUndefined();
+    expect(viewAt(200).anchorMs).toBeUndefined();
+    expect(viewAt(400).anchorMs).toBe(T0 + 400);
+    expect(viewAt(900)).toMatchObject({ anchorMs: T0 + 400, elapsedMs: 100 });
   });
 
   it("scopes the view to the requested run", () => {

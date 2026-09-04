@@ -114,6 +114,7 @@ Worked for 16s ⌄                    头部：settled 后出现，折叠整列
 - Live 阶段一切 `text` Part 先按 Final Answer 呈现为回答气泡（`answering`）。理由：绝大多数 Run 只有一个 Turn，先按回答呈现的误判成本最低。
 - 同一 Assistant Message 里一出现 `tool_call part(start)`，该 text 就被重分类为 Interim Output，不必等 `message(end)`，那一刻已经能确定：回答气泡撤下，文本作为一项进入步骤栈，位置在同 Message 的 Thinking 之后、Tool Call 之前，用 `ChatThoughtMarkdown` 渲染，颜色用 `--color-text-primary`，比 Thinking 深一档，因为它是对用户说的话。
 - 一个 Run 因此至多一个回答气泡（Final Answer），ActionBar 也只挂在它上。
+- **`settled` 时的归属**：Run 结束后不会再有后续 Message 来占据回答位，因此当前 Message 只要有 text Part，其文本就是 Final Answer，即使同一 Message 里还有 Tool Call（Stop 或失败打断发调用时的常见形状）。否则模型最后说的话会被折进 CoT，气泡空着、也没有 ActionBar。
 - 协议不变：Interim / Final 是 projection 的推导标签，`surfaceForMessagePart` 仍按 partType 路由；重分类发生在 renderer 的 projection 层。
 
 ### 8. 动效数值（原型定案）
@@ -153,7 +154,7 @@ Worked for 16s ⌄                    头部：settled 后出现，折叠整列
 - 翻页容器要有一个**行内版本**（`span`、`inline-flex`、无外边距、带最小停留），供 step 行的 label 使用；现有 `.chain-of-thought__live` 是块级且带 8px 上外边距，直接塞进按钮会让文字低于箭头中线。
 - 新增两个 step 组件到 `shared/ui/chat/` 并登记 `/design`：`ChatThoughtStep`（Thought Ns / Thinking… 可展开正文）和 `ChatToolStep`（活着「Running x…」翻页、收束后动词总结行加展开列表）。`ChatToolGroup` 只在展开列表里以单行形态出现，它的多工具折叠形态不再在 CoT 里使用。
 - `AssistantRunTrace` 不再自己判断阶段和 `key`；`LiveTracePage` 与 `groupTimelineSteps` 共用一个 `RunTimelineItem → ChatToolItem` 映射，且以「是否完成」而非「是否最后一项」划分栈和尾巴。
-- 两处布局前提要在落地时一起修，原型里都踩到了：一行尾巴的 nowrap 文本会把自己的完整宽度当 min-content 向上传，把消息体撑出聊天列，需要在 `Live` 容器上加 `contain: inline-size`；Astryx 把助手消息体按 `align-items: start` 排成 fit-content，一旦尾巴被包含、栈又折叠，整块会缩到只有头部宽，需要让含 CoT 的消息体 `align-self: stretch`。生产的 `ChatChainOfThought.Live` 目前靠前一个 bug 掩盖后一个，两者要一起改。
+- 两处布局前提要在落地时一起修，原型里都踩到了：一行尾巴的 nowrap 文本会把自己的完整宽度当 min-content 向上传，把消息体撑出聊天列，需要在 `Live` 容器上加 `contain: inline-size`；Astryx 把助手消息体按 `align-items: start` 排成 fit-content，一旦尾巴被包含、栈又折叠，整块会缩到只有头部宽，需要让含 CoT 的消息体 `align-self: stretch`。两者已在落地时一并处理（`.chain-of-thought` 的 `contain: inline-size` 与 `.chat-message__body:has(> .chain-of-thought)` 的 `align-self: stretch`），`Live` 视口本身已删除。
 - `runModelElapsedMs` 与 legacy 的 `thoughtElapsedMs` 退役；legacy `runtimeEvents` 管道没有 Message 边界，其 CoT 只能停在 `settled` 且无计时，这与既有「删除 legacy 管道」的注记一致。
 - 测试：阶段推导函数用 ADR-0020 的六条 fixture 流（纯文本、thinking+text、tool 链、多 Turn、retry、abort）断言完整阶段序列、计时锚点和栈 / 尾巴划分；组件测试改为按 `phase` 断言头部、栈、尾巴和心跳位置。
 - 如日后接通 Rail 皮肤（issue #81），它必须消费同一个 `CotPhase`，其「流式默认展开」的测试需要改写。

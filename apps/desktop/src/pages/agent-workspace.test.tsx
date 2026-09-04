@@ -13,7 +13,11 @@ import {
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BackendRpcEvent } from "@pigui/backend";
-import type { SessionChanges } from "@pigui/core";
+import type {
+  AgentMessagePartSnapshot,
+  AgentMessagePartType,
+  SessionChanges,
+} from "@pigui/core";
 import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,
@@ -1591,9 +1595,12 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const liveChat = await screen.findByLabelText("Live Chat messages");
 
-    expect(within(liveChat).getByText("Thinking…")).toBeInTheDocument();
+    // The legacy pipeline mints no Message boundaries, so its trace has no Run
+    // to phase and no anchor to measure: it settles at once, with the whole
+    // thinking body behind an unnumbered header (ADR-0030 §"后果").
+    expect(within(liveChat).getByRole("button", { name: /^Worked/ })).toBeInTheDocument();
     expect(liveChat).toHaveTextContent("Confirming fold winner logic consistency");
-    expect(liveChat).not.toHaveTextContent("Identifying illegal human raises risk");
+    expect(liveChat).toHaveTextContent("Identifying illegal human raises risk");
     expect(liveChat).not.toHaveTextContent("Pi is working");
   });
 
@@ -3903,6 +3910,24 @@ describe("AgentWorkspaceSessionsPage", () => {
       },
       {
         seq: 4,
+        timestamp: "2026-07-02T10:00:03.500Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId: answerId,
+          partId: `${answerId}:part-1`,
+          partType: "tool_call",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: '{"path":"AGENTS.md"}',
+          toolCallId: "call-1",
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
         timestamp: "2026-07-02T10:00:04.000Z",
         event: {
           type: "tool",
@@ -3919,7 +3944,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         } as const,
       },
       {
-        seq: 5,
+        seq: 6,
         timestamp: "2026-07-02T10:00:05.000Z",
         event: {
           type: "message",
@@ -3930,14 +3955,20 @@ describe("AgentWorkspaceSessionsPage", () => {
           phase: "end",
           parts: [
             { partId: `${answerId}:part-0`, partType: "thinking", body: "Inspect the repo first." },
-            { partId: `${answerId}:part-1`, partType: "text", body: "The slice is shipped." },
+            {
+              partId: `${answerId}:part-1`,
+              partType: "tool_call",
+              body: '{"path":"AGENTS.md"}',
+              toolCallId: "call-1",
+            },
+            { partId: `${answerId}:part-2`, partType: "text", body: "The slice is shipped." },
           ],
           surface: "chat",
           origin: "sdk",
         } as const,
       },
       {
-        seq: 6,
+        seq: 7,
         timestamp: "2026-07-02T10:00:06.000Z",
         event: {
           type: "run",
@@ -3970,8 +4001,159 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("The slice is shipped.")).toBeInTheDocument();
     // Abandoned retry partials never render as chat answers.
     expect(screen.queryByText("Partial answer before retry")).not.toBeInTheDocument();
+    // The settled burst reads as what it did, with the call itself behind it.
+    expect(screen.getByText("Used AGENTS.md")).toBeInTheDocument();
     expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
+  });
+
+  it("leaves no empty assistant bubble when a failed run's only model call was abandoned", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    const turnId = `${runId}:turn-1`;
+    const abandonedId = `${turnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Ship it",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    // The retry threw away the run's only Message and then failed outright, so
+    // the Chain of Thought has nothing to show. The failure is the error
+    // bubble's to tell; a second, empty bubble above it is just a gap.
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: abandonedId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: { type: "status", runId, code: "retrying", surface: "trace", origin: "sdk" } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:03.500Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: abandonedId,
+          role: "assistant",
+          phase: "end",
+          abandoned: true,
+          parts: [{ partId: `${abandonedId}:part-0`, partType: "text", body: "Par" }],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "status",
+          runId,
+          code: "retry_failed",
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:04.500Z",
+        event: {
+          type: "error",
+          runId,
+          code: "provider_error",
+          body: "The provider dropped the connection.",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 7,
+        timestamp: "2026-07-02T10:00:05.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "failed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessages = liveChat.querySelectorAll<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(within(assistantMessages[0]).getByText("Run failed")).toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).getByText("The provider dropped the connection."),
+    ).toBeInTheDocument();
   });
 
   it("discloses a measured model call on a plain answer that leaves no trace steps behind", () => {
@@ -4087,14 +4269,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(within(assistantMessage!).getByText("Shipped.")).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("Thought for 5s")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByText("Worked for 5s")).toBeInTheDocument();
     // Nothing to expand behind the summary, so it must not pose as a control.
     expect(
-      within(assistantMessage!).queryByRole("button", { name: "Thought for 5s" }),
+      within(assistantMessage!).queryByRole("button", { name: "Worked for 5s" }),
     ).not.toBeInTheDocument();
   });
 
-  it("sums the run's model calls rather than the span between its trace steps", () => {
+  it("measures the wait from the run's first model call to the answer, tool time included", () => {
     const workspace = {
       id: "pig-docs",
       name: "Pig Docs",
@@ -4130,8 +4312,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     };
 
     // Two calls in one Active Run: 9s then 2s, with 4s of work between them
-    // that belongs to no call. The trace steps carry only closing stamps, so
-    // the old heuristic saw 6s — it lost each call's own opening wait.
+    // that belongs to no call. One anchor spans the lot — 10:00:01 to the
+    // second call's answer — because that is what the user waited through
+    // (ADR-0030 §6); summing the calls alone would drop those 4s.
     for (const entry of [
       {
         seq: 1,
@@ -4256,7 +4439,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(assistantMessages).toHaveLength(1);
-    expect(within(assistantMessages[0]).getByText("Thought for 11s")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("Worked for 15s")).toBeInTheDocument();
   });
 
   it("renders image parts from a Gateway-minted user echo", () => {
@@ -4546,11 +4729,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(assistantMessages[0]).getByTestId("markdown-renderer")).toHaveTextContent(
       "This repository is ready to inspect.",
     );
+    // Not a second bubble: mid-run text is Interim Output and takes its place
+    // in the step list, between that Turn's thinking and its tool call.
     expect(
-      within(assistantMessages[0]).queryByText(
-        "Intermediate progress should not become a separate answer.",
-      ),
-    ).not.toBeInTheDocument();
+      within(assistantMessages[0])
+        .getByText("Intermediate progress should not become a separate answer.")
+        .closest('[data-slot="chat-interim-output"]'),
+    ).toBeInTheDocument();
     expect(
       within(assistantMessages[0]).getByText("Plan the repository inspection."),
     ).toBeInTheDocument();
@@ -4568,7 +4753,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("groups consecutive tool calls into one Astryx group with duration and error state", () => {
+  it("folds consecutive tool calls into one step that expands to a row per call", () => {
     const workspace = {
       id: "pig-docs",
       name: "Pig Docs",
@@ -4746,18 +4931,23 @@ describe("AgentWorkspaceSessionsPage", () => {
       '[data-slot="chat-message-assistant"]',
     );
 
-    // Both consecutive calls collapse into one group; no standalone rows.
-    const groups = assistantMessage!.querySelectorAll('[data-slot="chat-tool-group"]');
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toHaveAttribute("data-tool-count", "2");
-    expect(assistantMessage!.querySelector('[data-slot="chat-tool"]')).toBeNull();
+    // The burst is one step row that says what the batch did and how it went;
+    // "the last tool name and a number" would read two calls as one.
+    const steps = assistantMessage!.querySelectorAll('[data-slot="chat-tool-step"]');
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toHaveTextContent("Used 2 tools");
+    expect(steps[0]).toHaveTextContent("1 failed");
 
-    // Rich row metadata: target from args, duration from start/end timestamps.
+    // Expanding gives each call its own production row, never the multi-tool
+    // summary form of ChatToolGroup (ADR-0030 §"后果").
+    const groups = steps[0].querySelectorAll('[data-slot="chat-tool-group"]');
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveAttribute("data-tool-count", "1");
     expect(groups[0]).toHaveTextContent("read_file");
     expect(groups[0]).toHaveTextContent("AGENTS.md");
     expect(groups[0]).toHaveTextContent("1.0s");
-    expect(groups[0]).toHaveTextContent("shell");
-    expect(groups[0]).toHaveTextContent("grep -rn TODO");
+    expect(groups[1]).toHaveTextContent("shell");
+    expect(groups[1]).toHaveTextContent("grep -rn TODO");
     // Astryx suppresses duration on errored rows; 45ms is unit-tested instead.
 
     // isError maps to the error status (a11y error text is rendered).
@@ -5385,7 +5575,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(assistantMessages).toHaveLength(1);
-    expect(within(assistantMessages[0]).getByText("Thought for 2s")).toBeInTheDocument();
+    // Legacy bridges mint no Message boundaries, so there is nothing to
+    // measure and the header carries no number.
+    expect(within(assistantMessages[0]).getByRole("button", { name: /^Worked/ })).toBeInTheDocument();
     expect(within(assistantMessages[0]).getByText("先确认配置和 endpoint。")).toBeInTheDocument();
     expect(within(assistantMessages[0]).getByText("继续确认 chat completions。")).toBeInTheDocument();
     expect(within(assistantMessages[0]).getByTestId("markdown-renderer")).toHaveTextContent(
@@ -5570,7 +5762,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(liveChat.querySelectorAll('[data-slot="chain-of-thought"]')).toHaveLength(1);
     expect(streamingTrace).toBeInTheDocument();
     expect(streamingContent).toBeInTheDocument();
-    expect(within(streamingAssistant).getByText("Thinking…")).toBeInTheDocument();
+    expect(
+      within(streamingAssistant).getByRole("button", { name: /^Worked/ }),
+    ).toBeInTheDocument();
     expect(
       streamingTrace!.compareDocumentPosition(streamingContent!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -5672,8 +5866,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(trace).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("Thinking…")).toBeInTheDocument();
-    expect(within(assistantMessage!).queryByText("我需要先检查项目结构。")).not.toBeInTheDocument();
+    expect(within(assistantMessage!).getByRole("button", { name: /^Worked/ })).toBeInTheDocument();
+    // The thinking body is disclosed inside the trace, never in the answer.
+    expect(within(assistantMessage!).getByText("我需要先检查项目结构。")).toBeInTheDocument();
     expect(
       assistantMessage!.querySelector('[data-slot="chat-message-actions"]'),
     ).not.toBeInTheDocument();
@@ -5784,7 +5979,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const tool = assistantMessage!.querySelector('[data-slot="chat-tool-group"]');
 
     expect(trace).toBeInTheDocument();
-    expect(within(assistantMessage!).getByText("Thought for 2s")).toBeInTheDocument();
+    expect(within(assistantMessage!).getByRole("button", { name: /^Worked/ })).toBeInTheDocument();
     expect(assistantMessage!.querySelector('[data-slot="chat-message-actions"]')).toHaveClass(
       "chat-message__actions--persist",
     );
@@ -6147,5 +6342,408 @@ describe("Session changes action surface", () => {
     expect(
       screen.getByText("Review is bounded. 3 additional files were omitted."),
     ).toBeInTheDocument();
+  });
+});
+
+// The ADR-0030 phase machine as Live Chat renders it: one flat step list while
+// the run is in flight, the answer below it, and exactly one fold into
+// "Worked for Ns" at run(end). Events are driven through the real reducer so
+// these assert the wiring, not a hand-built view.
+describe("Chain of Thought phases in Live Chat", () => {
+  const cotWorkspace = {
+    id: "pig-docs",
+    name: "Pig Docs",
+    projectRoot: "/Users/void/code/opensource/Pig/docs",
+    repoRoot: "/Users/void/code/opensource/Pig",
+    selectedSessionId: "session-cot",
+    liveMessages: [],
+    runTimeline: [],
+    checkout: {
+      mode: "Foreground local checkout",
+      root: "/Users/void/code/opensource/Pig",
+      runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+    },
+    summary: {
+      model: "fixture-model",
+      totalCostUsd: 0,
+      totalTokens: 0,
+    },
+  };
+
+  const cotRunId = "pi-session-cot:run-1";
+  const cotT0 = Date.parse("2026-09-04T10:00:00.000Z");
+  const cotAt = (ms: number) => new Date(cotT0 + ms).toISOString();
+
+  type CotBeat = { ms: number; event: AgentRuntimeEventEntry["event"] };
+
+  function cotMessage(turn: number) {
+    const turnId = `${cotRunId}:turn-${turn}`;
+    const messageId = `${turnId}:msg-1`;
+    const base = { runId: cotRunId, turnId, messageId, role: "assistant" } as const;
+
+    return {
+      id: messageId,
+      start: (ms: number): CotBeat => ({
+        ms,
+        event: { type: "message", ...base, phase: "start", surface: "chat", origin: "sdk" },
+      }),
+      end: (ms: number, parts: AgentMessagePartSnapshot[]): CotBeat => ({
+        ms,
+        event: { type: "message", ...base, phase: "end", parts, surface: "chat", origin: "sdk" },
+      }),
+      part: (slot: number, partType: AgentMessagePartType) => {
+        const partId = `${messageId}:part-${slot}`;
+        const surface = partType === "text" ? ("chat" as const) : ("trace" as const);
+        const partBase = { type: "message_part", ...base, partId, partType, surface } as const;
+
+        return {
+          start: (ms: number, toolName?: string): CotBeat => ({
+            ms,
+            event: {
+              ...partBase,
+              phase: "start",
+              bodyMode: "snapshot",
+              body: "",
+              ...(toolName ? { toolName } : {}),
+              origin: "sdk",
+            },
+          }),
+          delta: (ms: number, body: string): CotBeat => ({
+            ms,
+            event: { ...partBase, phase: "update", bodyMode: "delta", body, origin: "sdk" },
+          }),
+          end: (ms: number, body: string, toolCallId?: string): CotBeat => ({
+            ms,
+            event: {
+              ...partBase,
+              phase: "end",
+              bodyMode: "snapshot",
+              body,
+              ...(toolCallId ? { toolCallId } : {}),
+              origin: "sdk",
+            },
+          }),
+          snapshot: (body: string, toolCallId?: string): AgentMessagePartSnapshot => ({
+            partId,
+            partType,
+            body,
+            ...(toolCallId ? { toolCallId } : {}),
+          }),
+        };
+      },
+    };
+  }
+
+  const cotRunStart = (ms: number): CotBeat => ({
+    ms,
+    event: {
+      type: "run",
+      runId: cotRunId,
+      phase: "start",
+      trigger: "prompt",
+      surface: "hidden",
+      origin: "sdk",
+    },
+  });
+
+  const cotRunEnd = (ms: number): CotBeat => ({
+    ms,
+    event: {
+      type: "run",
+      runId: cotRunId,
+      phase: "end",
+      trigger: "prompt",
+      outcome: "completed",
+      surface: "hidden",
+      origin: "sdk",
+    },
+  });
+
+  const cotToolStart = (ms: number, toolCallId: string, name: string): CotBeat => ({
+    ms,
+    event: {
+      type: "tool",
+      runId: cotRunId,
+      turnId: `${cotRunId}:turn-1`,
+      toolCallId,
+      phase: "start",
+      name,
+      surface: "trace",
+      origin: "sdk",
+    },
+  });
+
+  const cotToolEnd = (ms: number, toolCallId: string, name: string, result: string): CotBeat => ({
+    ms,
+    event: {
+      type: "tool",
+      runId: cotRunId,
+      turnId: `${cotRunId}:turn-1`,
+      toolCallId,
+      phase: "end",
+      name,
+      result,
+      isError: false,
+      surface: "trace",
+      origin: "sdk",
+    },
+  });
+
+  function cotProjection(beats: CotBeat[]): SessionProjection {
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-cot",
+        projectId: "pig-docs",
+        initialPrompt: "Ship the slice",
+        createdAt: "2026-09-04T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-cot",
+      piSessionId: "pi-session-cot",
+    };
+
+    beats.forEach((beat, index) => {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry: { seq: index + 1, timestamp: cotAt(beat.ms), event: beat.event },
+      });
+    });
+
+    return projection;
+  }
+
+  function renderCot(beats: CotBeat[], nowMs: number) {
+    return render(
+      <AgentWorkspaceSessionsView
+        clockNowMs={cotT0 + nowMs}
+        projectId="pig-docs"
+        sessionProjection={cotProjection(beats)}
+        workspace={cotWorkspace}
+      />,
+    );
+  }
+
+  function cotBlock() {
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const block = liveChat.querySelector<HTMLElement>('[data-slot="chain-of-thought"]');
+
+    if (!block) {
+      throw new Error("no Chain of Thought rendered");
+    }
+
+    return block;
+  }
+
+  it("keeps a multi-turn run flat with a live last step, then folds it once at run(end)", async () => {
+    const m1 = cotMessage(1);
+    const m2 = cotMessage(2);
+    const thought = m1.part(0, "thinking");
+    const call = m1.part(1, "tool_call");
+    const answer = m2.part(0, "text");
+    const args = '{"path":"AGENTS.md"}';
+
+    const acting = [
+      cotRunStart(0),
+      m1.start(100),
+      thought.start(200),
+      thought.end(900, "Read the instructions first."),
+      call.start(1000, "read_file"),
+      call.end(1200, args, "call-1"),
+      m1.end(1300, [thought.snapshot("Read the instructions first."), call.snapshot(args, "call-1")]),
+      cotToolStart(1400, "call-1", "read_file"),
+    ];
+
+    const { rerender } = renderCot(acting, 2000);
+
+    // Flat while in flight: every completed step stays readable, so a later
+    // Turn can look back at what the last one found.
+    expect(cotBlock()).toHaveAttribute("data-phase", "acting");
+    expect(
+      screen.queryByRole("button", { name: /^Worked/ }),
+    ).not.toBeInTheDocument();
+    expect(cotBlock().querySelectorAll('[data-slot="chain-of-thought-step"]')).toHaveLength(2);
+    expect(cotBlock()).toHaveTextContent("Running read_file…");
+    // The heartbeat is the last line of the block and the only one.
+    expect(cotBlock().lastElementChild).toHaveAttribute("data-slot", "chat-status-line");
+    expect(cotBlock().querySelectorAll('[data-slot="chat-status-line"]')).toHaveLength(1);
+
+    const answering = [
+      ...acting,
+      cotToolEnd(2000, "call-1", "read_file", "Agent instructions loaded."),
+      m2.start(2100),
+      answer.start(5100),
+      answer.delta(5200, "Shipped."),
+    ];
+
+    rerender(
+      <AgentWorkspaceSessionsView
+        clockNowMs={cotT0 + 5300}
+        projectId="pig-docs"
+        sessionProjection={cotProjection(answering)}
+        workspace={cotWorkspace}
+      />,
+    );
+
+    expect(cotBlock()).toHaveAttribute("data-phase", "answering");
+    expect(cotBlock().querySelector('[data-slot="chat-status-line"]')).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Worked/ })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("stream-markdown-renderer")).toHaveTextContent("Shipped."),
+    );
+
+    const settled = [
+      ...answering,
+      answer.end(5400, "Shipped."),
+      m2.end(5500, [answer.snapshot("Shipped.")]),
+      cotRunEnd(5600),
+    ];
+
+    rerender(
+      <AgentWorkspaceSessionsView
+        clockNowMs={cotT0 + 5700}
+        projectId="pig-docs"
+        sessionProjection={cotProjection(settled)}
+        workspace={cotWorkspace}
+      />,
+    );
+
+    // 5s: the wait from the Run's first model call to the first answer token,
+    // tool execution included (ADR-0030 §6).
+    const header = screen.getByRole("button", { name: /^Worked for 5s/ });
+
+    expect(cotBlock()).toHaveAttribute("data-phase", "settled");
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(cotBlock().querySelector('[data-slot="chat-status-line"]')).not.toBeInTheDocument();
+  });
+
+  it("shows a Thought row for a single-turn run even when the provider sends no thinking body", () => {
+    const m1 = cotMessage(1);
+    const thought = m1.part(0, "thinking");
+    const answer = m1.part(1, "text");
+
+    renderCot(
+      [
+        cotRunStart(0),
+        m1.start(100),
+        thought.start(200),
+        thought.end(2300, ""),
+        answer.start(2400),
+        answer.end(2600, "Shipped."),
+        m1.end(2700, [thought.snapshot(""), answer.snapshot("Shipped.")]),
+        cotRunEnd(2800),
+      ],
+      2900,
+    );
+
+    const steps = cotBlock().querySelectorAll<HTMLElement>(
+      '[data-slot="chain-of-thought-step"]',
+    );
+
+    expect(screen.getByRole("button", { name: /^Worked for 2s/ })).toBeInTheDocument();
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toHaveTextContent("Thought 2s");
+    // Nothing to disclose behind an empty body, so the row is not a control.
+    expect(steps[0].querySelector("button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("markdown-renderer")).toHaveTextContent("Shipped.");
+  });
+
+  it("withdraws the answer bubble and lists the text as Interim Output when a tool call follows it", async () => {
+    const m1 = cotMessage(1);
+    const interim = m1.part(0, "text");
+    const call = m1.part(1, "tool_call");
+
+    const answering = [
+      cotRunStart(0),
+      m1.start(100),
+      interim.start(200),
+      interim.delta(300, "Let me look at the repo."),
+    ];
+
+    const { rerender } = renderCot(answering, 400);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("stream-markdown-renderer")).toHaveTextContent(
+        "Let me look at the repo.",
+      ),
+    );
+    expect(cotBlock()).toHaveAttribute("data-phase", "answering");
+
+    rerender(
+      <AgentWorkspaceSessionsView
+        clockNowMs={cotT0 + 700}
+        projectId="pig-docs"
+        sessionProjection={cotProjection([
+          ...answering,
+          interim.end(500, "Let me look at the repo."),
+          call.start(600, "read_file"),
+        ])}
+        workspace={cotWorkspace}
+      />,
+    );
+
+    const interimRow = cotBlock().querySelector('[data-slot="chat-interim-output"]');
+
+    expect(cotBlock()).toHaveAttribute("data-phase", "acting");
+    expect(interimRow).toHaveTextContent("Let me look at the repo.");
+    expect(screen.queryByTestId("stream-markdown-renderer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("markdown-renderer")).not.toBeInTheDocument();
+    // The header only ever appears at run(end): showing it here and taking it
+    // away again is the flicker this regression path exists to avoid.
+    expect(screen.queryByRole("button", { name: /^Worked/ })).not.toBeInTheDocument();
+  });
+
+  it("settles a replayed run that never reached run(end) because streaming is not allowed", () => {
+    const m1 = cotMessage(1);
+    const thought = m1.part(0, "thinking");
+    const answer = m1.part(1, "text");
+    const beats = [
+      cotRunStart(0),
+      m1.start(100),
+      thought.start(200),
+      thought.end(1100, "Reading."),
+      answer.start(1200),
+      answer.delta(1300, "Shipped."),
+    ];
+
+    render(
+      <AgentWorkspaceSessionsView
+        clockNowMs={cotT0 + 999_999}
+        projectId="pig-docs"
+        sessionProjection={{ ...cotProjection(beats), stale: true }}
+        workspace={cotWorkspace}
+      />,
+    );
+
+    // A run cut off mid-stream: no wall clock may leak into a replay, and no
+    // heartbeat may claim work is still happening.
+    expect(cotBlock()).toHaveAttribute("data-phase", "settled");
+    expect(cotBlock().querySelector('[data-slot="chat-status-line"]')).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Worked for 1s/ })).toBeInTheDocument();
+  });
+
+  it("puts the Chain of Thought where the message body's stretch rule can find it", () => {
+    const m1 = cotMessage(1);
+    const thought = m1.part(0, "thinking");
+    const answer = m1.part(1, "text");
+
+    renderCot(
+      [
+        cotRunStart(0),
+        m1.start(100),
+        thought.start(200),
+        thought.end(1100, "Reading."),
+        answer.start(1200),
+        answer.end(1400, "Shipped."),
+        m1.end(1500, [thought.snapshot("Reading."), answer.snapshot("Shipped.")]),
+        cotRunEnd(1600),
+      ],
+      1700,
+    );
+
+    // Astryx lays the assistant body out as a fit-content column, and the
+    // block contains its own inline size, so nothing inside pushes the body
+    // wide: chat.css stretches it through `:has(> .chain-of-thought)`, which
+    // only holds while the block is a direct child.
+    expect(cotBlock().parentElement).toHaveAttribute("data-slot", "chat-message-body");
   });
 });

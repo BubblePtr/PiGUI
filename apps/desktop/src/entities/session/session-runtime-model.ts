@@ -28,6 +28,9 @@ export type SessionRuntimeMessagePart = {
   body: string;
   done: boolean;
   toolCallId?: string;
+  // What the part is called: the tool's name on a tool_call part, the file
+  // name on an image part. Both arrive with the part itself, ahead of any
+  // execution event that might restate it.
   name?: string;
   // The part(start)/part(end) boundaries, the way startedAt/updatedAt bracket
   // a message. The CoT phase machine anchors its clock and its freeze point on
@@ -186,12 +189,16 @@ function upsertPart(
   const body =
     event.bodyMode === "delta" ? `${existing?.body ?? ""}${event.body}` : event.body;
   const startedAt = existing?.startedAt ?? (event.phase === "start" ? timestamp : undefined);
+  // Only the opening boundary names a tool_call part; later deltas restate the
+  // body alone, so the name has to be carried rather than re-read.
+  const name = event.toolName ?? existing?.name;
   const next: SessionRuntimeMessagePart = {
     partId: event.partId,
     partType: event.partType,
     body,
     done: event.phase === "end",
     ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+    ...(name ? { name } : {}),
     ...(startedAt ? { startedAt } : {}),
     ...(event.phase === "end" ? { endedAt: timestamp } : {}),
   };
@@ -305,6 +312,7 @@ export function applyAgentRuntimeEvent(
                   body: part.body,
                   done: true,
                   ...(part.toolCallId ? { toolCallId: part.toolCallId } : {}),
+                  ...(streamed?.name ? { name: streamed.name } : {}),
                   ...(streamed?.startedAt ? { startedAt: streamed.startedAt } : {}),
                   endedAt: streamed?.endedAt ?? timestamp,
                 };

@@ -37,4 +37,16 @@ describe("ChatStatusLine", () => {
     expect(screen.getByText("26.4s")).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
+
+  // A retry gap leaves the run alive with nothing anchored to measure from;
+  // printing "0.0s" would claim the run just started (ADR-0030 §6).
+  it("drops the clock when the run has nothing to measure from", () => {
+    const { container } = render(<ChatStatusLine phase="thinking" />);
+
+    expect(container.querySelector('[data-slot="chat-pixel-loader"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="text-shimmer"]')?.textContent).toBe(
+      `${statusWord("thinking", 0)}…`,
+    );
+    expect(container.querySelector(".chat-status-line__clock")).not.toBeInTheDocument();
+  });
 });

@@ -35,6 +35,13 @@ export type CotStep =
 
 export type CotView = {
   phase: CotPhase;
+  /**
+   * The Run's single clock anchor: its first surviving model call, as an epoch
+   * stamp. Handed to the component so it can walk the clock itself instead of
+   * the page re-deriving the whole view every 100ms. Absent until the Run has
+   * a Message to anchor on — during a retry gap, most of all.
+   */
+  anchorMs?: number;
   /** Time from the Run's first model call to the first answer token. */
   elapsedMs?: number;
   /** Steps in Turn order; the last one may still be live. */
@@ -71,6 +78,10 @@ function toolItem(
   const executed = tool?.phase === "done";
   const startedMs = parseTime(tool?.startedAt);
   const endedMs = executed ? parseTime(tool?.updatedAt) : undefined;
+  // Execution is the authority on the name once it starts; before that the
+  // opening part boundary already carried it, so a call whose arguments are
+  // still streaming is named rather than anonymous (ADR-0030 §4).
+  const toolName = tool?.name || part.name;
   const state: ChatToolItem["state"] = executed
     ? tool?.isError
       ? "output-error"
@@ -82,8 +93,7 @@ function toolItem(
   return {
     state,
     ...(part.toolCallId ? { toolCallId: part.toolCallId } : {}),
-    // The part stream carries no tool name — it arrives with tool(start).
-    ...(tool?.name ? { toolName: tool.name } : {}),
+    ...(toolName ? { toolName } : {}),
     ...(part.body ? { argsText: part.body } : {}),
     ...(tool?.result !== undefined ? { output: serializeToolDetail(tool.result) } : {}),
     ...(startedMs !== undefined && endedMs !== undefined
@@ -138,13 +148,17 @@ export function deriveCotView(
   const anchorMs = parseTime(messages[0]?.startedAt);
 
   const currentTexts = current?.parts.filter((part) => part.partType === "text") ?? [];
-  // §7: a Message that holds a Tool Call cannot be answering — its text is
-  // Interim Output. This is also what walks `answering` back to `acting`, and
-  // what keeps the phase on `answering` after the answer's last token: the
-  // state machine leaves it only for `settled`.
+  const settled = !options.streamingAllowed || model.runs.get(runId)?.endedAt !== undefined;
+  // §7: while the Run is live, a Message that holds a Tool Call cannot be
+  // answering — its text is Interim Output. This is also what walks
+  // `answering` back to `acting`, and what keeps the phase on `answering`
+  // after the answer's last token: the state machine leaves it only for
+  // `settled`. Once settled no later Message can claim the answer slot, so the
+  // last thing the model said is the Final Answer even beside a Tool Call —
+  // otherwise a Stop mid-call hides those words inside the fold.
   const answering =
     currentTexts.length > 0 &&
-    !current?.parts.some((part) => part.partType === "tool_call");
+    (settled || !current?.parts.some((part) => part.partType === "tool_call"));
   const unexecutedTool = messages.some((message) =>
     message.parts.some(
       (part) =>
@@ -155,7 +169,7 @@ export function deriveCotView(
 
   let phase: CotPhase;
 
-  if (!options.streamingAllowed || model.runs.get(runId)?.endedAt) {
+  if (settled) {
     phase = "settled";
   } else if (answering) {
     phase = "answering";
@@ -249,6 +263,7 @@ export function deriveCotView(
 
   return {
     phase,
+    ...(anchorMs !== undefined ? { anchorMs } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
     steps,
     ...(answer ? { answer } : {}),

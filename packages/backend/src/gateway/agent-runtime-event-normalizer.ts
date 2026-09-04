@@ -47,6 +47,7 @@ type PartState = {
   partType: AgentMessagePartType;
   body: string;
   toolCallId?: string;
+  toolName?: string;
 };
 
 type MessageState = {
@@ -57,6 +58,20 @@ type MessageState = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The tool's name out of the partial assistant message the SDK sends with
+ * every stream event: `partial.content[contentIndex]` is the ToolCall block,
+ * named from the first boundary even though its arguments still stream.
+ * A bridge that sends no usable partial yields nothing rather than a guess.
+ */
+function toolNameFromPartial(partial: unknown, contentIndex: number) {
+  const content = isRecord(partial) && Array.isArray(partial.content) ? partial.content : null;
+  const block = content?.[contentIndex];
+  const toolName = isRecord(block) && typeof block.name === "string" ? block.name : "";
+
+  return toolName ? { toolName } : {};
 }
 
 // Token/cost truth rides on the assistant message's usage block; it becomes a
@@ -149,6 +164,7 @@ export function createAgentRuntimeEventNormalizer(
       bodyMode,
       body,
       ...(part.toolCallId ? { toolCallId: part.toolCallId } : {}),
+      ...(part.toolName ? { toolName: part.toolName } : {}),
       surface: surfaceForMessagePart(part.partType),
       origin,
     };
@@ -185,6 +201,11 @@ export function createAgentRuntimeEventNormalizer(
         partId: `${message.messageId}:part-${contentIndex}`,
         partType,
         body: "",
+        // The partial message already holds the parsed ToolCall block at this
+        // boundary; the arguments are what still stream.
+        ...(partType === "tool_call"
+          ? toolNameFromPartial(assistantMessageEvent.partial, contentIndex)
+          : {}),
       };
 
       message.parts.set(contentIndex, part);
@@ -214,6 +235,13 @@ export function createAgentRuntimeEventNormalizer(
       if (partType === "tool_call" && toolCall) {
         existing.body = JSON.stringify(toolCall.arguments ?? {});
         existing.toolCallId = typeof toolCall.id === "string" ? toolCall.id : undefined;
+
+        // Some bridges (openai-completions) stream the call id before the
+        // function name, so the partial at toolcall_start was nameless and the
+        // parsed block here is the first place the name exists.
+        if (!existing.toolName && typeof toolCall.name === "string" && toolCall.name) {
+          existing.toolName = toolCall.name;
+        }
 
         return [partEvent(existing, "end", "snapshot", existing.body)];
       }

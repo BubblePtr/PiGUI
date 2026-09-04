@@ -316,16 +316,15 @@ describe("Design components layer", () => {
     expect(section.querySelector(".chat-message__actions--persist")).toBeInTheDocument();
   });
 
-  it("shows streaming and settled CoT variants", () => {
+  it("shows every CoT phase and both settled disclosures", () => {
     render(<DesignComponentsLayer />);
 
     const section = screen.getByRole("region", { name: "ChatChainOfThought" });
 
-    expect(within(section).getByText("streaming, live viewport")).toBeInTheDocument();
-    expect(within(section).getByText("collapsed, settled")).toBeInTheDocument();
-    expect(within(section).getByText("expanded, settled")).toBeInTheDocument();
-    expect(within(section).getByText("Thinking…")).toBeInTheDocument();
-    expect(within(section).getByText("2.5s")).toBeInTheDocument();
+    expect(within(section).getByText('phase="thinking" (flat, status line)')).toBeInTheDocument();
+    expect(within(section).getByText('phase="settled", expanded')).toBeInTheDocument();
+    expect(within(section).getByText('phase="settled", nothing to disclose')).toBeInTheDocument();
+    expect(within(section).getByText("3.2s")).toBeInTheDocument();
     expect(section.querySelector('[data-slot="chat-pixel-loader"]')).toBeInTheDocument();
 
     const markdown = screen.getByRole("region", { name: "ChatThoughtMarkdown" });
@@ -368,6 +367,11 @@ describe("Design components layer", () => {
 
     expect(within(status).getByText('phase="thinking"')).toBeInTheDocument();
     expect(within(status).getByText('phase="acting"')).toBeInTheDocument();
+    // The retry-gap shape: heartbeat and status word without a clock.
+    expect(within(status).getByText("no anchor yet (retry gap)")).toBeInTheDocument();
+    expect(status.querySelectorAll(".chat-status-line").length).toBe(
+      status.querySelectorAll(".chat-status-line__clock").length + 1,
+    );
   });
 
   it("shows the CoT block flat while live and folded once settled", () => {
@@ -376,11 +380,16 @@ describe("Design components layer", () => {
     const section = screen.getByRole("region", { name: "ChatChainOfThought" });
 
     expect(within(section).getByText('phase="acting" (flat, status line)')).toBeInTheDocument();
-    expect(within(section).getByText('phase="answering" (heartbeat gone)')).toBeInTheDocument();
-    expect(within(section).getByRole("button", { name: "Worked for 16s" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    expect(
+      within(section).getByText('phase="answering" (heartbeat gone, Interim Output in the list)'),
+    ).toBeInTheDocument();
+    // The gallery's Interim Output row is a copy of the page-level composition
+    // in agent-workspace; the slot has to match or the copy stops standing in
+    // for it (styling, and the UI intent picker, both key off it).
+    expect(section.querySelector('[data-slot="chat-interim-output"]')).toBeInTheDocument();
+    expect(
+      within(section).getAllByRole("button", { name: "Worked for 16s" })[0],
+    ).toHaveAttribute("aria-expanded", "false");
   });
 
   it("is wired into the design page", () => {
