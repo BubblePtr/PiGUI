@@ -221,6 +221,9 @@
 /* —— Chain of thought —— */
 
 .chain-of-thought {
+  /* ADR-0030 §8: page turns and the settled fold both run at 300ms. The
+     theme's --duration-slow-max is 0.935s, so this is its own constant. */
+  --cot-flip-duration: 300ms;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -373,7 +376,7 @@
   background: var(--color-text-secondary);
   border-radius: 0.08em;
   opacity: 0.15;
-  animation: chat-pixel-on 650ms ease-in-out infinite;
+  animation: chat-pixel-on var(--chat-pixel-period, 860ms) ease-in-out infinite;
 }
 
 @keyframes chat-pixel-on {
@@ -420,6 +423,249 @@
   margin-block-start: var(--spacing-0-5);
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
+}
+
+/* —— CoT phase machine (ADR-0030) —— */
+
+/* Steps sit closer together than the legacy list: every row is one line, so
+   spacing-3 between them reads as unrelated blocks. */
+.chain-of-thought[data-phase] .chain-of-thought__steps {
+  gap: var(--spacing-2);
+}
+
+/* On the phase path each list item is a one-line step row; the legacy body
+   wrapper must not push it down. */
+.chain-of-thought[data-phase] .chain-of-thought__step-body {
+  margin-block-start: 0;
+}
+
+/* Flat while the run is in flight — no header, so no offset under one. */
+.chain-of-thought[data-phase]:not([data-phase="settled"]) .chain-of-thought__content {
+  margin-block-start: 0;
+}
+
+/* The whole list folds into the header at run(end); Base UI measures it. */
+.chain-of-thought[data-phase] .chain-of-thought__content {
+  height: var(--collapsible-panel-height);
+  overflow: hidden;
+  transition:
+    height var(--cot-flip-duration) var(--ease-standard),
+    opacity var(--cot-flip-duration) var(--ease-standard);
+}
+
+.chain-of-thought[data-phase] .chain-of-thought__content[data-starting-style],
+.chain-of-thought[data-phase] .chain-of-thought__content[data-ending-style] {
+  height: 0;
+  opacity: 0;
+}
+
+.chain-of-thought[data-phase] .chain-of-thought__trigger {
+  line-height: 1.5;
+  min-height: 1.5em;
+}
+
+/* —— Inline pager —— */
+
+/* Spans with no margin, unlike the block-level .chain-of-thought__live: inside
+   a trigger, a top margin drops the label below the chevron's centre line. */
+.chat-inline-pager,
+.chat-inline-pager__flip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-inline-pager__flip {
+  position: relative;
+  overflow: hidden;
+  min-height: 1.5em;
+}
+
+.chat-inline-pager__page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-inline-pager__page[data-motion="in"] {
+  animation: chat-inline-pager-in var(--cot-flip-duration, 300ms) var(--ease-standard) both;
+}
+
+.chat-inline-pager__page[data-motion="out"] {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  animation: chat-inline-pager-out var(--cot-flip-duration, 300ms) var(--ease-standard) both;
+}
+
+@keyframes chat-inline-pager-in {
+  from {
+    transform: translateY(1.5em);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes chat-inline-pager-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-1.5em);
+    opacity: 0;
+  }
+}
+
+/* —— Step rows —— */
+
+.chat-step__trigger,
+.chat-step--plain {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  margin: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+.chat-step__trigger {
+  cursor: pointer;
+}
+
+.chat-step__trigger:hover {
+  color: var(--color-text-primary);
+}
+
+.chat-step__label {
+  min-width: 0;
+  line-height: inherit;
+  /* The shimmer clips text to its gradient; without the padding, descenders go. */
+  padding-block: 0.15em;
+}
+
+.chat-step__meta {
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-step__meta--error {
+  color: var(--color-danger);
+}
+
+/* Right = collapsed, down = expanded — the same rotation in all three places
+   a chevron appears: header, Thought row, tool row. */
+.chat-step__chevron {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--color-icon-secondary);
+  rotate: 0deg;
+  transition: rotate var(--duration-fast) var(--ease-standard);
+}
+
+[data-panel-open] > .chat-step__chevron {
+  rotate: 90deg;
+}
+
+.chat-step__panel {
+  padding-inline-start: calc(14px + var(--spacing-1-5));
+}
+
+.chat-step__body {
+  margin-block-start: var(--spacing-1);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* —— Tool step —— */
+
+.chat-tool-step__page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A nowrap summary would otherwise push its full width up as min-content and
+   burst the chat column; min-width: 0 all the way down keeps it truncating. */
+.chat-tool-step__page .chat-step__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-tool-step__glyph {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--color-icon-secondary);
+}
+
+/* Only failure earns a colour: a green tick on every settled row would make a
+   trace of successful calls read as an alert list. */
+.chat-tool-step__glyph[data-state="error"] {
+  color: var(--color-danger);
+}
+
+.chat-tool-step__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: var(--spacing-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* —— Status line —— */
+
+/* Always the last line while the run is live, and the only heartbeat. */
+.chat-status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: var(--spacing-2) 0 0;
+  min-height: 1.5em;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+.chat-status-line__word {
+  line-height: inherit;
+  padding-block: 0.15em;
+}
+
+.chat-status-line__clock {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono, ui-monospace, monospace);
+  font-size: inherit;
+  line-height: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-inline-pager__page[data-motion],
+  .chain-of-thought[data-phase] .chain-of-thought__content,
+  .chat-step__chevron {
+    animation: none;
+    transition: none;
+  }
 }
 
 .chat-thought-md {

@@ -5,7 +5,9 @@ import {
   ChatChainOfThought,
   formatLiveElapsed,
   formatThoughtSummary,
+  formatWorkedFor,
 } from "@/shared/ui/chat/chat-chain-of-thought";
+import type { CotPhase } from "@/entities/session/cot-view";
 import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 
 function renderSettled({ defaultExpanded }: { defaultExpanded?: boolean } = {}) {
@@ -219,5 +221,104 @@ describe("ChatChainOfThought", () => {
     expect(container.querySelector("[data-motion]")).not.toBeInTheDocument();
     expect(screen.getByText("Confirming fold winner logic")).toBeInTheDocument();
     expect(screen.queryByText("Confirming fold")).not.toBeInTheDocument();
+  });
+});
+
+describe("formatWorkedFor", () => {
+  it("claims no number when the wait was never measured", () => {
+    expect(formatWorkedFor(undefined)).toBe("Worked");
+    expect(formatWorkedFor(Number.NaN)).toBe("Worked");
+  });
+
+  it("rounds a measured wait to at least one second", () => {
+    expect(formatWorkedFor(400)).toBe("Worked for 1s");
+    expect(formatWorkedFor(16_400)).toBe("Worked for 16s");
+  });
+});
+
+describe("ChatChainOfThought phase", () => {
+  function renderPhase(phase: CotPhase, props: Record<string, unknown> = {}) {
+    return render(
+      <ChatChainOfThought phase={phase} {...props}>
+        <ChatChainOfThought.Steps>
+          <ChatChainOfThought.Step>
+            <ChatThoughtMarkdown text="Reasoning body text" />
+          </ChatChainOfThought.Step>
+        </ChatChainOfThought.Steps>
+      </ChatChainOfThought>,
+    );
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders nothing before the run's first model call", () => {
+    const { container } = renderPhase("hidden");
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  // The list is flat while the run is in flight: the header only appears when
+  // it settles, so the fold happens exactly once (ADR-0030 §3).
+  it("lays the steps out flat with a status line while thinking", () => {
+    const { container } = renderPhase("thinking", { elapsedMs: 26_400 });
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("Reasoning body text")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="chat-status-line"]')).toBeInTheDocument();
+    expect(screen.getByText("26.4s")).toBeInTheDocument();
+  });
+
+  it("takes the status line down once the answer starts", () => {
+    const { container } = renderPhase("answering", { elapsedMs: 26_400 });
+
+    expect(container.querySelector('[data-slot="chat-status-line"]')).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("folds into a closed 'Worked for Ns' header when the run settles", () => {
+    renderPhase("settled", { elapsedMs: 16_400 });
+
+    const trigger = screen.getByRole("button", { name: "Worked for 16s" });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Reasoning body text")).toBeInTheDocument();
+  });
+
+  it("degrades to a plain label when the run left no steps", () => {
+    render(<ChatChainOfThought elapsedMs={16_400} hasSteps={false} phase="settled" />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("Worked for 16s")).toBeInTheDocument();
+  });
+
+  it("ticks the live clock from the run's anchor", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-04T04:00:00.000Z"));
+
+    renderPhase("thinking", { startedAtMs: Date.now() - 2000 });
+
+    expect(screen.getByText("2.0s")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+
+    expect(screen.getByText("3.2s")).toBeInTheDocument();
+  });
+
+  // Replay fixtures carry historical timestamps and no anchor; starting a clock
+  // at mount would pass the time since the page opened off as the run's wait.
+  it("does not start a clock of its own when the anchor is missing", () => {
+    vi.useFakeTimers();
+
+    renderPhase("thinking");
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(screen.getByText("0.0s")).toBeInTheDocument();
   });
 });
