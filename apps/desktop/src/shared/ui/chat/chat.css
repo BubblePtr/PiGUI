@@ -68,6 +68,22 @@
   line-height: inherit;
 }
 
+/* Astryx compact density gives paragraphs only --spacing-1 (4px) block
+   margins, which collapse to less than the inter-line gap — consecutive
+   paragraphs visually merge. Restore a clear break between adjacent
+   paragraphs; first/last block margins stay Astryx's. !important matches
+   Astryx StyleX's :not(#\#) specificity. */
+.chat-markdown .astryx-markdown-paragraph + .astryx-markdown-paragraph {
+  margin-block-start: var(--spacing-3) !important;
+}
+
+/* Chat convention (GFM breaks mode, as in ChatGPT/GitHub): a single \n in
+   model output is an intentional line break, not a collapsible space.
+   pre-line renders newlines as breaks while still collapsing spaces. */
+.chat-markdown .astryx-markdown-paragraph {
+  white-space: pre-line;
+}
+
 /* —— Code block —— */
 
 /* Surface, copy button, and highlighting are owned by Astryx CodeBlock;
