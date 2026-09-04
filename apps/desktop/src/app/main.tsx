@@ -35,6 +35,9 @@ function isPreflightExemptPath(pathname: string) {
   return (
     pathname === "/preflight" ||
     pathname === "/design" ||
+    // PROTO cot-live — remove with the prototype
+    pathname === "/proto/cot-live" ||
+    // /PROTO cot-live
     pathname === "/settings" ||
     pathname.startsWith("/settings/")
   );
@@ -169,6 +172,15 @@ const devOnlyRoutes = import.meta.env.DEV
           default: (await import("@/pages/design")).DesignPage,
         })),
       }),
+      // PROTO cot-live — throwaway ADR-0030 CoT prototype, remove with it
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/proto/cot-live",
+        component: React.lazy(async () => ({
+          default: (await import("@/proto/cot-live/harness")).CotLiveProtoPage,
+        })),
+      }),
+      // /PROTO cot-live
     ]
   : [];
 

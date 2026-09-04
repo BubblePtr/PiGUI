@@ -160,6 +160,38 @@ _Avoid_: Agent Run, runtime instance, turn, prompt cycle, session
 Active Run 内一次 model response 加 tool execution 循环的边界。一个 Active Run 包含一个或多个 Turn；同一 Turn 产生的 thinking、回答文本和 tool call 都归属该 Turn。
 _Avoid_: Active Run, message, round trip
 
+**Assistant Message**:
+Turn 内一次模型调用的完整产出，由协议的 message(start/end) 界定，内部是按模型生成顺序排列的 Message Part。一个 Turn 正常只有一条；retry 会留下标记为 abandoned 的 Assistant Message，它的内容不是回答。它是「模型说了什么」的单位，不是 UI 气泡：一条 Assistant Message 的 Part 可能分别落在 Chain of Thought 和回答气泡里。
+_Avoid_: Bubble, reply, response, turn, chat message
+
+**Message Part**:
+Assistant Message 内一段连续内容，partType 为 thinking、text、tool_call、image 之一，有独立 partId 和 start/update/end 生命周期。它落在哪个 surface 由 partType 决定（text/image 进 chat，thinking/tool_call 进 trace），page 不重新推断。
+_Avoid_: Chunk, delta, block, segment, content index
+
+**Thinking**:
+partType 为 thinking 的 Message Part，即模型的推理正文。它属于 trace surface：Live 时只在 Chain of Thought 视口显示当前一句，settled 后折进 Chain of Thought 的时间线。它不是 Interim Output，后者是模型对用户说的话。
+_Avoid_: Reasoning text, CoT, thought log, trace
+
+**Tool Call**:
+partType 为 tool_call 的 Message Part，即模型发出的调用意图（工具名和参数）。它只是意图，不是执行；执行叫 Tool Execution。
+_Avoid_: Tool execution, tool run, function call, tool use
+
+**Tool Execution**:
+Pi Runtime 对一个 Tool Call 的真实执行，由协议的 tool 事件 start/update/end 界定，通过 toolCallId 关联回 Tool Call，有 announced/running/done 状态、耗时和 isError。它发生在所属 Assistant Message 结束之后、下一个 Turn 开始之前。
+_Avoid_: Tool call, tool result message, tool step
+
+**Interim Output**:
+非最后一个 Turn 里 partType 为 text 的 Message Part，即模型在继续调用工具前对用户说的过程性话语。协议上它和 Final Answer 是同一种 Part，只有在所属 Assistant Message 结束并确认含 Tool Call 之后才能判定；Live 阶段一律先按 Final Answer 推定呈现。它在 UI 中归属 Chain of Thought 的时间线，不是独立回答气泡。
+_Avoid_: Partial answer, progress message, final answer, status
+
+**Final Answer**:
+Active Run 最后一个 Turn 里 partType 为 text 的 Message Part，即所属 Assistant Message 不含 Tool Call 的那段文本。它是 Live Chat 回答气泡和 ActionBar 的归属对象。Live 阶段只能推定（见 Interim Output），run(end) 之后才能确定。
+_Avoid_: Response, output, message, reply
+
+**Chain of Thought**:
+Live Chat 中承载一个 Active Run 全部过程内容的折叠区域：Thinking、Tool Call 与 Tool Execution、Interim Output，按 Turn 顺序穿插。Live 阶段它是一行视口加状态头，settled 后是「Thought for Ns」折叠项。它按 Active Run 存在，不按 Assistant Message 存在；它的阶段由 Session Projection 统一推导（见 ADR-0030），组件不自行判断。
+_Avoid_: Reasoning, thinking panel, trace, run timeline, CoT rail
+
 **Execution Checkout**:
 Agent Run 操作文件系统时所属的 checkout，可以是前台本地目录，也可以在 Git Project 中是 PiGUI 管理的 Git worktree。它是并发运行的文件隔离边界。非 Git Project 可以使用 foreground local directory 运行 Session，但 Git-only 的 diff、managed worktree、commit、push 和 PR 能力不可用。
 _Avoid_: Branch, session, workspace, Git requirement
