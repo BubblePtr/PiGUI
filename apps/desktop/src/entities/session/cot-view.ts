@@ -148,13 +148,17 @@ export function deriveCotView(
   const anchorMs = parseTime(messages[0]?.startedAt);
 
   const currentTexts = current?.parts.filter((part) => part.partType === "text") ?? [];
-  // §7: a Message that holds a Tool Call cannot be answering — its text is
-  // Interim Output. This is also what walks `answering` back to `acting`, and
-  // what keeps the phase on `answering` after the answer's last token: the
-  // state machine leaves it only for `settled`.
+  const settled = !options.streamingAllowed || model.runs.get(runId)?.endedAt !== undefined;
+  // §7: while the Run is live, a Message that holds a Tool Call cannot be
+  // answering — its text is Interim Output. This is also what walks
+  // `answering` back to `acting`, and what keeps the phase on `answering`
+  // after the answer's last token: the state machine leaves it only for
+  // `settled`. Once settled no later Message can claim the answer slot, so the
+  // last thing the model said is the Final Answer even beside a Tool Call —
+  // otherwise a Stop mid-call hides those words inside the fold.
   const answering =
     currentTexts.length > 0 &&
-    !current?.parts.some((part) => part.partType === "tool_call");
+    (settled || !current?.parts.some((part) => part.partType === "tool_call"));
   const unexecutedTool = messages.some((message) =>
     message.parts.some(
       (part) =>
@@ -165,7 +169,7 @@ export function deriveCotView(
 
   let phase: CotPhase;
 
-  if (!options.streamingAllowed || model.runs.get(runId)?.endedAt) {
+  if (settled) {
     phase = "settled";
   } else if (answering) {
     phase = "answering";

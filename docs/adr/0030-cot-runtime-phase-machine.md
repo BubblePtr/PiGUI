@@ -114,6 +114,7 @@ Worked for 16s ⌄                    头部：settled 后出现，折叠整列
 - Live 阶段一切 `text` Part 先按 Final Answer 呈现为回答气泡（`answering`）。理由：绝大多数 Run 只有一个 Turn，先按回答呈现的误判成本最低。
 - 同一 Assistant Message 里一出现 `tool_call part(start)`，该 text 就被重分类为 Interim Output，不必等 `message(end)`，那一刻已经能确定：回答气泡撤下，文本作为一项进入步骤栈，位置在同 Message 的 Thinking 之后、Tool Call 之前，用 `ChatThoughtMarkdown` 渲染，颜色用 `--color-text-primary`，比 Thinking 深一档，因为它是对用户说的话。
 - 一个 Run 因此至多一个回答气泡（Final Answer），ActionBar 也只挂在它上。
+- **`settled` 时的归属**：Run 结束后不会再有后续 Message 来占据回答位，因此当前 Message 只要有 text Part，其文本就是 Final Answer，即使同一 Message 里还有 Tool Call（Stop 或失败打断发调用时的常见形状）。否则模型最后说的话会被折进 CoT，气泡空着、也没有 ActionBar。
 - 协议不变：Interim / Final 是 projection 的推导标签，`surfaceForMessagePart` 仍按 partType 路由；重分类发生在 renderer 的 projection 层。
 
 ### 8. 动效数值（原型定案）

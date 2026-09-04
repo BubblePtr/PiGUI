@@ -476,6 +476,31 @@ describe("CoT view derivation", () => {
     expect(final.answer).toBeUndefined();
   });
 
+  it("keeps the last thing the model said as the answer when a run is aborted mid tool call", () => {
+    const m1 = message(1);
+    const text = m1.part(0, "text");
+    const call = m1.part(1, "tool_call");
+
+    // Stop pressed while the model was issuing a call after speaking. Live,
+    // the tool_call demotes that text to Interim Output; once the run settles
+    // no later Message can take the answer slot, so the text is the Final
+    // Answer and keeps its bubble and ActionBar (ADR-0030 §7).
+    const { phases, final, viewAt } = replay([
+      runStart(0),
+      m1.start(100),
+      text.start(200),
+      text.end(400, "Reading the two files now."),
+      call.start(500),
+      runEnd(600, "aborted"),
+    ]);
+
+    expect(phases).toEqual(["hidden", "thinking", "answering", "acting", "settled"]);
+
+    expect(viewAt(500).answer).toBeUndefined();
+    expect(final.answer).toEqual({ text: "Reading the two files now.", streaming: false });
+    expect(final.steps.some((step) => step.kind === "interim")).toBe(false);
+  });
+
   it("still produces a Thought step when the provider gives no thinking body", () => {
     const m1 = message(1);
     const thought = m1.part(0, "thinking");
