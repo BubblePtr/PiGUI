@@ -1,15 +1,15 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
+import { ChatStatusLine, formatLiveElapsed } from "@/shared/ui/chat/chat-status-line";
+import { ChevronRight } from "@/shared/ui/icons";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
+import type { CotPhase } from "@/entities/session/cot-view";
 
-export function formatLiveElapsed(ms: number) {
-  const total = Math.max(0, ms) / 1000;
-  if (total < 60) {
-    return `${total.toFixed(1)}s`;
-  }
-  return `${Math.floor(total / 60)}m ${(total % 60).toFixed(1)}s`;
-}
+// Re-exported from its new home so the clock formatter keeps one import path.
+export { formatLiveElapsed };
 
+/** @deprecated Superseded by formatWorkedFor on the phase path; removed with the isStreaming path in #165. */
 export function formatThoughtSummary(ms: number | undefined) {
   // An unmeasured duration claims no number — inventing one would pass a
   // guess off as a measurement, which nothing else in this app does.
@@ -20,26 +20,20 @@ export function formatThoughtSummary(ms: number | undefined) {
   return `Thought for ${seconds}s`;
 }
 
-const DRIVE_DELAYS = Array.from({ length: 9 }, (_, index) => {
-  const row = Math.floor(index / 3);
-  const column = index % 3;
-  return (column + Math.abs(row - 1)) * 90;
-});
+/**
+ * The settled header. "Worked", not "Thought": the number covers reasoning,
+ * issuing calls and executing them — everything the user waited through before
+ * the answer began (ADR-0030 §6).
+ */
+export function formatWorkedFor(ms: number | undefined) {
+  if (ms === undefined || !Number.isFinite(ms) || ms < 0) {
+    return "Worked";
+  }
 
-function ChatPixelLoader() {
-  return (
-    <span aria-hidden="true" className="chat-pixel-loader" data-slot="chat-pixel-loader">
-      {DRIVE_DELAYS.map((delay, index) => (
-        <span
-          key={index}
-          className="chat-pixel-loader__cell"
-          style={{ animationDelay: `${delay}ms` }}
-        />
-      ))}
-    </span>
-  );
+  return `Worked for ${Math.max(1, Math.round(ms / 1000))}s`;
 }
 
+/** @deprecated Part of the isStreaming path; removed in #165. */
 function LiveStatus({ elapsedMs }: { elapsedMs: number }) {
   return (
     <p className="chain-of-thought__live-label" role="status">
@@ -68,32 +62,95 @@ function useTickingElapsed(startedAtMs: number | undefined, enabled: boolean) {
 }
 
 /**
- * Collapsible reasoning trace when settled. Streaming renders a live status
- * plus a one-page viewport — the full step list stays closed until the turn ends.
+ * One Active Run's reasoning trace. Given a `phase` it is the ADR-0030 block:
+ * a flat list of steps with a trailing status line while the run is in flight,
+ * folding into a "Worked for Ns" header exactly once, when the run settles.
+ *
+ * The legacy `isStreaming` path (one-line viewport, header heartbeat) is still
+ * here for AssistantRunTrace until #165 rewires it.
  */
 export function ChatChainOfThought({
   children,
   className = "",
   defaultExpanded = false,
   elapsedMs,
+  // Children are opaque to this component, so whether the run left anything to
+  // disclose has to be told, not counted.
+  hasSteps = true,
+  /** @deprecated Pass `phase` instead; removed in #165. */
   isStreaming = false,
+  phase,
   startedAtMs,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   defaultExpanded?: boolean;
   elapsedMs?: number;
+  hasSteps?: boolean;
   isStreaming?: boolean;
+  phase?: CotPhase;
   startedAtMs?: number;
 }) {
   const [mountedAtMs] = useState(() => Date.now());
-  // Live ticks from mount (or an explicit start). Never treat historical
-  // event timestamps as startedAtMs — replay fixtures sit in the past.
+  const [userOpen, setUserOpen] = useState(defaultExpanded);
+  const live = phase === "thinking" || phase === "acting";
+  // On the phase path `startedAtMs` is the Run's only clock anchor: with no
+  // anchor there is no number, because a clock started at mount would report
+  // how long the page has been open (ADR-0030 §6). The legacy path still falls
+  // back to mount time.
   const tickingMs = useTickingElapsed(
-    startedAtMs ?? mountedAtMs,
-    isStreaming && elapsedMs === undefined,
+    phase === undefined ? (startedAtMs ?? mountedAtMs) : startedAtMs,
+    (phase === undefined ? isStreaming : live) && elapsedMs === undefined,
   );
   const liveElapsedMs = elapsedMs ?? tickingMs;
+
+  if (phase !== undefined) {
+    if (phase === "hidden") {
+      return null;
+    }
+
+    const settled = phase === "settled";
+    const header = formatWorkedFor(elapsedMs);
+
+    return (
+      <div
+        className={`chain-of-thought ${className}`.trim()}
+        data-phase={phase}
+        data-slot="chain-of-thought"
+      >
+        <Collapsible.Root
+          // Flat until the run settles; the fold happens once, at run(end).
+          open={settled ? userOpen : true}
+          onOpenChange={setUserOpen}
+        >
+          {!settled ? null : hasSteps ? (
+            <Collapsible.Trigger
+              className="chain-of-thought__trigger"
+              data-slot="chain-of-thought-trigger"
+            >
+              {header}
+              <ChevronRight aria-hidden="true" className="chat-step__chevron" />
+            </Collapsible.Trigger>
+          ) : (
+            <p
+              className="chain-of-thought__label"
+              data-slot="chain-of-thought-label"
+            >
+              {header}
+            </p>
+          )}
+          <Collapsible.Panel
+            keepMounted
+            className="chain-of-thought__content"
+            data-slot="chain-of-thought-content"
+          >
+            {children}
+          </Collapsible.Panel>
+        </Collapsible.Root>
+        {live ? <ChatStatusLine elapsedMs={liveElapsedMs} phase={phase} /> : null}
+      </div>
+    );
+  }
 
   if (isStreaming) {
     return (
@@ -220,6 +277,7 @@ function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/** @deprecated The one-line viewport retires with the isStreaming path in #165; use ChatInlinePager. */
 function ChatChainOfThoughtLive({
   children,
   className = "",

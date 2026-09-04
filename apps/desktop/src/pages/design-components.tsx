@@ -26,6 +26,11 @@ import {
 import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
 import type { SessionTurn } from "@pigui/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
+import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
+import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
+import { ChatStatusLine } from "@/shared/ui/chat/chat-status-line";
+import { ChatThoughtStep, type ChatThoughtStepItem } from "@/shared/ui/chat/chat-thought-step";
+import { ChatToolStep, type ChatToolStepItem } from "@/shared/ui/chat/chat-tool-step";
 import {
   ChatThoughtMarkdown,
   liveThoughtLine,
@@ -1368,6 +1373,48 @@ function ChatChainOfThoughtGallery() {
             </ChatChainOfThought.Content>
           </ChatChainOfThought>
         </Variant>
+        <Variant caption='phase="acting" (flat, status line)'>
+          <ChatChainOfThought elapsedMs={26_400} phase="acting">
+            <ChatChainOfThought.Steps>
+              <ChatChainOfThought.Step>
+                <ChatThoughtStep step={settledThought} />
+              </ChatChainOfThought.Step>
+              <ChatChainOfThought.Step>
+                <ChatToolStep step={settledToolBurst} />
+              </ChatChainOfThought.Step>
+              <ChatChainOfThought.Step>
+                <ChatToolStep step={liveToolStep} />
+              </ChatChainOfThought.Step>
+            </ChatChainOfThought.Steps>
+          </ChatChainOfThought>
+        </Variant>
+        <Variant caption='phase="answering" (heartbeat gone)'>
+          <ChatChainOfThought elapsedMs={26_400} phase="answering">
+            <ChatChainOfThought.Steps>
+              <ChatChainOfThought.Step>
+                <ChatThoughtStep step={settledThought} />
+              </ChatChainOfThought.Step>
+              <ChatChainOfThought.Step>
+                <ChatToolStep step={settledToolBurst} />
+              </ChatChainOfThought.Step>
+            </ChatChainOfThought.Steps>
+          </ChatChainOfThought>
+        </Variant>
+        <Variant caption='phase="settled" (folded into the header)'>
+          <ChatChainOfThought elapsedMs={16_400} phase="settled">
+            <ChatChainOfThought.Steps>
+              <ChatChainOfThought.Step>
+                <ChatThoughtStep step={settledThought} />
+              </ChatChainOfThought.Step>
+              <ChatChainOfThought.Step>
+                <ChatToolStep step={settledToolBurst} />
+              </ChatChainOfThought.Step>
+            </ChatChainOfThought.Steps>
+          </ChatChainOfThought>
+        </Variant>
+        <Variant caption='phase="settled", nothing to disclose'>
+          <ChatChainOfThought elapsedMs={2_400} hasSteps={false} phase="settled" />
+        </Variant>
         <Variant caption="expanded, settled">
           <ChatChainOfThought defaultExpanded>
             <ChatChainOfThought.Trigger>Thought for 12s</ChatChainOfThought.Trigger>
@@ -1396,6 +1443,264 @@ function ChatChainOfThoughtGallery() {
               </ChatChainOfThought.Steps>
             </ChatChainOfThought.Content>
           </ChatChainOfThought>
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
+const liveThought: ChatThoughtStepItem = {
+  kind: "thinking",
+  id: "design-thought-live",
+  live: true,
+  text: "The fork remap never rewrites toolCallId, so the replay projection",
+};
+
+const settledThought: ChatThoughtStepItem = {
+  kind: "thinking",
+  id: "design-thought-settled",
+  live: false,
+  durationMs: 2400,
+  text: "Looking at `remapEntryId` — **toolCallId is never remapped**.",
+};
+
+const liveToolStep: ChatToolStepItem = {
+  kind: "tools",
+  id: "design-tools-live",
+  live: true,
+  activeToolCallId: "design-live-2",
+  tools: [
+    {
+      toolCallId: "design-live-1",
+      toolName: "read",
+      state: "output-available",
+      durationMs: 180,
+      argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
+    },
+    { toolCallId: "design-live-2", toolName: "bash", state: "input-available" },
+  ],
+};
+
+const unnamedToolStep: ChatToolStepItem = {
+  kind: "tools",
+  id: "design-tools-unnamed",
+  live: true,
+  activeToolCallId: "design-unnamed-1",
+  tools: [{ toolCallId: "design-unnamed-1", state: "input-streaming", argsText: '{"path":"pack' }],
+};
+
+const singleToolStep: ChatToolStepItem = {
+  kind: "tools",
+  id: "design-tools-single",
+  live: false,
+  tools: [
+    {
+      toolCallId: "design-single-1",
+      toolName: "read",
+      state: "output-available",
+      durationMs: 320,
+      argsText: JSON.stringify({ path: "packages/backend/src/workspace/fork.ts" }),
+      output: "part.toolCallId  // never remapped",
+    },
+  ],
+};
+
+const settledToolBurst: ChatToolStepItem = {
+  kind: "tools",
+  id: "design-tools-burst",
+  live: false,
+  tools: [
+    {
+      toolCallId: "design-burst-1",
+      toolName: "bash",
+      state: "output-available",
+      durationMs: 1240,
+      argsText: JSON.stringify({ command: "bun vitest run apps/desktop/src/shared/ui/chat" }),
+      output: "17 passed",
+    },
+    {
+      toolCallId: "design-burst-2",
+      toolName: "bash",
+      state: "output-available",
+      durationMs: 3100,
+      argsText: JSON.stringify({ command: "bun run typecheck" }),
+    },
+    {
+      toolCallId: "design-burst-3",
+      toolName: "edit",
+      state: "output-available",
+      durationMs: 90,
+      argsText: JSON.stringify({ path: "apps/desktop/src/shared/ui/chat/chat.css" }),
+    },
+    {
+      toolCallId: "design-burst-4",
+      toolName: "edit",
+      state: "output-available",
+      durationMs: 120,
+      argsText: JSON.stringify({ path: "apps/desktop/src/shared/ui/chat/chat-tool-step.tsx" }),
+    },
+    {
+      toolCallId: "design-burst-5",
+      toolName: "edit",
+      state: "output-available",
+      durationMs: 110,
+      argsText: JSON.stringify({ path: "apps/desktop/src/shared/ui/chat/chat-thought-step.tsx" }),
+    },
+  ],
+};
+
+const failedToolStep: ChatToolStepItem = {
+  kind: "tools",
+  id: "design-tools-failed",
+  live: false,
+  tools: [
+    {
+      toolCallId: "design-failed-1",
+      toolName: "grep",
+      state: "output-available",
+      durationMs: 40,
+      argsText: JSON.stringify({ pattern: "remapToolCallId" }),
+    },
+    {
+      toolCallId: "design-failed-2",
+      toolName: "bash",
+      state: "output-error",
+      durationMs: 210,
+      argsText: JSON.stringify({ command: "bun run typecheck" }),
+      output: "error TS2339: Property 'toolCallId' does not exist",
+    },
+  ],
+};
+
+function ChatPixelLoaderGallery() {
+  return (
+    <GallerySection title="ChatPixelLoader">
+      <VariantRow>
+        <Variant caption="periodMs=860 (default)">
+          <span className="text-lg text-muted">
+            <ChatPixelLoader />
+          </span>
+        </Variant>
+        <Variant caption="periodMs=1600 (slowed)">
+          <span className="text-lg text-muted">
+            <ChatPixelLoader periodMs={1600} />
+          </span>
+        </Variant>
+        <Variant caption="reduced motion: cells hold at rest (OS setting)">
+          <span className="text-lg text-muted">
+            <ChatPixelLoader />
+          </span>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+const PAGER_PAGES = ["Running read…", "Running bash…", "Ran a command, read a file"];
+
+function ChatInlinePagerGallery() {
+  const [page, setPage] = useState(0);
+
+  return (
+    <GallerySection title="ChatInlinePager">
+      <VariantRow>
+        <Variant caption="flips on demand, 700ms minimum dwell">
+          <span className="inline-flex items-center gap-3 text-muted">
+            <ChatInlinePager pageKey={`design-page-${page}`}>
+              {PAGER_PAGES[page % PAGER_PAGES.length]}
+            </ChatInlinePager>
+            <Button
+              label="Flip"
+              size="sm"
+              variant="secondary"
+              onClick={() => setPage((current) => current + 1)}
+            />
+          </span>
+        </Variant>
+        <Variant caption="reduced motion: pages swap without a flip (OS setting)">
+          <span className="text-muted">
+            <ChatInlinePager pageKey="design-static">Ran a command, read a file</ChatInlinePager>
+          </span>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+function ChatThoughtStepGallery() {
+  return (
+    <GallerySection title="ChatThoughtStep">
+      <div className="flex max-w-xl flex-col gap-3">
+        <Variant caption="live">
+          <ChatThoughtStep step={liveThought} />
+        </Variant>
+        <Variant caption="settled, with a body">
+          <ChatThoughtStep step={settledThought} />
+        </Variant>
+        <Variant caption="settled, no body">
+          <ChatThoughtStep step={{ ...settledThought, id: "design-thought-bare", text: "" }} />
+        </Variant>
+        <Variant caption="settled, under a second">
+          <ChatThoughtStep
+            step={{
+              ...settledThought,
+              id: "design-thought-brief",
+              durationMs: 400,
+              text: "",
+            }}
+          />
+        </Variant>
+        <Variant caption="settled, duration never measured">
+          <ChatThoughtStep
+            step={{
+              kind: "thinking",
+              id: "design-thought-unmeasured",
+              live: false,
+              text: "",
+            }}
+          />
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
+function ChatToolStepGallery() {
+  return (
+    <GallerySection title="ChatToolStep">
+      <div className="flex max-w-xl flex-col gap-3">
+        <Variant caption="live, call named">
+          <ChatToolStep step={liveToolStep} />
+        </Variant>
+        <Variant caption="live, name not known yet">
+          <ChatToolStep step={unnamedToolStep} />
+        </Variant>
+        <Variant caption="settled, one call">
+          <ChatToolStep step={singleToolStep} />
+        </Variant>
+        <Variant caption="settled, a burst">
+          <ChatToolStep step={settledToolBurst} />
+        </Variant>
+        <Variant caption="settled, with a failure">
+          <ChatToolStep step={failedToolStep} />
+        </Variant>
+      </div>
+    </GallerySection>
+  );
+}
+
+function ChatStatusLineGallery() {
+  return (
+    <GallerySection title="ChatStatusLine">
+      <div className="flex max-w-xl flex-col gap-3">
+        <Variant caption='phase="thinking"'>
+          <ChatStatusLine elapsedMs={8200} phase="thinking" />
+        </Variant>
+        <Variant caption='phase="acting"'>
+          <ChatStatusLine elapsedMs={26_400} phase="acting" />
+        </Variant>
+        <Variant caption="reduced motion: shimmer and heartbeat hold still (OS setting)">
+          <ChatStatusLine elapsedMs={62_100} phase="acting" />
         </Variant>
       </div>
     </GallerySection>
@@ -1787,6 +2092,11 @@ export function DesignComponentsLayer() {
       <ChatQueuedMessageGallery />
       <ChatPromptSuggestionGallery />
       <ChatChainOfThoughtGallery />
+      <ChatPixelLoaderGallery />
+      <ChatInlinePagerGallery />
+      <ChatThoughtStepGallery />
+      <ChatToolStepGallery />
+      <ChatStatusLineGallery />
       <ChatThoughtMarkdownGallery />
       <ChatChainOfThoughtRailGallery />
       <ChatConversationGallery />

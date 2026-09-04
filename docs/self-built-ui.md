@@ -10,8 +10,13 @@
 
 | 组件 | 位置 | 说明 |
 | --- | --- | --- |
-| chat-chain-of-thought | `shared/ui/chat/` | Astryx 缺口;Compact 皮肤。流式视口只显示当前最后一行/句(过长 ellipsis),换页时旧行上移新行从下进入;收束后折叠为 Thought for Ns(无实测时长只写 Thought,不编数字);无可展开步骤时用 `Label` 变体渲染不可交互纯标签。见 ADR-0027 |
+| chat-chain-of-thought | `shared/ui/chat/` | Astryx 缺口;Compact 皮肤。流式视口只显示当前最后一行/句(过长 ellipsis),换页时旧行上移新行从下进入;收束后折叠为 Thought for Ns(无实测时长只写 Thought,不编数字);无可展开步骤时用 `Label` 变体渲染不可交互纯标签。见 ADR-0027。**2026-09-04(#164,ADR-0030)新增 `phase` 路径**:run 期间 step 列表平铺、无头部,底部挂 chat-status-line;`settled` 时整列折进「Worked for Ns」头部(默认折叠,高度过渡吃 Base UI 的 `--collapsible-panel-height`,时长走 `.chain-of-thought` 上的 `--cot-flip-duration: 300ms`——主题的 `--duration-slow-max` 在本仓库是 0.935s,不能拿来当翻页时长);步骤为空时头部退化为 `Label`(`hasSteps={false}`,children 对组件不透明,数不出来只能告知)。旧的 `isStreaming` / `Live` / `LiveStatus` 已标 `@deprecated`,等 [#165](https://github.com/BubblePtr/PiGUI/issues/165) 接线后删除 |
 | chat-chain-of-thought-rail | `shared/ui/chat/` | 2026-08-09 原型探索胜出的 Timeline 皮肤(PR #80);接线等 [#81](https://github.com/BubblePtr/PiGUI/issues/81) |
+| chat-pixel-loader | `shared/ui/chat/` | 九格像素心跳,2026-09-04(#164)从 chain-of-thought 的私有函数提为公开原子。周期是 prop(`periodMs`,默认 **860ms**,ADR-0030 第 8 条定案;旧的 650ms 在状态行上显急),经内联 `--chat-pixel-period` 下发——样式表里只读不声明,声明会盖掉上层传下来的值 |
+| chat-inline-pager | `shared/ui/chat/` | 行内一行视口(#164):旧页上移翻出、新页下方翻入,由 `pageKey` 变化触发,最小停留 `dwellMs`(默认 700ms,下限钳到 300ms 翻页时长);停留期内多次换页只翻一次且落在最新页,同 key 的内容更新原地替换;减动效下直接切换、不产生 `[data-motion]`。全 `span` / `inline-flex` / 无外边距——块级且带 8px 上外边距的 `.chain-of-thought__live` 塞进按钮会让文字比箭头中线低 4px(原型踩过) |
+| chat-thought-step | `shared/ui/chat/` | Thinking 作为一行 step(#164,ADR-0030 第 3 条):live 是带 shimmer 的「Thinking…」,收束为「Thought Ns」(不足 1s 写 briefly,没实测时长只写 Thought),live → settled 经翻页容器。有正文时是 Collapsible、正文用 chat-thought-markdown;没正文就是一行无按钮角色的纯 label——thinking 内容由 provider 决定,空正文是常态不是异常态 |
+| chat-tool-step | `shared/ui/chat/` | 一批 Tool Call 作为一行 step(#164,ADR-0030 第 3/4 条):live 时 label 是「Running {正在跑的工具}…」,随 `activeToolCallId` 翻页(协议在 part(start) 不带工具名,没名字时退化为「Running…」,等 [#165](https://github.com/BubblePtr/PiGUI/issues/165));收束为动词总结行——单工具「动词 + 对象」(路径保尾、命令保头、72 字截断),多工具按工具类型归并计数(bash → Ran N commands,read → Read N files,edit / write → Edited / Wrote N files,grep / find / ls → Searched / Listed,其余 → Used N tools),行末失败数(`--color-danger`)与总耗时。展开是每个工具各自的 `ChatToolGroup` 单行,一个工具就是只有一个元素的一批 |
+| chat-status-line | `shared/ui/chat/` | run 期间的最后一行(#164):像素 loader + 带 shimmer 的状态词 + 走表计时。状态词由 elapsed 每 4s 取一个(thinking / acting 两个词池,同一间隔稳定、跨间隔伪随机,不用自己的计时器)。它是情绪层,信息在 step 行里;心跳全局只有这一处 |
 | chat-thought-markdown | `shared/ui/chat/` | 思考正文的流式安全行内 markdown(`**` / `*` / 反引号);Astryx Markdown 过重且会把未闭合标记露出来 |
 | text-shimmer | `shared/ui/chat/` | 流式占位闪光 |
 | chat-prompt-suggestion | `shared/ui/chat/` | **在用**(agent-workspace 空 draft 建议卡;2026-08-09 核实,此前误判候删) |

@@ -29,6 +29,11 @@ describe("Design components layer", () => {
       "ChatPromptInput",
       "ChatPromptSuggestion",
       "ChatChainOfThought",
+      "ChatPixelLoader",
+      "ChatInlinePager",
+      "ChatThoughtStep",
+      "ChatToolStep",
+      "ChatStatusLine",
       "ChatThoughtMarkdown",
       "ChatConversation",
       "TextShimmer",
@@ -326,6 +331,56 @@ describe("Design components layer", () => {
     const markdown = screen.getByRole("region", { name: "ChatThoughtMarkdown" });
     expect(within(markdown).getByText("inline emphasis and code")).toBeInTheDocument();
     expect(within(markdown).getByText("unclosed marker hidden")).toBeInTheDocument();
+  });
+
+  it("shows the CoT step rows live, settled, with and without a body", () => {
+    render(<DesignComponentsLayer />);
+
+    const thought = screen.getByRole("region", { name: "ChatThoughtStep" });
+
+    expect(within(thought).getByText("live")).toBeInTheDocument();
+    expect(within(thought).getByText("settled, with a body")).toBeInTheDocument();
+    expect(within(thought).getByText("settled, no body")).toBeInTheDocument();
+
+    const tools = screen.getByRole("region", { name: "ChatToolStep" });
+
+    expect(within(tools).getByText("live, call named")).toBeInTheDocument();
+    expect(within(tools).getByText("live, name not known yet")).toBeInTheDocument();
+    expect(within(tools).getByText("settled, one call")).toBeInTheDocument();
+    expect(within(tools).getByText("settled, a burst")).toBeInTheDocument();
+    expect(within(tools).getByText("settled, with a failure")).toBeInTheDocument();
+  });
+
+  it("shows the motion atoms with their reduced-motion behaviour spelled out", () => {
+    render(<DesignComponentsLayer />);
+
+    const loader = screen.getByRole("region", { name: "ChatPixelLoader" });
+
+    expect(within(loader).getByText("periodMs=860 (default)")).toBeInTheDocument();
+    expect(within(loader).getByText(/reduced motion/)).toBeInTheDocument();
+
+    const pager = screen.getByRole("region", { name: "ChatInlinePager" });
+
+    expect(within(pager).getByRole("button", { name: "Flip" })).toBeInTheDocument();
+    expect(within(pager).getByText(/reduced motion/)).toBeInTheDocument();
+
+    const status = screen.getByRole("region", { name: "ChatStatusLine" });
+
+    expect(within(status).getByText('phase="thinking"')).toBeInTheDocument();
+    expect(within(status).getByText('phase="acting"')).toBeInTheDocument();
+  });
+
+  it("shows the CoT block flat while live and folded once settled", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "ChatChainOfThought" });
+
+    expect(within(section).getByText('phase="acting" (flat, status line)')).toBeInTheDocument();
+    expect(within(section).getByText('phase="answering" (heartbeat gone)')).toBeInTheDocument();
+    expect(within(section).getByRole("button", { name: "Worked for 16s" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("is wired into the design page", () => {
