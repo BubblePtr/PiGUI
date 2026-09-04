@@ -29,6 +29,13 @@ export type SessionRuntimeMessagePart = {
   done: boolean;
   toolCallId?: string;
   name?: string;
+  // The part(start)/part(end) boundaries, the way startedAt/updatedAt bracket
+  // a message. The CoT phase machine anchors its clock and its freeze point on
+  // them (ADR-0030 §6), so deltas and the message end snapshot must carry them
+  // across rather than restate them. Absent when the boundary never arrived,
+  // so consumers can tell "not measured" from "measured as zero".
+  startedAt?: string;
+  endedAt?: string;
 };
 
 export type SessionRuntimeMessage = {
@@ -172,17 +179,21 @@ function legacyPartsFromEcho(
 function upsertPart(
   parts: SessionRuntimeMessagePart[],
   event: Extract<AgentRuntimeEvent, { type: "message_part" }>,
+  timestamp: string,
 ): SessionRuntimeMessagePart[] {
   const existingIndex = parts.findIndex((part) => part.partId === event.partId);
   const existing = existingIndex === -1 ? null : parts[existingIndex];
   const body =
     event.bodyMode === "delta" ? `${existing?.body ?? ""}${event.body}` : event.body;
+  const startedAt = existing?.startedAt ?? (event.phase === "start" ? timestamp : undefined);
   const next: SessionRuntimeMessagePart = {
     partId: event.partId,
     partType: event.partType,
     body,
     done: event.phase === "end",
     ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+    ...(startedAt ? { startedAt } : {}),
+    ...(event.phase === "end" ? { endedAt: timestamp } : {}),
   };
 
   if (existingIndex === -1) {
@@ -279,16 +290,30 @@ export function applyAgentRuntimeEvent(
           // duration is read from is gone the moment it completes.
           ...(existing?.startedAt ? { startedAt: existing.startedAt } : {}),
           ...(event.abandoned ? { abandoned: true } : {}),
-          // The end snapshot is the authoritative content.
+          // The end snapshot is the authoritative content, but not an
+          // authority on time: the part boundaries come from the streamed
+          // part, and a part still open here is closed by this boundary.
           parts: event.parts
-            ? event.parts.map((part) => ({
-                partId: part.partId,
-                partType: part.partType,
-                body: part.body,
+            ? event.parts.map((part) => {
+                const streamed = existing?.parts.find(
+                  (candidate) => candidate.partId === part.partId,
+                );
+
+                return {
+                  partId: part.partId,
+                  partType: part.partType,
+                  body: part.body,
+                  done: true,
+                  ...(part.toolCallId ? { toolCallId: part.toolCallId } : {}),
+                  ...(streamed?.startedAt ? { startedAt: streamed.startedAt } : {}),
+                  endedAt: streamed?.endedAt ?? timestamp,
+                };
+              })
+            : (existing?.parts ?? []).map((part) => ({
+                ...part,
                 done: true,
-                ...(part.toolCallId ? { toolCallId: part.toolCallId } : {}),
-              }))
-            : (existing?.parts ?? []).map((part) => ({ ...part, done: true })),
+                endedAt: part.endedAt ?? timestamp,
+              })),
           updatedAt: timestamp,
         });
       }
@@ -316,7 +341,7 @@ export function applyAgentRuntimeEvent(
 
       messages.set(event.messageId, {
         ...message,
-        parts: upsertPart(message.parts, event),
+        parts: upsertPart(message.parts, event, timestamp),
         updatedAt: timestamp,
       });
 

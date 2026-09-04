@@ -32,10 +32,10 @@ type CotPhase = "hidden" | "thinking" | "acting" | "answering" | "settled";
 | 阶段 | 条件 | 含义 |
 |---|---|---|
 | `settled` | `!streamingAllowed`，或该 Run 已收到 `run(end)` | 过程结束，无论 outcome |
-| `answering` | 当前 Assistant Message 有 `text` Part 且 `done === false` | 推定正在写 Final Answer |
+| `answering` | 当前 Assistant Message 有 `text` Part 且没有 `tool_call` Part | 推定正在写（或已写完、等 `run(end)`）Final Answer。不用 `text.done === false`：那会在最后一个 token 到 `run(end)` 之间退回 `thinking`，与第 2 条状态图矛盾，计时也会跳 |
 | `acting` | 存在 Tool Execution 状态为 `announced` 或 `running`，或当前 Assistant Message 最新的 Part 是 `tool_call` | 模型在发调用或工具在跑 |
 | `thinking` | 当前 Assistant Message 存在 `thinking` Part，或 Message 已 start 但尚无 Part | 模型在推理或刚被调用 |
-| `hidden` | 该 Run 尚无 Assistant Message start | 还在等第一次模型调用 |
+| `hidden` | 该 Run 尚无 Assistant Message start（含 abandoned 的） | 还在等第一次模型调用。retry 期间 abandoned 的 Message 已被剔除、替代的还没 start 时，阶段停在 `thinking`、锚点暂缺，CoT 不闪退 |
 
 「当前 Assistant Message」指该 Run 最后一条未 abandoned 的 Assistant Message。abandoned 的 Message 从推导输入中剔除，它的 Part 不进 CoT。
 
