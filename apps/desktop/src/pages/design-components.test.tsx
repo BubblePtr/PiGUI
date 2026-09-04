@@ -324,6 +324,10 @@ describe("Design components layer", () => {
     expect(within(section).getByText('phase="thinking" (flat, status line)')).toBeInTheDocument();
     expect(within(section).getByText('phase="settled", expanded')).toBeInTheDocument();
     expect(within(section).getByText('phase="settled", nothing to disclose')).toBeInTheDocument();
+    expect(within(section).getByText('phase="settled", over a minute')).toBeInTheDocument();
+    expect(within(section).getByText("Worked for 1m 15s")).toBeInTheDocument();
+    expect(within(section).getByText('phase="settled", over an hour')).toBeInTheDocument();
+    expect(within(section).getByText("Worked for 1h 1m 5s")).toBeInTheDocument();
     expect(within(section).getByText("3.2s")).toBeInTheDocument();
     expect(section.querySelector('[data-slot="chat-pixel-loader"]')).toBeInTheDocument();
 

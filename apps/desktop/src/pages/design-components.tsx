@@ -1396,6 +1396,12 @@ function ChatChainOfThoughtGallery() {
         <Variant caption='phase="settled", nothing to disclose'>
           <ChatChainOfThought elapsedMs={2_400} hasSteps={false} phase="settled" />
         </Variant>
+        <Variant caption='phase="settled", over a minute'>
+          <ChatChainOfThought elapsedMs={75_400} hasSteps={false} phase="settled" />
+        </Variant>
+        <Variant caption='phase="settled", over an hour'>
+          <ChatChainOfThought elapsedMs={3_665_000} hasSteps={false} phase="settled" />
+        </Variant>
       </div>
     </GallerySection>
   );
