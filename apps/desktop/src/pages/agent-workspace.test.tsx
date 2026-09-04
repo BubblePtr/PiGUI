@@ -2125,6 +2125,263 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
+  it("keeps the run(end) that lands inside the Stop round-trip so the aborted bubble settles", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-07-02T10:00:10.000Z",
+    });
+    const agentListeners = new Map<
+      string,
+      Set<(entry: AgentRuntimeEventEntry) => void>
+    >();
+    let releaseAbort: (() => void) | null = null;
+    // The abort RPC is held open so the Gateway's run(end) for the aborted
+    // Run can arrive inside the round-trip window — the window handleStopRun
+    // used to clobber with its pre-await projection snapshot, leaving the
+    // aborted bubble ticking forever next to the next prompt's live one.
+    const stopRaceBridge: InMemoryPiRuntimeBridge = {
+      ...bridge,
+      subscribeToAgentEvents(piSessionId, listener) {
+        const sessionListeners = agentListeners.get(piSessionId) ?? new Set();
+
+        sessionListeners.add(listener);
+        agentListeners.set(piSessionId, sessionListeners);
+
+        return () => {
+          sessionListeners.delete(listener);
+        };
+      },
+      async abortRun(input) {
+        const stopped = await bridge.abortRun(input);
+
+        await new Promise<void>((resolve) => {
+          releaseAbort = resolve;
+        });
+
+        return stopped;
+      },
+    };
+    const emitAgentEvent = (entry: AgentRuntimeEventEntry) => {
+      for (const listener of agentListeners.get("pi-session-stop-race") ?? []) {
+        listener(entry);
+      }
+    };
+    const runId = "pi-session-stop-race:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "stop-race-session",
+        projectId: "pig-docs",
+        initialPrompt: "First prompt",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:stop-race-session",
+      piSessionId: "pi-session-stop-race",
+    };
+
+    // The Run is mid-thought when the user reaches for Stop.
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          parts: [],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:02.500Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId: `${messageId}:part-0`,
+          partType: "thinking",
+          phase: "start",
+          bodyMode: "delta",
+          body: "Considering",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-stop-race",
+      runtimeId: "pi-sdk:stop-race-session",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={stopRaceBridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "stop-race-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "fixture-model",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    const liveColumn = await screen.findByTestId("live-session-column");
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    expect(within(liveChat).getByRole("status")).toBeInTheDocument();
+
+    await user.click(await within(liveColumn).findByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(releaseAbort).not.toBeNull());
+
+    // Pi closes the aborted Run while the abort RPC is still in flight.
+    act(() => {
+      for (const entry of [
+        {
+          seq: 4,
+          timestamp: "2026-07-02T10:00:09.000Z",
+          event: {
+            type: "message",
+            runId,
+            turnId,
+            messageId,
+            role: "assistant",
+            phase: "end",
+            parts: [
+              {
+                partId: `${messageId}:part-0`,
+                partType: "thinking",
+                body: "Considering",
+              },
+            ],
+            surface: "chat",
+            origin: "sdk",
+          } as const,
+        },
+        {
+          seq: 5,
+          timestamp: "2026-07-02T10:00:09.500Z",
+          event: {
+            type: "run",
+            runId,
+            phase: "end",
+            trigger: "prompt",
+            outcome: "aborted",
+            surface: "hidden",
+            origin: "sdk",
+          } as const,
+        },
+      ]) {
+        emitAgentEvent(entry);
+      }
+    });
+
+    await act(async () => {
+      releaseAbort?.();
+    });
+
+    await waitFor(() => {
+      expect(within(liveColumn).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    });
+
+    // A completed Session hides every clock, so the lost run(end) only shows
+    // once the next prompt puts the Session back in flight.
+    await user.type(
+      screen.getByPlaceholderText("What do you want to know?"),
+      "Second prompt",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const nextRunId = "pi-session-stop-race:run-2";
+    const nextTurnId = `${nextRunId}:turn-1`;
+    const nextMessageId = `${nextTurnId}:msg-1`;
+
+    act(() => {
+      for (const entry of [
+        {
+          seq: 6,
+          timestamp: "2026-07-02T10:00:20.000Z",
+          event: {
+            type: "run",
+            runId: nextRunId,
+            phase: "start",
+            trigger: "prompt",
+            surface: "hidden",
+            origin: "sdk",
+          } as const,
+        },
+        {
+          seq: 7,
+          timestamp: "2026-07-02T10:00:21.000Z",
+          event: {
+            type: "message",
+            runId: nextRunId,
+            turnId: nextTurnId,
+            messageId: nextMessageId,
+            role: "assistant",
+            phase: "start",
+            parts: [],
+            surface: "chat",
+            origin: "sdk",
+          } as const,
+        },
+      ]) {
+        emitAgentEvent(entry);
+      }
+    });
+
+    // Only the new Run beats; the aborted one stays settled.
+    await waitFor(() => {
+      expect(within(liveChat).getAllByRole("status")).toHaveLength(1);
+    });
+    expect(within(liveChat).getByText("Second prompt")).toBeInTheDocument();
+  });
+
   it("keeps the submitted user bubble when a slow resume resync lands after the prompt echo", async () => {
     const user = userEvent.setup();
     const bridge = createInMemoryPiRuntimeBridge({

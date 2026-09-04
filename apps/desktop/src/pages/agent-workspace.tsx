@@ -2880,43 +2880,55 @@ function LiveSessionColumn({
     commitInteractionProjection(next);
   };
   const handleStopRun = async () => {
-    if (!liveProjection?.piSessionId || !queueMode || stoppingRun) {
+    const projection = liveProjectionRef.current ?? liveProjection;
+
+    if (!projection?.piSessionId || !queueMode || stoppingRun) {
       return;
     }
+
+    const { piSessionId } = projection;
+    // Re-base on the freshest projection at commit time: Pi closes the
+    // aborted Run (message end, run end) while the abort RPC is still in
+    // flight, and committing the pre-await snapshot would drop that closure —
+    // the Run would tick forever once the next prompt reopens the Session.
+    const latestProjection = () => {
+      const latest = liveProjectionRef.current;
+
+      return latest?.piSessionId === piSessionId ? latest : projection;
+    };
 
     setStoppingRun(true);
 
     try {
       await restoreProjectionRuntimeState({
         bridge: getRuntimeBridge(),
-        projection: liveProjection,
+        projection,
         workspace,
       });
 
-      const event = await getRuntimeBridge().abortRun({
-        piSessionId: liveProjection.piSessionId,
+      const event = await getRuntimeBridge().abortRun({ piSessionId });
+      const next = applySessionProjectionEvent(latestProjection(), {
+        type: "run-stopped",
+        event,
       });
 
-      commitInteractionProjection(
-        applySessionProjectionEvent(liveProjection, {
-          type: "run-stopped",
-          event,
-        }),
-      );
+      liveProjectionRef.current = next;
+      commitInteractionProjection(next);
     } catch (error) {
-      commitInteractionProjection(
-        applySessionProjectionEvent(liveProjection, {
-          type: "run-stop-failed",
-          event: {
-            id: `stop-failed-${Date.now()}`,
-            piSessionId: liveProjection.piSessionId,
-            kind: "error",
-            title: "Stop failed",
-            body: messageFromError(error),
-            timestamp: new Date().toISOString(),
-          },
-        }),
-      );
+      const next = applySessionProjectionEvent(latestProjection(), {
+        type: "run-stop-failed",
+        event: {
+          id: `stop-failed-${Date.now()}`,
+          piSessionId,
+          kind: "error",
+          title: "Stop failed",
+          body: messageFromError(error),
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      liveProjectionRef.current = next;
+      commitInteractionProjection(next);
     } finally {
       setStoppingRun(false);
     }
