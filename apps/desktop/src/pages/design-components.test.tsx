@@ -383,6 +383,10 @@ describe("Design components layer", () => {
     expect(
       within(section).getByText('phase="answering" (heartbeat gone, Interim Output in the list)'),
     ).toBeInTheDocument();
+    // The gallery's Interim Output row is a copy of the page-level composition
+    // in agent-workspace; the slot has to match or the copy stops standing in
+    // for it (styling, and the UI intent picker, both key off it).
+    expect(section.querySelector('[data-slot="chat-interim-output"]')).toBeInTheDocument();
     expect(
       within(section).getAllByRole("button", { name: "Worked for 16s" })[0],
     ).toHaveAttribute("aria-expanded", "false");

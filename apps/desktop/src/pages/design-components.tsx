@@ -1356,7 +1356,10 @@ function ChatChainOfThoughtGallery() {
                 <ChatThoughtStep step={settledThought} />
               </ChatChainOfThought.Step>
               <ChatChainOfThought.Step>
-                <div className="chain-of-thought__interim">
+                <div
+                  className="chain-of-thought__interim"
+                  data-slot="chat-interim-output"
+                >
                   <ChatThoughtMarkdown text="Let me read the ADR before answering." />
                 </div>
               </ChatChainOfThought.Step>
