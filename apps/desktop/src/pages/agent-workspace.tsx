@@ -984,6 +984,18 @@ function liveMessagesFromRuntimeModel(
 
     const cotView = deriveCotView(model, runId, { streamingAllowed, nowMs: clockNowMs });
 
+    // A run whose every model call was abandoned settles with nothing said,
+    // nothing to disclose and nothing measured. Its bubble would be an empty
+    // gap above the error bubble that already tells the story.
+    if (
+      cotView.phase === "settled" &&
+      !cotView.steps.length &&
+      !cotView.answer &&
+      cotView.elapsedMs === undefined
+    ) {
+      continue;
+    }
+
     messages.push({
       // The Run's first Message anchors the bubble's place in the log; an
       // abandoned one still holds it, so a retry does not reorder the chat.

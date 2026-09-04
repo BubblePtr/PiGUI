@@ -4007,6 +4007,155 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
+  it("leaves no empty assistant bubble when a failed run's only model call was abandoned", () => {
+    const workspace = {
+      id: "pig-docs",
+      name: "Pig Docs",
+      projectRoot: "/Users/void/code/opensource/Pig/docs",
+      repoRoot: "/Users/void/code/opensource/Pig",
+      selectedSessionId: "session-model",
+      liveMessages: [],
+      runTimeline: [],
+      checkout: {
+        mode: "Foreground local checkout",
+        root: "/Users/void/code/opensource/Pig",
+        runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+      },
+      summary: {
+        model: "fixture-model",
+        totalCostUsd: 0,
+        totalTokens: 0,
+      },
+    };
+    const runId = "pi-session-model:run-1";
+    const turnId = `${runId}:turn-1`;
+    const abandonedId = `${turnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "session-model",
+        projectId: "pig-docs",
+        initialPrompt: "Ship it",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:session-model",
+      piSessionId: "pi-session-model",
+    };
+
+    // The retry threw away the run's only Message and then failed outright, so
+    // the Chain of Thought has nothing to show. The failure is the error
+    // bubble's to tell; a second, empty bubble above it is just a gap.
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: abandonedId,
+          role: "assistant",
+          phase: "start",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: { type: "status", runId, code: "retrying", surface: "trace", origin: "sdk" } as const,
+      },
+      {
+        seq: 4,
+        timestamp: "2026-07-02T10:00:03.500Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId: abandonedId,
+          role: "assistant",
+          phase: "end",
+          abandoned: true,
+          parts: [{ partId: `${abandonedId}:part-0`, partType: "text", body: "Par" }],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 5,
+        timestamp: "2026-07-02T10:00:04.000Z",
+        event: {
+          type: "status",
+          runId,
+          code: "retry_failed",
+          surface: "trace",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 6,
+        timestamp: "2026-07-02T10:00:04.500Z",
+        event: {
+          type: "error",
+          runId,
+          code: "provider_error",
+          body: "The provider dropped the connection.",
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 7,
+        timestamp: "2026-07-02T10:00:05.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "end",
+          trigger: "prompt",
+          outcome: "failed",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        workspace={workspace}
+        sessionProjection={projection}
+      />,
+    );
+
+    const liveChat = screen.getByLabelText("Live Chat messages");
+    const assistantMessages = liveChat.querySelectorAll<HTMLElement>(
+      '[data-slot="chat-message-assistant"]',
+    );
+
+    expect(assistantMessages).toHaveLength(1);
+    expect(within(assistantMessages[0]).getByText("Run failed")).toBeInTheDocument();
+    expect(
+      within(assistantMessages[0]).getByText("The provider dropped the connection."),
+    ).toBeInTheDocument();
+  });
+
   it("discloses a measured model call on a plain answer that leaves no trace steps behind", () => {
     const workspace = {
       id: "pig-docs",
