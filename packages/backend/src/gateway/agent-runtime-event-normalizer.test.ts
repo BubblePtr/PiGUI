@@ -415,6 +415,9 @@ describe("agent runtime event normalizer", () => {
         bodyMode: "snapshot",
         body: '{"path":"a.ts"}',
         toolCallId: "call-1",
+        // This bridge's partial was empty at toolcall_start, so the closing
+        // boundary is where the name lands.
+        toolName: "read_file",
         surface: "trace",
         origin: "sdk",
       },
@@ -497,6 +500,59 @@ describe("agent runtime event normalizer", () => {
     );
 
     expect(openingPart).toMatchObject({ partType: "tool_call", toolName: "read_file" });
+  });
+
+  it("names a tool_call at its closing boundary when the opening partial had no name yet", () => {
+    const normalizer = createAgentRuntimeEventNormalizer({ piSessionId });
+    // openai-completions streams the call id before the function name, so the
+    // partial at toolcall_start can be nameless. The parsed ToolCall at
+    // toolcall_end is then the first place the name exists.
+    const namelessPartial = {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", arguments: {} }],
+    };
+    const toolCall = {
+      type: "toolCall",
+      id: "call-1",
+      name: "read_file",
+      arguments: { path: "a.ts" },
+    };
+
+    const events = normalizeAll(normalizer, [
+      { type: "agent_start" },
+      { type: "turn_start" },
+      { type: "message_start", message: namelessPartial },
+      {
+        type: "message_update",
+        message: namelessPartial,
+        assistantMessageEvent: {
+          type: "toolcall_start",
+          contentIndex: 0,
+          partial: namelessPartial,
+        },
+      },
+      {
+        type: "message_update",
+        message: namelessPartial,
+        assistantMessageEvent: {
+          type: "toolcall_end",
+          contentIndex: 0,
+          toolCall,
+          partial: namelessPartial,
+        },
+      },
+    ]);
+
+    const parts = events.filter((event) => event.type === "message_part");
+
+    expect(parts[0]).toMatchObject({ partType: "tool_call", phase: "start" });
+    expect(parts[0]).not.toHaveProperty("toolName");
+    expect(parts[1]).toMatchObject({
+      partType: "tool_call",
+      phase: "end",
+      toolCallId: "call-1",
+      toolName: "read_file",
+    });
   });
 
   it("scopes Turn and message identity per turn across a multi-turn tool loop, ignoring toolResult transcript messages", () => {

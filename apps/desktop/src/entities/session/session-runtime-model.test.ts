@@ -619,6 +619,61 @@ describe("session runtime model", () => {
     ]);
   });
 
+  it("takes the tool name from the closing tool_call part when the opening one had none", () => {
+    let model = createSessionRuntimeModel();
+
+    // Some providers only name the call once its block is parsed, so the name
+    // can first arrive at part(end); the label must fill in rather than stay
+    // anonymous for the rest of the run.
+    model = applyAll(model, [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" },
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "tool_call",
+          phase: "start",
+          bodyMode: "snapshot",
+          body: "",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+      {
+        seq: 3,
+        timestamp: "2026-07-02T10:00:03.000Z",
+        event: {
+          type: "message_part",
+          runId,
+          turnId,
+          messageId,
+          partId,
+          partType: "tool_call",
+          phase: "end",
+          bodyMode: "snapshot",
+          body: '{"path":"a.ts"}',
+          toolCallId: "call-1",
+          toolName: "read_file",
+          surface: "trace",
+          origin: "sdk",
+        },
+      },
+    ]);
+
+    expect(model.messages.get(messageId)?.parts).toMatchObject([
+      { partId, partType: "tool_call", toolCallId: "call-1", name: "read_file" },
+    ]);
+  });
+
   it("fails the session on a run error even when a later run end reports completed", () => {
     let model = createSessionRuntimeModel();
 

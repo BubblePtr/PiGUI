@@ -236,6 +236,13 @@ export function createAgentRuntimeEventNormalizer(
         existing.body = JSON.stringify(toolCall.arguments ?? {});
         existing.toolCallId = typeof toolCall.id === "string" ? toolCall.id : undefined;
 
+        // Some bridges (openai-completions) stream the call id before the
+        // function name, so the partial at toolcall_start was nameless and the
+        // parsed block here is the first place the name exists.
+        if (!existing.toolName && typeof toolCall.name === "string" && toolCall.name) {
+          existing.toolName = toolCall.name;
+        }
+
         return [partEvent(existing, "end", "snapshot", existing.body)];
       }
 
