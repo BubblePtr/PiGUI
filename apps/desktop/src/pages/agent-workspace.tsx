@@ -2600,6 +2600,17 @@ function LiveSessionColumn({
   // waiting for React to re-render (and without dropping mid-stream events).
   const liveProjectionRef = useRef(liveProjection);
   liveProjectionRef.current = liveProjection;
+  // Every interaction handler awaits an RPC and then commits. The projection
+  // it captured before the await is stale by then: the live subscription keeps
+  // applying Gateway events (a Run's answer, the closure of an aborted Run)
+  // into the ref during the round-trip, and committing on top of the snapshot
+  // would silently drop them. Commit on the ref instead, falling back to the
+  // snapshot only when the view switched to another Session mid-flight.
+  const latestProjectionFor = (snapshot: SessionProjection) => {
+    const latest = liveProjectionRef.current;
+
+    return latest?.piSessionId === snapshot.piSessionId ? latest : snapshot;
+  };
 
   const onProjectionChangeRef = useRef(onProjectionChange);
   onProjectionChangeRef.current = onProjectionChange;
@@ -2746,9 +2757,6 @@ function LiveSessionColumn({
     message: string,
     images?: RuntimePromptImage[],
   ) => {
-    // Base every interaction commit on the freshest projection (ref falls
-    // back to state): steer-then-withdraw runs two commits back to back, and
-    // a stale closure base would clobber the first commit's event.
     const projection = liveProjectionRef.current ?? liveProjection;
 
     if (!projection?.piSessionId || !queueMode) {
@@ -2761,7 +2769,7 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "queued-message-added",
       queuedMessage,
     });
@@ -2790,15 +2798,7 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    // Re-base the echo on the freshest projection: the pre-await snapshot is
-    // stale by now, and committing on top of it would silently drop every live
-    // event that landed during the RPC round-trip (same pattern as
-    // createSessionFromDraft's mutable projection). If the view switched to
-    // another Session mid-flight, fall back to the captured snapshot.
-    const latest = liveProjectionRef.current ?? liveProjection;
-    const base =
-      latest?.piSessionId === projection.piSessionId ? latest : projection;
-    const next = applySessionProjectionEvent(base, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "runtime-event-received",
       event: accepted.event,
     });
@@ -2848,7 +2848,7 @@ function LiveSessionColumn({
       queuedMessageId,
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "queued-message-withdrawn",
       queuedMessageId,
       occurredAt: new Date().toISOString(),
@@ -2872,7 +2872,7 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "steer-submitted",
       event,
     });
@@ -2887,15 +2887,6 @@ function LiveSessionColumn({
     }
 
     const { piSessionId } = projection;
-    // Re-base on the freshest projection at commit time: Pi closes the
-    // aborted Run (message end, run end) while the abort RPC is still in
-    // flight, and committing the pre-await snapshot would drop that closure —
-    // the Run would tick forever once the next prompt reopens the Session.
-    const latestProjection = () => {
-      const latest = liveProjectionRef.current;
-
-      return latest?.piSessionId === piSessionId ? latest : projection;
-    };
 
     setStoppingRun(true);
 
@@ -2907,7 +2898,7 @@ function LiveSessionColumn({
       });
 
       const event = await getRuntimeBridge().abortRun({ piSessionId });
-      const next = applySessionProjectionEvent(latestProjection(), {
+      const next = applySessionProjectionEvent(latestProjectionFor(projection), {
         type: "run-stopped",
         event,
       });
@@ -2915,7 +2906,7 @@ function LiveSessionColumn({
       liveProjectionRef.current = next;
       commitInteractionProjection(next);
     } catch (error) {
-      const next = applySessionProjectionEvent(latestProjection(), {
+      const next = applySessionProjectionEvent(latestProjectionFor(projection), {
         type: "run-stop-failed",
         event: {
           id: `stop-failed-${Date.now()}`,

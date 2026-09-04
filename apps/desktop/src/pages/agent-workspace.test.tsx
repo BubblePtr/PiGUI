@@ -2382,6 +2382,187 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(liveChat).getByText("Second prompt")).toBeInTheDocument();
   });
 
+  it("keeps the run events that land inside the Steer round-trip", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-07-02T10:00:10.000Z",
+    });
+    const agentListeners = new Map<
+      string,
+      Set<(entry: AgentRuntimeEventEntry) => void>
+    >();
+    let releaseSteer: (() => void) | null = null;
+    // Same window as Stop: the steer RPC is parked so the Run's answer can
+    // land inside it, and the commit must not fall back to the pre-await
+    // projection snapshot.
+    const steerRaceBridge: InMemoryPiRuntimeBridge = {
+      ...bridge,
+      subscribeToAgentEvents(piSessionId, listener) {
+        const sessionListeners = agentListeners.get(piSessionId) ?? new Set();
+
+        sessionListeners.add(listener);
+        agentListeners.set(piSessionId, sessionListeners);
+
+        return () => {
+          sessionListeners.delete(listener);
+        };
+      },
+      async steerRun(input) {
+        const steered = await bridge.steerRun(input);
+
+        await new Promise<void>((resolve) => {
+          releaseSteer = resolve;
+        });
+
+        return steered;
+      },
+    };
+    const emitAgentEvent = (entry: AgentRuntimeEventEntry) => {
+      for (const listener of agentListeners.get("pi-session-steer-race") ?? []) {
+        listener(entry);
+      }
+    };
+    const runId = "pi-session-steer-race:run-1";
+    const turnId = `${runId}:turn-1`;
+    const messageId = `${turnId}:msg-1`;
+    let projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "steer-race-session",
+        projectId: "pig-docs",
+        initialPrompt: "First prompt",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      creationStage: "accepted",
+      runtimeId: "pi-sdk:steer-race-session",
+      piSessionId: "pi-session-steer-race",
+    };
+
+    for (const entry of [
+      {
+        seq: 1,
+        timestamp: "2026-07-02T10:00:01.000Z",
+        event: {
+          type: "run",
+          runId,
+          phase: "start",
+          trigger: "prompt",
+          surface: "hidden",
+          origin: "sdk",
+        } as const,
+      },
+      {
+        seq: 2,
+        timestamp: "2026-07-02T10:00:02.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "start",
+          parts: [],
+          surface: "chat",
+          origin: "sdk",
+        } as const,
+      },
+    ]) {
+      projection = applySessionProjectionEvent(projection, {
+        type: "agent-event-received",
+        entry,
+      });
+    }
+
+    await bridge.restoreSessionState({
+      piSessionId: "pi-session-steer-race",
+      runtimeId: "pi-sdk:steer-race-session",
+      projectId: "pig-docs",
+      cwd: "/Users/void/code/opensource/Pig/docs",
+      status: "running",
+      events: projection.runtimeEvents,
+      updatedAt: projection.updatedAt,
+    });
+
+    render(
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={steerRaceBridge}
+        sessionProjection={projection}
+        workspace={{
+          id: "pig-docs",
+          name: "Pig Docs",
+          projectRoot: "/Users/void/code/opensource/Pig/docs",
+          repoRoot: "/Users/void/code/opensource/Pig",
+          selectedSessionId: "steer-race-session",
+          liveMessages: [],
+          runTimeline: [],
+          checkout: {
+            mode: "Foreground local checkout",
+            root: "/Users/void/code/opensource/Pig",
+            runtimeCwd: "/Users/void/code/opensource/Pig/docs",
+          },
+          summary: {
+            model: "fixture-model",
+            totalCostUsd: 0,
+            totalTokens: 0,
+          },
+        }}
+      />,
+    );
+
+    await user.type(
+      await screen.findByPlaceholderText("Queue the next task…"),
+      "Steer text",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const pendingQueue = await screen.findByTestId("queued-message-list");
+
+    await user.click(
+      within(pendingQueue).getByRole("button", {
+        name: "Steer the run with this message",
+      }),
+    );
+    await waitFor(() => expect(releaseSteer).not.toBeNull());
+
+    // The Run answers while the steer RPC is still in flight.
+    act(() => {
+      emitAgentEvent({
+        seq: 3,
+        timestamp: "2026-07-02T10:00:09.000Z",
+        event: {
+          type: "message",
+          runId,
+          turnId,
+          messageId,
+          role: "assistant",
+          phase: "end",
+          parts: [
+            {
+              partId: `${messageId}:part-0`,
+              partType: "text",
+              body: "Answer before the steer landed",
+            },
+          ],
+          surface: "chat",
+          origin: "sdk",
+        },
+      });
+    });
+
+    await act(async () => {
+      releaseSteer?.();
+    });
+
+    const liveChat = await screen.findByLabelText("Live Chat messages");
+
+    await waitFor(() => expect(liveChat).toHaveTextContent("Steer text"));
+    // The answer streams in through the incremental renderer, so give it a beat.
+    await waitFor(
+      () => expect(liveChat).toHaveTextContent("Answer before the steer landed"),
+      { timeout: 3000 },
+    );
+  });
+
   it("keeps the submitted user bubble when a slow resume resync lands after the prompt echo", async () => {
     const user = userEvent.setup();
     const bridge = createInMemoryPiRuntimeBridge({
