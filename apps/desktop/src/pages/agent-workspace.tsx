@@ -2600,6 +2600,17 @@ function LiveSessionColumn({
   // waiting for React to re-render (and without dropping mid-stream events).
   const liveProjectionRef = useRef(liveProjection);
   liveProjectionRef.current = liveProjection;
+  // Every interaction handler awaits an RPC and then commits. The projection
+  // it captured before the await is stale by then: the live subscription keeps
+  // applying Gateway events (a Run's answer, the closure of an aborted Run)
+  // into the ref during the round-trip, and committing on top of the snapshot
+  // would silently drop them. Commit on the ref instead, falling back to the
+  // snapshot only when the view switched to another Session mid-flight.
+  const latestProjectionFor = (snapshot: SessionProjection) => {
+    const latest = liveProjectionRef.current;
+
+    return latest?.piSessionId === snapshot.piSessionId ? latest : snapshot;
+  };
 
   const onProjectionChangeRef = useRef(onProjectionChange);
   onProjectionChangeRef.current = onProjectionChange;
@@ -2746,9 +2757,6 @@ function LiveSessionColumn({
     message: string,
     images?: RuntimePromptImage[],
   ) => {
-    // Base every interaction commit on the freshest projection (ref falls
-    // back to state): steer-then-withdraw runs two commits back to back, and
-    // a stale closure base would clobber the first commit's event.
     const projection = liveProjectionRef.current ?? liveProjection;
 
     if (!projection?.piSessionId || !queueMode) {
@@ -2761,7 +2769,7 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "queued-message-added",
       queuedMessage,
     });
@@ -2790,15 +2798,7 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    // Re-base the echo on the freshest projection: the pre-await snapshot is
-    // stale by now, and committing on top of it would silently drop every live
-    // event that landed during the RPC round-trip (same pattern as
-    // createSessionFromDraft's mutable projection). If the view switched to
-    // another Session mid-flight, fall back to the captured snapshot.
-    const latest = liveProjectionRef.current ?? liveProjection;
-    const base =
-      latest?.piSessionId === projection.piSessionId ? latest : projection;
-    const next = applySessionProjectionEvent(base, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "runtime-event-received",
       event: accepted.event,
     });
@@ -2848,7 +2848,7 @@ function LiveSessionColumn({
       queuedMessageId,
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "queued-message-withdrawn",
       queuedMessageId,
       occurredAt: new Date().toISOString(),
@@ -2872,7 +2872,7 @@ function LiveSessionColumn({
       ...(images?.length ? { images } : {}),
     });
 
-    const next = applySessionProjectionEvent(projection, {
+    const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "steer-submitted",
       event,
     });
@@ -2880,43 +2880,46 @@ function LiveSessionColumn({
     commitInteractionProjection(next);
   };
   const handleStopRun = async () => {
-    if (!liveProjection?.piSessionId || !queueMode || stoppingRun) {
+    const projection = liveProjectionRef.current ?? liveProjection;
+
+    if (!projection?.piSessionId || !queueMode || stoppingRun) {
       return;
     }
+
+    const { piSessionId } = projection;
 
     setStoppingRun(true);
 
     try {
       await restoreProjectionRuntimeState({
         bridge: getRuntimeBridge(),
-        projection: liveProjection,
+        projection,
         workspace,
       });
 
-      const event = await getRuntimeBridge().abortRun({
-        piSessionId: liveProjection.piSessionId,
+      const event = await getRuntimeBridge().abortRun({ piSessionId });
+      const next = applySessionProjectionEvent(latestProjectionFor(projection), {
+        type: "run-stopped",
+        event,
       });
 
-      commitInteractionProjection(
-        applySessionProjectionEvent(liveProjection, {
-          type: "run-stopped",
-          event,
-        }),
-      );
+      liveProjectionRef.current = next;
+      commitInteractionProjection(next);
     } catch (error) {
-      commitInteractionProjection(
-        applySessionProjectionEvent(liveProjection, {
-          type: "run-stop-failed",
-          event: {
-            id: `stop-failed-${Date.now()}`,
-            piSessionId: liveProjection.piSessionId,
-            kind: "error",
-            title: "Stop failed",
-            body: messageFromError(error),
-            timestamp: new Date().toISOString(),
-          },
-        }),
-      );
+      const next = applySessionProjectionEvent(latestProjectionFor(projection), {
+        type: "run-stop-failed",
+        event: {
+          id: `stop-failed-${Date.now()}`,
+          piSessionId,
+          kind: "error",
+          title: "Stop failed",
+          body: messageFromError(error),
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      liveProjectionRef.current = next;
+      commitInteractionProjection(next);
     } finally {
       setStoppingRun(false);
     }
