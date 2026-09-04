@@ -1,18 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SessionChanges } from "@pigui/core";
-import { getSessionChanges } from "@/entities/session/sessions";
+import { getSessionChanges, checkoutSessionBranch } from "@/entities/session/sessions";
 
 /**
  * One read of a Session's working tree, shared by everything that shows it:
- * the Changes panel and the inspector rail badge (ADR-0028). Keeping the read
- * here — rather than inside the panel — is what lets the rail carry a count
- * while another surface is on screen, without asking Git twice.
+ * the composer git-branch chip, the Changes panel, and the inspector rail
+ * badge (ADR-0028). Keeping the read here — rather than inside each surface —
+ * is what lets the footer and the rail share one Git round-trip.
  */
 export type SessionChangesView = {
   changes: SessionChanges | null;
   error: string | null;
   loading: boolean;
   refresh: () => void;
+  checkoutBranch: (branch: string) => Promise<void>;
 };
 
 type SettledRead = {
@@ -25,11 +26,13 @@ export function useSessionChanges({
   sessionId,
   enabled = true,
   loadChanges = getSessionChanges,
+  checkoutSessionBranch: checkout = checkoutSessionBranch,
 }: {
   sessionId: string | null;
-  /** False while nothing displays the diff, so Git stays untouched. */
+  /** False while nothing displays the branch or the diff, so Git stays untouched. */
   enabled?: boolean;
   loadChanges?: typeof getSessionChanges;
+  checkoutSessionBranch?: typeof checkoutSessionBranch;
 }): SessionChangesView {
   const [refreshKey, setRefreshKey] = useState(0);
   const [settled, setSettled] = useState<SettledRead | null>(null);
@@ -37,6 +40,12 @@ export function useSessionChanges({
   // asks for a new read; a later setState would flash the clean-tree copy.
   const requestKey = enabled && sessionId ? `${sessionId}:${refreshKey}` : null;
   const current = settled?.key === requestKey ? settled : null;
+  const requestKeyRef = useRef(requestKey);
+  requestKeyRef.current = requestKey;
+  // Checkout does not change requestKey, so the in-flight load effect is not
+  // cleaned up. Bump this on a successful switch so a slower read cannot
+  // replace the post-checkout tree.
+  const loadGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!requestKey || !sessionId) {
@@ -44,15 +53,16 @@ export function useSessionChanges({
     }
 
     let cancelled = false;
+    const generation = loadGenerationRef.current;
 
     void loadChanges(sessionId)
       .then((changes) => {
-        if (!cancelled) {
+        if (!cancelled && generation === loadGenerationRef.current) {
           setSettled({ key: requestKey, changes, error: null });
         }
       })
       .catch((loadError) => {
-        if (!cancelled) {
+        if (!cancelled && generation === loadGenerationRef.current) {
           setSettled({
             key: requestKey,
             changes: null,
@@ -74,6 +84,19 @@ export function useSessionChanges({
     error: current?.error ?? null,
     loading: requestKey !== null && current === null,
     refresh: () => setRefreshKey((value) => value + 1),
+    checkoutBranch: async (branch: string) => {
+      if (!sessionId) {
+        throw new Error("No Session is bound to check out a branch.");
+      }
+
+      const next = await checkout(sessionId, branch);
+      loadGenerationRef.current += 1;
+      setSettled({
+        key: requestKeyRef.current ?? `${sessionId}:${refreshKey}`,
+        changes: next,
+        error: null,
+      });
+    },
   };
 }
 

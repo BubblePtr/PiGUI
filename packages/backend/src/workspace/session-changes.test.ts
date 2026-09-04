@@ -22,6 +22,14 @@ async function git(cwd: string, ...args: string[]) {
   });
 }
 
+async function gitStdout(cwd: string, ...args: string[]) {
+  const { stdout } = await execFileAsync("git", args, {
+    cwd,
+    env: { ...process.env, LC_ALL: "C" },
+  });
+  return stdout.toString().trim();
+}
+
 async function repository() {
   const root = await tempDirectory();
 
@@ -77,8 +85,136 @@ describe("session changes reader", () => {
         state: "clean",
         repositoryRoot: await realpath(cleanRoot),
         head: expect.objectContaining({ oid: expect.any(String) }),
+        branches: expect.arrayContaining([
+          expect.stringMatching(/^(main|master)$/),
+        ]),
         files: [],
       }),
+    );
+  });
+
+  it("lists every local branch, current first", async () => {
+    const root = await repository();
+    await git(root, "branch", "feat/composer-git");
+    await git(root, "branch", "fix/spacing");
+
+    const result = await createNodeSessionChangesReader().read({
+      sessionId: "branches",
+      checkoutRoot: root,
+      diffRoot: root,
+    });
+    const current =
+      result.head?.branch ??
+      (result.branches?.[0] as string | undefined);
+
+    expect(current).toMatch(/^(main|master)$/);
+    expect(result.branches?.[0]).toBe(current);
+    expect(result.branches).toEqual(
+      expect.arrayContaining([current, "feat/composer-git", "fix/spacing"]),
+    );
+    expect(result.branches).toHaveLength(3);
+  });
+
+  it("switches the Session checkout onto the named local branch", async () => {
+    const root = await repository();
+    await git(root, "branch", "feat/composer-git");
+    const reader = createNodeSessionChangesReader();
+
+    const result = await reader.checkoutBranch({
+      sessionId: "switch",
+      checkoutRoot: root,
+      diffRoot: root,
+      branch: "feat/composer-git",
+    });
+
+    expect(result.head?.branch).toBe("feat/composer-git");
+    expect(result.head?.detached).toBe(false);
+    await expect(gitStdout(root, "symbolic-ref", "--short", "HEAD")).resolves.toBe(
+      "feat/composer-git",
+    );
+  });
+
+  it("refuses names that are not local branches and leaves HEAD where it was", async () => {
+    const root = await repository();
+    const reader = createNodeSessionChangesReader();
+    const before = await gitStdout(root, "symbolic-ref", "--short", "HEAD");
+
+    await expect(
+      reader.checkoutBranch({
+        sessionId: "unknown",
+        checkoutRoot: root,
+        diffRoot: root,
+        branch: "no-such-branch",
+      }),
+    ).rejects.toThrow(/unknown local branch/i);
+    await expect(gitStdout(root, "symbolic-ref", "--short", "HEAD")).resolves.toBe(
+      before,
+    );
+  });
+
+  it("refuses to switch when Git would overwrite local changes", async () => {
+    const root = await repository();
+    const origin = await gitStdout(root, "symbolic-ref", "--short", "HEAD");
+    await git(root, "checkout", "-b", "feat/composer-git");
+    await writeFile(join(root, "tracked.txt"), "on feature\n", "utf8");
+    await git(root, "commit", "-am", "feature edit");
+    await git(root, "checkout", origin);
+    await writeFile(join(root, "tracked.txt"), "dirty on origin\n", "utf8");
+
+    await expect(
+      createNodeSessionChangesReader().checkoutBranch({
+        sessionId: "dirty",
+        checkoutRoot: root,
+        diffRoot: root,
+        branch: "feat/composer-git",
+      }),
+    ).rejects.toThrow(/would be overwritten|local changes/i);
+    await expect(gitStdout(root, "symbolic-ref", "--short", "HEAD")).resolves.toBe(
+      origin,
+    );
+  });
+
+  it("marks branches already checked out in another worktree as occupied", async () => {
+    const root = await repository();
+    const origin = await gitStdout(root, "symbolic-ref", "--short", "HEAD");
+    await git(root, "branch", "feat/locked");
+    const worktree = join(await tempDirectory(), "locked-wt");
+    await git(root, "worktree", "add", worktree, "feat/locked");
+
+    const result = await createNodeSessionChangesReader().read({
+      sessionId: "occupied",
+      checkoutRoot: root,
+      diffRoot: root,
+    });
+
+    expect(result.occupiedBranches).toEqual([
+      {
+        branch: "feat/locked",
+        path: await realpath(worktree),
+      },
+    ]);
+    expect(result.occupiedBranches?.some((item) => item.branch === origin)).toBe(
+      false,
+    );
+  });
+
+  it("refuses to switch onto a branch another worktree already holds", async () => {
+    const root = await repository();
+    const origin = await gitStdout(root, "symbolic-ref", "--short", "HEAD");
+    await git(root, "branch", "feat/locked");
+    const worktree = join(await tempDirectory(), "locked-wt");
+    await git(root, "worktree", "add", worktree, "feat/locked");
+
+    await expect(
+      createNodeSessionChangesReader().checkoutBranch({
+        sessionId: "occupied-switch",
+        checkoutRoot: root,
+        diffRoot: root,
+        branch: "feat/locked",
+      }),
+    ).rejects.toThrow(/already checked out/i);
+    await expect(gitStdout(root, "symbolic-ref", "--short", "HEAD")).resolves.toBe(
+      origin,
     );
   });
 

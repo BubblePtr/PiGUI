@@ -19,8 +19,13 @@ export type ReadSessionChangesInput = {
   diffRoot: string;
 };
 
+export type CheckoutSessionBranchInput = ReadSessionChangesInput & {
+  branch: string;
+};
+
 export type SessionChangesReader = {
   read(input: ReadSessionChangesInput): Promise<SessionChanges>;
+  checkoutBranch(input: CheckoutSessionBranchInput): Promise<SessionChanges>;
 };
 
 type GitResult = {
@@ -304,12 +309,126 @@ function displayPath(repositoryRoot: string, diffRoot: string, repoPath: string)
   return relative(diffRoot, absolutePath) || repoPath;
 }
 
+function assertLocalBranchName(branch: string) {
+  if (!branch || branch.startsWith("-") || branch.includes("..") || /\s/.test(branch)) {
+    throw new Error(`Unknown local branch "${branch}".`);
+  }
+}
+
+async function inspectCheckout(input: {
+  checkoutRoot: string;
+  diffRoot: string;
+}): Promise<
+  | { kind: "non-git"; checkoutRoot: string }
+  | { kind: "git"; checkoutRoot: string; diffRoot: string; repositoryRoot: string }
+> {
+  const checkoutRoot = await realpath(input.checkoutRoot);
+  const diffRoot = await realpath(input.diffRoot);
+
+  if (!isInside(checkoutRoot, diffRoot)) {
+    throw new Error("Session diff root must be inside its execution checkout.");
+  }
+
+  const topLevelResult = await runGit({
+    cwd: diffRoot,
+    args: ["rev-parse", "--show-toplevel"],
+    allowExitCodes: [0, 128],
+  });
+
+  if (topLevelResult.exitCode === 128) {
+    const detail = topLevelResult.stderr.toString("utf8").trim();
+
+    if (!/not a git repository|not a git work tree/i.test(detail)) {
+      throw new Error(detail || "Git could not inspect the Session checkout.");
+    }
+
+    return { kind: "non-git", checkoutRoot };
+  }
+
+  const repositoryRoot = await realpath(
+    topLevelResult.stdout.toString("utf8").trim(),
+  );
+
+  if (!isInside(checkoutRoot, repositoryRoot) || !isInside(repositoryRoot, diffRoot)) {
+    throw new Error("Session Git repository must stay inside its execution checkout.");
+  }
+
+  return { kind: "git", checkoutRoot, diffRoot, repositoryRoot };
+}
+
+async function listLocalBranches(repositoryRoot: string) {
+  const result = await runGit({
+    cwd: repositoryRoot,
+    args: [
+      "for-each-ref",
+      "--format=%(refname:short)",
+      "--sort=refname",
+      "refs/heads",
+    ],
+  });
+
+  return result.stdout
+    .toString("utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseWorktreeList(stdout: string) {
+  const records: Array<{ path: string; branch: string | null }> = [];
+
+  for (const block of stdout.split(/\n\n+/)) {
+    let path: string | undefined;
+    let branch: string | null = null;
+
+    for (const line of block.split("\n")) {
+      if (line.startsWith("worktree ")) {
+        path = line.slice("worktree ".length).trim();
+      } else if (line.startsWith("branch ")) {
+        branch = line.slice("branch ".length).trim().replace(/^refs\/heads\//, "");
+      }
+    }
+
+    if (path) {
+      records.push({ path, branch });
+    }
+  }
+
+  return records;
+}
+
+async function listOccupiedBranches(repositoryRoot: string) {
+  const result = await runGit({
+    cwd: repositoryRoot,
+    args: ["worktree", "list", "--porcelain"],
+  });
+  const current = await realpath(repositoryRoot);
+  const occupied: Array<{ branch: string; path: string }> = [];
+
+  for (const record of parseWorktreeList(result.stdout.toString("utf8"))) {
+    if (!record.branch) {
+      continue;
+    }
+
+    const path = await realpath(record.path);
+    if (path === current) {
+      continue;
+    }
+
+    occupied.push({ branch: record.branch, path });
+  }
+
+  return occupied;
+}
+
 function emptyResult(input: {
   sessionId: string;
   checkoutRoot: string;
   repositoryRoot: string | null;
   state: "clean" | "non-git";
   head?: SessionChanges["head"];
+  branches?: string[];
+  occupiedBranches?: SessionChanges["occupiedBranches"];
 }): SessionChanges {
   return {
     sessionId: input.sessionId,
@@ -318,6 +437,8 @@ function emptyResult(input: {
     repositoryRoot: input.repositoryRoot,
     generatedAt: new Date().toISOString(),
     head: input.head,
+    branches: input.branches ?? [],
+    occupiedBranches: input.occupiedBranches ?? [],
     files: [],
     totals: {
       files: 0,
@@ -414,43 +535,64 @@ async function readPatch(input: {
 }
 
 export function createNodeSessionChangesReader(): SessionChangesReader {
-  return {
-    async read(input) {
-      const checkoutRoot = await realpath(input.checkoutRoot);
-      const diffRoot = await realpath(input.diffRoot);
+  const reader: SessionChangesReader = {
+    async checkoutBranch(input) {
+      assertLocalBranchName(input.branch);
+      const inspected = await inspectCheckout(input);
 
-      if (!isInside(checkoutRoot, diffRoot)) {
-        throw new Error("Session diff root must be inside its execution checkout.");
+      if (inspected.kind === "non-git") {
+        throw new Error("Session checkout is not a Git repository.");
       }
 
-      const topLevelResult = await runGit({
-        cwd: diffRoot,
-        args: ["rev-parse", "--show-toplevel"],
-        allowExitCodes: [0, 128],
+      const localBranches = await listLocalBranches(inspected.repositoryRoot);
+
+      if (!localBranches.includes(input.branch)) {
+        throw new Error(`Unknown local branch "${input.branch}".`);
+      }
+
+      const occupied = (await listOccupiedBranches(inspected.repositoryRoot)).find(
+        (item) => item.branch === input.branch,
+      );
+
+      if (occupied) {
+        throw new Error(
+          `Branch "${input.branch}" is already checked out in ${occupied.path}.`,
+        );
+      }
+
+      const branchResult = await runGit({
+        cwd: inspected.repositoryRoot,
+        args: ["symbolic-ref", "--quiet", "--short", "HEAD"],
+        allowExitCodes: [0, 1],
       });
+      const current =
+        branchResult.exitCode === 0
+          ? branchResult.stdout.toString("utf8").trim()
+          : null;
 
-      if (topLevelResult.exitCode === 128) {
-        const detail = topLevelResult.stderr.toString("utf8").trim();
+      if (current !== input.branch) {
+        await runGit({
+          cwd: inspected.repositoryRoot,
+          args: ["switch", "--no-guess", "--", input.branch],
+        });
+      }
 
-        if (!/not a git repository|not a git work tree/i.test(detail)) {
-          throw new Error(detail || "Git could not inspect the Session checkout.");
-        }
+      return reader.read(input);
+    },
 
+    async read(input) {
+      const inspected = await inspectCheckout(input);
+
+      if (inspected.kind === "non-git") {
         return emptyResult({
           sessionId: input.sessionId,
-          checkoutRoot,
+          checkoutRoot: inspected.checkoutRoot,
           repositoryRoot: null,
           state: "non-git",
         });
       }
 
-      const repositoryRoot = await realpath(
-        topLevelResult.stdout.toString("utf8").trim(),
-      );
-
-      if (!isInside(checkoutRoot, repositoryRoot) || !isInside(repositoryRoot, diffRoot)) {
-        throw new Error("Session Git repository must stay inside its execution checkout.");
-      }
+      const { checkoutRoot, diffRoot, repositoryRoot } = inspected;
 
       const oidResult = await runGit({
         cwd: repositoryRoot,
@@ -471,6 +613,14 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
             : null,
         detached: hasHead && branchResult.exitCode !== 0,
       };
+      const localBranches = await listLocalBranches(repositoryRoot);
+      const branches = head.branch
+        ? [
+            head.branch,
+            ...localBranches.filter((name) => name !== head.branch),
+          ]
+        : localBranches;
+      const occupiedBranches = await listOccupiedBranches(repositoryRoot);
       const status = await runGit({
         cwd: repositoryRoot,
         args: [
@@ -491,6 +641,8 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
           repositoryRoot,
           state: "clean",
           head,
+          branches,
+          occupiedBranches,
         });
       }
 
@@ -556,6 +708,8 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
         repositoryRoot,
         generatedAt: new Date().toISOString(),
         head,
+        branches,
+        occupiedBranches,
         files,
         totals,
         truncated:
@@ -565,4 +719,6 @@ export function createNodeSessionChangesReader(): SessionChangesReader {
       };
     },
   };
+
+  return reader;
 }

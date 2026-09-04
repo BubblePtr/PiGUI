@@ -374,7 +374,7 @@ describe("backend service", () => {
 
     const service = createBackendService({
       sessionProjectionStore: projections,
-      sessionChangesReader: { read },
+      sessionChangesReader: { read, checkoutBranch: vi.fn() },
       piRpc: createFakePiRpcTransport(),
     });
 
@@ -395,6 +395,72 @@ describe("backend service", () => {
       sessionId: "session-changes",
       checkoutRoot: "/checkout",
       diffRoot: "/checkout/project",
+    });
+  });
+
+  it("checks out a Session branch from the stored checkout, not renderer paths", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const checkoutBranch = vi.fn(async () => ({
+      sessionId: "session-changes",
+      state: "clean" as const,
+      checkoutRoot: "/checkout",
+      repositoryRoot: "/checkout",
+      generatedAt: "2026-09-05T00:00:00.000Z",
+      head: { oid: "abc", branch: "feat/composer-git", detached: false },
+      branches: ["feat/composer-git", "main"],
+      files: [],
+      totals: {
+        files: 0,
+        additions: 0,
+        deletions: 0,
+        binaryFiles: 0,
+        conflictedFiles: 0,
+      },
+      truncated: false,
+      omittedFileCount: 0,
+    }));
+    await projections.save({
+      sessionId: "session-changes",
+      runtimeId: "runtime-changes",
+      piSessionId: "pi-changes",
+      projectId: "project-1",
+      cwd: "/checkout/project",
+      status: "completed",
+      checkout: {
+        root: "/source/repo",
+        executionCheckoutRoot: "/checkout",
+        diffRoot: "/checkout/project",
+      },
+      updatedAt: "2026-07-19T00:00:00.000Z",
+    });
+
+    const service = createBackendService({
+      sessionProjectionStore: projections,
+      sessionChangesReader: { read: vi.fn(), checkoutBranch },
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-checkout-branch",
+        method: "checkout_session_branch",
+        params: {
+          sessionId: "session-changes",
+          branch: "feat/composer-git",
+          checkoutRoot: "/renderer/cannot/override/this",
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-checkout-branch",
+      result: expect.objectContaining({
+        head: expect.objectContaining({ branch: "feat/composer-git" }),
+      }),
+    });
+    expect(checkoutBranch).toHaveBeenCalledWith({
+      sessionId: "session-changes",
+      checkoutRoot: "/checkout",
+      diffRoot: "/checkout/project",
+      branch: "feat/composer-git",
     });
   });
 

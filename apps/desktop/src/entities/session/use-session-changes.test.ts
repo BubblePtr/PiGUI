@@ -95,6 +95,103 @@ describe("useSessionChanges", () => {
     await waitFor(() => expect(result.current.changes).not.toBeNull());
     expect(result.current.error).toBeNull();
   });
+
+  it("checks out a branch and keeps the returned working tree", async () => {
+    const loadChanges = vi.fn(async () =>
+      changes({
+        head: { oid: "aaa", branch: "main", detached: false },
+        branches: ["main", "feat/composer-git"],
+      }),
+    );
+    const checkoutSessionBranch = vi.fn(async () =>
+      changes({
+        head: { oid: "bbb", branch: "feat/composer-git", detached: false },
+        branches: ["feat/composer-git", "main"],
+      }),
+    );
+    const { result } = renderHook(() =>
+      useSessionChanges({
+        sessionId: "session-1",
+        loadChanges,
+        checkoutSessionBranch,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.changes?.head?.branch).toBe("main"));
+
+    await act(() => result.current.checkoutBranch("feat/composer-git"));
+
+    expect(checkoutSessionBranch).toHaveBeenCalledWith(
+      "session-1",
+      "feat/composer-git",
+    );
+    expect(result.current.changes?.head?.branch).toBe("feat/composer-git");
+  });
+
+  it("leaves the current branch in place when checkout fails", async () => {
+    const loadChanges = vi.fn(async () =>
+      changes({
+        head: { oid: "aaa", branch: "main", detached: false },
+        branches: ["main", "feat/composer-git"],
+      }),
+    );
+    const checkoutSessionBranch = vi.fn(async () => {
+      throw new Error("Please commit your changes or stash them before you switch branches.");
+    });
+    const { result } = renderHook(() =>
+      useSessionChanges({
+        sessionId: "session-1",
+        loadChanges,
+        checkoutSessionBranch,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.changes?.head?.branch).toBe("main"));
+
+    await expect(
+      result.current.checkoutBranch("feat/composer-git"),
+    ).rejects.toThrow(/stash them before you switch/i);
+    expect(result.current.changes?.head?.branch).toBe("main");
+  });
+
+  it("does not let a slower Git read overwrite a completed checkout", async () => {
+    let resolveLoad!: (value: SessionChanges) => void;
+    const loadChanges = vi.fn(
+      () =>
+        new Promise<SessionChanges>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    const checkoutSessionBranch = vi.fn(async () =>
+      changes({
+        head: { oid: "bbb", branch: "feat/composer-git", detached: false },
+        branches: ["feat/composer-git", "main"],
+      }),
+    );
+    const { result } = renderHook(() =>
+      useSessionChanges({
+        sessionId: "session-1",
+        loadChanges,
+        checkoutSessionBranch,
+      }),
+    );
+
+    expect(result.current.loading).toBe(true);
+
+    await act(() => result.current.checkoutBranch("feat/composer-git"));
+    expect(result.current.changes?.head?.branch).toBe("feat/composer-git");
+
+    await act(async () => {
+      resolveLoad(
+        changes({
+          head: { oid: "aaa", branch: "main", detached: false },
+          branches: ["main", "feat/composer-git"],
+        }),
+      );
+    });
+
+    expect(result.current.changes?.head?.branch).toBe("feat/composer-git");
+  });
 });
 
 describe("sessionChangesBadge", () => {

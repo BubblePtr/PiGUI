@@ -34,6 +34,16 @@ export type SessionChanges = {
     branch: string | null;
     detached: boolean;
   };
+  /** Local branch names (`refs/heads`), current first when it is one of them. */
+  branches?: string[];
+  /**
+   * Local branches already checked out in another Git worktree. The current
+   * checkout's own HEAD is omitted — those names are occupied, not current.
+   */
+  occupiedBranches?: Array<{
+    branch: string;
+    path: string;
+  }>;
   files: SessionChangedFile[];
   totals: {
     files: number;

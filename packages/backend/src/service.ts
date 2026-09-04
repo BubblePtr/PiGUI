@@ -267,6 +267,13 @@ async function dispatchRequest(input: {
         store: input.sessionProjectionStore,
         reader: input.sessionChangesReader,
       });
+    case "checkout_session_branch":
+      return checkoutSessionBranch({
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        branch: requiredString(params.branch, "branch"),
+        store: input.sessionProjectionStore,
+        reader: input.sessionChangesReader,
+      });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
     case "run_environment_preflight":
@@ -351,10 +358,9 @@ async function dispatchRequest(input: {
   }
 }
 
-async function getSessionChanges(input: {
+async function resolveSessionCheckoutRoots(input: {
   sessionId: string;
   store: SessionProjectionStore;
-  reader: SessionChangesReader;
 }) {
   const projection = await input.store.get(input.sessionId);
 
@@ -372,10 +378,26 @@ async function getSessionChanges(input: {
     throw new Error("Session checkout does not include a readable diff root.");
   }
 
-  return input.reader.read({
-    sessionId: input.sessionId,
-    checkoutRoot: root,
-    diffRoot,
+  return { sessionId: input.sessionId, checkoutRoot: root, diffRoot };
+}
+
+async function getSessionChanges(input: {
+  sessionId: string;
+  store: SessionProjectionStore;
+  reader: SessionChangesReader;
+}) {
+  return input.reader.read(await resolveSessionCheckoutRoots(input));
+}
+
+async function checkoutSessionBranch(input: {
+  sessionId: string;
+  branch: string;
+  store: SessionProjectionStore;
+  reader: SessionChangesReader;
+}) {
+  return input.reader.checkoutBranch({
+    ...(await resolveSessionCheckoutRoots(input)),
+    branch: input.branch,
   });
 }
 
