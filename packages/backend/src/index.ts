@@ -65,5 +65,6 @@ export {
 export {
   createNodeSessionChangesReader,
   type ReadSessionChangesInput,
+  type CheckoutSessionBranchInput,
   type SessionChangesReader,
 } from "./workspace/session-changes";

@@ -32,6 +32,10 @@ export async function getSessionChanges(sessionId: string) {
   return invoke<SessionChanges>("get_session_changes", { sessionId });
 }
 
+export async function checkoutSessionBranch(sessionId: string, branch: string) {
+  return invoke<SessionChanges>("checkout_session_branch", { sessionId, branch });
+}
+
 export function formatTimestamp(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",

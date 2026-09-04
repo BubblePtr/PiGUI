@@ -622,6 +622,11 @@ describe("AgentWorkspaceSessionsPage", () => {
           checkoutRoot: pigProjectPath,
           repositoryRoot: pigProjectPath,
           generatedAt: "2026-09-02T12:01:00.000Z",
+          head: {
+            oid: "abc1234deadbeef",
+            branch: "main",
+            detached: false,
+          },
           files: [
             {
               path: "src/app.ts",
@@ -667,6 +672,14 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
+    // The composer footer reads Git as soon as the Session is on screen, so
+    // the same round-trip later feeds the inspector badge and panel.
+    await waitFor(() => {
+      expect(screen.getByTestId("git-branch-status-trigger")).toHaveTextContent(
+        "main",
+      );
+    });
+
     await user.click(await screen.findByRole("button", { name: "Session inspector" }));
 
     const rail = await screen.findByRole("group", { name: "Session surfaces" });
@@ -684,7 +697,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     await screen.findByRole("complementary", { name: "Terminal" });
     expect(within(rail).getByText("2")).toBeInTheDocument();
-    // One read feeds both the panel and the badge.
+    // One read feeds the composer chip, the panel, and the badge.
     expect(
       invoke.mock.calls.filter(([command]) => command === "get_session_changes"),
     ).toHaveLength(1);
@@ -6542,18 +6555,55 @@ describe("Context usage placement", () => {
     };
   }
 
-  function renderSessionsView(projection: SessionProjection) {
+  function renderSessionsView(
+    projection: SessionProjection,
+    sessionChanges?: {
+      changes: SessionChanges | null;
+      error: string | null;
+      loading: boolean;
+      refresh: () => void;
+      checkoutBranch: (branch: string) => Promise<void>;
+    },
+  ) {
     render(
       <AgentWorkspaceSessionsView
         projectId="pig-docs"
         workspace={workspace}
         sessionProjection={projection}
+        sessionChanges={sessionChanges}
       />,
     );
 
     return screen
       .getByTestId("full-chat-composer")
       .querySelector('[data-slot="prompt-input-footer"]');
+  }
+
+  function gitChanges(overrides: Partial<SessionChanges> = {}): SessionChanges {
+    return {
+      sessionId: "session-context",
+      state: "clean",
+      checkoutRoot: "/work/PiGUI",
+      repositoryRoot: "/work/PiGUI",
+      generatedAt: "2026-09-04T00:00:00.000Z",
+      head: {
+        oid: "abc1234deadbeef",
+        branch: "feat/composer-git",
+        detached: false,
+      },
+      branches: ["feat/composer-git", "main", "fix/spacing"],
+      files: [],
+      totals: {
+        files: 0,
+        additions: 0,
+        deletions: 0,
+        binaryFiles: 0,
+        conflictedFiles: 0,
+      },
+      truncated: false,
+      omittedFileCount: 0,
+      ...overrides,
+    };
   }
 
   it("meters the context window as a ring on the composer footer line", () => {
@@ -6579,6 +6629,175 @@ describe("Context usage placement", () => {
     expect(footer).toBeNull();
   });
 
+  function idleSessionChanges(
+    changes: SessionChanges | null,
+    checkoutBranch: (branch: string) => Promise<void> = async () => {},
+  ) {
+    return {
+      changes,
+      error: null as string | null,
+      loading: false,
+      refresh: () => {},
+      checkoutBranch,
+    };
+  }
+
+  it("shows the Session git branch to the left of the context ring", () => {
+    const footer = renderSessionsView(boundProjection(), idleSessionChanges(gitChanges()));
+    const trigger = footer?.querySelector(
+      '[data-testid="git-branch-status-trigger"]',
+    );
+    const ring = footer?.querySelector('[data-slot="context-usage-meter"]');
+    const icon = footer?.querySelector('[data-testid="git-branch-status-icon"]');
+
+    expect(trigger).toHaveTextContent("feat/composer-git");
+    expect(footer?.querySelector(".astryx-selector")).toBeInTheDocument();
+    expect(icon).toBeInTheDocument();
+    expect(ring).toBeInTheDocument();
+    expect(
+      trigger && ring
+        ? Boolean(
+            trigger.compareDocumentPosition(ring) &
+              Node.DOCUMENT_POSITION_FOLLOWING,
+          )
+        : false,
+    ).toBe(true);
+  });
+
+  it("labels a detached HEAD with the short oid", () => {
+    const footer = renderSessionsView(
+      boundProjection(),
+      idleSessionChanges(
+        gitChanges({
+          head: {
+            oid: "deadbeefcafebabe",
+            branch: null,
+            detached: true,
+          },
+        }),
+      ),
+    );
+
+    expect(
+      footer?.querySelector('[data-testid="git-branch-status-trigger"]'),
+    ).toHaveTextContent("deadbee");
+  });
+
+  it("lists every local branch in the git selector", async () => {
+    const user = userEvent.setup();
+    renderSessionsView(boundProjection(), idleSessionChanges(gitChanges()));
+
+    await user.click(screen.getByTestId("git-branch-status-trigger"));
+
+    expect(
+      await screen.findByRole("option", { name: "feat/composer-git" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "main" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "fix/spacing" }),
+    ).toBeInTheDocument();
+  });
+
+  it("disables a branch already checked out in another worktree and explains why", async () => {
+    const user = userEvent.setup();
+    const checkoutBranch = vi.fn(async () => {});
+    renderSessionsView(
+      boundProjection(),
+      idleSessionChanges(
+        gitChanges({
+          occupiedBranches: [
+            {
+              branch: "main",
+              path: "/work/.pig-worktrees/PiGUI/session-other",
+            },
+          ],
+        }),
+        checkoutBranch,
+      ),
+    );
+
+    await user.click(screen.getByTestId("git-branch-status-trigger"));
+
+    const option = await screen.findByRole("option", { name: /main/ });
+    expect(option).toHaveAttribute("aria-disabled", "true");
+    expect(option).toHaveTextContent("Already checked out in session-other");
+
+    await user.click(option);
+    expect(checkoutBranch).not.toHaveBeenCalled();
+  });
+
+  it("checks out the selected local branch on the Session checkout", async () => {
+    const user = userEvent.setup();
+    const checkoutBranch = vi.fn(async () => {});
+    renderSessionsView(
+      boundProjection(),
+      idleSessionChanges(gitChanges(), checkoutBranch),
+    );
+
+    await user.click(screen.getByTestId("git-branch-status-trigger"));
+    await user.click(await screen.findByRole("option", { name: "main" }));
+
+    expect(checkoutBranch).toHaveBeenCalledWith("main");
+  });
+
+  it("does not check out the branch the Session is already on", async () => {
+    const user = userEvent.setup();
+    const checkoutBranch = vi.fn(async () => {});
+    renderSessionsView(
+      boundProjection(),
+      idleSessionChanges(gitChanges(), checkoutBranch),
+    );
+
+    await user.click(screen.getByTestId("git-branch-status-trigger"));
+    await user.click(
+      await screen.findByRole("option", { name: "feat/composer-git" }),
+    );
+
+    expect(checkoutBranch).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed checkout on the composer", async () => {
+    const user = userEvent.setup();
+    const checkoutBranch = vi.fn(async () => {
+      throw new Error(
+        "Please commit your changes or stash them before you switch branches.",
+      );
+    });
+    renderSessionsView(
+      boundProjection(),
+      idleSessionChanges(gitChanges(), checkoutBranch),
+    );
+
+    await user.click(screen.getByTestId("git-branch-status-trigger"));
+    await user.click(await screen.findByRole("option", { name: "main" }));
+
+    expect(
+      await screen.findByText(
+        /stash them before you switch branches/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the git branch chip when the checkout is not a repository", () => {
+    const footer = renderSessionsView(
+      boundProjection(),
+      idleSessionChanges(
+        gitChanges({
+          state: "non-git",
+          repositoryRoot: null,
+          head: undefined,
+        }),
+      ),
+    );
+
+    expect(
+      footer?.querySelector('[data-testid="git-branch-status"]'),
+    ).not.toBeInTheDocument();
+    expect(
+      footer?.querySelector('[data-slot="context-usage-meter"]'),
+    ).toBeInTheDocument();
+  });
+
   it("leaves the Session toolbar to the inspector toggle", () => {
     const { container } = render(
       <SessionToolbarActions
@@ -6587,6 +6806,7 @@ describe("Context usage placement", () => {
           error: null,
           loading: false,
           refresh: () => {},
+          checkoutBranch: async () => {},
         }}
         projection={boundProjection()}
       />,

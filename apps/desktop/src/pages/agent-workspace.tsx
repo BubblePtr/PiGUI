@@ -5,7 +5,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@astryxdesign/core/SegmentedControl";
-import { Selector } from "@astryxdesign/core/Selector";
+import { Selector, SelectorOption } from "@astryxdesign/core/Selector";
 import { ChatChainOfThought as ChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import { ChatThoughtStep } from "@/shared/ui/chat/chat-thought-step";
@@ -596,6 +596,7 @@ function FullChatComposer({
   queueMode = false,
   isStoppingRun = false,
   projection,
+  sessionChanges: providedSessionChanges,
   onPromptSubmit,
   onQueueSubmit,
   onWithdrawQueuedMessage,
@@ -607,6 +608,7 @@ function FullChatComposer({
   queueMode?: boolean;
   isStoppingRun?: boolean;
   projection?: SessionProjection | null;
+  sessionChanges?: SessionChangesView;
   onPromptSubmit?: (message: string, images?: RuntimePromptImage[]) => Promise<void> | void;
   onQueueSubmit?: (message: string, images?: RuntimePromptImage[]) => Promise<void> | void;
   onWithdrawQueuedMessage?: (queuedMessageId: string) => Promise<void> | void;
@@ -632,6 +634,14 @@ function FullChatComposer({
   const attachments = useComposerAttachments();
   const catalog = useComposerInsertCatalog();
   const picker = useFilePicker(attachments.addFiles);
+  // Prefer the page-level read (shared with Changes / the rail badge) so Git
+  // is only asked once. View-only tests that don't pass it still get a local
+  // read, gated on a bound runtime — the same moment the footer exists.
+  const localSessionChanges = useSessionChanges({
+    sessionId,
+    enabled:
+      !providedSessionChanges && Boolean(sessionId && projection?.piSessionId),
+  });
   const promptStatus = isStoppingRun
     ? "submitted"
     : queueMode
@@ -748,15 +758,39 @@ function FullChatComposer({
     }
   };
 
+  const sessionChangesView = providedSessionChanges ?? localSessionChanges;
+  const sessionGitChanges = sessionChangesView.changes;
+  const gitBranchLabel = gitBranchPickerLabelFromChanges(sessionGitChanges);
+
+  const switchSessionBranch = async (branch: string) => {
+    try {
+      await sessionChangesView.checkoutBranch(branch);
+      setComposerError(null);
+    } catch (error) {
+      setComposerError(errorMessage(error));
+    }
+  };
+
   // Context occupancy is session runtime state, so it rides the footer line
   // rather than any composer control. Only a bound runtime has a context
-  // window to be a share of.
+  // window to be a share of. Git branch status sits on the same row, left of
+  // the ring, in the same ghost-Selector chrome as the draft Project picker.
   const composerFooter = projection?.piSessionId ? (
-    <span className="flex items-center justify-end">
-      <ContextUsageMeter
-        isCompacting={isContextCompacting(projection.runtimeModel)}
-        usage={projection.contextUsage}
-      />
+    <span className="flex w-full min-w-0 items-center gap-2">
+      {gitBranchLabel ? (
+        <GitBranchPicker
+          branch={gitBranchLabel}
+          branches={sessionGitChanges?.branches ?? []}
+          occupiedBranches={sessionGitChanges?.occupiedBranches ?? []}
+          onBranchChange={(next) => void switchSessionBranch(next)}
+        />
+      ) : null}
+      <span className="ml-auto inline-flex shrink-0">
+        <ContextUsageMeter
+          isCompacting={isContextCompacting(projection.runtimeModel)}
+          usage={projection.contextUsage}
+        />
+      </span>
     </span>
   ) : undefined;
 
@@ -1505,6 +1539,127 @@ function ProjectPicker({
         variant="ghost"
         onChange={(value) => {
           onProjectChange(projectPickerKeyToProjectId(value));
+        }}
+      />
+    </div>
+  );
+}
+
+function gitBranchPickerLabel(input: {
+  branch: string | null;
+  detached: boolean;
+  oid: string | null;
+}) {
+  if (input.branch) {
+    return input.branch;
+  }
+
+  // Detached HEAD has no branch name; the short oid is the only identity.
+  if (input.detached) {
+    return input.oid ? input.oid.slice(0, 7) : "HEAD";
+  }
+
+  return null;
+}
+
+function gitBranchPickerLabelFromChanges(changes: SessionChanges | null) {
+  if (!changes || changes.state === "non-git") {
+    return null;
+  }
+
+  return gitBranchPickerLabel({
+    branch: changes.head?.branch ?? null,
+    detached: changes.head?.detached ?? false,
+    oid: changes.head?.oid ?? null,
+  });
+}
+
+function checkoutPathLabel(path: string) {
+  const trimmed = path.replace(/\/+$/, "");
+  const index = trimmed.lastIndexOf("/");
+  return index === -1 ? trimmed : trimmed.slice(index + 1);
+}
+
+function occupiedBranchHint(path: string) {
+  return `Already checked out in ${checkoutPathLabel(path)}`;
+}
+
+function gitBranchPickerOptions(
+  branch: string,
+  branches: string[],
+  occupiedBranches: Array<{ branch: string; path: string }>,
+) {
+  const occupied = new Map(
+    occupiedBranches.map((item) => [item.branch, item.path]),
+  );
+  const names = [branch, ...branches.filter((name) => name !== branch)];
+
+  return names.map((name) => ({
+    value: name,
+    label: name,
+    disabled: occupied.has(name),
+    icon: (
+      <GitBranch
+        aria-hidden="true"
+        className="pigui-compact-menu-item-icon text-muted"
+      />
+    ),
+  }));
+}
+
+/**
+ * Live-composer counterpart of ProjectPicker: same ghost Selector chrome,
+ * Git branch instead of a Project. Lists local heads so the menu matches the
+ * repo, then `git switch`es the Session checkout onto the chosen branch.
+ * Branches held by another worktree stay visible but cannot be selected.
+ */
+function GitBranchPicker({
+  branch,
+  branches,
+  occupiedBranches,
+  onBranchChange,
+}: {
+  branch: string;
+  branches: string[];
+  occupiedBranches: Array<{ branch: string; path: string }>;
+  onBranchChange: (branch: string) => void;
+}) {
+  const occupiedNames = new Set(occupiedBranches.map((item) => item.branch));
+
+  return (
+    <div className="min-w-0 max-w-full" data-testid="git-branch-status">
+      <Selector
+        data-testid="git-branch-status-trigger"
+        isLabelHidden
+        label="Git branch"
+        options={gitBranchPickerOptions(branch, branches, occupiedBranches)}
+        renderOption={(option) => {
+          const occupied = occupiedBranches.find(
+            (item) => item.branch === option.value,
+          );
+          return (
+            <SelectorOption
+              description={occupied ? occupiedBranchHint(occupied.path) : undefined}
+              label={option.label}
+            />
+          );
+        }}
+        size="sm"
+        startIcon={
+          <GitBranch
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted"
+            data-testid="git-branch-status-icon"
+          />
+        }
+        value={branch}
+        variant="ghost"
+        onChange={(value) => {
+          if (!value || value === branch || occupiedNames.has(value)) {
+            return;
+          }
+
+          onBranchChange(value);
         }}
       />
     </div>
@@ -2322,6 +2477,7 @@ function LiveSessionColumn({
   getRuntimeBridge,
   recommendedCheckoutMode,
   sessionProjection,
+  sessionChanges,
   clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
@@ -2337,6 +2493,7 @@ function LiveSessionColumn({
   getRuntimeBridge: () => PiRuntimeBridge;
   recommendedCheckoutMode: SessionDraftCheckoutMode;
   sessionProjection?: SessionProjection | null;
+  sessionChanges?: SessionChangesView;
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
@@ -3118,6 +3275,7 @@ function LiveSessionColumn({
               isStoppingRun={stoppingRun}
               queueMode={queueMode}
               projection={liveProjection}
+              sessionChanges={sessionChanges}
               onPromptSubmit={handlePromptSubmit}
               onQueueSubmit={handleQueueSubmit}
               onWithdrawQueuedMessage={handleWithdrawQueuedMessage}
@@ -3164,6 +3322,7 @@ export function AgentWorkspaceSessionsView({
   checkoutManager,
   runtimeBridge,
   sessionProjection,
+  sessionChanges,
   clockNowMs,
   onProjectionChange,
   onLatestMessageRendered,
@@ -3179,6 +3338,7 @@ export function AgentWorkspaceSessionsView({
   checkoutManager?: ExecutionCheckoutManager;
   runtimeBridge?: PiRuntimeBridge;
   sessionProjection?: SessionProjection | null;
+  sessionChanges?: SessionChangesView;
   clockNowMs?: number;
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
@@ -3225,6 +3385,7 @@ export function AgentWorkspaceSessionsView({
       getRuntimeBridge={getActiveRuntimeBridge}
       recommendedCheckoutMode="local"
       sessionProjection={sessionProjection}
+      sessionChanges={sessionChanges}
       clockNowMs={clockNowMs}
       onProjectionChange={onProjectionChange}
       onLatestMessageRendered={onLatestMessageRendered}
@@ -3395,12 +3556,15 @@ export function AgentWorkspaceSessionsPage() {
       (projection) =>
         projection.id === selectedSessionId && projection.projectId === projectId,
     ) ?? null;
-  // One read for the panel and the rail badge. The docked rail carries the
-  // Changes count whatever surface is showing, so it needs the diff even on
-  // Terminal; the Sheet has no rail, so there it follows the active surface.
+  // One read for the composer git-branch chip, the Changes panel, and the
+  // rail badge. The docked rail carries the Changes count whatever surface
+  // is showing, so it needs the diff even on Terminal; the Sheet has no rail,
+  // so there the panel still follows the active surface. The composer footer
+  // needs the branch whenever a live Session is on screen, which is why this
+  // is no longer gated on the inspector being open.
   const sessionChanges = useSessionChanges({
     sessionId: selectedSessionProjection?.id ?? null,
-    enabled: inspectorOpen && (dockInspector || activeSurfaceId === "changes"),
+    enabled: Boolean(selectedSessionProjection?.id) && !showDraft,
   });
 
   useEffect(
@@ -3527,6 +3691,7 @@ export function AgentWorkspaceSessionsPage() {
       ) : undefined}
     >
       <AgentWorkspaceSessionsView
+        sessionChanges={sessionChanges}
         aside={
           dockInspector && inspectorOpen ? (
             <SessionInspector
