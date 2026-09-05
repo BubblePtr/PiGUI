@@ -26,7 +26,7 @@ ADR-0008 把 Live Session 页右侧定义为 Structured Action Surface。ADR-002
 > **修订（2026-09-02）：上限从 58vw 改为「Chat 最小宽度之外的全部」。**
 > Browser surface（`.scratch/embedded-browser/PRD.md`）落地后真机验证：58vw 给内嵌页面留的宽度不够，而这个比例本来就没有依据——它把「Chat 至少要多宽」这件事表达成了「面板至多占多少」，窗口越宽越亏。改为按 Cursor 的分配方式：**Chat 有最小宽度 400px（`sessionInspectorChatMinWidthPx`），面板可以拿走其余全部**，即 `maxSizePx = max(340, 可分配宽度 - 400)`；「可分配宽度」是分栏容器宽度减去 resize handle 占位（`mx-2` 的 16px 加它自己画的 1px 分隔线）。
 > 上限不再是挂载时算一次的常量：`agent-workspace.tsx` 给分栏容器挂 `ResizeObserver` 实时重算，并在窗口缩小到容不下当前面板宽度时把 size 主动 clamp 回新上限（`useResizable` 只在每次拖拽时按当时的 bounds 收敛，不会回收已经持有的 size）。取 `floor` 而非 `round`：这个上限的存在意义就是保住 Chat 的最小宽度，容器宽度带小数时不能四舍五入到把 Chat 挤掉 1px。
-> 1280px 以下仍然是 Sheet，不受影响。
+> 当时 1280px 以下保留 Sheet；该回退已由下方 2026-09-05 修订取消。
 
 ### 注册表只存元数据，不存内容
 
@@ -40,9 +40,9 @@ v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR
 
 未来的 Terminal、Subagent 可能是多实例。现在先把模型记下来，免得回头重做 rail：**rail 保持类型级、每类一个图标，永不随实例膨胀**；实例条放在面板表头，rail 徽标显示 `×N`。注册表保留 `multiInstance` 标志位；在真的出现多实例 surface 之前不上任何实例 UI。
 
-### 低于 1280px 时 inspector 收敛为 Sheet
+### 所有窗口统一使用面板（2026-09-05 修订）
 
-沿用 ADR-0023 的断点，只是作用对象从 Changes 扩大到整个 inspector。窄窗口上 rail 会白白吃掉宽度，因此 Sheet 表头改用分段切换，两个 surface 依然都可达。跨越断点时保留意图——是否打开、停在哪个 surface——只替换承载方式。
+移除原先 1280px 的 Sheet 回退。窄窗口和宽窗口均通过同一个工具栏开关打开 `SessionInspector`，通过面板右侧 rail 切换 surface；窗口大小变化只调整面板宽度，不替换宿主。PiSheet 组件及临时 Dialog 替代路径均已删除。
 
 开关状态与激活 surface 存在页面层，切换 Session 时保持，与原先的 `changesOpen` 行为一致。不新增任何持久化机制。
 
@@ -56,6 +56,6 @@ v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR
 ## 验证
 
 - 组件测试覆盖 rail 切换、“再次点击当前图标不会让 surface 落空”这条边界，以及宽度上下界。
-- Workspace 测试覆盖断点两侧：docked 路径（toggle、rail 切换、关闭、resize handle、两个 resizable panel）与 Sheet 路径（表头切换后两个 surface 均可达）。
-- Electron E2E 在真实 Git repository 上驱动 docked inspector，并在窄窗口验证 Sheet 回退。
+- Workspace 测试覆盖宽窄窗口的统一面板路径：toggle、rail 切换、关闭、resize handle、两个 resizable panel；窄窗口不产生 dialog。
+- Electron E2E 在真实 Git repository 上验证 960px 窄窗口的面板、内容切换与开关，再调整到 1440px，确认宿主保持不变。
 - 1440×900 浏览器截图确认三态：开启-Changes、开启-Actions、收起。

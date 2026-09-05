@@ -155,6 +155,7 @@ describe("Design page tabs", () => {
     render(<DesignPageContent />);
 
     await user.click(screen.getByRole("button", { name: "Components" }));
+    await user.click(screen.getByRole("button", { name: "SessionInspector" }));
 
     expect(
       screen.getByRole("region", { name: "SessionInspector" }),

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { AppFrame } from "@/app/app-shell";
 import { DesignComponentsLayer } from "@/pages/design-components";
 
@@ -223,12 +225,10 @@ export function DesignPageContent() {
   const [tab, setTab] = useState<DesignTab>("tokens");
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-6">
-      <p className="text-sm text-muted">
-        Living registry of the PiGUI design system, read live from the Astryx
-        theme and the semantic bridge. New reusable components in{" "}
-        <code>shared/ui</code> must register here (see AGENTS.md).
-      </p>
+    <VStack gap={6} padding={6} style={{ width: "100%", maxWidth: "calc(var(--spacing-12) * 28)", marginInline: "auto", minWidth: 0 }}>
+      <Text type="supporting">
+        PiGUI design system · Foundations and reusable interface components.
+      </Text>
       <TabList
         hasDivider
         value={tab}
@@ -252,7 +252,7 @@ export function DesignPageContent() {
       ) : (
         <DesignComponentsLayer />
       )}
-    </div>
+    </VStack>
   );
 }
 

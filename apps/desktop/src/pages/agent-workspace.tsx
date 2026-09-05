@@ -38,7 +38,6 @@ import {
   useComposerInsertCatalog,
   useFilePicker,
 } from "@/shared/ui/composer-attachments";
-import { PiSheet } from "@/shared/ui/pi-sheet";
 import {
   SessionInspector,
   SessionInspectorTrigger,
@@ -46,8 +45,6 @@ import {
   sessionInspectorResizableBounds,
 } from "@/shared/ui/session-inspector/session-inspector";
 import {
-  sessionSurfaceOrder,
-  sessionSurfaces,
   type SessionSurfaceId,
 } from "@/shared/ui/session-inspector/surface-registry";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
@@ -211,34 +208,6 @@ type SessionChangesPanelProps = {
   onRefresh: () => void;
 };
 
-const sessionInspectorDockMediaQuery = "(min-width: 1280px)";
-
-/** Wide Workspaces dock the inspector; narrower ones fall back to a Sheet. */
-function useDockedSessionInspectorLayout() {
-  const [isDocked, setIsDocked] = useState(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return true;
-    }
-
-    return window.matchMedia(sessionInspectorDockMediaQuery).matches;
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia(sessionInspectorDockMediaQuery);
-    const handleChange = () => setIsDocked(mediaQuery.matches);
-
-    handleChange();
-    mediaQuery.addEventListener("change", handleChange);
-
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
-
-  return isDocked;
-}
 
 const SessionDiffViewer = lazy(
   () => import("@/entities/session/session-diff-viewer"),
@@ -2303,7 +2272,7 @@ export function SessionChangesPanel({
   );
 }
 
-/** Renders whichever surface the inspector (or its Sheet fallback) is showing. */
+/** Renders the active surface inside the shared inspector panel. */
 function SessionSurfaceContent({
   surfaceId,
   projection,
@@ -2314,7 +2283,7 @@ function SessionSurfaceContent({
   surfaceId: SessionSurfaceId;
   projection?: SessionProjection | null;
   sessionChanges: SessionChangesView;
-  /** False in the Sheet fallback, where a native browser view cannot paint. */
+  /** Whether the surface can host a native browser view. */
   docked?: boolean;
   onTerminalInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
 }) {
@@ -2364,60 +2333,6 @@ function SessionSurfaceContent({
   return null;
 }
 
-/**
- * Below the dock breakpoint the inspector collapses into a Sheet. The rail
- * would waste the narrow width, so surface switching moves to the header.
- */
-function SessionInspectorSheet({
-  activeSurfaceId,
-  isOpen,
-  children,
-  onActiveSurfaceChange,
-  onOpenChange,
-}: {
-  activeSurfaceId: SessionSurfaceId;
-  isOpen: boolean;
-  children: ReactNode;
-  onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
-  onOpenChange: (isOpen: boolean) => void;
-}) {
-  const surface = sessionSurfaces[activeSurfaceId];
-
-  return (
-    <PiSheet isOpen={isOpen} onOpenChange={onOpenChange}>
-      <PiSheet.Content>
-        <PiSheet.CloseTrigger />
-        <PiSheet.Header>
-          <PiSheet.Heading>{surface.title}</PiSheet.Heading>
-          <p className="mt-1 text-sm text-muted">{surface.hint}</p>
-          <div className="mt-3">
-            <SegmentedControl
-              label="Session surfaces"
-              size="sm"
-              value={activeSurfaceId}
-              onChange={(value) =>
-                onActiveSurfaceChange(value as SessionSurfaceId)
-              }
-            >
-              {sessionSurfaceOrder.map((surfaceId) => (
-                <SegmentedControlItem
-                  key={surfaceId}
-                  label={sessionSurfaces[surfaceId].title}
-                  value={surfaceId}
-                />
-              ))}
-            </SegmentedControl>
-          </div>
-        </PiSheet.Header>
-        <PiSheet.Body>
-          <div className="max-h-[calc(100vh-14rem)] overflow-y-auto">
-            {children}
-          </div>
-        </PiSheet.Body>
-      </PiSheet.Content>
-    </PiSheet>
-  );
-}
 
 function isRestorablePiRuntimeBridge(
   bridge: PiRuntimeBridge,
@@ -2485,45 +2400,18 @@ async function restoreProjectionRuntimeState(input: {
 }
 
 export function SessionToolbarActions({
-  projection,
-  activeSurfaceId = "changes",
-  dockInspector = false,
   inspectorOpen = false,
-  sessionChanges,
-  onActiveSurfaceChange = () => {},
   onInspectorOpenChange = () => {},
-  onTerminalInstancesChange,
 }: {
-  projection?: SessionProjection | null;
-  activeSurfaceId?: SessionSurfaceId;
-  dockInspector?: boolean;
   inspectorOpen?: boolean;
-  sessionChanges: SessionChangesView;
-  onActiveSurfaceChange?: (surfaceId: SessionSurfaceId) => void;
   onInspectorOpenChange?: (isOpen: boolean) => void;
-  onTerminalInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
 }) {
   return (
-    <>
-      <SessionInspectorTrigger
-        alignToRail={dockInspector}
-        isOpen={inspectorOpen}
-        onOpenChange={onInspectorOpenChange}
-      />
-      <SessionInspectorSheet
-        activeSurfaceId={activeSurfaceId}
-        isOpen={inspectorOpen && !dockInspector}
-        onActiveSurfaceChange={onActiveSurfaceChange}
-        onOpenChange={onInspectorOpenChange}
-      >
-        <SessionSurfaceContent
-          sessionChanges={sessionChanges}
-          surfaceId={activeSurfaceId}
-          projection={projection}
-          onTerminalInstancesChange={onTerminalInstancesChange}
-        />
-      </SessionInspectorSheet>
-    </>
+    <SessionInspectorTrigger
+      alignToRail
+      isOpen={inspectorOpen}
+      onOpenChange={onInspectorOpenChange}
+    />
   );
 }
 
@@ -3608,7 +3496,6 @@ export function AgentWorkspaceSessionsPage() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
-  const dockInspector = useDockedSessionInspectorLayout();
   const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
   const workspace = project ? workspaceFromProject(project) : null;
   const selectedSessionProjection =
@@ -3618,8 +3505,7 @@ export function AgentWorkspaceSessionsPage() {
     ) ?? null;
   // One read for the composer git-branch chip, the Changes panel, and the
   // rail badge. The docked rail carries the Changes count whatever surface
-  // is showing, so it needs the diff even on Terminal; the Sheet has no rail,
-  // so there the panel still follows the active surface. The composer footer
+  // is showing, so it needs the diff even on Terminal. The composer footer
   // needs the branch whenever a live Session is on screen, which is why this
   // is no longer gated on the inspector being open.
   const sessionChanges = useSessionChanges({
@@ -3739,21 +3625,15 @@ export function AgentWorkspaceSessionsPage() {
       onSelectedSessionIdChange={setSelectedSessionId}
       toolbarActions={selectedSessionProjection ? (
         <SessionToolbarActions
-          activeSurfaceId={activeSurfaceId}
-          dockInspector={dockInspector}
           inspectorOpen={inspectorOpen}
-          sessionChanges={sessionChanges}
-          projection={selectedSessionProjection}
-          onActiveSurfaceChange={setActiveSurfaceId}
           onInspectorOpenChange={setInspectorOpen}
-          onTerminalInstancesChange={handleTerminalInstancesChange}
         />
       ) : undefined}
     >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
         aside={
-          dockInspector && inspectorOpen ? (
+          inspectorOpen ? (
             <SessionInspector
               activeSurfaceId={activeSurfaceId}
               badges={{

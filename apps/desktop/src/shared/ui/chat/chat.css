@@ -533,8 +533,14 @@
 }
 
 .chat-tool-step__item .chat-tool-kind {
-  /* Sit on the Astryx row's first-line center, not the box top. */
-  margin-block-start: 0.2em;
+  /* Match the call header, not the full box when result details expand. */
+  height: var(--spacing-6);
+}
+
+.chat-tool-step__item .astryx-chat-tool-calls {
+  /* The surrounding list owns spacing; Astryx's standalone top gap would
+     shift the call header below its sibling kind icon. */
+  margin-block-start: 0;
 }
 
 .chat-tool-step__item .chat-tool {

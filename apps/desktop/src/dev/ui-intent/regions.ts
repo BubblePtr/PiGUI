@@ -78,7 +78,7 @@ export const uiRegions: UiRegion[] = [
   },
   {
     term: "Structured Action Surface",
-    match: { components: ["SessionChangesPanel", "SessionSurfaceContent", "SessionInspectorSheet"] },
+    match: { components: ["SessionChangesPanel", "SessionSurfaceContent"] },
   },
   {
     term: "Session Draft",

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { PiSheet } from "@/shared/ui/pi-sheet";
+import { Dialog } from "@base-ui-components/react/dialog";
 import { useOverlayPresence } from "@/shared/ui/browser/use-overlay-presence";
 
 /**
@@ -52,14 +52,15 @@ describe("useOverlayPresence", () => {
           <button type="button" onClick={() => setIsOpen((open) => !open)}>
             Toggle sheet
           </button>
-          <PiSheet isOpen={isOpen} onOpenChange={setIsOpen}>
-            <PiSheet.Content>
-              <PiSheet.Header>
-                <PiSheet.Heading>Sheet</PiSheet.Heading>
-              </PiSheet.Header>
-              <PiSheet.Body>body</PiSheet.Body>
-            </PiSheet.Content>
-          </PiSheet>
+          <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+            <Dialog.Portal>
+              <Dialog.Backdrop />
+              <Dialog.Popup>
+                <Dialog.Title>Sheet</Dialog.Title>
+                body
+              </Dialog.Popup>
+            </Dialog.Portal>
+          </Dialog.Root>
         </>
       );
     }
