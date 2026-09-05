@@ -1,5 +1,5 @@
 import { copyFile, mkdir } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import react from "@vitejs/plugin-react";
@@ -18,6 +18,8 @@ const piPackageDirectory = realpathSync(
   ),
 );
 const requireFromPi = createRequire(join(piPackageDirectory, "package.json"));
+const piPackage = JSON.parse(readFileSync(join(piPackageDirectory, "package.json"), "utf8"));
+const appPackage = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8"));
 const photonWasmPath = requireFromPi.resolve(
   "@silvia-odwyer/photon-node/photon_rs_bg.wasm",
 );
@@ -97,6 +99,13 @@ const rendererReactAlias = {
 
 export default defineConfig({
   main: {
+    // Use Pi's embedded peer modules; dist aliases point at files that do not
+    // exist after electron-vite bundles the SDK into the backend.
+    define: {
+      PI_BUNDLED_NODE: "true",
+      __PIGUI_APP_VERSION__: JSON.stringify(appPackage.version),
+      __PIGUI_PI_VERSION__: JSON.stringify(piPackage.version),
+    },
     plugins: [
       externalizeDepsPlugin({ exclude: internalPackages }),
       copyMainRuntimeAssets(),

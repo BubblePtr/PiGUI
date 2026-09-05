@@ -21,7 +21,8 @@ vi.mock("@earendil-works/pi-ai/bun-oauth", () => ({
   registerBunOAuthFlows,
 }));
 
-vi.mock("@earendil-works/pi-coding-agent", () => ({
+vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@earendil-works/pi-coding-agent")>(),
   createAgentSession,
   SessionManager: {
     open: sessionManagerOpen,

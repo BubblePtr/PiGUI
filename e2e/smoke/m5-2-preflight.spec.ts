@@ -2,10 +2,11 @@ import { expect, test } from "@playwright/test";
 import { launchPiGUI } from "../fixtures/electron-app";
 
 test.describe("M5.2: First-run preflight", () => {
-  test("gates first launch until required checks pass and Continue is pressed", async () => {
+  test("gates first launch using the bundled engine without a global CLI", async ({}, testInfo) => {
     const testApp = await launchPiGUI({
       requirePreflight: true,
       seedPreflightAuth: true,
+      emptyPath: true,
     });
 
     try {
@@ -24,6 +25,9 @@ test.describe("M5.2: First-run preflight", () => {
 
       const continueButton = testApp.window.getByRole("button", { name: /Continue/i });
       await expect(continueButton).toBeEnabled({ timeout: 30_000 });
+      await expect(testApp.window.getByText("Bundled Pi engine available")).toBeVisible();
+      await expect(testApp.window.getByText(/PiGUI .* · Pi 0\.84\.3 · SDK/)).toBeVisible();
+      await testApp.window.screenshot({ path: testInfo.outputPath("bundled-pi-preflight.png"), fullPage: true });
       await continueButton.click();
 
       await expect(testApp.window.getByRole("button", { name: /add project/i })).toBeVisible({

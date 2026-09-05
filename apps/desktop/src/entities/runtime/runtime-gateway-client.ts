@@ -298,7 +298,8 @@ function createAgentEventCompatMapper(): AgentEventCompatMapper {
         id: envelope.id,
         piSessionId: envelope.piSessionId,
         kind: "error",
-        title: "Run failed",
+        title: payload.fatal === false ? "Extension error" : "Run failed",
+        ...(payload.fatal === false ? { fatal: false } : {}),
         body: maybeString(payload.body) ?? "",
         timestamp: envelope.ts,
       };
@@ -456,6 +457,9 @@ function cloneRuntimeEvent(event: PiRuntimeEvent): PiRuntimeEvent {
   if (event.derivedFromAgentEvent) {
     cloned.derivedFromAgentEvent = true;
   }
+  if (event.fatal === false) {
+    cloned.fatal = false;
+  }
 
   const images = clonePromptImages(event.images);
 
@@ -569,7 +573,7 @@ export function createRuntimeGatewayClient(
       }
 
       if (event.kind === "error") {
-        state.status = "failed";
+        if (event.fatal !== false) state.status = "failed";
       } else if (event.kind === "status") {
         state.status = "completed";
       } else {

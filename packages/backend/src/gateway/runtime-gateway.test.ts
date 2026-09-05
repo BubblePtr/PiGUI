@@ -172,6 +172,47 @@ function createFakeRuntimeDriver(): PiRuntimeDriver & {
   };
 }
 
+it("journals recoverable extension errors without failing the active session", async () => {
+  const driver = createFakeRuntimeDriver();
+  const journal = createInMemorySessionEventJournal();
+  const projections = createInMemorySessionProjectionStore();
+  const gateway = createRuntimeGatewayService({ driver, journal, projections });
+  await gateway.handleRequest({ id: "create", method: "create_session", params: { sessionId: "extension-session", projectId: "p", cwd: "/project" } });
+  driver.emitDriverEvent({
+    piSessionId: "pi-session-1", type: "error",
+    payload: { type: "error", code: "extension_error", body: "extension handler failed", fatal: false, origin: "sdk", surface: "chat" },
+  });
+  await gateway.handleRequest({ id: "snapshot", method: "get_runtime_snapshot", params: { piSessionId: "pi-session-1" } });
+  expect(await journal.read("pi-session-1")).toEqual(expect.arrayContaining([expect.objectContaining({ payload: expect.objectContaining({ body: "extension handler failed" }) })]));
+  expect(await projections.get("extension-session")).toMatchObject({ status: "idle" });
+});
+
+it.each(["create_session", "resume_session", "fork_session"] as const)("includes startup errors in the first %s response after existing history", async (method) => {
+  const driver = createFakeRuntimeDriver();
+  const journal = createInMemorySessionEventJournal();
+  const projections = createInMemorySessionProjectionStore();
+  const gateway = createRuntimeGatewayService({ driver, journal, projections });
+  const diagnostic = (piSessionId: string) => driver.emitDriverEvent({
+    sessionId: "initializing", piSessionId, type: "error",
+    payload: { type: "error", code: "extension_load_error", body: "startup diagnostic", fatal: false, origin: "sdk", surface: "chat" },
+  });
+  const originalCreate = driver.createSession;
+  driver.createSession = async input => { const snapshot = await originalCreate(input); diagnostic(snapshot.piSessionId); return snapshot; };
+  const originalResume = driver.resumeSession;
+  driver.resumeSession = async input => { const snapshot = await originalResume(input); diagnostic(snapshot.piSessionId); return snapshot; };
+  const originalFork = driver.forkSession;
+  driver.forkSession = async input => { const result = await originalFork(input); diagnostic(result.snapshot.piSessionId); return result; };
+  journal.append({ id: "source-user", seq: 1, sessionId: "source", piSessionId: "source-pi", type: "message_update", ts: "2026-09-05T00:00:00.000Z", payload: { kind: "message", role: "user", body: "fork here", piEntryId: "fork-point" } });
+  const response = await gateway.handleRequest({ id: "start", method, params: {
+    sessionId: "initializing", projectId: "p", cwd: "/project", piSessionId: "pi-session-1", sessionFile: "/session.jsonl", sourcePiSessionId: "source-pi", sourceSessionFile: "/source.jsonl", piEntryId: "fork-point",
+  } });
+  expect(response.error).toBeUndefined();
+  const result = response.result as { events?: Array<{ payload: Record<string, unknown> }>; snapshot?: { events: Array<{ payload: Record<string, unknown> }> } };
+  const events = result.snapshot?.events ?? result.events ?? [];
+  expect(events[events.length - 1]?.payload.body).toBe("startup diagnostic");
+  if (method === "fork_session") expect(events[0]?.payload.kind).toBe("fork");
+});
+
 function agentEvent(
   piSessionId: string,
   payload: Record<string, unknown>,

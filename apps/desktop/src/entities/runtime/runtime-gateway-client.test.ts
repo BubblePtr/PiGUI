@@ -1095,6 +1095,25 @@ describe("Runtime Gateway client", () => {
     ]);
   });
 
+  it("keeps extension diagnostics visible without turning an idle session into a failed run", async () => {
+    let receive: ((event: BackendRpcEvent) => void) | undefined;
+    const snapshot: RuntimeGatewaySnapshot = { sessionId: "session-1", runtimeId: "pi-sdk:session-1", piSessionId: "pi-session-1", projectId: "pig", cwd: "/repo", status: "idle", events: [], updatedAt: "2026-09-05T00:00:00.000Z" };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>() => snapshot as T,
+      onBackendEvent: handler => { receive = handler; return vi.fn(); },
+    });
+    const runtime = await client.startRuntime({ sessionId: "session-1", projectId: "pig", checkout: { mode: "foreground-local", root: "/repo", runtimeCwd: "/repo" } });
+    const state = await client.createPiSessionState({ runtimeId: runtime.runtimeId, projectId: "pig", cwd: "/repo" });
+    const observed: unknown[] = [];
+    client.subscribeToEvents(state.piSessionId, event => observed.push(event));
+    receive?.({ type: "event", event: {
+      id: "extension-error", seq: 1, sessionId: "session-1", piSessionId: state.piSessionId, type: "error", ts: snapshot.updatedAt,
+      payload: { type: "error", code: "extension_error", body: "extension handler failed", fatal: false, surface: "chat", origin: "sdk" },
+    } });
+    expect(observed).toEqual([expect.objectContaining({ kind: "error", title: "Extension error", fatal: false })]);
+    await expect(client.getSessionState(state.piSessionId)).resolves.toMatchObject({ status: "idle" });
+  });
+
   it("keeps a failed Active Run failed: maps the chat error and drops the failed run end", async () => {
     const eventHandlers: Array<(event: BackendRpcEvent) => void> = [];
     const snapshot: RuntimeGatewaySnapshot = {

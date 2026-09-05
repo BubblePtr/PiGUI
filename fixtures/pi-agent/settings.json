@@ -4,16 +4,13 @@
   "defaultThinkingLevel": "high",
   "theme": "system",
   "packages": [
-    "@pi/code",
+    "npm:@pi/code",
     {
-      "name": "@pi/docs"
+      "source": "npm:@pi/docs"
     }
   ],
   "extensions": [
-    {
-      "name": "terminal-tools",
-      "enabled": true
-    },
-    "code-runner"
+    "./terminal-tools.ts",
+    "./extensions/code-runner"
   ]
 }

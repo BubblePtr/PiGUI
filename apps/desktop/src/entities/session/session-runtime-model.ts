@@ -92,6 +92,7 @@ export type SessionRuntimeStatus = {
 export type SessionRuntimeError = {
   code: string;
   body: string;
+  fatal?: boolean;
   runId?: string;
   at: string;
 };
@@ -443,6 +444,7 @@ export function applyAgentRuntimeEvent(
       const error: SessionRuntimeError = {
         code: event.code,
         body: event.body,
+        ...(event.fatal === false ? { fatal: false } : {}),
         ...(event.runId ? { runId: event.runId } : {}),
         at: timestamp,
       };
@@ -571,7 +573,7 @@ export function sessionStatusFromRuntimeModel(
 
   const runs = [...model.runs.values()];
 
-  if (model.errors.length > 0 || runs.some((run) => run.outcome === "failed")) {
+  if (model.errors.some((error) => error.fatal !== false) || runs.some((run) => run.outcome === "failed")) {
     return "failed";
   }
 

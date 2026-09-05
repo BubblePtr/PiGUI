@@ -8,7 +8,7 @@ import type {
   EnvironmentPreflightReport,
   EnvironmentPreflightStatus,
 } from "@pigui/core";
-import { ENVIRONMENT_PREFLIGHT_DOCS } from "@pigui/core";
+import { inspectPiRuntime, type PiRuntimeInfo } from "../drivers/pi-runtime-info";
 
 const execFileAsync = promisify(execFile);
 
@@ -19,6 +19,7 @@ export type EnvironmentPreflightReaderOptions = {
   now?: () => Date;
   whichCommand?: (command: string, env: NodeJS.ProcessEnv) => Promise<string | null>;
   runVersion?: (command: string, args: string[], env: NodeJS.ProcessEnv) => Promise<string>;
+  inspectRuntime?: () => Promise<PiRuntimeInfo>;
 };
 
 export type EnvironmentPreflightReader = {
@@ -102,37 +103,15 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 async function checkPiRuntime(
   options: EnvironmentPreflightReaderOptions,
 ): Promise<EnvironmentPreflightCheck> {
-  const env = options.env ?? process.env;
-  const which = options.whichCommand ?? defaultWhich;
-  const runVersion = options.runVersion ?? defaultRunVersion;
-  const resolved = await which("pi", env);
-
-  if (!resolved) {
-    return {
-      id: "pi_runtime",
-      severity: "required",
-      status: "fail",
-      title: "Pi Runtime",
-      summary: "Not found on PATH",
-      detail: "The `pi` CLI was not found. PiGUI needs a working Pi runtime to create Sessions.",
-      remediation: [
-        "Install Pi from https://pi.dev",
-        "Ensure `pi` is on PATH for GUI apps (not only interactive shells)",
-        "Click Recheck",
-      ],
-      docsUrl: ENVIRONMENT_PREFLIGHT_DOCS.pi,
-    };
-  }
-
   try {
-    const versionText = await runVersion(resolved, ["--version"], env);
+    const runtime = await (options.inspectRuntime ?? inspectPiRuntime)();
     return {
       id: "pi_runtime",
       severity: "required",
       status: "pass",
       title: "Pi Runtime",
-      summary: "pi CLI / runtime reachable",
-      detail: versionText ? `${resolved} · ${versionText}` : resolved,
+      summary: "Bundled Pi engine available",
+      detail: `PiGUI ${runtime.appVersion} · Pi ${runtime.piVersion} · ${runtime.mode}`,
     };
   } catch (error) {
     return {
@@ -140,14 +119,12 @@ async function checkPiRuntime(
       severity: "required",
       status: "fail",
       title: "Pi Runtime",
-      summary: "Found on PATH but failed to run",
+      summary: "Bundled Pi engine unavailable",
       detail: error instanceof Error ? error.message : String(error),
       remediation: [
-        "Repair the Pi install so `pi --version` succeeds",
-        "Ensure the binary is executable",
+        "Reinstall or update PiGUI to restore its bundled engine",
         "Click Recheck",
       ],
-      docsUrl: ENVIRONMENT_PREFLIGHT_DOCS.pi,
     };
   }
 }

@@ -130,6 +130,8 @@ export type AgentRuntimeEvent =
       turnId?: string;
       code: string;
       body: string;
+      // Pi can report an extension failure while keeping the session usable.
+      fatal?: boolean;
       surface: "chat";
       origin: AgentEventOrigin;
     }
