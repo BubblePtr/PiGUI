@@ -151,13 +151,16 @@ describe("Design system integration", () => {
     expect(main).toContain("<Theme theme={neutralTheme}>");
   });
 
-  it("keeps app typography at normal weight without session-title exceptions", () => {
+  it("flattens side nav weight only, never the whole app layout", () => {
     const styles = readFileSync(
       join(repoRoot, "apps/desktop/src/app/styles.css"),
       "utf8",
     );
 
-    expect(styles).toContain(".pigui-app-layout :where(*)");
+    // The HeroUI-era rule sat on the layout root and erased markdown bold and
+    // Tailwind font-medium everywhere; the normalization belongs to the nav.
+    expect(styles).toContain(".pigui-app-layout .astryx-side-nav :where(*)");
+    expect(styles).not.toMatch(/\.pigui-app-layout :where\(\*\)/);
     expect(styles).not.toContain("data-pigui-session-title");
     expect(styles).toContain(".pigui-app-layout .astryx-side-nav-section span");
     expect(styles).toContain(
