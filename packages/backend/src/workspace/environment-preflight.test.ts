@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createEnvironmentPreflightReader } from "./environment-preflight";
 
 async function tempRoots() {
@@ -14,7 +14,7 @@ async function tempRoots() {
 }
 
 describe("environment preflight", () => {
-  it("passes required checks when pi, data dir, and auth are ready", async () => {
+  it("uses the bundled SDK without requiring or reporting a global pi CLI", async () => {
     const { agentDir, dataDir } = await tempRoots();
     await writeFile(
       join(agentDir, "auth.json"),
@@ -22,12 +22,14 @@ describe("environment preflight", () => {
       "utf8",
     );
 
+    const whichCommand = vi.fn(async (command: string) =>
+      command === "git" ? "/bin/git" : null,
+    );
     const reader = createEnvironmentPreflightReader({
       agentDir,
       dataDir,
-      whichCommand: async (command) => (command === "pi" || command === "git" ? `/bin/${command}` : null),
-      runVersion: async (command) =>
-        command.endsWith("pi") ? "pi 0.1.0" : "git version 2.45.0",
+      whichCommand,
+      runVersion: async () => "git version 2.45.0",
     });
 
     const report = await reader.run();
@@ -40,16 +42,21 @@ describe("environment preflight", () => {
       "git",
     ]);
     expect(report.checks.find((check) => check.id === "git")?.status).toBe("pass");
+    expect(whichCommand).not.toHaveBeenCalledWith("pi", expect.anything());
+    expect(report.checks.find((check) => check.id === "pi_runtime")).toMatchObject({
+      status: "pass",
+      detail: expect.stringMatching(/Pi 0\.84\.3.*SDK/),
+    });
   });
 
-  it("fails required pi and auth checks without blocking optional git skip", async () => {
+  it("reports a broken bundled engine even when a global CLI exists", async () => {
     const { agentDir, dataDir } = await tempRoots();
     const reader = createEnvironmentPreflightReader({
       agentDir,
       dataDir,
-      whichCommand: async () => null,
-      runVersion: async () => {
-        throw new Error("unreachable");
+      whichCommand: async (command) => command === "pi" ? "/bin/pi" : null,
+      inspectRuntime: async () => {
+        throw new Error("Bundled SDK module could not load");
       },
     });
 
@@ -57,6 +64,8 @@ describe("environment preflight", () => {
     expect(report.requiredPassed).toBe(false);
     expect(report.canContinue).toBe(false);
     expect(report.checks.find((check) => check.id === "pi_runtime")?.status).toBe("fail");
+    expect(report.checks.find((check) => check.id === "pi_runtime")?.detail).toContain("Bundled SDK module could not load");
+    expect(JSON.stringify(report.checks[0].remediation)).not.toContain("Install Pi");
     expect(report.checks.find((check) => check.id === "model_auth")?.status).toBe("fail");
     expect(report.checks.find((check) => check.id === "git")?.status).toBe("skip");
   });
@@ -100,6 +109,7 @@ describe("environment preflight", () => {
     const failing = createEnvironmentPreflightReader({
       agentDir,
       dataDir,
+      inspectRuntime: async () => { throw new Error("Bundled engine unavailable"); },
       whichCommand: async (command) => (command === "git" ? "/usr/bin/git" : null),
       runVersion: async () => "git version 2.45.0",
       now: () => new Date("2026-07-25T12:00:00.000Z"),

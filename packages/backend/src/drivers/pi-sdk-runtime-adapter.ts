@@ -18,6 +18,7 @@ import type {
   PiSdkRuntimeFactory,
   PiSdkRuntimeForker,
   PiSdkRuntimeResumer,
+  PiSdkRuntimeEvent,
   PiSdkSessionRuntime,
   PiSdkUserMessageBoundary,
 } from "./pi-sdk-driver";
@@ -72,6 +73,9 @@ export type PublicPiSdkAgentSession = {
   abort(): Promise<void>;
   dispose(): void;
   subscribe(listener: (event: unknown) => void): () => void;
+  bindExtensions?(bindings: {
+    onError: (error: { extensionPath: string; event: string; error: string }) => void;
+  }): Promise<void>;
   clearQueue?(): {
     steering: string[];
     followUp: string[];
@@ -141,6 +145,7 @@ export type PublicPiSdkCreateAgentSessionOptions = {
 export type PublicPiSdkModule = {
   createAgentSession(options?: PublicPiSdkCreateAgentSessionOptions): Promise<{
     session: PublicPiSdkAgentSession;
+    extensionsResult?: { errors: Array<{ path: string; error: string }> };
   }>;
   SessionManager?: {
     open(path: string): PublicPiSdkSessionManager;
@@ -570,12 +575,10 @@ export function createPublicPiSdkRuntimeFactory(
     createPublicPiSdkRuntime({
       input,
       now,
-      session: (
-        await options.sdk.createAgentSession({
-          ...options.sessionOptions,
-          cwd: input.cwd,
-        })
-      ).session,
+      ...(await options.sdk.createAgentSession({
+        ...options.sessionOptions,
+        cwd: input.cwd,
+      })),
     });
 }
 
@@ -591,7 +594,7 @@ export function createPublicPiSdkRuntimeResumer(
       throw new Error("Pi SDK SessionManager.open is unavailable.");
     }
 
-    const { session } = await options.sdk.createAgentSession({
+    const { session, extensionsResult } = await options.sdk.createAgentSession({
       ...options.sessionOptions,
       cwd: sessionManager.getCwd?.() || input.cwd,
       sessionManager,
@@ -608,6 +611,7 @@ export function createPublicPiSdkRuntimeResumer(
       input,
       now,
       session,
+      extensionsResult,
     });
   };
 }
@@ -651,17 +655,18 @@ export function createPublicPiSdkRuntimeForker(
       }
     }
 
-    const { session } = await options.sdk.createAgentSession({
+    const { session, extensionsResult } = await options.sdk.createAgentSession({
       ...options.sessionOptions,
       cwd: sessionManager.getCwd?.() || input.cwd,
       sessionManager,
     });
 
     return {
-      runtime: createPublicPiSdkRuntime({
+      runtime: await createPublicPiSdkRuntime({
         input,
         now: options.now ?? (() => new Date().toISOString()),
         session,
+        extensionsResult,
       }),
       selectedText,
     };
@@ -672,14 +677,15 @@ function piImagesFromPrompt(images?: RuntimePromptImage[]) {
   return images?.length ? images.map(toPiImageContent) : undefined;
 }
 
-function createPublicPiSdkRuntime(context: {
+async function createPublicPiSdkRuntime(context: {
   input:
     | CreateRuntimeSessionInput
     | ResumeRuntimeSessionInput
     | ForkRuntimeSessionInput;
   now: () => string;
   session: PublicPiSdkAgentSession;
-}): PiSdkSessionRuntime {
+  extensionsResult?: { errors: Array<{ path: string; error: string }> };
+}): Promise<PiSdkSessionRuntime> {
     const { session } = context;
     const now = context.now;
     // Reattach high-water: prior user prompts already have synthetic ids
@@ -700,6 +706,41 @@ function createPublicPiSdkRuntime(context: {
     let stopped = false;
     let queuedSequence = 0;
     const queuedMessages = new Map<string, RuntimeGatewayQueuedMessage>();
+    const listeners = new Set<(event: PiSdkRuntimeEvent) => void>();
+    const pendingEvents: PiSdkRuntimeEvent[] = [];
+    const emit = (event: PiSdkRuntimeEvent) => {
+      if (listeners.size === 0) {
+        // Startup precedes the driver's subscription and the Gateway's Pi-id
+        // mapping. Keep both the events and their App identity for journal replay.
+        pendingEvents.push({ ...event, sessionId: context.input.sessionId });
+      } else {
+        for (const listener of listeners) {
+          listener(event);
+        }
+      }
+    };
+    const unsubscribe = session.subscribe((event) => {
+      if (isUserMessageEndEvent(event)) {
+        void waitForSessionManagerAppend().then(() => {
+          const piEntryId = userEntryIdFromSessionManager(session.sessionManager);
+          const boundary = piEntryId ? { piEntryId } : {};
+          const waiter = userBoundaryWaiters.shift();
+          if (waiter) {
+            waiter(boundary);
+          } else {
+            pendingUserBoundaries.push(boundary);
+          }
+        });
+      }
+      for (const agentEvent of normalizer.normalize(event)) {
+        emit({
+          piSessionId: session.sessionId,
+          ...("turnId" in agentEvent && agentEvent.turnId ? { turnId: agentEvent.turnId } : {}),
+          type: agentEvent.type,
+          payload: { ...agentEvent },
+        });
+      }
+    });
     const runtime: PiSdkSessionRuntime = {
       piSessionId: session.sessionId,
       runtimeId: `pi-sdk:${context.input.sessionId}`,
@@ -755,36 +796,18 @@ function createPublicPiSdkRuntime(context: {
         return { schemas: schemasFromSession(session, names) };
       },
       onEvent(listener) {
-        return session.subscribe((event) => {
-          if (isUserMessageEndEvent(event)) {
-            void waitForSessionManagerAppend().then(() => {
-              const piEntryId = userEntryIdFromSessionManager(
-                session.sessionManager,
-              );
-              const boundary = piEntryId ? { piEntryId } : {};
-              const waiter = userBoundaryWaiters.shift();
-
-              if (waiter) {
-                waiter(boundary);
-              } else {
-                pendingUserBoundaries.push(boundary);
-              }
-            });
-          }
-
-          for (const agentEvent of normalizer.normalize(event)) {
-            listener({
-              piSessionId: session.sessionId,
-              ...("turnId" in agentEvent && agentEvent.turnId
-                ? { turnId: agentEvent.turnId }
-                : {}),
-              type: agentEvent.type,
-              payload: { ...agentEvent },
-            });
-          }
-        });
+        listeners.add(listener);
+        for (const event of pendingEvents.splice(0)) {
+          listener(event);
+        }
+        return () => {
+          listeners.delete(listener);
+        };
       },
       dispose() {
+        unsubscribe();
+        listeners.clear();
+        pendingEvents.length = 0;
         session.dispose();
       },
     };
@@ -885,5 +908,37 @@ function createPublicPiSdkRuntime(context: {
       };
     }
 
+    const reportExtensionError = (code: string, path: string, detail: string) =>
+      emit({
+        sessionId: context.input.sessionId,
+        piSessionId: session.sessionId,
+        type: "error",
+        payload: {
+          type: "error",
+          code,
+          body: `${path}: ${detail}`,
+          fatal: false,
+          surface: "chat",
+          origin: "sdk",
+        },
+      });
+    try {
+      for (const error of context.extensionsResult?.errors ?? []) {
+        reportExtensionError("extension_load_error", error.path, error.error);
+      }
+      await session.bindExtensions?.({
+        onError: (error) => reportExtensionError(
+          "extension_error",
+          error.extensionPath,
+          `${error.event}: ${error.error}`,
+        ),
+      });
+      runtime.status = statusFromSession({ session, promptCompleted, stopped });
+      runtime.modelControls = modelControlsFromSession(session);
+      runtime.summary = summaryFromSession(session);
+    } catch (error) {
+      runtime.dispose?.();
+      throw error;
+    }
     return runtime;
 }

@@ -721,6 +721,16 @@ describe("session runtime model", () => {
     ]);
   });
 
+  it("keeps a successful run successful when an extension reports a nonfatal error", () => {
+    const model = applyAll(createSessionRuntimeModel(), [
+      { seq: 1, timestamp: "2026-09-05T00:00:00.000Z", event: { type: "run", runId, phase: "start", trigger: "prompt", surface: "hidden", origin: "sdk" } },
+      { seq: 2, timestamp: "2026-09-05T00:00:01.000Z", event: { type: "error", code: "extension_error", body: "extension failed", fatal: false, surface: "chat", origin: "sdk" } },
+      { seq: 3, timestamp: "2026-09-05T00:00:02.000Z", event: { type: "run", runId, phase: "end", trigger: "prompt", outcome: "completed", surface: "hidden", origin: "sdk" } },
+    ]);
+    expect(sessionStatusFromRuntimeModel(model)).toBe("completed");
+    expect(model.errors).toEqual([expect.objectContaining({ body: "extension failed", fatal: false })]);
+  });
+
   it("mirrors Gateway-minted legacy chat events without advancing the agent seq watermark", () => {
     let model = createSessionRuntimeModel();
 

@@ -1,180 +1,55 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import type { ConfigInventory, ExtensionInfo, SkillInfo } from "@pigui/core";
-
-type JsonRecord = Record<string, unknown>;
+import { readFile } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
+import { DefaultPackageManager, loadSkills, SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { ConfigInventory } from "@pigui/core";
 
 export async function buildConfigInventory(dir: string): Promise<ConfigInventory> {
-  const settings = await readSettings(dir);
-  const extensions = await buildExtensions(settings, dir);
-  const skills: SkillInfo[] = (await listNamedEntries(join(dir, "skills"))).map((name) => ({
-    name,
-    source: "directory",
-  }));
+  const agentDir = resolve(dir);
+  const settings = await readSettings(agentDir);
+  // Setup is the global inventory. Do not accidentally read the backend's cwd
+  // as a project, or let a read-only query persist Pi settings migrations.
+  const settingsManager = SettingsManager.inMemory(settings, { projectTrusted: false });
+  const packages = new DefaultPackageManager({ cwd: agentDir, agentDir, settingsManager });
+  // Resolve native manifests and filters without installing missing packages
+  // or evaluating extension modules just to display configuration.
+  const resources = await packages.resolve(async () => "skip");
+  const skillResources = resources.skills.filter(resource => resource.enabled);
+  const skills = loadSkills({
+    cwd: agentDir,
+    agentDir,
+    skillPaths: skillResources.map(resource => resource.path),
+    includeDefaults: false,
+  }).skills;
+  const source = (metadata: { scope: string; source: string }) => `${metadata.scope}:${metadata.source}`;
 
   return {
-    defaultModel: stringSetting(settings, ["defaultModel", "default_model", "model", "currentModel"]),
-    defaultProvider: stringSetting(settings, ["defaultProvider", "default_provider", "provider"]),
-    defaultThinkingLevel: stringSetting(settings, [
-      "defaultThinkingLevel",
-      "default_thinking_level",
-      "thinkingLevel",
-    ]),
-    theme: stringSetting(settings, ["theme"]),
-    packages: namedArray(settings, "packages"),
-    extensions,
-    skills,
+    defaultModel: settingsManager.getDefaultModel(),
+    defaultProvider: settingsManager.getDefaultProvider(),
+    defaultThinkingLevel: settingsManager.getDefaultThinkingLevel(),
+    theme: settingsManager.getTheme(),
+    packages: [...new Set((settingsManager.getGlobalSettings().packages ?? [])
+      .map(pkg => typeof pkg === "string" ? pkg : pkg.source))].sort(),
+    extensions: resources.extensions.map(resource => ({
+      name: resource.metadata.origin === "package"
+        ? `${resource.metadata.source}/${relative(resource.metadata.baseDir ?? agentDir, resource.path)}`
+        : relative(agentDir, resource.path),
+      source: source(resource.metadata),
+      enabled: resource.enabled,
+    })).sort((left, right) => left.name.localeCompare(right.name)),
+    skills: skills.map(skill => ({
+      name: skill.name,
+      source: source(skillResources.find(resource => resource.path === skill.filePath)?.metadata ?? { scope: "user", source: "local" }),
+    })).sort((left, right) => left.name.localeCompare(right.name)),
     promptTemplates: [],
   };
 }
 
-async function readSettings(dir: string): Promise<unknown> {
+async function readSettings(dir: string): Promise<Parameters<typeof SettingsManager.inMemory>[0]> {
   try {
-    return JSON.parse(await readFile(join(dir, "settings.json"), "utf8")) as unknown;
+    const settings: unknown = JSON.parse(await readFile(join(dir, "settings.json"), "utf8"));
+    return typeof settings === "object" && settings !== null && !Array.isArray(settings) ? settings : {};
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return null;
-    }
-
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return {};
     throw error;
   }
-}
-
-function stringSetting(settings: unknown, keys: string[]) {
-  if (!isRecord(settings)) {
-    return undefined;
-  }
-
-  for (const key of keys) {
-    const value = settings[key];
-    if (typeof value === "string" && value.trim()) {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
-function namedArray(settings: unknown, key: string) {
-  if (!isRecord(settings) || !Array.isArray(settings[key])) {
-    return [];
-  }
-
-  return Array.from(new Set(settings[key].map(namedValue).filter(isString))).sort((left, right) =>
-    left.localeCompare(right),
-  );
-}
-
-function namedValue(value: unknown) {
-  if (typeof value === "string") {
-    return nonEmpty(value);
-  }
-
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  for (const key of ["name", "id", "package", "path"]) {
-    const named = nonEmpty(value[key]);
-    if (named) {
-      return named;
-    }
-  }
-
-  return undefined;
-}
-
-async function buildExtensions(settings: unknown, dir: string) {
-  const extensions = new Map<string, ExtensionInfo>();
-
-  if (isRecord(settings) && Array.isArray(settings.extensions)) {
-    for (const item of settings.extensions) {
-      const extension = extensionFromSetting(item);
-      if (extension) {
-        extensions.set(extension.name, extension);
-      }
-    }
-  }
-
-  for (const name of await listNamedEntries(join(dir, "extensions"))) {
-    const existing = extensions.get(name);
-    if (existing) {
-      extensions.set(name, {
-        ...existing,
-        source: "settings,directory",
-      });
-    } else {
-      extensions.set(name, {
-        name,
-        source: "directory",
-        enabled: true,
-      });
-    }
-  }
-
-  return Array.from(extensions.values()).sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function extensionFromSetting(value: unknown): ExtensionInfo | undefined {
-  if (typeof value === "string") {
-    const name = nonEmpty(value);
-    return name ? { name, source: "settings", enabled: true } : undefined;
-  }
-
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const name = nonEmpty(value.name) ?? nonEmpty(value.id);
-  if (!name) {
-    return undefined;
-  }
-
-  return {
-    name,
-    source: "settings",
-    enabled: typeof value.enabled === "boolean" ? value.enabled : true,
-  };
-}
-
-async function listNamedEntries(dir: string) {
-  let entries;
-
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
-  }
-
-  return Array.from(new Set(
-    entries
-      .map((entry) => nonEmpty(entry.name))
-      .filter(isString)
-      .filter((name) => !name.startsWith(".")),
-  )).sort((left, right) => left.localeCompare(right));
-}
-
-function nonEmpty(value: unknown) {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : undefined;
-}
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === "string";
-}
-
-function isNodeError(value: unknown): value is NodeJS.ErrnoException {
-  return value instanceof Error && "code" in value;
 }

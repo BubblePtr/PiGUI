@@ -140,6 +140,7 @@ export function createRuntimeGatewayService(
     idFactory: options.idFactory,
   });
   const projectionWrites = createRuntimeEventProjectionWriter(options.projections);
+  const initializationEvents = new Map<string, RuntimeGatewayDriverEvent[]>();
 
   const emit = (event: RuntimeGatewayDriverEvent) => {
     const sessionId =
@@ -183,13 +184,21 @@ export function createRuntimeGatewayService(
   };
 
   options.driver.onEvent((event) => {
-    emit(event);
+    const sessionId = event.sessionId ?? sessionIdsByPiSessionId.get(event.piSessionId);
+    const pending = sessionId ? initializationEvents.get(sessionId) : undefined;
+    if (pending) pending.push(event);
+    else emit(event);
   });
 
   return {
     async handleRequest(request) {
+      let initializingSessionId: string | undefined;
       try {
-        const result = await dispatchRuntimeGatewayRequest({
+        if (["create_session", "resume_session", "fork_session"].includes(request.method)) {
+          initializingSessionId = requiredString(paramsRecord(request.params).sessionId, "sessionId");
+          initializationEvents.set(initializingSessionId, []);
+        }
+        let result = await dispatchRuntimeGatewayRequest({
           request,
           driver: options.driver,
           journal: options.journal,
@@ -210,6 +219,23 @@ export function createRuntimeGatewayService(
           },
         });
 
+        if (initializingSessionId) {
+          const pending = initializationEvents.get(initializingSessionId) ?? [];
+          initializationEvents.delete(initializingSessionId);
+          // Fork history and the session projection must exist before startup
+          // events are sequenced. Include them in the first response: the
+          // renderer cannot subscribe to a session it has not received yet.
+          const events = pending.map(emit).filter((event): event is RuntimeGatewayEventEnvelope => event !== null);
+          if (events.length > 0) {
+            if (request.method === "fork_session") {
+              const fork = result as ForkRuntimeSessionResult;
+              result = { ...fork, snapshot: { ...fork.snapshot, events: [...fork.snapshot.events, ...events] } };
+            } else {
+              const snapshot = result as RuntimeGatewaySnapshot;
+              result = { ...snapshot, events: [...snapshot.events, ...events] };
+            }
+          }
+        }
         await projectionWrites.flush();
 
         return {
@@ -221,6 +247,8 @@ export function createRuntimeGatewayService(
           id: request.id,
           error: error instanceof Error ? error.message : String(error),
         };
+      } finally {
+        if (initializingSessionId) initializationEvents.delete(initializingSessionId);
       }
     },
 
@@ -548,7 +576,7 @@ function projectionPatchFromRuntimeEvent(event: RuntimeGatewayEventEnvelope) {
   }
 
   if (payload.type === "error") {
-    return { status: "failed" as const };
+    return payload.fatal === false ? null : { status: "failed" as const };
   }
 
   if (payload.type === "usage") {
