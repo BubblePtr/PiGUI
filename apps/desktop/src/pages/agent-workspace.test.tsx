@@ -480,7 +480,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       const aside = await screen.findByRole("complementary", { name: "Changes" });
       const asidePane = aside.closest('[data-slot="resizable-panel"]') as HTMLElement;
 
-      // 1440 container - 17px handle gutter - 400px Chat leaves 1023, so the
+      // 1440 container - 1px handle divider - 400px Chat leaves 1039, so the
       // 560px default is untouched.
       expect(asidePane.style.width).toBe("560px");
 
@@ -491,9 +491,9 @@ describe("AgentWorkspaceSessionsPage", () => {
         }
       });
 
-      // 800 - 17 - 400 = 383: the panel gives back what Chat now needs instead
+      // 800 - 1 - 400 = 399: the panel gives back what Chat now needs instead
       // of pushing Chat under its minimum.
-      await waitFor(() => expect(asidePane.style.width).toBe("383px"));
+      await waitFor(() => expect(asidePane.style.width).toBe("399px"));
     } finally {
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
@@ -513,7 +513,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
-    expect(screen.getByLabelText("Resize Session inspector")).toHaveClass("mx-2");
+    // The handle is the 1px divider itself: no margins, so the grab zone and
+    // pill overlay the panes instead of taking width from them.
+    expect(screen.getByLabelText("Resize Session inspector")).not.toHaveClass("mx-2");
     // The titlebar band is a real 40px row on the Chat side; the inspector's
     // own header fills that band on the aside side, so the aside pane carries
     // no offset. One hairline under the band spans the whole view (across the

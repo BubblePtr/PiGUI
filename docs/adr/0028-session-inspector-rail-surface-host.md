@@ -24,7 +24,7 @@ ADR-0008 把 Live Session 页右侧定义为 Structured Action Surface。ADR-002
 面板宽度：默认 560px，最小 340px，最大 58vw（其余留给 Chat），拖拽复用已经驱动 docked Changes 的 Astryx `useResizable` / `ResizeHandle`。
 
 > **修订（2026-09-02）：上限从 58vw 改为「Chat 最小宽度之外的全部」。**
-> Browser surface（`.scratch/embedded-browser/PRD.md`）落地后真机验证：58vw 给内嵌页面留的宽度不够，而这个比例本来就没有依据——它把「Chat 至少要多宽」这件事表达成了「面板至多占多少」，窗口越宽越亏。改为按 Cursor 的分配方式：**Chat 有最小宽度 400px（`sessionInspectorChatMinWidthPx`），面板可以拿走其余全部**，即 `maxSizePx = max(340, 可分配宽度 - 400)`；「可分配宽度」是分栏容器宽度减去 resize handle 占位（`mx-2` 的 16px 加它自己画的 1px 分隔线）。
+> Browser surface（`.scratch/embedded-browser/PRD.md`）落地后真机验证：58vw 给内嵌页面留的宽度不够，而这个比例本来就没有依据——它把「Chat 至少要多宽」这件事表达成了「面板至多占多少」，窗口越宽越亏。改为按 Cursor 的分配方式：**Chat 有最小宽度 400px（`sessionInspectorChatMinWidthPx`），面板可以拿走其余全部**，即 `maxSizePx = max(340, 可分配宽度 - 400)`；「可分配宽度」是分栏容器宽度减去 resize handle 占位（只有它自己画的那 1px 分隔线；16px 抓取区和 pill 都是绝对定位叠在两栏之上，不占布局宽度）。
 > 上限不再是挂载时算一次的常量：`agent-workspace.tsx` 给分栏容器挂 `ResizeObserver` 实时重算，并在窗口缩小到容不下当前面板宽度时把 size 主动 clamp 回新上限（`useResizable` 只在每次拖拽时按当时的 bounds 收敛，不会回收已经持有的 size）。取 `floor` 而非 `round`：这个上限的存在意义就是保住 Chat 的最小宽度，容器宽度带小数时不能四舍五入到把 Chat 挤掉 1px。
 > 当时 1280px 以下保留 Sheet；该回退已由下方 2026-09-05 修订取消。
 
