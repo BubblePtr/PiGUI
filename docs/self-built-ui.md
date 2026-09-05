@@ -76,3 +76,7 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 - 新增 `shared/ui/` 组件:进表一,同 PR 注册 /design 页(AGENTS.md 硬规则)。
 - 表二的方向落地后:issue 关闭,组件移入表一。
 - 每轮 UI 工作收尾时核对本表,状态漂移当场修。
+
+## 开发工具：UI intent picker
+
+`dev/ui-intent/` 是开发环境专用检查工具，不新增 `shared/ui/` 组件。组件树复用 Astryx TreeList（展开、选中态、键盘导航），范围切换复用 Button；所有具名 React 组件自动进入可浏览快照，区域术语单独维护于 `regions.ts`。操作方式及源码定位边界见 [开发环境组件选择器](ui-intent-picker.md)。

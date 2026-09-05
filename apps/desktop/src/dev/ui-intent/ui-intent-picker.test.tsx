@@ -166,3 +166,78 @@ describe("UiIntentPicker", () => {
     expect(screen.getByTestId("ui-intent-picker-panel")).toBeInTheDocument();
   });
 });
+
+describe("named component selection", () => {
+  function NamedLeaf() { return <button type="button">deep target</button>; }
+  function DeepFixture() {
+    let child = <NamedLeaf />;
+    for (let index = 0; index < 12; index++) {
+      const Wrapper = ({ children }: { children: React.ReactNode }) => <section>{children}</section>;
+      Wrapper.displayName = `NamedLayer${index}`;
+      child = <Wrapper>{child}</Wrapper>;
+    }
+    return <>{child}<UiIntentPicker /></>;
+  }
+
+  it("allows selecting and copying named ancestors beyond eight rows", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<DeepFixture />);
+    armAndClick(screen.getByRole("button", { name: "deep target" }));
+    expect(screen.queryByRole("button", { name: "NamedLayer11" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show full tree" }));
+    fireEvent.click(screen.getByRole("button", { name: "NamedLayer11" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy intent block/ }));
+    await screen.findByText("Copied");
+    const block = writeText.mock.calls[0][0] as string;
+    expect(block).toContain('- Component: `NamedLayer11`');
+    expect(block).not.toContain('`NamedLeaf`');
+    expect(block).toContain('`NamedLayer11`');
+    expect(block).not.toContain(' more)');
+  });
+
+  it("keeps the specific component name visible while hovering a known region", () => {
+    render(<Fixture />);
+    const fromPoint = stubElementFromPoint();
+    const glass = arm();
+    fromPoint.mockReturnValue(screen.getByRole("button", { name: "row" }));
+    fireEvent.pointerMove(glass, { clientX: 10, clientY: 10 });
+    expect(screen.getByText("PiTraceLedger · Ledger")).toBeInTheDocument();
+  });
+});
+
+describe("component identity", () => {
+  it("does not hide an app component just because a library exports the same name", () => {
+    function Button() { return <button type="button">local button</button>; }
+    function AppFeature() { return <Button />; }
+    render(<AppFeature />);
+    expect(buildIntentTarget(screen.getByRole("button", { name: "local button" })).component?.name).toBe("Button");
+  });
+});
+
+describe("expandable component tree", () => {
+  function Descendant() { return <em>nested</em>; }
+  function SiblingBranch() { return <article><Descendant /></article>; }
+  function TreeFixture() { return <><PiTraceLedger /><SiblingBranch /><UiIntentPicker /></>; }
+
+  it("opens the picked path and lets users expand and copy a sibling descendant", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<TreeFixture />);
+    armAndClick(screen.getByRole("button", { name: "row" }));
+    expect(screen.getByRole("tree")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Descendant" })).toBeNull();
+    const sibling = screen.getByRole("button", { name: "SiblingBranch" }).closest('[role="treeitem"]')!;
+    (sibling as HTMLElement).focus();
+    fireEvent.keyDown(sibling, { key: "ArrowRight" });
+    fireEvent.click(await screen.findByRole("button", { name: "Descendant" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy intent block/ }));
+    await screen.findByText("Copied");
+    const block = writeText.mock.calls[0][0] as string;
+    expect(block).toContain('- Component: `Descendant`');
+    expect(block).toContain('`SiblingBranch`');
+    expect(block).not.toContain('`PiTraceLedger`');
+    expect(block).toContain('Clicked element: `<button>`');
+    expect(screen.queryByRole("button", { name: "UiIntentPicker" })).toBeNull();
+  });
+});

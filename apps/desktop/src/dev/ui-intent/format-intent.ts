@@ -10,7 +10,9 @@ import type { UiRegionMatch } from "./regions";
 export type IntentTarget = {
   region: UiRegionMatch | null;
   stack: ComponentStackEntry[];
-  /** Headline component: the innermost app (non-library) component. */
+  /** Original DOM pick stays separate from the selected branch ancestry. */
+  clickedElement?: ComponentStackEntry;
+  /** Selected component; defaults to the innermost app component. */
   component: {
     name: string;
     /** Where the component's own render output lives (its file). */
@@ -21,7 +23,6 @@ export type IntentTarget = {
   testId: string | null;
 };
 
-const MAX_STACK_ROWS = 8;
 
 function at(file: string | null, line: number | null): string | null {
   if (!file) {
@@ -44,7 +45,7 @@ export function formatIntentBlock(target: IntentTarget): string {
     );
   }
 
-  const element = target.stack.find((entry) => entry.kind === "element");
+  const element = target.clickedElement ?? target.stack.find((entry) => entry.kind === "element");
   if (element) {
     const location = at(element.file, element.line);
     lines.push(`- Clicked element: \`<${element.name}>\`${location ? ` — ${location}` : ""}`);
@@ -64,14 +65,12 @@ export function formatIntentBlock(target: IntentTarget): string {
   const components = target.stack.filter((entry) => entry.kind === "component");
   if (components.length > 0) {
     lines.push("- Component stack (innermost → outermost):");
-    for (const entry of components.slice(0, MAX_STACK_ROWS)) {
+    for (const entry of components) {
       const location = at(entry.file, entry.line);
       const libraryNote = entry.library ? " (library)" : "";
       lines.push(`  - \`${entry.name}\`${libraryNote}${location ? ` — ${location}` : ""}`);
     }
-    if (components.length > MAX_STACK_ROWS) {
-      lines.push(`  - … (${components.length - MAX_STACK_ROWS} more)`);
-    }
+
   }
 
   if (target.testId) {

@@ -67,3 +67,27 @@ describe("matchRegion", () => {
     expect(matchRegion([], document.getElementById("n") ?? null)).toBeNull();
   });
 });
+
+describe("additional named regions", () => {
+  it.each([
+    ["ModelSelectorControl", "Model"],
+    ["ChatChainOfThought", "Chain of Thought"],
+    ["ChatThoughtStep", "Thinking"],
+    ["ChatToolStep", "Tool Call"],
+    ["SessionBrowserPanel", "Structured Action Surface"],
+    ["TerminalView", "Structured Action Surface"],
+    ["CheckoutStrategyPicker", "Execution Checkout"],
+  ])("maps %s to %s", (name, term) => {
+    expect(matchRegion([componentEntry(name)], null)?.region.term).toBe(term);
+  });
+
+  it("prefers a named DOM subregion over a broad component ancestor", () => {
+    document.body.innerHTML = '<div data-slot="trace-tally"><span id="value">12</span></div>';
+    const host: ComponentStackEntry = {
+      name: "div", kind: "element", file: null, line: null, library: false,
+      fiber: { type: "div", child: null, sibling: null, return: null,
+        stateNode: document.querySelector('[data-slot="trace-tally"]') },
+    };
+    expect(matchRegion([host, componentEntry("SessionDetailView")], document.getElementById("value"))?.region.term).toBe("Tally");
+  });
+});

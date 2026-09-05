@@ -17,6 +17,8 @@
 /** Minimal structural view of React's internal Fiber — we only read fields. */
 export type FiberLike = {
   type: unknown;
+  stateNode?: unknown;
+  alternate?: FiberLike | null;
   child: FiberLike | null;
   sibling: FiberLike | null;
   return: FiberLike | null;
@@ -59,9 +61,14 @@ function resolveComponentName(type: unknown): string | null {
 
   if (type && typeof type === "object") {
     const record = type as {
+      displayName?: string;
       render?: { displayName?: string; name?: string };
       type?: unknown;
     };
+
+    if (record.displayName) {
+      return record.displayName;
+    }
 
     // forwardRef
     if (record.render && typeof record.render === "function") {
@@ -193,19 +200,8 @@ export function componentStackFromFiber(fiber: FiberLike): ComponentStackEntry[]
   let current: FiberLike | null = fiber;
 
   while (current) {
-    if (typeof current.type === "string") {
-      stack.push({
-        name: current.type,
-        kind: "element",
-        ...sourceEntry(current),
-        fiber: current,
-      });
-    } else {
-      const name = resolveComponentName(current.type);
-      if (name) {
-        stack.push({ name, kind: "component", ...sourceEntry(current), fiber: current });
-      }
-    }
+    const entry = entryFromFiber(current);
+    if (entry) stack.push(entry);
 
     current = current.return;
   }
@@ -232,4 +228,11 @@ export function nearestTestId(element: Element): string | null {
 /** First entry of `kind: "component"` — what the user most likely means. */
 export function innermostComponent(stack: ComponentStackEntry[]): ComponentStackEntry | null {
   return stack.find((entry) => entry.kind === "component") ?? null;
+}
+
+/** Describe a single fiber without walking its ancestors. */
+export function entryFromFiber(fiber: FiberLike): ComponentStackEntry | null {
+  const host = typeof fiber.type === "string";
+  const name = host ? fiber.type as string : resolveComponentName(fiber.type);
+  return name ? { name, kind: host ? "element" : "component", ...sourceEntry(fiber), fiber } : null;
 }

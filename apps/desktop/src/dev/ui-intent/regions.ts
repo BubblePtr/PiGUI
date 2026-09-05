@@ -78,7 +78,7 @@ export const uiRegions: UiRegion[] = [
   },
   {
     term: "Structured Action Surface",
-    match: { components: ["SessionChangesPanel", "SessionSurfaceContent"] },
+    match: { components: ["SessionChangesPanel", "SessionSurfaceContent", "SessionBrowserPanel", "BrowserSurface", "BrowserSurfaceBody", "SessionTerminalPanel", "TerminalView", "SessionDiffViewer"] },
   },
   {
     term: "Session Draft",
@@ -100,6 +100,15 @@ export const uiRegions: UiRegion[] = [
     term: "Unread Result Indicator",
     match: { components: ["SidebarSessionGlyph"], selectors: ['[aria-label="Unread result"]'] },
   },
+  { term: "Model", match: { components: ["ModelSelectorControl", "ModelOptionsFlyout"] } },
+  { term: "Chain of Thought", match: { components: ["AssistantRunTrace", "ChatChainOfThought", "ChatChainOfThoughtSteps", "ChatChainOfThoughtStep", "ChatChainOfThoughtRail"] } },
+  { term: "Thinking", match: { components: ["ChatThoughtStep", "ChatThoughtMarkdown"] } },
+  { term: "Tool Call", match: { components: ["ChatTool", "ChatToolGroup", "ChatToolStep", "RailToolNode"] } },
+  { term: "Assistant Message", match: { components: ["AssistantMessageContent", "ChatMessageAssistant"] } },
+  { term: "Execution Checkout", match: { components: ["GitBranchPicker", "CheckoutStrategyPicker"] } },
+  { term: "Empty Workspace State", match: { testIds: ["empty-workspace-state"] } },
+  { term: "Session Creation", match: { testIds: ["session-creation-status"] } },
+
 ];
 
 export type UiRegionMatch = {
@@ -126,7 +135,7 @@ function elementRegionMatch(element: Element): UiRegionMatch | null {
 /**
  * Find the region a picked element belongs to, most specific first:
  * 1. attributes on the clicked element itself,
- * 2. component names along the fiber stack (innermost → outermost),
+ * 2. host attributes and component names along the fiber stack (innermost → outermost),
  * 3. attributes on DOM ancestors (nearest → farthest).
  */
 export function matchRegion(
@@ -142,6 +151,9 @@ export function matchRegion(
 
   for (const entry of stack) {
     if (entry.kind !== "component") {
+      const node = entry.fiber?.stateNode;
+      const match = node instanceof Element ? elementRegionMatch(node) : null;
+      if (match) return match;
       continue;
     }
 
