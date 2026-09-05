@@ -462,6 +462,54 @@ body {
   transition: width 200ms ease;
 }
 
+/* Session dock open/close: transform + opacity only, so Chat's column width
+   is never interpolated. Enter/exit share endpoints so a mid-flight reverse
+   retargets instead of restarting. */
+.pigui-session-dock {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 250ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 250ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.pigui-session-dock[data-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(100%);
+  transition-duration: 180ms;
+  transition-timing-function: ease-in;
+}
+
+@starting-style {
+  .pigui-session-dock[data-mount-motion="true"] {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.pigui-session-dock-surface[data-motion="enter"] {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+@starting-style {
+  .pigui-session-dock-surface[data-motion="enter"] {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+.pigui-session-dock-rail button {
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
 /* macOS only: let under-window vibrancy show through the sidebar.
    Content stays an opaque elevated surface so the two columns stay distinct.
    Non-mac keeps Astryx elevated (opaque wash nav, surface content). */
@@ -500,8 +548,19 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
 @media (prefers-reduced-motion: reduce) {
   .pigui-header-chrome__title,
   .pigui-header-chrome__title-track,
-  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
+  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"],
+  .pigui-session-dock,
+  .pigui-session-dock-surface[data-motion="enter"],
+  .pigui-session-dock-rail button {
     transition: none;
+  }
+
+  @starting-style {
+    .pigui-session-dock[data-mount-motion="true"],
+    .pigui-session-dock-surface[data-motion="enter"] {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 

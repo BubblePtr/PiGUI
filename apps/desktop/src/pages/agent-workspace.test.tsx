@@ -448,7 +448,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     const terminal = await screen.findByRole("complementary", { name: "Terminal" });
     expect(within(terminal).getByText("Terminal requires the desktop app.")).toBeInTheDocument();
     await user.click(toggle);
-    expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-dock")).toHaveAttribute("data-open", "false");
+    expect(screen.getByRole("button", { name: "Session dock" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
+    });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -577,13 +584,16 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Session dock" }));
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
-    });
+    const closing = screen.getByTestId("session-dock");
+    expect(closing).toHaveAttribute("data-open", "false");
+    expect(closing).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("button", { name: "Session dock" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
+    await waitFor(() => {
+      expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
+    });
   });
 
   it("counts changed files on the rail, whichever surface is showing", async () => {

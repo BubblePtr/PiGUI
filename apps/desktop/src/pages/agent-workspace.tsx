@@ -43,6 +43,7 @@ import {
   SessionDockTrigger,
   sessionDockDefaultWidthPx,
   sessionDockResizableBounds,
+  useSessionDockPresence,
 } from "@/shared/ui/session-dock/session-dock";
 import { SessionSurfaceBar } from "@/shared/ui/session-dock/surface-bar";
 import {
@@ -3527,6 +3528,9 @@ export function AgentWorkspaceSessionsPage() {
   // Open state and the active surface are Workspace-level, so switching
   // Sessions keeps the dock where the user left it.
   const [dockOpen, setDockOpen] = useState(false);
+  // Terminal/Browser own live pty / WebContentsView instances, so the closed
+  // dock cannot stay mounted; keep it only through the exit transition.
+  const dockMounted = useSessionDockPresence(dockOpen);
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
   const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
@@ -3667,7 +3671,7 @@ export function AgentWorkspaceSessionsPage() {
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
         aside={
-          dockOpen ? (
+          dockMounted ? (
             <SessionDock
               activeSurfaceId={activeSurfaceId}
               badges={{
@@ -3676,6 +3680,8 @@ export function AgentWorkspaceSessionsPage() {
                   terminalInstanceCount > 0 ? String(terminalInstanceCount) : undefined,
                 browser: browserInstanceCount > 0 ? String(browserInstanceCount) : undefined,
               }}
+              mountMotion
+              open={dockOpen}
               onActiveSurfaceChange={setActiveSurfaceId}
             >
               <SessionSurfaceContent
