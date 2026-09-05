@@ -45,6 +45,23 @@
   overflow-wrap: anywhere;
 }
 
+/* Astryx body leading is 1.4286 (14px -> 20px), tuned for UI labels. Chat
+   prose mixes bold, links, and inline code chips across wrapped lines, so
+   it reads like GitHub/Tailwind prose: a looser 1.6 leaves the code chip
+   room above and below instead of touching the neighbouring line.
+   !important matches Astryx StyleX's :not(#\#) specificity. */
+.chat-markdown .astryx-markdown {
+  line-height: 1.6 !important;
+}
+
+/* Inline code one size step below body: the monospace face reads a size
+   larger than the sans body at equal px, and a slightly smaller chip with
+   1px vertical padding keeps 3-4px of air inside the 1.6 line box. */
+.chat-markdown .chat-inline-code {
+  font-size: var(--font-size-sm) !important;
+  padding-block: 1px !important;
+}
+
 .chat-markdown .astryx-markdown-heading {
   font-family: inherit;
 }

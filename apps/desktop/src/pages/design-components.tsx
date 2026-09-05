@@ -1003,6 +1003,10 @@ function ChatMessageGallery() {
 const markdownFixture = [
   "**Bold**, `inline code`, and a [link](https://example.com).",
   "",
+  "Wrapped prose with code on every line: pass `--filter` to `bun run` and the " +
+    "`packages/backend` build honours `NODE_ENV`; `service.ts` then reads " +
+    "`PIGUI_HOME` before `drivers/terminal.ts` spawns `pi` with `--rpc`.",
+  "",
   "| Col A | Col B |",
   "| ----- | ----- |",
   "| 1     | 2     |",
