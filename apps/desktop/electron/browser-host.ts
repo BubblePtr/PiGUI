@@ -1,5 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type {
   BrowserAnnotationCapture,
+  BrowserEvent,
+  BrowserSessionState,
+  BrowserTabState,
+  BrowserTabTarget,
   BrowserAnnotationElement,
   BrowserAnnotationViewport,
   BrowserViewRect,
@@ -38,6 +43,12 @@ export const browserCaptureAckTimeoutMs = 500;
  * backend instead of being swallowed here.
  */
 const browserCommands = new Set([
+  "browser_attach",
+  "browser_list",
+  "browser_open",
+  "browser_close",
+  "browser_activate",
+  "browser_hide_session",
   "browser_capture",
   "browser_capture_annotation",
   "browser_navigate",
@@ -149,7 +160,11 @@ export function resolveBrowserViewBounds(input: {
 }): BrowserViewRect {
   const { rect, contentSize } = input;
   const x = clamp(Math.round(rect.x), 0, contentSize.width);
-  const y = clamp(Math.round(rect.y), browserTitlebarBandPx, contentSize.height);
+  const y = clamp(
+    Math.round(rect.y),
+    browserTitlebarBandPx,
+    contentSize.height,
+  );
 
   return {
     x,
@@ -174,7 +189,9 @@ export type BrowserHostSession = {
  * other harmlessly, but blocking downloads is a listener registration, so
  * configuring per host would stack another copy every time.
  */
-export function createBrowserSessionProvider<Session extends BrowserHostSession>(
+export function createBrowserSessionProvider<
+  Session extends BrowserHostSession,
+>(
   createSession: () => Session,
   allowsPermission: (permission: string) => boolean,
 ) {
@@ -218,14 +235,21 @@ export type BrowserHostView = {
   capture(maxWidth?: number): Promise<string | null>;
 };
 
-export type BrowserHostDependencies = {
+type BrowserTabDependencies = {
   createView(): BrowserHostView;
   /** Null while no window is open; bounds are then not applicable. */
   getContentSize(): { width: number; height: number } | null;
   openExternal(url: string): void | Promise<void>;
 };
 
-export type BrowserHost = {
+type BrowserTabHost = {
+  snapshot(): Omit<BrowserTabState, keyof BrowserTabTarget | "revision">;
+  resetBounds(): void;
+  recordPageState(state: {
+    title?: string;
+    loading?: boolean;
+    navigated?: boolean;
+  }): void;
   invoke(
     command: string,
     args?: Record<string, unknown>,
@@ -262,7 +286,7 @@ export type BrowserHost = {
    * the URL that failed, so without this the next navigate to that same URL
    * would be short-circuited as "already showing" and Retry would do nothing.
    */
-  recordLoadFailure(): void;
+  recordLoadFailure(message?: string): void;
   dispose(): void;
 };
 
@@ -285,18 +309,26 @@ function readRectArgument(args: Record<string, unknown> | undefined) {
     typeof rect.width !== "number" ||
     typeof rect.height !== "number"
   ) {
-    throw new Error("Browser view bounds require numeric x, y, width and height.");
+    throw new Error(
+      "Browser view bounds require numeric x, y, width and height.",
+    );
   }
 
   return rect as BrowserViewRect;
 }
 
-export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
+export function createBrowserTabHost(
+  deps: BrowserTabDependencies,
+): BrowserTabHost {
   let view: BrowserHostView | null = null;
   let bounds: BrowserViewRect | null = null;
   let visibilityRequested = false;
   let navigationId = 0;
   let loadFailed = false;
+  let errorMessage: string | null = null;
+  let requestedUrl = "";
+  let title = "";
+  let loading = false;
   let designMode = false;
   let marks: Omit<BrowserAnnotationCapture, "image" | "url"> = {
     annotations: [],
@@ -317,7 +349,10 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
    */
   function applyVisibility() {
     view?.setVisible(
-      visibilityRequested && bounds !== null && bounds.width > 0 && bounds.height > 0,
+      visibilityRequested &&
+        bounds !== null &&
+        bounds.width > 0 &&
+        bounds.height > 0,
     );
   }
 
@@ -339,6 +374,9 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     const target = normalizeBrowserUrl(url);
 
     navigationId += 1;
+    const requestedNavigation = navigationId;
+    requestedUrl = target;
+    errorMessage = null;
 
     // Re-entering the surface must not reload the page and lose its state —
     // unless the URL is only showing because its load failed, in which case
@@ -348,6 +386,9 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
     }
 
     const active = ensureView();
+    loading = true;
+    marks = { annotations: [], viewport: null };
+    active.clearAnnotations();
 
     try {
       await active.loadUrl(target);
@@ -357,12 +398,22 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       // replaced it with is loading fine. Main normalises this too; the guard
       // is repeated here so no caller of the host can be told otherwise.
       if (!isAbortedLoadError(error)) {
-        loadFailed = true;
+        if (requestedNavigation === navigationId) {
+          loadFailed = true;
+          loading = false;
+          errorMessage =
+            error instanceof Error
+              ? error.message
+              : "The page could not be opened.";
+        }
         throw error;
       }
     }
 
-    loadFailed = false;
+    if (requestedNavigation === navigationId) {
+      loadFailed = false;
+      loading = false;
+    }
 
     return readState();
   }
@@ -396,13 +447,17 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       return null;
     }
 
-    const settled = await awaitCaptureAck(view);
+    const capturedView = view;
+    const capturedNavigation = navigationId;
+    const settled = await awaitCaptureAck(capturedView);
 
-    // The view can be gone by the time the page answers — a Session switch
-    // disposes it — and there is nothing to photograph then.
-    if (!view) {
+    // Closing or navigating a tab invalidates the page this handshake began on.
+    if (view !== capturedView || navigationId !== capturedNavigation) {
       return null;
     }
+    const image = await capturedView.capture(bounds?.width);
+    if (view !== capturedView || navigationId !== capturedNavigation)
+      return null;
 
     return {
       // Downsampled to the panel's own CSS width: `capturePage` answers in
@@ -410,7 +465,7 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       // the 8 MiB an image attachment may weigh, for pixels the model cannot
       // use. The overlay still (`browser_capture`) keeps them, because it is
       // displayed at the placeholder's size.
-      image: await view.capture(bounds?.width),
+      image,
       annotations: settled.annotations,
       viewport: settled.viewport,
       url: view.readState().url,
@@ -436,6 +491,34 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
   }
 
   return {
+    snapshot() {
+      const state = readState();
+      return {
+        url: state?.url || requestedUrl,
+        canGoBack: state?.canGoBack ?? false,
+        canGoForward: state?.canGoForward ?? false,
+        navigationId,
+        title,
+        loading,
+        error: errorMessage,
+        designMode,
+        annotations: marks.annotations,
+        viewport: marks.viewport,
+      };
+    },
+    resetBounds() {
+      bounds = null;
+      visibilityRequested = false;
+      applyVisibility();
+    },
+    recordPageState(state) {
+      if (state.title !== undefined) title = state.title;
+      if (state.loading !== undefined) loading = state.loading;
+      if (state.navigated) {
+        loadFailed = false;
+        errorMessage = null;
+      }
+    },
     async invoke(command, args) {
       switch (command) {
         case "browser_navigate":
@@ -462,6 +545,7 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
           view?.setDesignMode(designMode);
           return null;
         case "browser_clear_annotations":
+          marks = { annotations: [], viewport: null };
           view?.clearAnnotations();
           return null;
         case "browser_capture":
@@ -514,8 +598,10 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       pendingCaptureAck?.(marks);
     },
 
-    recordLoadFailure() {
+    recordLoadFailure(message = "The page could not be opened.") {
       loadFailed = true;
+      loading = false;
+      errorMessage = message;
     },
 
     dispose() {
@@ -528,6 +614,234 @@ export function createBrowserHost(deps: BrowserHostDependencies): BrowserHost {
       // A capture waiting on a page that is going away has to be let go, or it
       // sits on its timeout with a view it can no longer photograph.
       pendingCaptureAck?.(marks);
+    },
+  };
+}
+
+export type BrowserHostDependencies = Omit<
+  BrowserTabDependencies,
+  "createView"
+> & {
+  createView(target: BrowserTabTarget): BrowserHostView;
+  emit?(event: BrowserEvent): void;
+};
+export type BrowserHost = ReturnType<typeof createBrowserHost>;
+
+/** Session membership owns lifetime; the active target alone owns the native slot. */
+export function createBrowserHost(deps: BrowserHostDependencies) {
+  const sessions = new Map<
+    string,
+    { tabs: Map<string, BrowserTabHost>; activeTabId: string | null }
+  >();
+  let active: BrowserTabTarget | null = null;
+  const revisions = new WeakMap<BrowserTabHost, number>();
+
+  function session(sessionId: string) {
+    let group = sessions.get(sessionId);
+    if (!group) {
+      group = { tabs: new Map(), activeTabId: null };
+      sessions.set(sessionId, group);
+    }
+    return group;
+  }
+  function tab(target: BrowserTabTarget) {
+    const found = sessions.get(target.sessionId)?.tabs.get(target.tabId);
+    if (!found)
+      throw new Error("The browser tab does not belong to this Session.");
+    return found;
+  }
+  function readTab(target: BrowserTabTarget): BrowserTabState {
+    const controller = tab(target);
+    const revision = (revisions.get(controller) ?? 0) + 1;
+    revisions.set(controller, revision);
+    return { ...target, ...controller.snapshot(), revision };
+  }
+  function readSession(sessionId: string): BrowserSessionState {
+    const group = session(sessionId);
+    return {
+      sessionId,
+      activeTabId: group.activeTabId,
+      tabs: [...group.tabs.keys()].map((tabId) =>
+        readTab({ sessionId, tabId }),
+      ),
+    };
+  }
+  function notify(target: BrowserTabTarget) {
+    if (sessions.get(target.sessionId)?.tabs.has(target.tabId)) {
+      deps.emit?.({ type: "state-changed", tab: readTab(target) });
+    }
+  }
+  function isActive(target: BrowserTabTarget) {
+    return (
+      active?.sessionId === target.sessionId && active.tabId === target.tabId
+    );
+  }
+  function activate(target: BrowserTabTarget | null) {
+    if (target && isActive(target)) return;
+    if (active)
+      sessions.get(active.sessionId)?.tabs.get(active.tabId)?.resetBounds();
+    active = target;
+    if (target) {
+      tab(target).resetBounds();
+      session(target.sessionId).activeTabId = target.tabId;
+    }
+  }
+  function open(target: BrowserTabTarget) {
+    const group = session(target.sessionId);
+    if (group.tabs.has(target.tabId))
+      throw new Error("Browser tab already exists.");
+    group.tabs.set(
+      target.tabId,
+      createBrowserTabHost({
+        ...deps,
+        createView: () => deps.createView(target),
+      }),
+    );
+    group.activeTabId = target.tabId;
+  }
+  function readSessionId(args?: Record<string, unknown>) {
+    if (typeof args?.sessionId !== "string" || !args.sessionId)
+      throw new Error("A Session id is required.");
+    return args.sessionId;
+  }
+  function readTarget(args?: Record<string, unknown>): BrowserTabTarget {
+    const sessionId = readSessionId(args);
+    if (typeof args?.tabId !== "string" || !args.tabId)
+      throw new Error("A browser tab id is required.");
+    return { sessionId, tabId: args.tabId };
+  }
+  async function invoke(
+    command: string,
+    args?: Record<string, unknown>,
+  ): Promise<
+    | BrowserSessionState
+    | BrowserTabState
+    | BrowserAnnotationCapture
+    | string
+    | null
+  > {
+    if (command === "browser_open_external") {
+      await deps.openExternal(normalizeBrowserUrl(readUrlArgument(args)));
+      return null;
+    }
+    const sessionId = readSessionId(args);
+    switch (command) {
+      case "browser_attach": {
+        if (!sessions.has(sessionId)) {
+          const urls = Array.isArray(args?.tabs)
+            ? args.tabs.filter((url): url is string => typeof url === "string")
+            : [];
+          session(sessionId);
+          for (const url of urls) {
+            const target = { sessionId, tabId: randomUUID() };
+            open(target);
+            // Restoring a slow or failed background page must not hold up the strip.
+            if (url)
+              void invoke("browser_navigate", { ...target, url }).catch(
+                () => {},
+              );
+          }
+          const group = session(sessionId);
+          const ids = [...group.tabs.keys()];
+          const index =
+            typeof args?.activeIndex === "number" ? args.activeIndex : 0;
+          group.activeTabId = ids[index] ?? ids[0] ?? null;
+        }
+        const id = session(sessionId).activeTabId;
+        activate(id ? { sessionId, tabId: id } : null);
+        return readSession(sessionId);
+      }
+      case "browser_list":
+        return readSession(sessionId);
+      case "browser_hide_session":
+        if (active?.sessionId === sessionId) activate(null);
+        return null;
+      case "browser_open": {
+        const target = {
+          sessionId,
+          tabId: typeof args?.tabId === "string" ? args.tabId : randomUUID(),
+        };
+        open(target);
+        activate(target);
+        return readSession(sessionId);
+      }
+      case "browser_activate": {
+        const target = readTarget(args);
+        tab(target);
+        activate(target);
+        return readSession(sessionId);
+      }
+      case "browser_close": {
+        const target = readTarget(args);
+        const controller = tab(target);
+        const group = session(sessionId);
+        const index = [...group.tabs.keys()].indexOf(target.tabId);
+        const wasActive = isActive(target);
+        if (wasActive) activate(null);
+        group.tabs.delete(target.tabId);
+        controller.dispose();
+        if (group.activeTabId === target.tabId) {
+          const ids = [...group.tabs.keys()];
+          group.activeTabId = ids[Math.min(index, ids.length - 1)] ?? null;
+        }
+        if (wasActive && group.activeTabId)
+          activate({ sessionId, tabId: group.activeTabId });
+        return readSession(sessionId);
+      }
+    }
+    const target = readTarget(args);
+    const controller = tab(target);
+    if (
+      ["browser_set_bounds", "browser_set_visible"].includes(command) &&
+      !isActive(target)
+    )
+      return null;
+    if (command === "browser_capture_annotation" && !isActive(target))
+      return null;
+    const result = controller.invoke(command, args);
+    if (
+      ![
+        "browser_set_bounds",
+        "browser_set_visible",
+        "browser_capture",
+        "browser_capture_annotation",
+      ].includes(command)
+    )
+      notify(target);
+    try {
+      const answer = await result;
+      if (command === "browser_capture_annotation")
+        return isActive(target)
+          ? (answer as BrowserAnnotationCapture | null)
+          : null;
+      if (command === "browser_capture") return answer as string | null;
+      if (sessions.get(sessionId)?.tabs.get(target.tabId) !== controller)
+        return null;
+      return readTab(target);
+    } finally {
+      if (
+        ![
+          "browser_set_bounds",
+          "browser_set_visible",
+          "browser_capture",
+          "browser_capture_annotation",
+        ].includes(command)
+      )
+        notify(target);
+    }
+  }
+  return {
+    invoke,
+    tab,
+    readTab,
+    notify,
+    allowsNavigationTo: isAllowedBrowserUrl,
+    allowsPermission: (_permission: string) => false,
+    dispose() {
+      for (const group of sessions.values())
+        for (const controller of group.tabs.values()) controller.dispose();
+      sessions.clear();
+      active = null;
     },
   };
 }

@@ -15,7 +15,7 @@ import {
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
-import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
+import { browserEventChannel, type BrowserEvent, type BrowserTabTarget } from "@/shared/browser-protocol";
 import {
   acceptBrowserAnnotationMessage,
   browserAnnotationChannel,
@@ -38,10 +38,9 @@ type PendingRequest = {
 let mainWindow: BrowserWindow | null = null;
 let browserHost: BrowserHost | null = null;
 /**
- * The embedded view's own webContents, and the only sender the annotation
- * channel answers to.
+ * Bind trusted webContents to their tab; embedded pages cannot choose identity.
  */
-let browserAnnotationSender: Electron.WebContents | null = null;
+const browserAnnotationSenders = new Map<Electron.WebContents, BrowserTabTarget>();
 let backendPort: MessagePortMain | null = null;
 let backendProcess: ReturnType<typeof utilityProcess.fork> | null = null;
 let backendRestartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -371,7 +370,7 @@ const browserViewSession = createBrowserSessionProvider(
   (permission) => getBrowserHost().allowsPermission(permission),
 );
 
-function createBrowserView() {
+function createBrowserView(target: BrowserTabTarget) {
   const window = mainWindow;
 
   if (!window) {
@@ -390,7 +389,7 @@ function createBrowserView() {
   });
   const { webContents } = view;
 
-  browserAnnotationSender = webContents;
+  browserAnnotationSenders.set(webContents, target);
   view.setBackgroundColor(
     nativeTheme.shouldUseDarkColors
       ? browserViewBackground.dark
@@ -418,21 +417,35 @@ function createBrowserView() {
     // Loading from inside the handler starts a navigation on the very contents
     // still waiting for this reply, and the page hangs. Answer the deny first,
     // then redirect the view on the next tick.
-    setImmediate(() => getBrowserHost().handleWindowOpen(url));
+    setImmediate(() => {
+      if (browserAnnotationSenders.has(webContents)) {
+        getBrowserHost().tab(target).handleWindowOpen(url);
+      }
+    });
     return { action: "deny" };
   });
 
   const emitNavigation = () => {
-    emitBrowserEvent({
-      type: "did-navigate",
-      // Stamped so the renderer can tell this page's events from those of the
-      // page it showed for the Project the user just left.
-      navigationId: getBrowserHost().currentNavigationId(),
-      url: webContents.getURL(),
-      canGoBack: webContents.navigationHistory.canGoBack(),
-      canGoForward: webContents.navigationHistory.canGoForward(),
-    });
+    if (!browserAnnotationSenders.has(webContents)) return;
+    getBrowserHost().tab(target).recordPageState({ navigated: true });
+    getBrowserHost().notify(target);
   };
+  webContents.on("page-title-updated", (_event, title) => {
+    if (!browserAnnotationSenders.has(webContents)) return;
+    getBrowserHost().tab(target).recordPageState({ title });
+    getBrowserHost().notify(target);
+  });
+  webContents.on("did-start-loading", () => {
+    if (!browserAnnotationSenders.has(webContents)) return;
+    getBrowserHost().tab(target).recordPageState({ loading: true });
+    getBrowserHost().notify(target);
+  });
+  webContents.on("did-stop-loading", () => {
+    // Closing a tab can finish a pending load after its membership is removed.
+    if (!browserAnnotationSenders.has(webContents)) return;
+    getBrowserHost().tab(target).recordPageState({ loading: false });
+    getBrowserHost().notify(target);
+  });
 
   webContents.on("did-navigate", emitNavigation);
   webContents.on("did-navigate-in-page", (_event, _url, isMainFrame) => {
@@ -451,14 +464,9 @@ function createBrowserView() {
       // The view is now on Chromium's error page, committed under the URL that
       // failed; the host has to know or it would treat the next attempt at
       // that URL as "already showing".
-      getBrowserHost().recordLoadFailure();
-      emitBrowserEvent({
-        type: "did-fail-load",
-        navigationId: getBrowserHost().currentNavigationId(),
-        url: validatedURL,
-        errorCode,
-        errorDescription,
-      });
+      if (!browserAnnotationSenders.has(webContents)) return;
+      getBrowserHost().tab(target).recordLoadFailure(errorDescription || `Load failed (${errorCode}).`);
+      getBrowserHost().notify(target);
     },
   );
 
@@ -489,6 +497,7 @@ function createBrowserView() {
       sendAnnotationCommand(webContents, { type: "prepare-capture" }),
     reload: () => webContents.reload(),
     destroy: () => {
+      browserAnnotationSenders.delete(webContents);
       // Disposal also runs after the window is gone (quit). Tearing the
       // contents down is the part that matters — leave it alive and the app
       // never exits — and touching a destroyed window throws, so order and
@@ -499,7 +508,6 @@ function createBrowserView() {
       if (!window.isDestroyed()) {
         window.contentView.removeChildView(view);
       }
-      browserAnnotationSender = null;
     },
     readState: () => ({
       url: webContents.getURL(),
@@ -543,9 +551,11 @@ function sendAnnotationCommand(
  * three shapes the protocol knows.
  */
 ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
+  const target = browserAnnotationSenders.get(event.sender);
+  if (!target) return;
   const message = acceptBrowserAnnotationMessage({
     sender: event.sender,
-    trustedSender: browserAnnotationSender,
+    trustedSender: event.sender,
     message: payload,
   });
 
@@ -553,8 +563,7 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
     return;
   }
 
-  const host = getBrowserHost();
-  const navigationId = host.currentNavigationId();
+  const host = getBrowserHost().tab(target);
 
   switch (message.type) {
     case "ready":
@@ -565,23 +574,13 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
         enabled: host.isDesignModeEnabled(),
       });
       host.recordAnnotations([], null);
-      emitBrowserEvent({
-        type: "annotations-changed",
-        navigationId,
-        annotations: [],
-        viewport: null,
-      });
+      getBrowserHost().notify(target);
       break;
     case "annotations":
       // Kept on the host as well as forwarded: a capture whose prepare goes
       // unanswered falls back to the last marks that arrived here.
       host.recordAnnotations(message.annotations, message.viewport);
-      emitBrowserEvent({
-        type: "annotations-changed",
-        navigationId,
-        annotations: message.annotations,
-        viewport: message.viewport,
-      });
+      getBrowserHost().notify(target);
       break;
     case "capture-ready":
       // The answer to a prepare — it releases the capture waiting on it. The
@@ -591,11 +590,7 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
       break;
     case "design-mode":
       host.recordDesignMode(message.enabled);
-      emitBrowserEvent({
-        type: "design-mode-changed",
-        navigationId,
-        enabled: message.enabled,
-      });
+      getBrowserHost().notify(target);
       break;
   }
 });
@@ -603,6 +598,7 @@ ipcMain.on(browserAnnotationChannel, (event, payload: unknown) => {
 function getBrowserHost() {
   browserHost ??= createBrowserHost({
     createView: createBrowserView,
+    emit: emitBrowserEvent,
     getContentSize() {
       const size = mainWindow?.getContentBounds();
 

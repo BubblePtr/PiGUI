@@ -1,4 +1,5 @@
 import type { Ref } from "react";
+import { StackItem } from "@astryxdesign/core/Stack";
 import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -13,7 +14,11 @@ import {
   RefreshCw,
   Trash2,
 } from "@/shared/ui/icons";
-import { SessionSurfaceBar } from "@/shared/ui/session-dock/surface-bar";
+import {
+  SessionSurfaceBar,
+  SessionSurfaceTabs,
+  type SessionSurfaceTabItem,
+} from "@/shared/ui/session-dock/surface-bar";
 
 /**
  * Chrome for the embedded browser surface: an address band plus the region the
@@ -33,6 +38,12 @@ export type BrowserSurfaceState =
   | { kind: "error"; message: string };
 
 export function BrowserSurface({
+  tabs,
+  activeTabId,
+  onActivateTab,
+  onAddTab,
+  onCloseTab,
+  isLoading,
   address,
   state,
   canGoBack,
@@ -53,6 +64,12 @@ export function BrowserSurface({
   onDesignModeChange,
   onSendToComposer,
 }: {
+  tabs: SessionSurfaceTabItem[];
+  activeTabId: string | null;
+  onActivateTab: (id: string) => void;
+  onAddTab: () => void;
+  onCloseTab: (id: string) => void;
+  isLoading?: boolean;
   address: string;
   state: BrowserSurfaceState;
   canGoBack: boolean;
@@ -90,9 +107,20 @@ export function BrowserSurface({
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
       {hasChrome ? (
-        // The surface's first row (ADR-0028): where the page is on the left,
-        // what can be done to it on the right. No instance tabs — the browser
-        // is single-instance until #185.
+        <SessionSurfaceBar>
+          <SessionSurfaceTabs
+            activeId={activeTabId}
+            addLabel="New browser tab"
+            icon={Globe}
+            items={tabs}
+            label="Browser instances"
+            onActivate={onActivateTab}
+            onAdd={onAddTab}
+            onClose={onCloseTab}
+          />
+        </SessionSurfaceBar>
+      ) : null}
+      {hasChrome ? (
         <SessionSurfaceBar
           actions={
             <>
@@ -101,6 +129,7 @@ export function BrowserSurface({
                   the page into a still, leaving the user marking up a
                   screenshot. */}
               <ToggleButton
+                isIconOnly
                 icon={<Crosshair className="size-4" />}
                 isDisabled={!isLive}
                 // Nothing can be marked where no page is live, so the toggle
@@ -141,7 +170,9 @@ export function BrowserSurface({
                 label="Send to composer"
                 size="sm"
                 onClick={onSendToComposer}
-              />
+              >
+                To composer
+              </Button>
               <IconButton
                 icon={<LinkExternal className="size-4" />}
                 isDisabled={!isLive}
@@ -176,16 +207,19 @@ export function BrowserSurface({
             variant="ghost"
             onClick={onReload}
           />
-          <TextInput
-            isLabelHidden
-            label="Address"
-            placeholder="localhost:5173"
-            size="sm"
-            value={address}
-            width="100%"
-            onChange={onAddressChange}
-            onEnter={() => onAddressSubmit(address)}
-          />
+          <StackItem size="fill">
+            <TextInput
+              isLabelHidden
+              isLoading={isLoading}
+              label="Address"
+              placeholder="localhost:5173"
+              size="sm"
+              value={address}
+              width="100%"
+              onChange={onAddressChange}
+              onEnter={() => onAddressSubmit(address)}
+            />
+          </StackItem>
         </SessionSurfaceBar>
       ) : null}
       {hasChrome && notice ? (

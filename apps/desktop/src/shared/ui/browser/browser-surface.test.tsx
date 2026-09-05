@@ -3,8 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
 
-function surfaceProps(overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {}) {
+function surfaceProps(
+  overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {},
+) {
   return {
+    tabs: [
+      { id: "a", label: "Browser 1" },
+      { id: "b", label: "Browser 2" },
+    ],
+    activeTabId: "a",
+    onActivateTab: vi.fn(),
+    onAddTab: vi.fn(),
+    onCloseTab: vi.fn(),
     address: "",
     state: { kind: "live" } as const,
     canGoBack: false,
@@ -24,7 +34,9 @@ function surfaceProps(overrides: Partial<Parameters<typeof BrowserSurface>[0]> =
   };
 }
 
-function renderSurface(overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {}) {
+function renderSurface(
+  overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {},
+) {
   const props = surfaceProps(overrides);
 
   render(<BrowserSurface {...props} />);
@@ -33,19 +45,24 @@ function renderSurface(overrides: Partial<Parameters<typeof BrowserSurface>[0]> 
 }
 
 describe("BrowserSurface", () => {
-  // ADR-0028 (2026-09-05): the address band is the surface's first row, so it
-  // sits on Chat's 40px title baseline instead of under a dock header.
-  it("puts the address band on the surface's 40px first row", () => {
-    renderSurface({ address: "localhost:5173" });
-
-    const bar = screen.getByTestId("session-surface-bar");
-
-    expect(bar).toHaveClass("h-10");
-    expect(within(bar).getByRole("textbox", { name: "Address" })).toBeInTheDocument();
-    expect(within(bar).getByRole("button", { name: "Back" })).toBeInTheDocument();
+  it("puts shared instance tabs first and page controls in the next row", async () => {
+    const props = renderSurface({ address: "localhost:5173" });
+    const [tabs, controls] = screen.getAllByTestId("session-surface-bar");
+    expect(tabs).toHaveClass("h-10");
     expect(
-      within(bar).getByRole("button", { name: "Open in default browser" }),
+      within(tabs!).getByRole("tablist", { name: "Browser instances" }),
     ).toBeInTheDocument();
+    expect(within(tabs!).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      within(controls!).getByRole("textbox", { name: "Address" }),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Browser 2" }));
+    expect(props.onActivateTab).toHaveBeenCalledWith("b");
+    await user.click(screen.getByRole("button", { name: "Close Browser 1" }));
+    expect(props.onCloseTab).toHaveBeenCalledWith("a");
+    await user.click(screen.getByRole("button", { name: "New browser tab" }));
+    expect(props.onAddTab).toHaveBeenCalledTimes(1);
   });
 
   it("renders no first row where there is no chrome to put in it", () => {
@@ -127,12 +144,16 @@ describe("BrowserSurface", () => {
     const props = surfaceProps();
     const view = render(<BrowserSurface {...props} />);
 
-    expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("browser-annotation-count"),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear marks" })).toBeDisabled();
 
     view.rerender(<BrowserSurface {...props} annotationCount={2} designMode />);
 
-    expect(screen.getByTestId("browser-annotation-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("browser-annotation-count")).toHaveTextContent(
+      "2",
+    );
     await user.click(screen.getByRole("button", { name: "Clear marks" }));
 
     expect(props.onClearAnnotations).toHaveBeenCalledTimes(1);
@@ -155,7 +176,11 @@ describe("BrowserSurface", () => {
   });
 
   it("keeps the design controls out of reach until a page is live", () => {
-    renderSurface({ state: { kind: "empty" }, annotationCount: 2, designMode: true });
+    renderSurface({
+      state: { kind: "empty" },
+      annotationCount: 2,
+      designMode: true,
+    });
 
     const design = screen.getByRole("button", { name: "Design" });
 
@@ -163,12 +188,16 @@ describe("BrowserSurface", () => {
     // Nothing is marked where there is no page, so a pressed-but-disabled
     // toggle and a leftover count would both be lying.
     expect(design).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByTestId("browser-annotation-count")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("browser-annotation-count"),
+    ).not.toBeInTheDocument();
   });
 
   it("only offers Open in browser once there is a page to open", () => {
     renderSurface({ state: { kind: "empty" } });
-    expect(screen.getByRole("button", { name: "Open in default browser" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Open in default browser" }),
+    ).toBeDisabled();
 
     screen.getByRole("textbox", { name: "Address" });
   });

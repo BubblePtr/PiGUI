@@ -366,10 +366,16 @@ function BrowserSurfaceGallery() {
   return (
     <GallerySection title="BrowserSurface">
       <VariantRow>
-        <Variant caption="live, nothing marked — the body is the placeholder the native WebContentsView paints behind, and Send to composer has nothing to send">
+        <Variant caption="loading, two tabs — the active address shows progress while the native page loads">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address={address}
+              isLoading
               annotationCount={0}
               canGoBack
               canGoForward={false}
@@ -390,6 +396,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="design mode on, two elements marked — the marks live in the page's own overlay, and Send to composer drops them plus a screenshot into the chat draft">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={2}
               canGoBack={false}
@@ -411,6 +422,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="sending — the page is settling its overlay for the shot, so the action is out of reach until it answers">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={2}
               canGoBack={false}
@@ -433,6 +449,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="notice — one line about the last send, in plain text: a layer here would swap the live page for a still">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={2}
               canGoBack={false}
@@ -455,6 +476,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="live + snapshot — a DOM overlay is open, so a still of the page stands in for the native view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={0}
               canGoBack
@@ -477,6 +503,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="empty — no URL remembered for this Project yet">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[]}
+              activeTabId={null}
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address=""
               annotationCount={0}
               canGoBack={false}
@@ -498,6 +529,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="error — our own state, never Chromium's error page">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={0}
               canGoBack={false}
@@ -519,6 +555,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="narrow — below 1280px the dock is a Dialog portal, so the chrome goes away with the view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address=""
               annotationCount={0}
               canGoBack={false}
@@ -540,6 +581,11 @@ function BrowserSurfaceGallery() {
         <Variant caption="unsupported — browser-only dev, no Electron main process to host a view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
+              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
+              activeTabId="preview"
+              onActivateTab={() => {}}
+              onAddTab={() => {}}
+              onCloseTab={() => {}}
               address=""
               annotationCount={0}
               canGoBack={false}

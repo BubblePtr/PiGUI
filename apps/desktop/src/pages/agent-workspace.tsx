@@ -2308,6 +2308,7 @@ function SessionSurfaceContent({
   sessionChanges,
   docked = false,
   onTerminalInstancesChange,
+  onBrowserInstancesChange,
 }: {
   surfaceId: SessionSurfaceId;
   projection?: SessionProjection | null;
@@ -2315,6 +2316,7 @@ function SessionSurfaceContent({
   /** Whether the surface can host a native browser view. */
   docked?: boolean;
   onTerminalInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
+  onBrowserInstancesChange?: (instances: import("@/shared/browser-protocol").BrowserTabState[]) => void;
 }) {
   if (surfaceId === "changes") {
     return (
@@ -2355,6 +2357,7 @@ function SessionSurfaceContent({
         docked={docked}
         projectId={projection.projectId}
         sessionId={projection.id}
+        onInstancesChange={onBrowserInstancesChange}
       />
     );
   }
@@ -3520,6 +3523,7 @@ export function AgentWorkspaceSessionsPage() {
   // Shell count for the Terminal rail badge, reported up by the Terminal
   // surface while it is mounted; reset per Session below.
   const [terminalInstanceCount, setTerminalInstanceCount] = useState(0);
+  const [browserInstanceCount, setBrowserInstanceCount] = useState(0);
   // Open state and the active surface are Workspace-level, so switching
   // Sessions keeps the dock where the user left it.
   const [dockOpen, setDockOpen] = useState(false);
@@ -3552,6 +3556,7 @@ export function AgentWorkspaceSessionsPage() {
 
   useEffect(() => {
     setTerminalInstanceCount(0);
+    setBrowserInstanceCount(0);
   }, [selectedSessionId]);
 
   // After hydrate (or when project sessions appear), select the first valid session.
@@ -3669,6 +3674,7 @@ export function AgentWorkspaceSessionsPage() {
                 changes: sessionChangesBadge(sessionChanges.changes),
                 terminal:
                   terminalInstanceCount > 0 ? String(terminalInstanceCount) : undefined,
+                browser: browserInstanceCount > 0 ? String(browserInstanceCount) : undefined,
               }}
               onActiveSurfaceChange={setActiveSurfaceId}
             >
@@ -3678,6 +3684,7 @@ export function AgentWorkspaceSessionsPage() {
                 surfaceId={activeSurfaceId}
                 projection={selectedSessionProjection}
                 onTerminalInstancesChange={handleTerminalInstancesChange}
+                onBrowserInstancesChange={(tabs) => setBrowserInstanceCount(tabs.length)}
               />
             </SessionDock>
           ) : undefined

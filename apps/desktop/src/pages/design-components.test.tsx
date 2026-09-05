@@ -255,6 +255,17 @@ describe("Design components layer", () => {
     expect(within(single).getAllByRole("tab")).toHaveLength(1);
   });
 
+  it("demonstrates multiple, single, empty and loading Browser tabs", () => {
+    render(<DesignComponentsLayer />);
+    const section = screen.getByRole("region", { name: "BrowserSurface" });
+    const strips = within(section).getAllByRole("tablist", { name: "Browser instances" });
+    const counts = strips.map((strip) => within(strip).queryAllByRole("tab").length);
+    expect(counts).toContain(2);
+    expect(counts).toContain(1);
+    expect(counts).toContain(0);
+    expect(within(section).getAllByRole("textbox", { name: "Address" }).some((input) => input.getAttribute("aria-busy") === "true")).toBe(true);
+  });
+
   it("shows the BrowserSurface still that stands in for the native view", () => {
     render(<DesignComponentsLayer />);
 

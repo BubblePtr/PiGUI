@@ -2,78 +2,88 @@ import { invoke, onBrowserEvent } from "@/shared/runtime";
 import type {
   BrowserAnnotationCapture,
   BrowserEvent,
+  BrowserSessionState,
+  BrowserTabState,
+  BrowserTabTarget,
   BrowserViewRect,
-  BrowserViewState,
 } from "@/shared/browser-protocol";
+import type { ProjectBrowserTabs } from "./browser-url-memory";
 
-/**
- * Renderer client for the embedded browser view. Unlike every other surface,
- * the peer here is the Electron main process, not the utilityProcess backend:
- * the view is a native child of the window and the embedded page must never
- * reach the Runtime Gateway (ADR-0013).
- *
- * There is no `browser_open`: `browser_navigate` creates the view when it has
- * to, so no caller ever has to know whether one already exists. Nor is there a
- * dispose: the view outlives every Project and Session switch (PRD section 6)
- * and only the window closing takes it down, which main does directly.
- */
-export function navigateBrowser(url: string) {
-  return invoke<BrowserViewState>("browser_navigate", { url });
+/** Native views belong to main; every page command names its Session and tab. */
+export function attachBrowserSession(
+  sessionId: string,
+  remembered: ProjectBrowserTabs,
+) {
+  return invoke<BrowserSessionState>("browser_attach", {
+    sessionId,
+    ...remembered,
+  });
 }
-
-export function browserBack() {
-  return invoke<BrowserViewState | null>("browser_back");
+export function openBrowserTab(sessionId: string) {
+  return invoke<BrowserSessionState>("browser_open", { sessionId });
 }
-
-export function browserForward() {
-  return invoke<BrowserViewState | null>("browser_forward");
+export function closeBrowserTab(target: BrowserTabTarget) {
+  return invoke<BrowserSessionState>("browser_close", target);
 }
-
-export function reloadBrowser() {
-  return invoke<BrowserViewState | null>("browser_reload");
+export function activateBrowserTab(target: BrowserTabTarget) {
+  return invoke<BrowserSessionState>("browser_activate", target);
 }
-
-export function setBrowserBounds(rect: BrowserViewRect) {
-  return invoke<BrowserViewState | null>("browser_set_bounds", { rect });
+export function hideBrowserSession(sessionId: string) {
+  return invoke<null>("browser_hide_session", { sessionId });
 }
-
-export function setBrowserVisible(visible: boolean) {
-  return invoke<BrowserViewState | null>("browser_set_visible", { visible });
+export function navigateBrowser(target: BrowserTabTarget, url: string) {
+  return invoke<BrowserTabState>("browser_navigate", { ...target, url });
 }
-
-/**
- * Design mode runs in the embedded page's isolated world, so this only states
- * the intent: main relays it to the annotation preload, which owns the overlay.
- * What the user marked comes back as `annotations-changed`, never as an answer
- * to these calls.
- */
-export function setBrowserDesignMode(enabled: boolean) {
-  return invoke<null>("browser_set_design_mode", { enabled });
+export function browserBack(target: BrowserTabTarget) {
+  return invoke<BrowserTabState | null>("browser_back", target);
 }
-
-export function clearBrowserAnnotations() {
-  return invoke<null>("browser_clear_annotations");
+export function browserForward(target: BrowserTabTarget) {
+  return invoke<BrowserTabState | null>("browser_forward", target);
 }
-
-/** Still of the page, so a DOM overlay can be shown without the native view
- *  covering it. Null when there is no view to photograph. */
-export function captureBrowser() {
-  return invoke<string | null>("browser_capture");
+export function reloadBrowser(target: BrowserTabTarget) {
+  return invoke<BrowserTabState | null>("browser_reload", target);
 }
-
-/**
- * The screenshot that goes to Pi, with the marks it was taken against. Main
- * has the page settle its overlay first and re-measure, so the answer describes
- * one moment — never the render state this side happens to be holding.
- */
-export function captureBrowserAnnotation() {
-  return invoke<BrowserAnnotationCapture | null>("browser_capture_annotation");
+export function setBrowserBounds(
+  target: BrowserTabTarget,
+  rect: BrowserViewRect,
+) {
+  return invoke<BrowserTabState | null>("browser_set_bounds", {
+    ...target,
+    rect,
+  });
 }
-
+export function setBrowserVisible(target: BrowserTabTarget, visible: boolean) {
+  return invoke<BrowserTabState | null>("browser_set_visible", {
+    ...target,
+    visible,
+  });
+}
+export function setBrowserDesignMode(
+  target: BrowserTabTarget,
+  enabled: boolean,
+) {
+  return invoke<BrowserTabState | null>("browser_set_design_mode", {
+    ...target,
+    enabled,
+  });
+}
+export function clearBrowserAnnotations(target: BrowserTabTarget) {
+  return invoke<BrowserTabState | null>("browser_clear_annotations", target);
+}
+export function captureBrowser(target: BrowserTabTarget) {
+  return invoke<string | null>("browser_capture", target);
+}
+export function captureBrowserAnnotation(target: BrowserTabTarget) {
+  return invoke<BrowserAnnotationCapture | null>(
+    "browser_capture_annotation",
+    target,
+  );
+}
 export function openBrowserUrlExternally(url: string) {
   return invoke<null>("browser_open_external", { url });
 }
-
-export function subscribeBrowserEvents(listener: (event: BrowserEvent) => void) {
+export function subscribeBrowserEvents(
+  listener: (event: BrowserEvent) => void,
+) {
   return onBrowserEvent(listener);
 }
