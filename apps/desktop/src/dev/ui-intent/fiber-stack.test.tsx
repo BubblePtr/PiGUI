@@ -114,3 +114,15 @@ describe("nearestTestId", () => {
     expect(nearestTestId(element)).toBe("outer-section");
   });
 });
+
+describe("explicit wrapper names", () => {
+  it("prefers displayName on memo and forwardRef wrappers", () => {
+    for (const type of [
+      { displayName: "NamedMemo", type: function Inner() {} },
+      { displayName: "NamedRef", render: function Inner() {} },
+    ]) {
+      expect(componentStackFromFiber({ type, child: null, sibling: null, return: null })[0]?.name)
+        .toBe(type.displayName);
+    }
+  });
+});

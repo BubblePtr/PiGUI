@@ -13,7 +13,7 @@
  * none — the same trick browser DevTools inspect mode uses.
  */
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import * as astryxCore from "@astryxdesign/core";
 import { Cancel, Check, Copy, Crosshair } from "@/shared/ui/icons";
 import {
@@ -26,6 +26,8 @@ import {
 } from "./fiber-stack";
 import { formatIntentBlock, type IntentTarget } from "./format-intent";
 import { matchRegion } from "./regions";
+import { buildComponentTree, type ComponentTreeNode, type ComponentTreeSnapshot } from "./component-tree";
+import type { TreeListItemData } from "@astryxdesign/core/TreeList";
 
 type PickerMode = "idle" | "armed" | "selected";
 
@@ -35,24 +37,33 @@ type HoverTarget = {
 };
 
 const OVERLAY_ATTRIBUTE = "data-ui-intent-picker";
-const MAX_STACK_ROWS = 8;
 
 // DevTools-inspector blue, deliberately theme-independent: the overlay must
 // stand out against every app surface, so it does not consume design tokens.
 const HIGHLIGHT_COLOR = "#3b82f6";
 const HIGHLIGHT_FILL = "rgba(59, 130, 246, 0.12)";
 
-/**
- * Components that are never the user's intent target: Astryx design-system
- * exports (Button, Popover, … — usage sites live in app files, so they
- * masquerade as app code) plus the local icon wrappers. They render muted in
- * the stack and are skipped when choosing the headline component.
- */
-const genericComponentNames = new Set([
-  ...Object.keys(astryxCore),
-  "HugeiconsIcon",
-  "PiGUIIcon",
-]);
+// Compare component identities: local components may share Astryx export names.
+const genericComponentTypes = new Set<unknown>();
+function registerGenericType(type: unknown) {
+  if (!type || genericComponentTypes.has(type)) return;
+  genericComponentTypes.add(type);
+  if (typeof type === "object") {
+    const wrapper = type as { type?: unknown; render?: unknown };
+    registerGenericType(wrapper.type);
+    registerGenericType(wrapper.render);
+  }
+}
+Object.values(astryxCore).forEach(registerGenericType);
+
+function markLibraryComponents(stack: ComponentStackEntry[]) {
+  for (const entry of stack) {
+    if (genericComponentTypes.has(entry.fiber?.type) ||
+        entry.name === "HugeiconsIcon" || entry.name === "PiGUIIcon") {
+      entry.library = true;
+    }
+  }
+}
 
 /** True when the event target is part of the picker's own chrome. */
 function isOverlayElement(target: EventTarget | Element | null): boolean {
@@ -74,13 +85,7 @@ export function buildIntentTarget(element: Element): IntentTarget {
   const fiber = fiberFromElement(element);
   const stack = fiber ? componentStackFromFiber(fiber) : [];
 
-  // Flag design-system primitives by name — their JSX usage sites point into
-  // app files, so the path-based `library` flag alone cannot spot them.
-  for (const entry of stack) {
-    if (genericComponentNames.has(entry.name)) {
-      entry.library = true;
-    }
-  }
+  markLibraryComponents(stack);
 
   const headline = headlineComponent(stack);
 
@@ -104,27 +109,12 @@ function hoverLabel(element: Element): string {
   const fiber = fiberFromElement(element);
   const stack = fiber ? componentStackFromFiber(fiber) : [];
 
-  for (const entry of stack) {
-    if (genericComponentNames.has(entry.name)) {
-      entry.library = true;
-    }
-  }
+  markLibraryComponents(stack);
 
   const region = matchRegion(stack, element);
 
-  if (region) {
-    return region.region.term;
-  }
-
-  return headlineComponent(stack)?.name ?? element.tagName.toLowerCase();
-}
-
-function locationOf(entry: ComponentStackEntry): string | null {
-  if (!entry.file) {
-    return null;
-  }
-
-  return entry.line ? `${entry.file}:${entry.line}` : entry.file;
+  const component = headlineComponent(stack)?.name ?? element.tagName.toLowerCase();
+  return region ? `${component} · ${region.region.term}` : component;
 }
 
 export function UiIntentPicker() {
@@ -134,6 +124,10 @@ export function UiIntentPicker() {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const glassRef = useRef<HTMLDivElement | null>(null);
+  const [tree, setTree] = useState<ComponentTreeSnapshot | null>(null);
+  const [scopeDepth, setScopeDepth] = useState(0);
+  const treeRef = useRef<HTMLDivElement | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<ComponentStackEntry | null>(null);
 
   // Global hotkeys: Cmd/Ctrl+Shift+X toggles pick mode, Esc backs out.
   useEffect(() => {
@@ -202,7 +196,17 @@ export function UiIntentPicker() {
     }
 
     setHover(null);
-    setTarget(buildIntentTarget(element));
+    const next = buildIntentTarget(element);
+    setTarget(next);
+    const headline = headlineComponent(next.stack);
+    setSelectedEntry(headline);
+    const fiber = headline?.fiber ?? fiberFromElement(element);
+    const snapshot = fiber ? buildComponentTree(fiber, { exclude: node => node.type === UiIntentPicker }) : null;
+    setTree(snapshot);
+    setScopeDepth(Math.max(0, (snapshot?.selectedPath.length ?? 0) - 4));
+    if (snapshot?.selectedPath.length) setSelectedEntry(snapshot.selectedPath[snapshot.selectedPath.length - 1].entry);
+    setCopied(false);
+    setCopyFailed(false);
     setMode("selected");
   };
 
@@ -235,7 +239,45 @@ export function UiIntentPicker() {
     setMode("idle");
   };
 
-  const components = target?.stack.filter((entry) => entry.kind === "component") ?? [];
+  const treeItems = useMemo(() => {
+    const items = (nodes: ComponentTreeNode[]): TreeListItemData[] => nodes.map(node => {
+      const entry = node.entry;
+      markLibraryComponents([entry]);
+      return {
+        id: node.id,
+        label: `${entry.name}${entry.library ? " (library)" : ""}`,
+        isSelected: entry.fiber === selectedEntry?.fiber,
+        isExpanded: node.expanded,
+        children: items(node.children),
+        onClick: () => {
+          if (!entry.fiber || !target) return;
+          const stack = componentStackFromFiber(entry.fiber);
+          markLibraryComponents(stack);
+          setSelectedEntry(entry);
+          setCopied(false);
+          setCopyFailed(false);
+          setTarget({
+            ...target,
+            clickedElement: target.clickedElement ?? target.stack.find(item => item.kind === "element"),
+            stack,
+            component: {
+              name: entry.name,
+              definition: definitionSite(entry.fiber),
+              usage: { file: entry.file, line: entry.line },
+            },
+            region: matchRegion(stack, null),
+          });
+        },
+      };
+    });
+    return items(scopeDepth > 0 && tree ? [tree.selectedPath[scopeDepth]] : tree?.roots ?? []);
+  }, [tree, scopeDepth, selectedEntry, target]);
+
+  useEffect(() => {
+    if (mode === "selected") {
+      treeRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    }
+  }, [mode, tree]);
   const componentDefinition = target?.component
     ? target.component.definition.file
       ? `${target.component.definition.file}${target.component.definition.line ? `:${target.component.definition.line}` : ""}`
@@ -343,27 +385,26 @@ export function UiIntentPicker() {
               </div>
             ) : null}
 
-            {components.length > 0 ? (
-              <ol className="mt-2 space-y-0.5">
-                {components.slice(0, MAX_STACK_ROWS).map((entry, index) => (
-                  <li
-                    key={`${entry.name}-${index}`}
-                    className="flex items-baseline gap-1.5 font-mono text-[11px]"
-                  >
-                    <span className={entry.library ? "text-muted" : "text-foreground"}>
-                      {entry.name}
-                    </span>
-                    {locationOf(entry) ? (
-                      <span className="truncate text-muted">{locationOf(entry)}</span>
-                    ) : null}
-                  </li>
-                ))}
-                {components.length > MAX_STACK_ROWS ? (
-                  <li className="font-mono text-[11px] text-muted">
-                    … ({components.length - MAX_STACK_ROWS} more)
-                  </li>
-                ) : null}
-              </ol>
+            {scopeDepth > 0 ? (
+              <astryxCore.HStack gap={1} style={{ marginTop: "var(--spacing-2)" }}>
+                <astryxCore.Button label="Show parent" variant="ghost" size="sm" onClick={() => setScopeDepth(depth => depth - 1)} />
+                <astryxCore.Button label="Show full tree" variant="ghost" size="sm" onClick={() => setScopeDepth(0)} />
+              </astryxCore.HStack>
+            ) : null}
+            {treeItems.length > 0 ? (
+              <astryxCore.VStack style={{ overflowX: "auto", maxWidth: "100%" }}>
+              <astryxCore.TreeList
+                key={`${scopeDepth}-${tree?.selectedId}`}
+                ref={treeRef}
+                items={treeItems}
+                density="compact"
+                header="Component tree"
+                style={{ fontFamily: "monospace", minWidth: "max-content", marginTop: "var(--spacing-2)" }}
+              />
+              </astryxCore.VStack>
+            ) : null}
+            {tree?.truncated ? (
+              <astryxCore.Text>Tree snapshot limited; pick inside an omitted branch to inspect it.</astryxCore.Text>
             ) : null}
 
             {target.testId ? (
