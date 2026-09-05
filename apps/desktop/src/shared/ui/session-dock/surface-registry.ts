@@ -14,18 +14,23 @@ export type SessionSurfaceMeta = {
   id: SessionSurfaceId;
   title: string;
   icon: ComponentType<{ className?: string }>;
-  /** One line of context, shown next to the title and in the rail tooltip. */
+  /**
+   * One line of context. The rail tooltip is its only consumer — the dock lost
+   * its header in the 2026-09-05 ADR-0028 revision, so nothing repeats it
+   * above the surface.
+   */
   hint: string;
   /**
    * Multi-instance surfaces keep a single rail icon and list their instances
-   * in the panel header (ADR-0028). Terminal is the first one: shells come
-   * and go, the rail icon and its instance-count badge stay put.
+   * in the surface's first row (`SessionSurfaceTabs`, ADR-0028). Terminal is
+   * the first one: shells come and go, the rail icon and its instance-count
+   * badge stay put.
    */
   multiInstance?: boolean;
   /**
-   * Flush surfaces render edge-to-edge: the dock drops its content
-   * padding and the surface owns every inset itself (terminal canvases want
-   * this; documents and forms want the default padding).
+   * Flush surfaces render edge-to-edge: the dock drops its content padding and
+   * the surface owns every inset itself (terminal canvases want this;
+   * documents and forms want the default padding).
    */
   flushContent?: boolean;
 };

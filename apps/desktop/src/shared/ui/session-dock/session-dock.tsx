@@ -15,9 +15,11 @@ import {
  * Session-scoped surface host: one panel plus an icon rail on its own right
  * edge. The rail belongs to the panel, so closing the dock removes both —
  * nothing stays docked against the window (ADR-0028).
+ *
+ * The host writes nothing above the surface: the rail names the active surface
+ * and its tooltip explains it, so the 40px band at the top of the panel is the
+ * surface's own first row (`SessionSurfaceBar`), not a header of ours.
  */
-
-const headingId = "session-dock-heading";
 
 /** Panel geometry (ADR-0028); the drag itself is Astryx `useResizable`. */
 export const sessionDockDefaultWidthPx = 560;
@@ -109,44 +111,23 @@ export function SessionDock({
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
 }) {
   const surface = sessionSurfaces[activeSurfaceId];
-  const SurfaceIcon = surface.icon;
 
   return (
     <aside
-      aria-labelledby={headingId}
+      aria-label={surface.title}
       className="flex h-full min-h-0 min-w-0 bg-surface"
       data-testid="session-dock"
     >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Fills the titlebar band beside Chat's title; the hairline under the
-            band is the sessions view's, not ours. Display only: the toolbar
-            toggle at the rail's head owns open/close, so a close button here
-            would duplicate it 40px away. Flush surfaces (registry
-            flushContent) drop the horizontal padding so their rows align with
-            the edge-to-edge content below. */}
-        <header
-          className={`flex h-10 shrink-0 items-center gap-2 ${surface.flushContent ? "" : "px-4"}`}
-        >
-          <h2
-            className="flex min-w-0 shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
-            id={headingId}
-          >
-            <SurfaceIcon className="size-4 shrink-0 text-muted" />
-            <span className="truncate">{surface.title}</span>
-          </h2>
-          <span className="min-w-0 flex-1 truncate text-xs text-muted">
-            {surface.hint}
-          </span>
-        </header>
-        <div
-          className={
-            surface.flushContent
-              ? "min-h-0 flex-1 overflow-y-auto"
-              : "min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4"
-          }
-        >
-          {children}
-        </div>
+      {/* Flush surfaces (registry flushContent) own every inset themselves, so
+          their first row and content run edge-to-edge to the rail. */}
+      <div
+        className={
+          surface.flushContent
+            ? "min-h-0 min-w-0 flex-1 overflow-y-auto"
+            : "min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pt-3 pb-4"
+        }
+      >
+        {children}
       </div>
       <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface">
         {/* The toolbar toggle (header chrome) floats over this cell, so the

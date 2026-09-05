@@ -44,6 +44,7 @@ import {
   sessionDockDefaultWidthPx,
   sessionDockResizableBounds,
 } from "@/shared/ui/session-dock/session-dock";
+import { SessionSurfaceBar } from "@/shared/ui/session-dock/surface-bar";
 import {
   type SessionSurfaceId,
 } from "@/shared/ui/session-dock/surface-registry";
@@ -2058,6 +2059,43 @@ function changeStageLabel(file: SessionChangedFile) {
   return "Working tree";
 }
 
+/**
+ * One line of working-tree state for the Changes bar, or nothing when there is
+ * none to state. A failed read says nothing here: the alert below already
+ * carries the message, and a stale count beside it would contradict it.
+ */
+function sessionChangesStatus({
+  changes,
+  error,
+  loading,
+}: Pick<SessionChangesPanelProps, "changes" | "error" | "loading">): ReactNode {
+  if (error) {
+    return null;
+  }
+
+  if (!changes) {
+    return loading ? "Loading…" : null;
+  }
+
+  if (changes.state === "non-git") {
+    return "Not a Git repository";
+  }
+
+  // Same predicate the file list below uses, so the row and the list can never
+  // disagree about whether there is anything to review.
+  if (changes.state === "clean" || changes.files.length === 0) {
+    return "Working tree clean";
+  }
+
+  return (
+    <>
+      {changes.totals.files} files ·{" "}
+      <span className="text-success">+{changes.totals.additions}</span>{" "}
+      <span className="text-danger">-{changes.totals.deletions}</span>
+    </>
+  );
+}
+
 export function SessionChangesPanel({
   sessionId,
   stale,
@@ -2082,42 +2120,33 @@ export function SessionChangesPanel({
 
   const selectedFile =
     changes?.files.find((file) => file.path === selectedPath) ?? null;
+  const status = sessionChangesStatus({ changes, error, loading });
 
   return (
-    <section aria-labelledby="session-diff-heading" className="pb-2 pt-3">
-      <div className="flex min-h-8 items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h3
-            className="text-sm font-semibold text-foreground"
-            id="session-diff-heading"
-          >
-            Diff summary
-          </h3>
-          {changes?.state === "ready" ? (
-            <p className="mt-1 text-xs text-muted">
-              {changes.totals.files} files ·{" "}
-              <span className="text-success">
-                +{changes.totals.additions}
-              </span>{" "}
-              ·{" "}
-              <span className="text-danger">
-                -{changes.totals.deletions}
-              </span>
-            </p>
+    <section aria-label="Session changes" className="pb-2">
+      {/* The surface's first row (ADR-0028): working-tree state on the left,
+          actions on the right — the slot Session-scoped checkout / commit /
+          push actions (ADR-0008) will land in. A Session without a checkout
+          has neither, so it gets no band at all. */}
+      {sessionId ? (
+        <SessionSurfaceBar
+          actions={
+            <IconButton
+              icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
+              isDisabled={loading}
+              label="Refresh Session changes"
+              size="sm"
+              tooltip="Refresh changes"
+              variant="ghost"
+              onClick={onRefresh}
+            />
+          }
+        >
+          {status ? (
+            <p className="min-w-0 truncate text-xs text-muted">{status}</p>
           ) : null}
-        </div>
-        {sessionId ? (
-          <IconButton
-            icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
-            isDisabled={loading}
-            label="Refresh Session changes"
-            size="sm"
-            tooltip="Refresh changes"
-            variant="ghost"
-            onClick={onRefresh}
-          />
-        ) : null}
-      </div>
+        </SessionSurfaceBar>
+      ) : null}
 
       {stale ? (
         <p className="mt-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">

@@ -19,6 +19,8 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 - 用 Electron `WebContentsView`，不用 `<webview>`（需开 `webviewTag`，渲染层直接持有敌意页面句柄）、不用 iframe（跨源不可注入，`X-Frame-Options` 直接拒载）。
 - 视图由**主进程**创建与持有。命令走 `pigui:invoke` 的主进程截留分支（与 `select_project_directory` 同一层），显式命令表，不做前缀嗅探；事件走 `pigui:browser-event`。**不进 Runtime Gateway、不进 utilityProcess**，嵌入页面永远碰不到后端 MessagePort（ADR-0013 承诺）。
 - 作为 SessionInspector 的第三个 surface `browser` 接入（ADR-0028）：注册表只加元数据，内容由 `agent-workspace.tsx` 注入，rail 单图标，`multiInstance: false`。
+
+  > **修订（2026-09-05）**：多 tab / 多实例从非目标中移出。内置三个 surface 里 Terminal 与 Browser 本质都是多实例，只有 Changes 天然单实例；ADR-0028 同日修订把 Dock 第一行定义为多实例 surface 的实例 tab 条，Browser 应接同一条共享 tab 条，改为 `multiInstance: true`。实施：#185（Blocked by #184）。
 - 每窗口一个视图，状态按 Session 记：切换 Session 时视图导航到该 Session 记住的 URL；未记则空态。不做多 tab。切走时只 `setVisible(false)` 不销毁，保住「重进不重载」。
 - URL 来源：地址栏手输，最近 URL 按 Project 存渲染层 localStorage（`pigui.browserUrls.v1`）。不做 dev server 探测、不读项目配置猜 URL、不代启 dev server。
 

@@ -220,6 +220,41 @@ describe("Design components layer", () => {
     expect(screen.getByText("notes.md")).toBeInTheDocument();
   });
 
+  // ADR-0028 (2026-09-05): the dock host writes no header, and the 40px band
+  // belongs to the surface — so the gallery has to show both bar shapes and
+  // the instance strip's states, not just the panel.
+  it("shows the headerless dock with the surface bar and instance strip states", () => {
+    render(<DesignComponentsLayer />);
+
+    const section = screen.getByRole("region", { name: "SessionDock" });
+
+    for (const dock of within(section).getAllByTestId("session-dock")) {
+      expect(within(dock).queryByRole("heading")).not.toBeInTheDocument();
+      expect(within(dock).getByTestId("session-surface-bar")).toBeInTheDocument();
+    }
+
+    const withActions = within(section).getByRole("group", {
+      name: "SessionSurfaceBar — status + actions",
+    });
+    const statusOnly = within(section).getByRole("group", {
+      name: "SessionSurfaceBar — status only",
+    });
+
+    expect(within(withActions).getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(within(statusOnly).queryByRole("button")).not.toBeInTheDocument();
+
+    const strip = within(section).getByRole("group", {
+      name: "SessionSurfaceTabs — several instances, one exited",
+    });
+    const single = within(section).getByRole("group", {
+      name: "SessionSurfaceTabs — a single instance",
+    });
+
+    expect(within(strip).getAllByRole("tab")).toHaveLength(3);
+    expect(within(strip).getByText("(exited)")).toBeInTheDocument();
+    expect(within(single).getAllByRole("tab")).toHaveLength(1);
+  });
+
   it("shows the BrowserSurface still that stands in for the native view", () => {
     render(<DesignComponentsLayer />);
 

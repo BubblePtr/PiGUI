@@ -134,7 +134,7 @@ spike 用一个独立的 CJS Electron 入口(`spike-main.cjs` + 两个 preload +
 ## 范围外
 
 - 由 Pi 扩展提供的浏览器面板、插件 surface 协议(#85 / ADR-0018)——浏览器是内置能力,后期再评估抽插件。
-- 多 tab、多实例、Session 间共享视图。
+- Session 间共享视图。（多 tab / 多实例已于 2026-09-05 移出非目标，见 ADR-0029 修订与 #185。）
 - dev server 探测、启动、端口管理;读取项目配置猜 URL。
 - CDP 接入(DOM 检视、跨源 iframe 元素、网络面板)——v2 升级路径。
 - 结构化附件类型(选择器 / 评论以非文本形式进 prompt);Pi 端对标注语义的专门支持。
