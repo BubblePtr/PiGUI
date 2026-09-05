@@ -93,7 +93,7 @@ _Avoid_: Resume button, reattach-only recovery, PiGUI-rebuilt LLM context, plain
 _Avoid_: In-session branch, tree navigation, disk snapshot, filesystem time travel, checkout copy
 
 **Session Creation Boundary**:
-PiGUI 的 Session 列表只包含从 PiGUI 中创建的 Session。PiGUI 不自动扫描 Pi 的 session 目录，也不支持把 PiGUI 之外产生的 Pi CLI/TUI session 手动导入或补建 Session Projection。需要在 PiGUI 继续外部工作时，用户在目标 Project 内新建 PiGUI Session；这与 Codex 的本地 thread 边界一致，避免把缺少 journal/checkout/status 的外部记录伪装成 PiGUI 原生 Session。
+PiGUI 当前的 Session 列表只包含从 PiGUI 中创建的 Session。当前不自动扫描 Pi 的 session 目录，也不支持把 PiGUI 之外产生的 Pi CLI/TUI session 手动导入或补建 Session Projection。需要在 PiGUI 继续外部工作时，用户在目标 Project 内新建 PiGUI Session，避免把缺少 journal/checkout/status 的外部记录伪装成 PiGUI 原生 Session。这是当前实现范围，不是永久产品原则：会话交接可后续单独设计，GUI 与终端同时操作同一个运行实例不作为当前架构前提，见 [ADR-0031](docs/adr/0031-bundled-pi-runtime-and-extension-compatibility.md)。
 _Avoid_: Session Import, auto-discovery, session directory scan, background sync, projection backfill for external sessions
 
 **Session Status**:
