@@ -83,6 +83,18 @@ const coreAlias = {
   "@": resolve(__dirname, "src"),
 };
 
+// bun nests a second `react` under @astryxdesign/core. Without pinning, Vite
+// prebundles Astryx CodeBlock's `useTranslator` against that copy while the
+// renderer uses the workspace copy — React 19 throws `reading 'use'`.
+const requireFromRepo = createRequire(resolve(__dirname, "../../package.json"));
+const reactPackage = dirname(requireFromRepo.resolve("react/package.json"));
+const reactDomPackage = dirname(requireFromRepo.resolve("react-dom/package.json"));
+const rendererReactAlias = {
+  ...coreAlias,
+  react: reactPackage,
+  "react-dom": reactDomPackage,
+};
+
 export default defineConfig({
   main: {
     plugins: [
@@ -102,7 +114,19 @@ export default defineConfig({
     plugins: [react(), tailwindcss()],
     clearScreen: false,
     build: rendererBuild as any,
-    resolve: { alias: coreAlias },
+    resolve: {
+      alias: rendererReactAlias,
+      dedupe: ["react", "react-dom"],
+    },
+    optimizeDeps: {
+      include: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "react-dom/client",
+      ],
+    },
     server: {
       host: "127.0.0.1",
       port: 1420,

@@ -30,6 +30,26 @@ describe("summarizeTools", () => {
     expect(summarizeTools([tool({ toolName: "read" })])).toBe("Read 1 file");
     expect(summarizeTools([tool({ toolName: "sleep" })])).toBe("Used sleep");
     expect(summarizeTools([tool()])).toBe("Used a tool");
+    expect(summarizeTools([tool({ toolName: "web_search" })])).toBe("Searched 1 web page");
+  });
+
+  // Pi's runtime emits read_file / write_file; the kind icon already maps
+  // those aliases, so the summary must use the same verbs as read / write.
+  it("uses the same verbs for Pi's file aliases as for the short names", () => {
+    expect(summarizeTools([tool({ toolName: "read_file" })])).toBe("Read 1 file");
+    expect(summarizeTools([tool({ toolName: "Read-File" })])).toBe("Read 1 file");
+    expect(summarizeTools([tool({ toolName: "write_file" })])).toBe("Wrote 1 file");
+    expect(
+      summarizeTools([
+        tool({
+          toolName: "read_file",
+          argsText: JSON.stringify({ path: "apps/desktop/src/app/main.tsx" }),
+        }),
+      ]),
+    ).toBe("Read apps/desktop/src/app/main.tsx");
+    expect(
+      summarizeTools([tool({ toolName: "read" }), tool({ toolName: "read_file" })]),
+    ).toBe("Read 2 files");
   });
 
   // A path's news is its file name; a command's is the program it runs.
@@ -114,6 +134,47 @@ describe("ChatToolStep", () => {
     expect(screen.getByText("Ran 2 commands")).toBeInTheDocument();
     expect(screen.getByText("1 failed")).toBeInTheDocument();
     expect(screen.getByText("750ms")).toBeInTheDocument();
+  });
+
+  it("marks the summary with the shared kind, and each expanded row with its own", () => {
+    const { container } = render(
+      <ChatToolStep
+        step={step([
+          tool({ toolCallId: "c1", toolName: "bash" }),
+          tool({ toolCallId: "c2", toolName: "web_search" }),
+        ])}
+      />,
+    );
+
+    const header = container.querySelector(
+      '[data-slot="chat-tool-step"] > button [data-slot="chat-tool-kind"]',
+    );
+    const rows = container.querySelectorAll(
+      '[data-slot="chat-tool-step"] li [data-slot="chat-tool-kind"]',
+    );
+
+    expect(header).toHaveAttribute("data-kind", "tool");
+    expect([...rows].map((row) => row.getAttribute("data-kind"))).toEqual(["shell", "web"]);
+  });
+
+  it("uses the running call's kind while the burst is live", () => {
+    const { container } = render(
+      <ChatToolStep
+        step={step(
+          [
+            tool({ toolCallId: "c1", toolName: "read", state: "output-available" }),
+            tool({ toolCallId: "c2", toolName: "bash", state: "input-available" }),
+          ],
+          { live: true, activeToolCallId: "c2" },
+        )}
+      />,
+    );
+
+    const header = container.querySelector(
+      '[data-slot="chat-tool-step"] > button [data-slot="chat-tool-kind"]',
+    );
+
+    expect(header).toHaveAttribute("data-kind", "shell");
   });
 
   it("expands to one production row per call", () => {

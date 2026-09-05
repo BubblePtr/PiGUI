@@ -7,7 +7,13 @@ import {
   type ChatToolItem,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
-import { Cancel, Check, ChevronRight } from "@/shared/ui/icons";
+import {
+  ChatToolKindIcon,
+  normalizeToolName,
+  toolKindFromName,
+  toolKindFromTools,
+} from "@/shared/ui/chat/chat-tool-kind";
+import { ChevronRight } from "@/shared/ui/icons";
 import type { CotStep } from "@/entities/session/cot-view";
 
 /**
@@ -22,17 +28,50 @@ export type ChatToolStepItem = Extract<CotStep, { kind: "tools" }>;
 
 type Verb = { past: string; noun: [string, string] };
 
+const ran: Verb = { past: "Ran", noun: ["command", "commands"] };
+const read: Verb = { past: "Read", noun: ["file", "files"] };
+const edited: Verb = { past: "Edited", noun: ["file", "files"] };
+const wrote: Verb = { past: "Wrote", noun: ["file", "files"] };
+const searchedPattern: Verb = { past: "Searched", noun: ["pattern", "patterns"] };
+const searchedPath: Verb = { past: "Searched", noun: ["path", "paths"] };
+const listed: Verb = { past: "Listed", noun: ["directory", "directories"] };
+const searchedWeb: Verb = { past: "Searched", noun: ["web page", "web pages"] };
+const fetched: Verb = { past: "Fetched", noun: ["page", "pages"] };
+
+// Keys are normalizeToolName() results. Aliases share the short-name verb
+// so read_file buckets with read (file glyph + "Read"), write_file with write
+// ("Wrote", not "Edited" — kind collapses write into edit, the summary does not).
 const VERBS: Record<string, Verb> = {
-  bash: { past: "Ran", noun: ["command", "commands"] },
-  read: { past: "Read", noun: ["file", "files"] },
-  edit: { past: "Edited", noun: ["file", "files"] },
-  write: { past: "Wrote", noun: ["file", "files"] },
-  grep: { past: "Searched", noun: ["pattern", "patterns"] },
-  find: { past: "Searched", noun: ["path", "paths"] },
-  ls: { past: "Listed", noun: ["directory", "directories"] },
+  bash: ran,
+  shell: ran,
+  sh: ran,
+  terminal: ran,
+  cmd: ran,
+  read,
+  read_file: read,
+  cat: read,
+  edit: edited,
+  str_replace: edited,
+  write: wrote,
+  write_file: wrote,
+  grep: searchedPattern,
+  find: searchedPath,
+  glob: searchedPath,
+  ls: listed,
+  search: searchedPattern,
+  web_search: searchedWeb,
+  websearch: searchedWeb,
+  webfetch: fetched,
+  web_fetch: fetched,
+  web: fetched,
+  browser: fetched,
 };
 
 const FALLBACK: Verb = { past: "Used", noun: ["tool", "tools"] };
+
+function verbFor(name: string | undefined): Verb {
+  return VERBS[normalizeToolName(name)] ?? FALLBACK;
+}
 
 const TARGET_MAX = 72;
 
@@ -66,7 +105,7 @@ function pluralize(count: number, [one, many]: [string, string]) {
 export function summarizeTools(tools: ChatToolItem[]) {
   if (tools.length === 1) {
     const [tool] = tools;
-    const verb = VERBS[tool.toolName ?? ""] ?? FALLBACK;
+    const verb = verbFor(tool.toolName);
     const target = toolTargetFromArgs(tool.argsText);
 
     if (target) {
@@ -81,7 +120,7 @@ export function summarizeTools(tools: ChatToolItem[]) {
   const buckets = new Map<string, { verb: Verb; count: number }>();
 
   for (const tool of tools) {
-    const verb = VERBS[tool.toolName ?? ""] ?? FALLBACK;
+    const verb = verbFor(tool.toolName);
     const key = `${verb.past}:${verb.noun[1]}`;
     const bucket = buckets.get(key) ?? { verb, count: 0 };
 
@@ -112,7 +151,7 @@ export function ChatToolStep({
   const totalMs = tools.reduce((sum, tool) => sum + (tool.durationMs ?? 0), 0);
   const active =
     tools.find((tool) => tool.toolCallId === step.activeToolCallId) ?? tools[tools.length - 1];
-  const Glyph = failed > 0 ? Cancel : Check;
+  const kind = step.live ? toolKindFromName(active?.toolName) : toolKindFromTools(tools);
   // One pager for the row's whole life: call to call, and then to the summary,
   // all turn at the same pace, so finishing the burst is a page turn too.
   const pageKey = step.live ? `running:${active?.toolCallId ?? "none"}` : "settled";
@@ -125,16 +164,15 @@ export function ChatToolStep({
       <Collapsible.Trigger className="chat-step__trigger">
         <ChatInlinePager dwellMs={dwellMs} pageKey={pageKey}>
           {step.live ? (
-            <TextShimmer className="chat-step__label">
-              {active?.toolName ? `Running ${active.toolName}…` : "Running…"}
-            </TextShimmer>
+            <span className="chat-tool-step__page">
+              <ChatToolKindIcon kind={kind} />
+              <TextShimmer className="chat-step__label">
+                {active?.toolName ? `Running ${active.toolName}…` : "Running…"}
+              </TextShimmer>
+            </span>
           ) : (
             <span className="chat-tool-step__page">
-              <Glyph
-                aria-hidden="true"
-                className="chat-tool-step__glyph"
-                data-state={failed > 0 ? "error" : "done"}
-              />
+              <ChatToolKindIcon kind={kind} />
               <span className="chat-step__label">{summarizeTools(tools)}</span>
               {failed > 0 ? (
                 <span className="chat-step__meta chat-step__meta--error">
@@ -152,7 +190,8 @@ export function ChatToolStep({
       <Collapsible.Panel keepMounted className="chat-step__panel">
         <ol className="chat-tool-step__list">
           {tools.map((tool, index) => (
-            <li key={tool.toolCallId ?? index}>
+            <li key={tool.toolCallId ?? index} className="chat-tool-step__item">
+              <ChatToolKindIcon kind={toolKindFromName(tool.toolName)} />
               <ChatToolGroup tools={[tool]} />
             </li>
           ))}
