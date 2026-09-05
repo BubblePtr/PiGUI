@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatBrowserAnnotationPrompt } from "@pigui/core";
 import {
-  formatBrowserAnnotationPrompt,
-  type BrowserAnnotationElement,
-  type BrowserAnnotationViewport,
-} from "@pigui/core";
-import {
+  activateBrowserTab,
+  attachBrowserSession,
   browserBack,
   browserForward,
   captureBrowser,
   captureBrowserAnnotation,
   clearBrowserAnnotations,
+  closeBrowserTab,
+  hideBrowserSession,
   navigateBrowser,
+  openBrowserTab,
   openBrowserUrlExternally,
   reloadBrowser,
   setBrowserBounds,
@@ -19,12 +20,16 @@ import {
   subscribeBrowserEvents,
 } from "@/entities/browser/browser-client";
 import {
-  getProjectBrowserUrl,
-  rememberProjectBrowserUrl,
+  getProjectBrowserTabs,
+  rememberProjectBrowserTabs,
 } from "@/entities/browser/browser-url-memory";
 import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { isElectronRuntime } from "@/shared/runtime";
-import type { BrowserViewRect, BrowserViewState } from "@/shared/browser-protocol";
+import type {
+  BrowserSessionState,
+  BrowserTabState,
+  BrowserViewRect,
+} from "@/shared/browser-protocol";
 import {
   BrowserSurface,
   type BrowserSurfaceState,
@@ -32,360 +37,358 @@ import {
 import { useBrowserViewBounds } from "@/shared/ui/browser/use-browser-view-bounds";
 import { useOverlayPresence } from "@/shared/ui/browser/use-overlay-presence";
 
-/**
- * Browser surface content: drives the one native `WebContentsView` the main
- * process owns for this window.
- *
- * Two consequences of that single view shape run through this component. Only
- * the instance that can actually host it — docked, in Electron — is allowed to
- * send it any command, because the Sheet fallback below the dock breakpoint
- * outlives the docked instance across a resize and would otherwise hide the
- * view its replacement just showed. And because the view survives Project and
- * Session switches, its events are matched against the navigation id of this
- * component's own last navigate; anything older belongs to a page the user has
- * already left.
- *
- * The URL memory is per Project, because a dev server belongs to a Project,
- * not to one Session (PRD decision 2).
- */
-export function SessionBrowserPanel({
-  projectId,
-  sessionId,
-  docked,
-}: {
+type Props = {
   projectId: string;
   sessionId: string;
   docked: boolean;
-}) {
-  const [address, setAddress] = useState("");
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [hasPage, setHasPage] = useState(false);
-  const [snapshot, setSnapshot] = useState<string | null>(null);
-  const [designMode, setDesignMode] = useState(false);
-  // The marks live in the page's own overlay; this side keeps the copy the
-  // page reports, with the viewport it measured them in. One state rather than
-  // two, because marks without that viewport cannot be turned into a payload.
-  const [marks, setMarks] = useState<{
-    annotations: BrowserAnnotationElement[];
-    viewport: BrowserAnnotationViewport;
-  } | null>(null);
-  // A send takes a round trip through the page and back; the toolbar says so,
-  // and a second one must not start meanwhile.
-  const [sending, setSending] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  // The address bar is an input the user can type in without navigating, so
-  // what it holds is not necessarily what is loaded. The payload has to name
-  // the page the marks are actually on.
-  const loadedUrlRef = useRef("");
-  // Null means "nothing of mine is loaded": drop every event until this
-  // component's own navigate answers with an id.
-  const acceptedNavigationRef = useRef<number | null>(null);
-  const available = isElectronRuntime() && docked;
+  onInstancesChange?: (tabs: BrowserTabState[]) => void;
+};
 
-  const applyNavigation = useCallback(
-    (view: BrowserViewState) => {
-      setLoadError(null);
-      setHasPage(true);
-      setAddress(view.url);
-      loadedUrlRef.current = view.url;
-      setCanGoBack(view.canGoBack);
-      setCanGoForward(view.canGoForward);
-      // Redirects mean the typed text is not what loaded; memory follows the
-      // page, not the keystrokes.
-      rememberProjectBrowserUrl(projectId, view.url);
-    },
-    [projectId],
-  );
-  const acceptNavigation = useCallback(
-    (view: BrowserViewState) => {
-      acceptedNavigationRef.current = view.navigationId;
-      applyNavigation(view);
-    },
-    [applyNavigation],
-  );
-
-  // Bring out the Project's last preview, or fall back to the empty state.
-  // Switching Sessions reuses this component, so `sessionId` has to drive the
-  // restore. The view is never disposed here: it keeps the previous page
-  // loaded but hidden, which is what makes coming back instant (PRD section 6).
-  useEffect(() => {
-    if (!available) {
-      return;
-    }
-
-    const remembered = getProjectBrowserUrl(projectId);
-
-    setLoadError(null);
-    setAddress(remembered ?? "");
-    setHasPage(Boolean(remembered));
-    // The page this switch brings up starts unmarked and out of design mode.
-    // Main has to hear it too: it re-applies design mode to every document
-    // that reports in, so a reset kept to this side would leave the page
-    // marking while the toolbar says it is not.
-    setDesignMode(false);
-    setMarks(null);
-    setNotice(null);
-    void setBrowserDesignMode(false).catch(() => {});
-
-    if (!remembered) {
-      acceptedNavigationRef.current = null;
-      setCanGoBack(false);
-      setCanGoForward(false);
-      return;
-    }
-
-    void navigateBrowser(remembered)
-      .then(acceptNavigation)
-      .catch((error: unknown) => {
-        setLoadError(errorMessage(error));
-      });
-  }, [acceptNavigation, available, projectId, sessionId]);
-
-  useEffect(() => {
-    if (!available) {
-      return;
-    }
-
-    return subscribeBrowserEvents((event) => {
-      if (event.navigationId !== acceptedNavigationRef.current) {
-        return;
-      }
-
-      switch (event.type) {
-        case "did-navigate":
-          applyNavigation(event);
-          break;
-        case "did-fail-load":
-          setLoadError(event.errorDescription || `Load failed (${event.errorCode}).`);
-          break;
-        case "annotations-changed":
-          // A fresh document announces itself with no marks and no viewport;
-          // so does clearing them. Either way there is nothing to send.
-          setMarks(
-            event.viewport && event.annotations.length
-              ? { annotations: event.annotations, viewport: event.viewport }
-              : null,
-          );
-          break;
-        case "design-mode-changed":
-          // The page can leave design mode by itself (Escape), and the toolbar
-          // has to stop claiming otherwise.
-          setDesignMode(event.enabled);
-          break;
-      }
-    });
-  }, [applyNavigation, available]);
-
-  const pushBounds = useCallback((rect: BrowserViewRect) => {
-    void setBrowserBounds(rect).catch(() => {});
-  }, []);
-  const state = surfaceState({ docked, hasPage, loadError });
-
-  useBrowserViewBounds(viewportRef, pushBounds, state.kind === "live");
-
-  // A native view paints above every DOM layer, so any open overlay — the
-  // dock rail's own tooltips most of all, which open right against it —
-  // would be covered. While one is up the page is replaced by a still of
-  // itself and the view steps aside.
-  const overlayOpen = useOverlayPresence(available && state.kind === "live");
-
-  useEffect(() => {
-    if (!available || state.kind !== "live" || !overlayOpen) {
-      setSnapshot(null);
-      return;
-    }
-
-    let overlayGone = false;
-
-    void captureBrowser()
-      .then((dataUrl) => {
-        // The overlay can close while the capture is in flight. Showing the
-        // still now would freeze the page over a view that is already right,
-        // and the cleanup below is what makes that ordering safe: a late
-        // still from a previous open/close cycle lands after its own cleanup.
-        if (!overlayGone && dataUrl) {
-          setSnapshot(dataUrl);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      overlayGone = true;
-    };
-  }, [available, overlayOpen, state.kind]);
-
-  // Visibility follows the surface state, so the error and empty states hide
-  // the view without a second code path asking for it — and so does the still
-  // standing in for it.
-  useEffect(() => {
-    if (!available) {
-      return;
-    }
-
-    void setBrowserVisible(state.kind === "live" && !snapshot).catch(() => {});
-  }, [available, snapshot, state.kind]);
-
-  // Leaving the surface (other surface, dock closed, Session switch) hides
-  // the view without discarding the page. Design mode and the marks go with
-  // it: the page outlives this component, and one left marking would swallow
-  // every click with no toolbar in sight.
-  useEffect(() => {
-    if (!available) {
-      return;
-    }
-
-    return () => {
-      void setBrowserVisible(false).catch(() => {});
-      void setBrowserDesignMode(false).catch(() => {});
-      void clearBrowserAnnotations().catch(() => {});
-    };
-  }, [available]);
-
-  const submitAddress = (next: string) => {
-    if (!next.trim()) {
-      return;
-    }
-
-    setLoadError(null);
-    // The marks belong to the page being left. The new document does announce
-    // itself, but that announcement is stamped with a navigation id this
-    // component has not accepted yet, so it can never do the clearing.
-    setMarks(null);
-    setNotice(null);
-    // Optimistic: the placeholder has to exist (and push its bounds) before the
-    // page paints, or the native view shows up at the previous rect first.
-    setHasPage(true);
-    void navigateBrowser(next)
-      .then(acceptNavigation)
-      .catch((error: unknown) => {
-        setLoadError(errorMessage(error));
-      });
-  };
-
-  /**
-   * The one thing design mode is for: the marks and a screenshot of them land
-   * in this Session's composer as a draft the user can still edit, so the
-   * choice between sending, queueing and steering stays theirs (PRD decision
-   * 5, and "Send now" was ruled out).
-   *
-   * The payload is built from what the capture answers with, not from what
-   * this component happens to be holding: main has the page settle its overlay
-   * and re-measure for the shot, which is also the moment a comment still
-   * being typed is committed. Only if that whole exchange fails does the last
-   * event this side saw stand in for it.
-   */
-  const sendToComposer = async () => {
-    if (!marks || sending) {
-      return;
-    }
-
-    setSending(true);
-    setNotice(null);
-
-    const capture = await captureBrowserAnnotation().catch(() => null);
-    const image = capture?.image ?? null;
-    const delivered = injectIntoComposer({
-      sessionId,
-      text: formatBrowserAnnotationPrompt({
-        url: capture?.url || loadedUrlRef.current,
-        viewport: capture?.viewport ?? marks.viewport,
-        elements: capture?.annotations.length ? capture.annotations : marks.annotations,
-        capturedAt: new Date().toISOString(),
-        screenshot: image !== null,
-      }),
-      files: image ? [pngFileFromDataUrl(image)] : [],
-    });
-
-    // The marks stay on the page either way, so every one of these leaves the
-    // user able to try again rather than mark the page a second time.
-    setNotice(
-      !delivered
-        ? "No composer is open for this Session, so nothing was sent. The marks are still on the page."
-        : image
-          ? null
-          : "Sent without a screenshot — the page could not be photographed.",
-    );
-    setSending(false);
-  };
-
+/** Key the renderer lifetime while main keeps each Session's native pages alive. */
+export function SessionBrowserPanel(props: Props) {
   return (
-    <BrowserSurface
-      address={address}
-      annotationCount={marks?.annotations.length ?? 0}
-      canGoBack={canGoBack}
-      canGoForward={canGoForward}
-      designMode={designMode}
-      isSending={sending}
-      notice={notice}
-      snapshot={snapshot}
-      state={state}
-      viewportRef={viewportRef}
-      onAddressChange={setAddress}
-      onAddressSubmit={submitAddress}
-      onBack={() => void browserBack().catch(() => {})}
-      onClearAnnotations={() => void clearBrowserAnnotations().catch(() => {})}
-      onDesignModeChange={(enabled) => {
-        setDesignMode(enabled);
-        void setBrowserDesignMode(enabled).catch(() => {});
-      }}
-      onForward={() => void browserForward().catch(() => {})}
-      onOpenExternal={() => void openBrowserUrlExternally(address).catch(() => {})}
-      onReload={() => {
-        // A failed load left the view on Chromium's error page, so there is
-        // nothing to reload — the address has to be requested again.
-        if (loadError) {
-          submitAddress(address);
-          return;
-        }
-
-        void reloadBrowser().catch(() => {});
-      }}
-      onSendToComposer={() => void sendToComposer().catch(() => {})}
+    <BrowserSessionContent
+      key={`${props.projectId}:${props.sessionId}:${props.docked}`}
+      {...props}
     />
   );
 }
 
-/**
- * The capture comes back as a data URL and the composer's attachment path
- * wants a `File` — that path is what gives the screenshot its drawer preview,
- * its size check and its base64 encoding at submit.
- */
+function BrowserSessionContent({
+  projectId,
+  sessionId,
+  docked,
+  onInstancesChange,
+}: Props) {
+  const [group, setGroup] = useState<BrowserSessionState | null>(null);
+  const groupRef = useRef<BrowserSessionState | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [notices, setNotices] = useState<Record<string, string | null>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<{
+    tabId: string;
+    image: string;
+  } | null>(null);
+  const [sendingTabId, setSendingTabId] = useState<string | null>(null);
+  const alive = useRef(false);
+  // Every context change invalidates pending captures, even if the user switches back.
+  const contextVersion = useRef(0);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const instancesCallback = useRef(onInstancesChange);
+  instancesCallback.current = onInstancesChange;
+  const available = isElectronRuntime() && docked;
+
+  const applyGroup = useCallback((next: BrowserSessionState) => {
+    if (!alive.current) return;
+    const previous = groupRef.current;
+    // IPC replies can arrive after a newer event for the same document.
+    next = {
+      ...next,
+      tabs: next.tabs.map((tab) => {
+        const latest = previous?.tabs.find((item) => item.tabId === tab.tabId);
+        return latest && latest.revision > tab.revision ? latest : tab;
+      }),
+    };
+    setDrafts((drafts) => {
+      const updated: Record<string, string> = {};
+      for (const tab of next.tabs) {
+        const old = previous?.tabs.find((item) => item.tabId === tab.tabId);
+        updated[tab.tabId] =
+          old?.url === tab.url ? (drafts[tab.tabId] ?? tab.url) : tab.url;
+      }
+      if (!next.tabs.length) updated.empty = drafts.empty ?? "";
+      return updated;
+    });
+    groupRef.current = next;
+    setGroup(next);
+  }, []);
+
+  useEffect(() => {
+    if (!available) return;
+    alive.current = true;
+    // Main can publish while attach restores a fast page, before its reply arrives.
+    const early = new Map<string, BrowserTabState>();
+    const unsubscribe = subscribeBrowserEvents(({ tab }) => {
+      if (tab.sessionId !== sessionId || !alive.current) return;
+      const current = groupRef.current;
+      if (!current) {
+        early.set(tab.tabId, tab);
+        return;
+      }
+      const previous = current.tabs.find((item) => item.tabId === tab.tabId);
+      if (!previous || tab.revision < previous.revision) return;
+      applyGroup({
+        ...current,
+        tabs: current.tabs.map((item) =>
+          item.tabId === tab.tabId ? tab : item,
+        ),
+      });
+    });
+    void attachBrowserSession(sessionId, getProjectBrowserTabs(projectId))
+      .then((restored) => {
+        applyGroup({
+          ...restored,
+          tabs: restored.tabs.map((tab) =>
+            (early.get(tab.tabId)?.revision ?? -1) > tab.revision
+              ? early.get(tab.tabId)!
+              : tab,
+          ),
+        });
+      })
+      .catch((error) => {
+        if (alive.current) setActionError(errorMessage(error));
+      });
+    return () => {
+      alive.current = false;
+      contextVersion.current += 1;
+      unsubscribe();
+      void hideBrowserSession(sessionId).catch(() => {});
+    };
+  }, [applyGroup, available, projectId, sessionId]);
+
+  useEffect(() => {
+    if (!group) return;
+    rememberProjectBrowserTabs(projectId, {
+      tabs: group.tabs.map((tab) => tab.url),
+      activeIndex: group.tabs.findIndex(
+        (tab) => tab.tabId === group.activeTabId,
+      ),
+    });
+    instancesCallback.current?.(group.tabs);
+  }, [group, projectId]);
+
+  const active =
+    group?.tabs.find((tab) => tab.tabId === group.activeTabId) ?? null;
+  const tabId = active?.tabId ?? null;
+  const target = useCallback(
+    () => (tabId ? { sessionId, tabId } : null),
+    [sessionId, tabId],
+  );
+  const state: BrowserSurfaceState = !docked
+    ? { kind: "narrow" }
+    : !isElectronRuntime()
+      ? { kind: "unsupported" }
+      : active?.error
+        ? { kind: "error", message: active.error }
+        : active?.url
+          ? { kind: "live" }
+          : { kind: "empty" };
+  const pushBounds = useCallback(
+    (rect: BrowserViewRect) => {
+      const page = target();
+      if (page) void setBrowserBounds(page, rect).catch(() => {});
+    },
+    [target],
+  );
+  useBrowserViewBounds(
+    viewportRef,
+    pushBounds,
+    available && state.kind === "live",
+  );
+  const overlayOpen = useOverlayPresence(available && state.kind === "live");
+  const currentSnapshot = snapshot?.tabId === tabId ? snapshot.image : null;
+
+  useEffect(() => {
+    setSnapshot(null);
+    const page = target();
+    if (!available || state.kind !== "live" || !overlayOpen || !page) return;
+    let cancelled = false;
+    void captureBrowser(page)
+      .then((image) => {
+        if (!cancelled && image) setSnapshot({ tabId: page.tabId, image });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [available, overlayOpen, state.kind, target]);
+
+  useEffect(() => {
+    const page = target();
+    if (!available || !page) return;
+    void setBrowserVisible(
+      page,
+      state.kind === "live" && !currentSnapshot,
+    ).catch(() => {});
+    return () => {
+      void setBrowserVisible(page, false).catch(() => {});
+    };
+  }, [available, currentSnapshot, state.kind, target]);
+
+  const changeTabs = async (action: () => Promise<BrowserSessionState>) => {
+    contextVersion.current += 1;
+    setActionError(null);
+    try {
+      applyGroup(await action());
+    } catch (error) {
+      if (alive.current) setActionError(errorMessage(error));
+    }
+  };
+  const runPageCommand = (action: () => Promise<unknown>) => {
+    void action().catch((error) => {
+      if (alive.current) setActionError(errorMessage(error));
+    });
+  };
+  const submitAddress = async (url: string) => {
+    if (!available || !url.trim()) return;
+    const version = ++contextVersion.current;
+    setActionError(null);
+    let page = target();
+    try {
+      if (!page) {
+        const opened = await openBrowserTab(sessionId);
+        if (!alive.current || contextVersion.current !== version) return;
+        applyGroup(opened);
+        page = opened.activeTabId
+          ? { sessionId, tabId: opened.activeTabId }
+          : null;
+      }
+      if (!page) return;
+      const current = groupRef.current;
+      if (current)
+        applyGroup({
+          ...current,
+          tabs: current.tabs.map((tab) =>
+            tab.tabId === page!.tabId
+              ? { ...tab, annotations: [], viewport: null, error: null }
+              : tab,
+          ),
+        });
+      setNotices((current) => ({ ...current, [page!.tabId]: null }));
+      await navigateBrowser(page, url);
+    } catch (error) {
+      if (alive.current && contextVersion.current === version)
+        setActionError(errorMessage(error));
+    }
+  };
+  const sendToComposer = async () => {
+    if (!active?.annotations.length || !active.viewport || sendingTabId) return;
+    const page = { sessionId, tabId: active.tabId };
+    const version = contextVersion.current;
+    const navigationId = active.navigationId;
+    setSendingTabId(page.tabId);
+    setNotices((current) => ({ ...current, [page.tabId]: null }));
+    try {
+      const capture = await captureBrowserAnnotation(page).catch(() => null);
+      const current = groupRef.current;
+      const latest = current?.tabs.find((tab) => tab.tabId === page.tabId);
+      if (
+        !alive.current ||
+        version !== contextVersion.current ||
+        current?.activeTabId !== page.tabId ||
+        latest?.navigationId !== navigationId ||
+        latest.url !== active.url
+      )
+        return;
+      const image = capture?.image ?? null;
+      const delivered = injectIntoComposer({
+        sessionId,
+        text: formatBrowserAnnotationPrompt({
+          url: capture?.url || active.url,
+          viewport: capture?.viewport ?? active.viewport,
+          elements: capture?.annotations ?? active.annotations,
+          capturedAt: new Date().toISOString(),
+          screenshot: image !== null,
+        }),
+        files: image ? [pngFileFromDataUrl(image)] : [],
+      });
+      setNotices((current) => ({
+        ...current,
+        [page.tabId]: !delivered
+          ? "No composer is open for this Session, so nothing was sent. The marks are still on the page."
+          : image
+            ? null
+            : "Sent without a screenshot — the page could not be photographed.",
+      }));
+    } finally {
+      if (alive.current) setSendingTabId(null);
+    }
+  };
+
+  const addressKey = tabId ?? "empty";
+  return (
+    <BrowserSurface
+      tabs={(group?.tabs ?? []).map((tab, index) => ({
+        id: tab.tabId,
+        label: `Browser ${index + 1}`,
+        hint: tab.title ? `${tab.title} — ${tab.url}` : tab.url,
+      }))}
+      activeTabId={tabId}
+      onActivateTab={(tabId) =>
+        void changeTabs(() => activateBrowserTab({ sessionId, tabId }))
+      }
+      onAddTab={() => void changeTabs(() => openBrowserTab(sessionId))}
+      onCloseTab={(tabId) =>
+        void changeTabs(() => closeBrowserTab({ sessionId, tabId }))
+      }
+      address={drafts[addressKey] ?? active?.url ?? ""}
+      annotationCount={active?.annotations.length ?? 0}
+      canGoBack={active?.canGoBack ?? false}
+      canGoForward={active?.canGoForward ?? false}
+      designMode={active?.designMode ?? false}
+      isLoading={active?.loading ?? false}
+      isSending={sendingTabId === tabId && tabId !== null}
+      notice={actionError ?? notices[addressKey]}
+      snapshot={currentSnapshot}
+      state={state}
+      viewportRef={viewportRef}
+      onAddressChange={(address) =>
+        setDrafts((current) => ({ ...current, [addressKey]: address }))
+      }
+      onAddressSubmit={(url) => void submitAddress(url)}
+      onBack={() => {
+        if (active)
+          runPageCommand(() => browserBack({ sessionId, tabId: active.tabId }));
+      }}
+      onForward={() => {
+        if (active)
+          runPageCommand(() =>
+            browserForward({ sessionId, tabId: active.tabId }),
+          );
+      }}
+      onReload={() => {
+        if (active?.error) {
+          void submitAddress(active.url);
+          return;
+        }
+        if (active)
+          runPageCommand(() =>
+            reloadBrowser({ sessionId, tabId: active.tabId }),
+          );
+      }}
+      onOpenExternal={() => {
+        if (active) runPageCommand(() => openBrowserUrlExternally(active.url));
+      }}
+      onClearAnnotations={() => {
+        if (active)
+          runPageCommand(() =>
+            clearBrowserAnnotations({ sessionId, tabId: active.tabId }),
+          );
+      }}
+      onDesignModeChange={(enabled) => {
+        if (active)
+          runPageCommand(() =>
+            setBrowserDesignMode({ sessionId, tabId: active.tabId }, enabled),
+          );
+      }}
+      onSendToComposer={() =>
+        void sendToComposer().catch((error) => {
+          if (alive.current) setActionError(errorMessage(error));
+        })
+      }
+    />
+  );
+}
+
 function pngFileFromDataUrl(dataUrl: string) {
   const binary = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
   const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
+  for (let index = 0; index < binary.length; index += 1)
     bytes[index] = binary.charCodeAt(index);
-  }
-
   return new File([bytes], "browser-annotations.png", { type: "image/png" });
 }
-
-function surfaceState(input: {
-  docked: boolean;
-  hasPage: boolean;
-  loadError: string | null;
-}): BrowserSurfaceState {
-  // Below the docked breakpoint the dock is a Dialog portal; a native view
-  // would paint over its overlay, so the surface stays purely DOM there.
-  if (!input.docked) {
-    return { kind: "narrow" };
-  }
-
-  if (!isElectronRuntime()) {
-    return { kind: "unsupported" };
-  }
-
-  if (input.loadError) {
-    return { kind: "error", message: input.loadError };
-  }
-
-  return input.hasPage ? { kind: "live" } : { kind: "empty" };
-}
-
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "The page could not be opened.";
+  return error instanceof Error
+    ? error.message
+    : "The page could not be opened.";
 }

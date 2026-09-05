@@ -1,6 +1,14 @@
-import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from "@playwright/test";
 import { createServer, type Server } from "node:http";
-import { launchPiGUI, type PiGUITestApplication } from "../fixtures/electron-app";
+import {
+  launchPiGUI,
+  type PiGUITestApplication,
+} from "../fixtures/electron-app";
 
 /**
  * Browser surface smoke: drives the real `WebContentsView` the Electron main
@@ -89,7 +97,9 @@ function startPreviewServer() {
 async function readBrowserViewVisible(app: ElectronApplication) {
   const visible = await app.evaluate(({ BrowserWindow }) =>
     (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-      .filter((child): child is Electron.WebContentsView => "webContents" in child)
+      .filter(
+        (child): child is Electron.WebContentsView => "webContents" in child,
+      )
       .map((child) => child.getVisible()),
   );
 
@@ -100,7 +110,9 @@ async function readBrowserViewVisible(app: ElectronApplication) {
 async function readBrowserViewWidth(app: ElectronApplication) {
   const widths = await app.evaluate(({ BrowserWindow }) =>
     (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-      .filter((child): child is Electron.WebContentsView => "webContents" in child)
+      .filter(
+        (child): child is Electron.WebContentsView => "webContents" in child,
+      )
       .map((child) => child.getBounds().width),
   );
 
@@ -112,7 +124,9 @@ async function openBrowserSurface(testApp: PiGUITestApplication) {
   const { window } = testApp;
 
   await testApp.resizeWindow(1440, 900);
-  await window.getByRole("button", { name: "New Session", exact: true }).click();
+  await window
+    .getByRole("button", { name: "New Session", exact: true })
+    .click();
   await window
     .getByRole("button", {
       name: new RegExp(`^${testApp.projection!.initialPrompt}`, "i"),
@@ -133,7 +147,10 @@ async function openBrowserSurface(testApp: PiGUITestApplication) {
 
 test("Browser surface loads a page, follows the panel, and keeps popups in place", async () => {
   const { server, origin } = await startPreviewServer();
-  const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
+  const testApp = await launchPiGUI({
+    seedSession: true,
+    seedPreflightAuth: true,
+  });
 
   try {
     const { window } = testApp;
@@ -152,7 +169,9 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     // placeholder's rect, so the two must still agree afterwards.
     const widthBeforeResize = await readBrowserViewWidth(testApp.app);
 
-    await window.getByRole("separator", { name: "Resize Session dock" }).focus();
+    await window
+      .getByRole("separator", { name: "Resize Session dock" })
+      .focus();
     for (let step = 0; step < 12; step += 1) {
       await window.keyboard.press("ArrowLeft");
     }
@@ -161,9 +180,14 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
       .poll(() => readBrowserViewWidth(testApp.app))
       .not.toBe(widthBeforeResize);
 
-    const placeholder = (await window.getByTestId("browser-viewport").boundingBox())!;
+    const placeholder = (await window
+      .getByTestId("browser-viewport")
+      .boundingBox())!;
 
-    expect(await readBrowserViewWidth(testApp.app)).toBeCloseTo(placeholder.width, 0);
+    expect(await readBrowserViewWidth(testApp.app)).toBeCloseTo(
+      placeholder.width,
+      0,
+    );
 
     // Hovering the rail opens a tooltip the native view would paint over. In
     // Chromium the layer opens through `showPopover()`, which mutates no
@@ -194,7 +218,9 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     // A page that replaces itself mid-load aborts the request the address bar
     // asked for. The page is fine, so the surface must not flip to its error
     // state over a page that is on screen and working.
-    await aside.getByRole("textbox", { name: "Address" }).fill(`${origin}/replacing`);
+    await aside
+      .getByRole("textbox", { name: "Address" })
+      .fill(`${origin}/replacing`);
     await window.keyboard.press("Enter");
     await expect(embedded.locator("#next")).toHaveText("PiGUI preview next");
     await expect(window.getByTestId("browser-viewport")).toBeVisible();
@@ -220,7 +246,10 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
 
 test("Design mode marks a strict-CSP page, keeps the overlay to itself, and sends the marks to the composer", async () => {
   const { server, origin } = await startPreviewServer();
-  const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
+  const testApp = await launchPiGUI({
+    seedSession: true,
+    seedPreflightAuth: true,
+  });
 
   try {
     const { window } = testApp;
@@ -232,7 +261,9 @@ test("Design mode marks a strict-CSP page, keeps the overlay to itself, and send
 
     const embedded: Page = await viewPage;
 
-    await expect(embedded.locator("#csp-home")).toHaveText("Strict CSP preview");
+    await expect(embedded.locator("#csp-home")).toHaveText(
+      "Strict CSP preview",
+    );
     expect(await readBrowserViewVisible(testApp.app)).toBe(true);
 
     await aside.getByRole("button", { name: "Design" }).click();
@@ -256,7 +287,9 @@ test("Design mode marks a strict-CSP page, keeps the overlay to itself, and send
     // itself; the isolated world's listener still sees the click (S0 spike).
     await embedded.evaluate(() => document.getElementById("cta")!.click());
 
-    await expect(aside.getByTestId("browser-annotation-count")).toHaveText("1 marked");
+    await expect(aside.getByTestId("browser-annotation-count")).toHaveText(
+      "1 marked",
+    );
 
     // Everything the overlay draws stays behind a closed shadow root: the page
     // can find the host and delete it, but never read what is inside.
@@ -272,7 +305,11 @@ test("Design mode marks a strict-CSP page, keeps the overlay to itself, and send
           ),
         };
       }),
-    ).toEqual({ hostFound: true, shadowReadable: false, leaksOverlayText: false });
+    ).toEqual({
+      hostFound: true,
+      shadowReadable: false,
+      leaksOverlayText: false,
+    });
 
     // What design mode is for: the marks and a screenshot of them land in this
     // Session's composer as a draft, never as a sent prompt.
@@ -285,12 +322,18 @@ test("Design mode marks a strict-CSP page, keeps the overlay to itself, and send
     await expect(composer.getByRole("textbox")).toHaveValue(
       /#1 `#cta` \(button\) — \(no comment\)/,
     );
-    await expect(composer.getByAltText("browser-annotations.png")).toBeVisible();
+    await expect(
+      composer.getByAltText("browser-annotations.png"),
+    ).toBeVisible();
 
     // Escape inside the page leaves design mode, and the toolbar follows.
     await embedded.evaluate(() =>
       window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        }),
       ),
     );
 
@@ -301,6 +344,172 @@ test("Design mode marks a strict-CSP page, keeps the overlay to itself, and send
 
     await aside.getByRole("button", { name: "Clear marks" }).click();
     await expect(aside.getByTestId("browser-annotation-count")).toHaveCount(0);
+  } finally {
+    await testApp.close();
+    server.close();
+  }
+});
+
+async function readBrowserViews(app: ElectronApplication) {
+  return app.evaluate(({ BrowserWindow }) =>
+    (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
+      .filter(
+        (child): child is Electron.WebContentsView => "webContents" in child,
+      )
+      .map((child) => ({
+        url: child.webContents.getURL(),
+        visible: child.getVisible(),
+        bounds: child.getBounds(),
+      })),
+  );
+}
+
+test("Browser tabs isolate views and marks, restore the Project group, and close to empty", async () => {
+  const { server, origin } = await startPreviewServer();
+  const testApp = await launchPiGUI({
+    seedSession: true,
+    seedPreflightAuth: true,
+  });
+  try {
+    const { window, app } = testApp;
+    let aside = await openBrowserSurface(testApp);
+    const firstPage = app.waitForEvent("window");
+    await aside.getByRole("textbox", { name: "Address" }).fill(`${origin}/csp`);
+    await window.keyboard.press("Enter");
+    const first = await firstPage;
+    await expect(first.locator("#cta")).toHaveText("Mark me");
+    await aside.getByRole("button", { name: "Design", exact: true }).click();
+    await expect
+      .poll(() =>
+        first.evaluate(() =>
+          Boolean(document.querySelector("pigui-annotation-overlay")),
+        ),
+      )
+      .toBe(true);
+    await first.evaluate(() => document.getElementById("cta")!.click());
+    await expect(aside.getByTestId("browser-annotation-count")).toHaveText(
+      "1 marked",
+    );
+
+    await aside.getByRole("button", { name: "New browser tab" }).click();
+    await expect(aside.getByText("No page loaded")).toBeVisible();
+    await expect(aside.getByRole("textbox", { name: "Address" })).toHaveValue(
+      "",
+    );
+    const secondPage = app.waitForEvent("window");
+    await aside
+      .getByRole("textbox", { name: "Address" })
+      .fill(`${origin}/next`);
+    await window.keyboard.press("Enter");
+    const second = await secondPage;
+    await expect(second.locator("#next")).toHaveText("PiGUI preview next");
+    await expect(aside.getByRole("tab")).toHaveCount(2);
+    await expect(
+      aside.getByRole("button", { name: "Browser", exact: true }),
+    ).toContainText("2");
+    await expect
+      .poll(async () =>
+        (await readBrowserViews(app)).map((view) => view.visible),
+      )
+      .toEqual([false, true]);
+    await expect(aside.getByTestId("browser-annotation-count")).toHaveCount(0);
+    await expect(
+      aside.getByRole("button", { name: "Design", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    await aside.getByRole("tab", { name: "Browser 1" }).click();
+    await expect(aside.getByTestId("browser-annotation-count")).toHaveText(
+      "1 marked",
+    );
+    await expect
+      .poll(async () =>
+        (await readBrowserViews(app)).map((view) => view.visible),
+      )
+      .toEqual([true, false]);
+    await expect(aside.getByRole("textbox", { name: "Address" })).toHaveValue(
+      `http://${origin}/csp`,
+    );
+    // Leave enough room to identify or edit a local URL even with marks present.
+    expect(
+      (await aside.getByRole("textbox", { name: "Address" }).boundingBox())!
+        .width,
+    ).toBeGreaterThanOrEqual(120);
+    // Renderer screenshots omit native children; the existing overlay still
+    // makes both the page and its marks visible in the saved UI evidence.
+    await aside.getByRole("button", { name: "Changes", exact: true }).hover();
+    await expect(aside.getByTestId("browser-snapshot")).toBeVisible();
+    await window.screenshot({
+      path: test.info().outputPath("browser-tabs.png"),
+    });
+    await aside.getByTestId("browser-viewport").hover();
+    await expect(aside.getByTestId("browser-snapshot")).toHaveCount(0);
+    await aside.getByRole("button", { name: "Send to composer" }).click();
+    await expect(
+      window.getByTestId("full-chat-composer").getByRole("textbox"),
+    ).toHaveValue(/#cta/);
+
+    const before = await readBrowserViews(app);
+    await window
+      .getByRole("separator", { name: "Resize Session dock" })
+      .focus();
+    for (let step = 0; step < 8; step += 1)
+      await window.keyboard.press("ArrowLeft");
+    const placeholder = (await aside
+      .getByTestId("browser-viewport")
+      .boundingBox())!;
+    await expect
+      .poll(async () => (await readBrowserViews(app))[0]?.bounds.width)
+      .toBe(Math.round(placeholder.width));
+    expect((await readBrowserViews(app))[1]?.bounds).toEqual(before[1]?.bounds);
+
+    const addressBounds = (await aside
+      .getByRole("textbox", { name: "Address" })
+      .boundingBox())!;
+    const designBounds = (await aside
+      .getByRole("button", { name: "Design", exact: true })
+      .boundingBox())!;
+    expect(addressBounds.x + addressBounds.width).toBeLessThanOrEqual(
+      designBounds.x,
+    );
+
+    // A reload remounts the renderer while main keeps the Session's pages.
+    await window.reload();
+    await expect
+      .poll(
+        async () =>
+          (await readBrowserViews(app)).filter((view) => view.visible).length,
+      )
+      .toBe(0);
+    await window.getByLabel("Session dock").click();
+    aside = window.getByTestId("session-dock");
+    await aside.getByRole("button", { name: "Browser", exact: true }).click();
+    await expect(aside.getByRole("tab")).toHaveCount(2);
+    await expect(aside.getByRole("tab", { name: "Browser 1" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(aside.getByRole("textbox", { name: "Address" })).toHaveValue(
+      `http://${origin}/csp`,
+    );
+    await expect
+      .poll(
+        async () =>
+          (await readBrowserViews(app)).filter((view) => view.visible).length,
+      )
+      .toBe(1);
+
+    await aside.getByRole("button", { name: "Close Browser 1" }).click();
+    await expect(aside.getByRole("textbox", { name: "Address" })).toHaveValue(
+      `http://${origin}/next`,
+    );
+    await expect.poll(() => readBrowserViews(app)).toHaveLength(1);
+    await aside.getByRole("button", { name: "Close Browser 1" }).click();
+    await expect(aside.getByRole("tab")).toHaveCount(0);
+    await expect(aside.getByText("No page loaded")).toBeVisible();
+    await expect.poll(() => readBrowserViews(app)).toHaveLength(0);
+    await expect(
+      aside.getByRole("button", { name: "Browser", exact: true }),
+    ).not.toContainText(/[1-9]/);
   } finally {
     await testApp.close();
     server.close();

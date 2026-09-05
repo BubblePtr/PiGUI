@@ -4,6 +4,7 @@ import {
   browserCaptureAckTimeoutMs,
   browserTitlebarBandPx,
   createBrowserHost,
+  createBrowserTabHost,
   createBrowserSessionProvider,
   isBrowserCommand,
   normalizeBrowserUrl,
@@ -31,7 +32,9 @@ function createFakeView() {
     loadCount: () => calls.filter((call) => call.startsWith("loadUrl")).length,
     setBounds(bounds) {
       view.bounds = bounds;
-      calls.push(`setBounds(${bounds.x},${bounds.y},${bounds.width},${bounds.height})`);
+      calls.push(
+        `setBounds(${bounds.x},${bounds.y},${bounds.width},${bounds.height})`,
+      );
     },
     setVisible(visible) {
       view.visible = visible;
@@ -81,11 +84,14 @@ function createFakeView() {
 }
 
 function createHostHarness(
-  contentSize: { width: number; height: number } | null = { width: 1440, height: 900 },
+  contentSize: { width: number; height: number } | null = {
+    width: 1440,
+    height: 900,
+  },
 ) {
   const views: ReturnType<typeof createFakeView>[] = [];
   const externals: string[] = [];
-  const host = createBrowserHost({
+  const host = createBrowserTabHost({
     createView() {
       const view = createFakeView();
       views.push(view);
@@ -102,19 +108,31 @@ function createHostHarness(
 
 describe("normalizeBrowserUrl", () => {
   it("keeps http and https URLs and infers a scheme for bare input", () => {
-    expect(normalizeBrowserUrl("https://example.com/a")).toBe("https://example.com/a");
-    expect(normalizeBrowserUrl("  http://example.com  ")).toBe("http://example.com/");
+    expect(normalizeBrowserUrl("https://example.com/a")).toBe(
+      "https://example.com/a",
+    );
+    expect(normalizeBrowserUrl("  http://example.com  ")).toBe(
+      "http://example.com/",
+    );
     // Public hosts must not fall back to cleartext…
-    expect(normalizeBrowserUrl("example.com/docs")).toBe("https://example.com/docs");
+    expect(normalizeBrowserUrl("example.com/docs")).toBe(
+      "https://example.com/docs",
+    );
     // …but a dev server typed as host:port is exactly what this surface is for.
-    expect(normalizeBrowserUrl("localhost:5173")).toBe("http://localhost:5173/");
-    expect(normalizeBrowserUrl("127.0.0.1:3000/app")).toBe("http://127.0.0.1:3000/app");
+    expect(normalizeBrowserUrl("localhost:5173")).toBe(
+      "http://localhost:5173/",
+    );
+    expect(normalizeBrowserUrl("127.0.0.1:3000/app")).toBe(
+      "http://127.0.0.1:3000/app",
+    );
   });
 
   it("refuses everything that is not http or https", () => {
     expect(() => normalizeBrowserUrl("file:///etc/hosts")).toThrow(/http/i);
     expect(() => normalizeBrowserUrl("javascript:alert(1)")).toThrow(/http/i);
-    expect(() => normalizeBrowserUrl("data:text/html,<b>x</b>")).toThrow(/http/i);
+    expect(() => normalizeBrowserUrl("data:text/html,<b>x</b>")).toThrow(
+      /http/i,
+    );
     expect(() => normalizeBrowserUrl("   ")).toThrow();
   });
 });
@@ -159,7 +177,12 @@ describe("browser host commands", () => {
   /** What the page reported while marking, and what it acks at capture time. */
   const marked = {
     annotations: [
-      { index: 1, selector: "#cta", tag: "button", rect: { x: 0, y: 0, width: 8, height: 8 } },
+      {
+        index: 1,
+        selector: "#cta",
+        tag: "button",
+        rect: { x: 0, y: 0, width: 8, height: 8 },
+      },
     ],
     viewport: { width: 684, height: 820, dpr: 2 },
   };
@@ -175,7 +198,9 @@ describe("browser host commands", () => {
   it("creates the view on the first navigate and reports the loaded state", async () => {
     const { host, views } = createHostHarness();
 
-    const state = await host.invoke("browser_navigate", { url: "localhost:5173" });
+    const state = await host.invoke("browser_navigate", {
+      url: "localhost:5173",
+    });
 
     expect(views).toHaveLength(1);
     expect(views[0].calls).toContain("loadUrl(http://localhost:5173/)");
@@ -226,10 +251,13 @@ describe("browser host commands", () => {
     // A page that navigates again before its first load finishes (baidu.com
     // does) makes Electron reject the original loadURL with ERR_ABORTED. The
     // page is fine; only the superseded request went away.
-    const aborted = Object.assign(new Error("ERR_ABORTED (-3) loading 'https://www.baidu.com/'"), {
-      errno: -3,
-      code: "ERR_ABORTED",
-    });
+    const aborted = Object.assign(
+      new Error("ERR_ABORTED (-3) loading 'https://www.baidu.com/'"),
+      {
+        errno: -3,
+        code: "ERR_ABORTED",
+      },
+    );
 
     await host.invoke("browser_navigate", { url: "http://localhost:5173/" });
     views[0].loadRejection = aborted;
@@ -338,7 +366,9 @@ describe("browser host commands", () => {
     await expect(host.invoke("browser_back")).resolves.toBeNull();
     await expect(host.invoke("browser_reload")).resolves.toBeNull();
     await expect(
-      host.invoke("browser_set_bounds", { rect: { x: 0, y: 40, width: 10, height: 10 } }),
+      host.invoke("browser_set_bounds", {
+        rect: { x: 0, y: 40, width: 10, height: 10 },
+      }),
     ).resolves.toBeNull();
     expect(views).toHaveLength(0);
   });
@@ -358,7 +388,9 @@ describe("browser host commands", () => {
   it("rejects unknown commands in the group instead of silently succeeding", async () => {
     const { host } = createHostHarness();
 
-    await expect(host.invoke("browser_teleport")).rejects.toThrow(/browser_teleport/);
+    await expect(host.invoke("browser_teleport")).rejects.toThrow(
+      /browser_teleport/,
+    );
   });
 
   it("captures the page as a data URL, and answers null with no view to capture", async () => {
@@ -426,7 +458,10 @@ describe("browser host commands", () => {
     });
     // Order is the whole point: shooting first would print the open comment
     // bubble and a stale hover box onto what Pi reads.
-    expect(views[0]!.calls.slice(-2)).toEqual(["prepareCapture", "capture(684)"]);
+    expect(views[0]!.calls.slice(-2)).toEqual([
+      "prepareCapture",
+      "capture(684)",
+    ]);
   });
 
   it("shoots anyway when the page never answers, using what main last heard", async () => {
@@ -607,5 +642,126 @@ describe("browser session provider", () => {
       downloadBlockers: 1,
     });
     expect(persistent.decidePermission("geolocation")).toBe(false);
+  });
+});
+
+describe("Browser multi-instance host", () => {
+  function createHostHarness() {
+    const views: ReturnType<typeof createFakeView>[] = [];
+    const host = createBrowserHost({
+      createView() {
+        const view = createFakeView();
+        views.push(view);
+        return view;
+      },
+      getContentSize: () => ({ width: 1440, height: 900 }),
+      openExternal() {},
+    });
+    return { host, views };
+  }
+  const first = { sessionId: "session-a", tabId: "a" };
+  const second = { sessionId: "session-a", tabId: "b" };
+  const rect = { x: 800, y: 120, width: 600, height: 700 };
+
+  it("routes navigation by tab and lets only the active tab receive bounds and visibility", async () => {
+    const { host, views } = createHostHarness();
+    await host.invoke("browser_open", first);
+    await host.invoke("browser_navigate", { ...first, url: "localhost:3000" });
+    await host.invoke("browser_set_bounds", { ...first, rect });
+    await host.invoke("browser_set_visible", { ...first, visible: true });
+    expect(views[0]?.visible).toBe(true);
+    await host.invoke("browser_open", second);
+    await host.invoke("browser_navigate", { ...second, url: "localhost:4000" });
+    expect(views[0]?.visible).toBe(false);
+    expect(views[1]?.visible).toBe(false);
+    await host.invoke("browser_set_bounds", { ...second, rect });
+    await host.invoke("browser_set_visible", { ...second, visible: true });
+    await host.invoke("browser_set_bounds", {
+      ...first,
+      rect: { ...rect, width: 5 },
+    });
+    await host.invoke("browser_set_visible", { ...first, visible: true });
+    expect(views.map((view) => view.visible)).toEqual([false, true]);
+    expect(views[1]?.bounds).toEqual(rect);
+    await host.invoke("browser_activate", first);
+    await host.invoke("browser_set_bounds", { ...first, rect });
+    await host.invoke("browser_set_visible", { ...first, visible: true });
+    expect(views.map((view) => view.visible)).toEqual([true, false]);
+    expect(views[0]?.loadCount()).toBe(1);
+    expect(views[0]?.readState().url).toBe("http://localhost:3000/");
+  });
+
+  it("keeps annotations per tab and cancels captures when their tab is closed", async () => {
+    const { host, views } = createHostHarness();
+    await host.invoke("browser_open", first);
+    await host.invoke("browser_navigate", { ...first, url: "localhost:3000" });
+    await host.invoke("browser_set_design_mode", { ...first, enabled: true });
+    host
+      .tab(first)
+      .recordAnnotations([{ index: 1, selector: "#a", tag: "p", rect }], null);
+    const capture = host.invoke("browser_capture_annotation", first);
+    await host.invoke("browser_open", second);
+    await host.invoke("browser_navigate", { ...second, url: "localhost:4000" });
+    expect(host.readTab(second)).toMatchObject({
+      designMode: false,
+      annotations: [],
+    });
+    expect(host.readTab(first)).toMatchObject({
+      designMode: true,
+      annotations: [{ selector: "#a" }],
+    });
+    await host.invoke("browser_close", first);
+    expect(await capture).toBeNull();
+    expect(views[0]?.destroyed).toBe(true);
+    expect(views[1]?.destroyed).toBe(false);
+  });
+
+  it("restores only once per Session, preserves active tabs, and leaves the last close empty", async () => {
+    const { host } = createHostHarness();
+    await host.invoke("browser_attach", {
+      sessionId: "session-a",
+      tabs: ["localhost:3000", "localhost:4000"],
+      activeIndex: 1,
+    });
+    const group = (await host.invoke("browser_list", {
+      sessionId: "session-a",
+    })) as import("@/shared/browser-protocol").BrowserSessionState;
+    expect(group.tabs).toHaveLength(2);
+    expect(group.activeTabId).toBe(group.tabs[1]?.tabId);
+    await host.invoke("browser_attach", {
+      sessionId: "session-b",
+      tabs: ["localhost:5000"],
+      activeIndex: 0,
+    });
+    await host.invoke("browser_attach", {
+      sessionId: "session-a",
+      tabs: ["localhost:6000"],
+      activeIndex: 0,
+    });
+    expect(
+      await host.invoke("browser_list", { sessionId: "session-a" }),
+    ).toMatchObject({
+      activeTabId: group.activeTabId,
+      tabs: [{ tabId: group.tabs[0]?.tabId }, { tabId: group.tabs[1]?.tabId }],
+    });
+    for (const tab of group.tabs) await host.invoke("browser_close", tab);
+    expect(
+      await host.invoke("browser_attach", {
+        sessionId: "session-a",
+        tabs: ["localhost:6000"],
+      }),
+    ).toMatchObject({ tabs: [], activeTabId: null });
+  });
+
+  it("rejects commands for a tab outside the requested Session", async () => {
+    const { host } = createHostHarness();
+    await host.invoke("browser_open", first);
+    await expect(
+      host.invoke("browser_navigate", {
+        ...first,
+        sessionId: "other",
+        url: "localhost:4000",
+      }),
+    ).rejects.toThrow(/tab/i);
   });
 });

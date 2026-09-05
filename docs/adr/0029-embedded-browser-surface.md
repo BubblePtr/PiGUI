@@ -18,13 +18,14 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 
 - 用 Electron `WebContentsView`，不用 `<webview>`（需开 `webviewTag`，渲染层直接持有敌意页面句柄）、不用 iframe（跨源不可注入，`X-Frame-Options` 直接拒载）。
 - 视图由**主进程**创建与持有。命令走 `pigui:invoke` 的主进程截留分支（与 `select_project_directory` 同一层），显式命令表，不做前缀嗅探；事件走 `pigui:browser-event`。**不进 Runtime Gateway、不进 utilityProcess**，嵌入页面永远碰不到后端 MessagePort（ADR-0013 承诺）。
-- 作为 SessionInspector 的第三个 surface `browser` 接入（ADR-0028）：注册表只加元数据，内容由 `agent-workspace.tsx` 注入，rail 单图标，`multiInstance: false`。
+- 作为 SessionDock 的第三个 surface `browser` 接入（ADR-0028）：注册表只加元数据，内容由 `agent-workspace.tsx` 注入，rail 单图标，`multiInstance: true`，徽标显示当前 Session 的 tab 数。
+- **多实例修订（2026-09-06，#185；前置 #184 已合入）**：每个 Session 持有自己的 tab 组，每个已导航的 tab 持有独立 `WebContentsView`。第一行复用 `SessionSurfaceBar` + `SessionSurfaceTabs`，地址栏与 design mode 工具条位于内容区第一行。
+- 命令按 `{ sessionId, tabId }` 寻址，页面事件由主进程按发送方绑定同一身份。每个 tab 独立维护 URL、历史、加载/错误状态、design mode 与标注；只有当前激活 tab 接收 bounds 和显示请求。切换先隐藏旧视图，新视图收到有效 bounds 后才显示。
+- 切 surface、关闭 Dock、切 Session 时隐藏视图，保留页面和标注；关闭 tab 才销毁它，关窗销毁全部。关闭最后一个 tab 后保留 Browser 空态，可通过地址栏或新建按钮再打开。
+- **恢复分两层**：同一 Session 重入或 renderer 重载，重新附着主进程中已有的 tab；新的 Session 或应用重启时，从所属 Project 的 `pigui.browserTabs.v1` 恢复 URL 列表和激活序号。旧 `pigui.browserUrls.v1` 的单 URL 记录惰性迁移为一个 tab。空列表显式持久化，避免关闭全部后旧 URL 复活。只有 URL 与激活项持久化，标注、截图和历史只在原生实例存活时保留。
+- URL 仍由用户输入。不做 dev server 探测、不读项目配置猜 URL、不代启 dev server。
 
-  > **修订（2026-09-05）**：多 tab / 多实例从非目标中移出。内置三个 surface 里 Terminal 与 Browser 本质都是多实例，只有 Changes 天然单实例；ADR-0028 同日修订把 Dock 第一行定义为多实例 surface 的实例 tab 条，Browser 应接同一条共享 tab 条，改为 `multiInstance: true`。实施：#185（Blocked by #184）。
-- 每窗口一个视图，状态按 Session 记：切换 Session 时视图导航到该 Session 记住的 URL；未记则空态。不做多 tab。切走时只 `setVisible(false)` 不销毁，保住「重进不重载」。
-- URL 来源：地址栏手输，最近 URL 按 Project 存渲染层 localStorage（`pigui.browserUrls.v1`）。不做 dev server 探测、不读项目配置猜 URL、不代启 dev server。
-
-**命令面为 8 条**（PRD 原定 9 条）：`browser_navigate / back / forward / reload / set_bounds / set_visible / open_external / capture`，S2 加 `set_design_mode / clear_annotations`，S3 加 `capture_annotation`。PRD 里的 `browser_open` 与 `browser_dispose` 被删：`navigate` 在首次调用时按需创建视图，`open` 没有独立调用者；视图生命周期跟随窗口，`dispose` 同样无人调用，留着只会诱使渲染层去管本该由主进程管的东西。事件通道只保留 `did-navigate` / `did-fail-load`（S2 加 `annotations-changed` / `design-mode-changed`）；`title-updated` / `console` 没有消费方，不发。
+**命令面**：`browser_attach / list / open / close / activate / hide_session` 管理实例；`browser_navigate / back / forward / reload / set_bounds / set_visible / open_external / capture / set_design_mode / clear_annotations / capture_annotation` 操作具体页面。空 tab 在首次导航时才创建原生视图。事件统一发布 tab 状态快照，渲染层只更新对应 Session 内仍存在的 tab，通过每 tab 递增 revision 拒绝过期答复或事件。
 
 ### 安全边界
 
@@ -60,7 +61,7 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 - <1280px 时 inspector 是 Base UI Dialog portal，原生视图会盖住遮罩：断点以下不显示原生视图，只显示「加宽窗口」空态。
 - **任何 DOM 弹层打开期间**，先 `browser_capture` 把静态快照铺满占位 div，再 `setVisible(false)`；弹层全关后换回。弹层检测必须同时用两种信号：Astryx Layer 走 Popover API 的 `toggle` 事件（捕获阶段；`showPopover()` 不改属性不移节点，MutationObserver 看不见），Base UI 走 `[data-base-ui-portal] [data-open]` 的 MutationObserver。**因此浏览器 surface 自己的工具条只能用普通按钮**，任何 Popover / Tooltip / Select 都会把用户放到冻结截图上做标注。
 - `WebContentsView` 设 `backgroundColor` 为面板底色，避免 macOS `transparent + vibrancy` 被开洞；bounds 永不覆盖 40px 表头带。
-- 每次 `browser_navigate` 递增 navigationId，事件都带上它，渲染层只认自己最近一次 navigate 返回的 id；发起导航的一侧本地清零标注计数。
+- 每个 tab 的导航独立递增 navigationId；截图握手绑定原页面，关闭或导航后返回的旧截图作废。渲染层在切 tab、切 Session 或关闭 tab 后丢弃仍在途的 Send to composer，避免把旧页面截图送进新上下文。
 
 ## 已知限制
 
@@ -72,7 +73,6 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 - `backgroundColor` 只在创建时取一次，主题切换后需重建视图才跟随。
 - 单分区跨 Project 共享 cookie。
 - 快照期间页面不可交互，有动画或视频的页面会看到一瞬冻结；从弹层打开到换上快照约 17ms 空窗。
-- 导航加载窗口内的事件会被 navigationId 过滤丢弃（加载期间页内 Esc 退出 design mode，工具条短暂不同步，下一次变更自愈）。
 
 标注层：
 
@@ -82,7 +82,7 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 - `reactName` 不可得；`source` 依赖 dev server 打的 `data-*` 属性，生产站点为空。
 - design mode 期间页面全部指针事件被吞，「先点开菜单再标注菜单项」做不到。
 - `text` 取 `textContent`，`display:none` 子节点也算进去。
-- 无单条删除；清空后序号从 1 重开；离开 surface（切 Terminal / 收起 inspector / 切 Session）清空标记，否则会出现「页面有徽章、工具条计数 0」的搁浅态。
+- 无单条删除；清空后序号从 1 重开。切 tab / surface 保留标注，重入时由主进程状态恢复计数；页面文档替换或关闭 tab 才丢弃对应标注。
 - 覆盖层没有 hover / focus 的 CSS 态（CSSOM 内联样式的代价）。
 
 载荷回传：
@@ -90,7 +90,7 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 - 回传的 `rect` 是标记时刻的视口坐标，标记本身跟随滚动但 rect 不更新；无截图时退回 rect，对滚动过的元素是错的。
 - 握手 500ms 超时后按最后收到的标注截图，进行中的评论可能缺失、打开的气泡可能入镜。
 - 截图降采样到面板 CSS 宽度，HiDPI 下 Pi 看到 1x 图；滚出视口的标记在文本里列出但不在图上。
-- `title` 永远为空（协议无 `title-updated`）。
+- 页面标题用于 tab 提示；实例名保持稳定的 Browser 序号。
 - 注入只到达当前 Session 已挂载的 composer，不排队；注入文本作为 follow-up 草稿持久化，截图不持久化，重载后只剩文本。
 
 ## 结果
@@ -102,5 +102,6 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 ## 验证
 
 - `browser-host.ts` 与 `browser-annotation*.ts` 均 Electron-free，Vitest 覆盖命令表、导航白名单、可见性状态机、握手 ack 与超时、selector 生成、消息校验、覆盖层交互。
-- 渲染层组件测试覆盖 surface 五态、URL 按 Project 记忆、design mode 工具条、Project 切换重置、注入口。
+- 渲染层组件测试覆盖 surface 五态、URL 按 Project 记忆、design mode 工具条、Project tab 组迁移与恢复、跨 tab 状态隔离、过期截图丢弃及注入口。
+- Electron E2E 追加两 tab 的打开、切换、标注隔离、徽标、重载恢复与全部关闭空态。
 - Electron E2E（`e2e/smoke/browser-surface.spec.ts`）：bounds 跟随面板、弹层换快照、`ERR_ABORTED` 不算失败、严格 CSP 页上 design mode 可用且页面读不到覆盖层、标注 → Send → composer 草稿出现模板文本与 PNG 附件。

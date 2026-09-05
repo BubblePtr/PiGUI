@@ -27,12 +27,7 @@ export type BrowserViewSnapshot = {
 };
 
 export type BrowserViewState = BrowserViewSnapshot & {
-  /**
-   * Bumped by every `browser_navigate`. There is one view for the whole
-   * window and it outlives Session and Project switches, so the page the user
-   * just left can still be emitting; the renderer keeps the id its own last
-   * navigate answered with and drops everything stamped otherwise.
-   */
+  /** Bumped by navigation within one tab; stale completions cannot replace it. */
   navigationId: number;
 };
 
@@ -63,26 +58,26 @@ export type BrowserAnnotationCapture = {
   url: string;
 };
 
-export type BrowserEvent =
-  | ({ type: "did-navigate" } & BrowserViewState)
-  | {
-      type: "annotations-changed";
-      navigationId: number;
-      annotations: BrowserAnnotationElement[];
-      /**
-       * The page's own viewport as it measured those rects, and null for the
-       * reset a fresh document announces — it has measured nothing yet.
-       */
-      viewport: BrowserAnnotationViewport | null;
-    }
-  /** Design mode turned off inside the page (Esc), so the toolbar can follow. */
-  | { type: "design-mode-changed"; navigationId: number; enabled: boolean }
-  | {
-      type: "did-fail-load";
-      navigationId: number;
-      url: string;
-      errorCode: number;
-      errorDescription: string;
-    };
+export type BrowserTabTarget = { sessionId: string; tabId: string };
+
+export type BrowserTabState = BrowserViewState &
+  BrowserTabTarget & {
+    /** Orders snapshots across command replies and the event channel. */
+    revision: number;
+    title: string;
+    loading: boolean;
+    error: string | null;
+    designMode: boolean;
+    annotations: BrowserAnnotationElement[];
+    viewport: BrowserAnnotationViewport | null;
+  };
+
+export type BrowserSessionState = {
+  sessionId: string;
+  tabs: BrowserTabState[];
+  activeTabId: string | null;
+};
+
+export type BrowserEvent = { type: "state-changed"; tab: BrowserTabState };
 
 export const browserEventChannel = "pigui:browser-event";

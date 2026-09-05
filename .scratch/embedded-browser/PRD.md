@@ -14,8 +14,8 @@ Pi 改完前端代码后,用户要在外部浏览器里看效果、再用文字�
 
 - 用 Electron `WebContentsView`(Electron 42),**不用** `<webview>` 标签(需开 `webviewTag`,渲染层直接持有敌意页面的句柄)、**不用** iframe(跨源不可注入、`X-Frame-Options` 直接拒载)。
 - 视图由 **主进程** 创建与持有。命令走现有 `pigui:invoke` 的主进程截留分支(与 `select_project_directory` 同一层),新增 `browser_*` 命令组;事件走新增的 `pigui:browser-event` 通道。**不进 Runtime Gateway,不进 utilityProcess**,嵌入页面永远碰不到后端 MessagePort(ADR-0013 承诺)。
-- 作为 SessionInspector 的第三个 surface `browser` 接入(ADR-0028):注册表只加元数据,内容由 `agent-workspace.tsx` 的 `SessionSurfaceContent` 注入;rail 单图标;`multiInstance: false`。
-- **每窗口一个视图,状态按 Session 记**:切换 Session 时视图导航到该 Session 记住的 URL;未记则显示空态。不做多 tab。
+- 作为 SessionInspector 的第三个 surface `browser` 接入(ADR-0028):注册表只加元数据,内容由 `agent-workspace.tsx` 的 `SessionSurfaceContent` 注入;rail 单图标;`multiInstance: true`，徽标显示当前 Session 的 tab 数（#185）。
+- **每 Session 一组 tab，每个已导航 tab 一个原生视图**（#185，2026-09-06 修订）：第一行共享实例 tab 条，第二行地址与标注工具条。只显示激活 tab，切换隐藏但保留旧页，关闭 tab 才销毁；全部关闭后显示空态。
 - ADR-0007 原文只冻结 terminal 与 file tree,"Browser 冻结"仅存在于 ADR-0028 一句与 `surface-registry.ts` 注释。本 PRD 落地时由 ADR-0029 正式记录解冻,并同步删掉那两处引用。
 
 ### 2. URL 来源:手输 + 按 Project 记忆
@@ -23,7 +23,7 @@ Pi 改完前端代码后,用户要在外部浏览器里看效果、再用文字�
 PiGUI 目前对 dev server 零认知(project registry 只有 `{id, path, displayName, addedAt}`,后端只持久化 journal 与 projection)。v1:
 
 - surface 表头一个地址栏,手输 URL,回车导航;前进/后退/刷新/在外部浏览器打开。
-- 最近 URL 按 Project id 存渲染层 localStorage(`pigui.browserUrls.v1`),新 Session 默认带出所属 Project 的最近 URL。不新增后端持久化。
+- URL 列表与激活序号按 Project id 存渲染层 localStorage（`pigui.browserTabs.v1`）；旧 `pigui.browserUrls.v1` 惰性迁移为单 tab。新 Session 恢复 Project tab 组，已有 Session 重入附着原生实例；空列表持久化。不新增后端持久化。
 - **不做**端口自动探测、不读 `package.json` 的 dev 命令、不代启 dev server。这些留到有真实用户证据再说。
 
 ### 3. 安全边界(ADR-0013 留下的"注入 vs 沙箱"张力在此决策)
@@ -84,7 +84,7 @@ type BrowserAnnotationPayload = {
 | macOS `transparent + vibrancy` 会被不透明子视图开洞 | 视图区域本就在面板内、面板本身不透明,给 `WebContentsView` 设 `backgroundColor` 为面板底色,不出现玻璃缺口 |
 | `-webkit-app-region: drag` 表头与红绿灯 | bounds 永不覆盖表头带;由上一条 40px 扣除保证 |
 | 视图与 Session 生命周期 | inspector 收起、切到其他 surface、Session 切换时 `setVisible(false)`;窗口关闭时销毁 view;不因视图存在而阻止 utilityProcess 重启逻辑 |
-| 切到「该 Project 没有记忆 URL」的 Session 时,上一个 Project 的页面仍留在视图里 | 只 `setVisible(false)`,**不销毁** —— 销毁会同时丢掉「重进不重载」的短路。页面因此在内存里存活但不可见,直到窗口关闭或被下一次导航替换。渲染层不会把它的迟到事件记到新 Project 头上:主进程给每次 `browser_navigate` 递增一个 navigation id,`did-navigate` / `did-fail-load` 都带上它,渲染层只认自己最近一次 navigate 返回的那个 id;空态下这个 id 为 null,即一律不认 |
+| 切 tab / Session 或进入无记忆 Project | 按 Session/tab 保存独立原生实例；切换时隐藏旧视图并为激活项重测 bounds。无 tab 则空态。事件带主进程绑定的 Session/tab 与递增 revision，旧命令答复不能覆盖新状态 |
 
 ## Spike(先于一切切片,不进主线)
 
@@ -131,10 +131,17 @@ spike 用一个独立的 CJS Electron 入口(`spike-main.cjs` + 两个 preload +
 - [ ] 手工:对 `X-Frame-Options: DENY` 的站点可加载;带严格 CSP 的站点覆盖层可用;macOS 上面板区域无玻璃缺口;窗口 <1280px 显示空态且无原生视图残留。
 - [ ] `/design` 页条目与 `docs/self-built-ui.md` 同 PR 更新;ADR-0029 落地。
 
+## 多实例追加验收（#185）
+
+- 多 tab 命令按 Session/tab 隔离，只有激活视图可见且接收 resize bounds。
+- 各 tab 独立保留地址、加载/错误、design mode 与标注；在途截图不能跨 tab 或 Session 回传。
+- 旧单 URL 迁移，Project tab 组与激活项恢复，rail 显示数量，关闭全部返回空态。
+- Vitest 覆盖主进程、记忆与 UI 状态；Electron E2E 验证开两 tab、切换、恢复、关闭。
+
 ## 范围外
 
 - 由 Pi 扩展提供的浏览器面板、插件 surface 协议(#85 / ADR-0018)——浏览器是内置能力,后期再评估抽插件。
-- Session 间共享视图。（多 tab / 多实例已于 2026-09-05 移出非目标，见 ADR-0029 修订与 #185。）
+- Session 间共享原生视图。Project 只共享恢复用的 URL 列表和激活项，多 tab / 多实例属于 #185 的实现范围。
 - dev server 探测、启动、端口管理;读取项目配置猜 URL。
 - CDP 接入(DOM 检视、跨源 iframe 元素、网络面板)——v2 升级路径。
 - 结构化附件类型(选择器 / 评论以非文本形式进 prompt);Pi 端对标注语义的专门支持。

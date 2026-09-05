@@ -62,6 +62,7 @@ export const sessionSurfaces: Record<SessionSurfaceId, SessionSurfaceMeta> = {
     title: "Browser",
     icon: Globe,
     hint: "Preview a running dev server",
+    multiInstance: true,
     flushContent: true,
   },
 };
