@@ -274,10 +274,12 @@ export function SessionTerminalPanel({
       {/* Flush surface (registry flushContent): the panel and header run
           edge-to-edge. py-1.5 makes the strip a second 40px band — the chip
           row is 28px, so 6px either side matches the inspector header (h-10)
-          exactly. */}
+          exactly. px-2 starts the chip 8px off the divider; with the chip's
+          own 8px inset its icon lands on the same 16px column as the terminal
+          text below. */}
       <div
         aria-label="Terminal instances"
-        className="flex shrink-0 items-center gap-1 overflow-x-auto py-1.5"
+        className="flex shrink-0 items-center gap-1 overflow-x-auto px-2 py-1.5"
         role="tablist"
       >
         {instances.map((instance, index) => {
@@ -334,13 +336,13 @@ export function SessionTerminalPanel({
           {actionError}
         </p>
       ) : null}
-      {/* Terminal canvas runs flush to the panel's left edge: the resize
-          handle's 16px hit area centers its line on that edge, so column zero
-          reads 8px off the visible divider. The right inset is xterm's
-          scrollbar lane (slimmed in terminal.css) plus a hair of bottom pad so
-          the last line never kisses the chrome. */}
+      {/* The resize handle is the 1px divider itself, so column zero would
+          otherwise touch it. pl-4 gives the text the same 16px inset as the
+          non-flush surfaces (and as Cursor's terminal). The right inset is
+          xterm's scrollbar lane (slimmed in terminal.css) plus a hair of bottom
+          pad so the last line never kisses the chrome. */}
       <div
-        className="min-h-0 flex-1 pb-1"
+        className="min-h-0 flex-1 pb-1 pl-4"
         data-testid="terminal-viewport"
       >
         {activeInstance ? (
