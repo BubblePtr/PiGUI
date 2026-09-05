@@ -83,3 +83,22 @@ describe("ChatStreamMarkdown", () => {
     );
   });
 });
+
+describe("chat inline code", () => {
+  it("routes inline code through the chat override on the static path", () => {
+    render(<ChatMarkdown>{"Run `bun test` now"}</ChatMarkdown>);
+
+    const code = screen.getByText("bun test");
+
+    expect(code.tagName).toBe("CODE");
+    expect(code).toHaveAttribute("data-slot", "chat-inline-code");
+  });
+
+  it("routes inline code through the chat override on the streaming path", async () => {
+    render(<ChatStreamMarkdown isStreaming>{"Run `bun test` now"}</ChatStreamMarkdown>);
+
+    await waitFor(() =>
+      expect(screen.getByText("bun test")).toHaveAttribute("data-slot", "chat-inline-code"),
+    );
+  });
+});

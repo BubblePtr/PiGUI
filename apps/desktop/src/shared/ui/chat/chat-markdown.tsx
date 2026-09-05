@@ -1,3 +1,4 @@
+import { Code } from "@astryxdesign/core/Code";
 import { Markdown } from "@astryxdesign/core/Markdown";
 
 /**
@@ -5,6 +6,22 @@ import { Markdown } from "@astryxdesign/core/Markdown";
  * not mint another top-level heading in the document outline.
  */
 const chatHeadingLevelStart = 3;
+
+/**
+ * Astryx's default inline code sits at body size with zero vertical padding,
+ * so its 18px chip fills a 20px line box and adjacent code-bearing lines
+ * touch. Chat routes inline code through this override so chat.css can size
+ * the chip against the chat prose leading; other Code usages stay default.
+ */
+function ChatInlineCode({ children }: { children: string }) {
+  return (
+    <Code className="chat-inline-code" data-slot="chat-inline-code">
+      {children}
+    </Code>
+  );
+}
+
+const chatMarkdownComponents = { inlineCode: ChatInlineCode };
 
 /**
  * Chat prose renders through Astryx Markdown (compact density, per the
@@ -24,7 +41,11 @@ export function ChatMarkdown({
       data-slot="chat-markdown"
       data-testid="markdown-renderer"
     >
-      <Markdown density="compact" headingLevelStart={chatHeadingLevelStart}>
+      <Markdown
+        components={chatMarkdownComponents}
+        density="compact"
+        headingLevelStart={chatHeadingLevelStart}
+      >
         {children}
       </Markdown>
     </div>
@@ -53,6 +74,7 @@ export function ChatStreamMarkdown({
       data-testid="stream-markdown-renderer"
     >
       <Markdown
+        components={chatMarkdownComponents}
         density="compact"
         headingLevelStart={chatHeadingLevelStart}
         isStreaming={isStreaming}
