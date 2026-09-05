@@ -447,6 +447,17 @@ body {
   z-index: 0;
 }
 
+/* The Session surface's first row lives inside the window's titlebar band
+   (ADR-0028), where the header chrome's drag spacer sits on top of it: the
+   spacer would eat every click on the row's controls, and the OS would drag
+   the window instead. Lift the row over the chrome (z-index 50) and take it
+   out of the drag region. */
+[data-slot="session-surface-bar"] {
+  position: relative;
+  z-index: 51;
+  -webkit-app-region: no-drag;
+}
+
 .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
   transition: width 200ms ease;
 }

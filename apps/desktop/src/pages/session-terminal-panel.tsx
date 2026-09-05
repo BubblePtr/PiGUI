@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconButton } from "@astryxdesign/core/IconButton";
 import {
   attachTerminal,
   closeTerminal,
@@ -11,7 +10,11 @@ import {
   type TerminalInstanceInfo,
 } from "@/entities/terminal/terminal-client";
 import { isElectronRuntime } from "@/shared/runtime";
-import { Cancel, Plus, Terminal } from "@/shared/ui/icons";
+import { Terminal } from "@/shared/ui/icons";
+import {
+  SessionSurfaceBar,
+  SessionSurfaceTabs,
+} from "@/shared/ui/session-dock/surface-bar";
 import {
   TerminalView,
   type TerminalViewHandle,
@@ -19,10 +22,8 @@ import {
 
 /**
  * Terminal surface content (ADR-0028): the rail keeps a single icon while the
- * panel owns the instances — a compact tab strip on top, one xterm viewport
- * below. The strip is hand-rolled because every tab carries its own close
- * button; Astryx TabList renders each Tab as a single <button>, which cannot
- * legally nest one.
+ * panel owns the instances — the shared instance strip as the surface's first
+ * row, one xterm viewport below.
  */
 
 const defaultTerminalSize = { cols: 80, rows: 24 };
@@ -271,66 +272,23 @@ export function SessionTerminalPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Flush surface (registry flushContent): the panel and header run
-          edge-to-edge. py-1.5 makes the strip a second 40px band — the chip
-          row is 28px, so 6px either side matches the dock header (h-10)
-          exactly. px-2 starts the chip 8px off the divider; with the chip's
-          own 8px inset its icon lands on the same 16px column as the terminal
-          text below. */}
-      <div
-        aria-label="Terminal instances"
-        className="flex shrink-0 items-center gap-1 overflow-x-auto px-2 py-1.5"
-        role="tablist"
-      >
-        {instances.map((instance, index) => {
-          const isActive = instance.terminalId === activeTerminalId;
-          const label = `Terminal ${index + 1}`;
-
-          return (
-            <span
-              className={`flex shrink-0 items-center rounded-md text-xs ${
-                isActive
-                  ? "bg-surface-muted text-foreground"
-                  : "text-muted hover:bg-surface-hover"
-              }`}
-              key={instance.terminalId}
-            >
-              <button
-                aria-selected={isActive}
-                className="flex items-center gap-1.5 rounded-l-md py-1 pl-2 pr-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
-                role="tab"
-                title={instance.cwd}
-                type="button"
-                onClick={() => setActiveTerminalId(instance.terminalId)}
-              >
-                <Terminal className="size-3.5" />
-                <span className={instance.status === "exited" ? "text-muted" : undefined}>
-                  {label}
-                </span>
-                {instance.status === "exited" ? (
-                  <span className="text-muted"> (exited)</span>
-                ) : null}
-              </button>
-              <button
-                aria-label={`Close ${label}`}
-                className="rounded-r-md py-1 pl-0.5 pr-1.5 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20"
-                type="button"
-                onClick={() => void closeInstance(instance.terminalId)}
-              >
-                <Cancel className="size-3" />
-              </button>
-            </span>
-          );
-        })}
-        <IconButton
-          icon={<Plus className="size-4" />}
-          label="New terminal"
-          size="sm"
-          tooltip="New terminal"
-          variant="ghost"
-          onClick={() => void openNewTerminal()}
+      <SessionSurfaceBar>
+        <SessionSurfaceTabs
+          activeId={activeTerminalId}
+          addLabel="New terminal"
+          icon={Terminal}
+          items={instances.map((instance, index) => ({
+            id: instance.terminalId,
+            label: `Terminal ${index + 1}`,
+            hint: instance.cwd,
+            isExited: instance.status === "exited",
+          }))}
+          label="Terminal instances"
+          onActivate={setActiveTerminalId}
+          onAdd={() => void openNewTerminal()}
+          onClose={(terminalId) => void closeInstance(terminalId)}
         />
-      </div>
+      </SessionSurfaceBar>
       {actionError ? (
         <p className="pb-2 text-xs text-danger" role="alert">
           {actionError}

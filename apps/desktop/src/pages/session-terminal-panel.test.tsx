@@ -141,6 +141,21 @@ describe("SessionTerminalPanel", () => {
     });
   });
 
+  // ADR-0028 (2026-09-05): the strip is the surface's first row, on Chat's
+  // title baseline — not a second band under a dock header.
+  it("puts the instance strip in the surface's own 40px first row", async () => {
+    setupTerminalBridge([runningTerminal("term-a")]);
+
+    const { container } = render(<SessionTerminalPanel sessionId="session-1" />);
+
+    const bar = await screen.findByTestId("session-surface-bar");
+
+    expect(bar).toBe(container.firstElementChild?.firstElementChild);
+    expect(
+      within(bar).getByRole("tablist", { name: "Terminal instances" }),
+    ).toBeInTheDocument();
+  });
+
   it("lists existing instances, attaches the active one, and switches tabs", async () => {
     const bridge = setupTerminalBridge([runningTerminal("term-a"), runningTerminal("term-b")]);
     const user = userEvent.setup();

@@ -11,6 +11,10 @@ import {
   SessionDockTrigger,
 } from "@/shared/ui/session-dock/session-dock";
 import {
+  SessionSurfaceBar,
+  SessionSurfaceTabs,
+} from "@/shared/ui/session-dock/surface-bar";
+import {
   sessionSurfaces,
   type SessionSurfaceId,
 } from "@/shared/ui/session-dock/surface-registry";
@@ -62,6 +66,7 @@ import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-
 import { ComposerAttachmentDrawer } from "@/shared/ui/composer-attachments/composer-attachment-drawer";
 import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-insert-menu";
 import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import * as Icons from "@/shared/ui/icons";
 import type { RuntimeModelControls } from "@pigui/core";
 
@@ -210,6 +215,33 @@ function PiBarChartGallery() {
 }
 
 
+const galleryTerminalInstances = [
+  { id: "term-1", label: "Terminal 1", hint: "/work/PiGUI" },
+  { id: "term-2", label: "Terminal 2", hint: "/work/PiGUI/apps/desktop" },
+  { id: "term-3", label: "Terminal 3", hint: "/work/PiGUI", isExited: true },
+];
+
+function SessionSurfaceTabsSample({
+  items,
+}: {
+  items: typeof galleryTerminalInstances;
+}) {
+  const [activeId, setActiveId] = useState(items[0]?.id ?? null);
+
+  return (
+    <SessionSurfaceTabs
+      activeId={activeId}
+      addLabel="New terminal"
+      icon={Icons.Terminal}
+      items={items}
+      label="Terminal instances"
+      onActivate={setActiveId}
+      onAdd={() => {}}
+      onClose={() => {}}
+    />
+  );
+}
+
 function SessionDockGallery() {
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
@@ -218,30 +250,93 @@ function SessionDockGallery() {
   return (
     <GallerySection title="SessionDock">
       <VariantRow>
-        <Variant caption="Changes active — rail badge carries the file count">
+        <Variant caption="Changes active — no header: the surface's own first row states the working tree; the rail badge carries the file count">
           <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
             <SessionDock
               activeSurfaceId={activeSurfaceId}
               badges={{ changes: "3" }}
               onActiveSurfaceChange={setActiveSurfaceId}
             >
-              <p className="text-sm text-muted">
+              <SessionSurfaceBar
+                actions={
+                  <IconButton
+                    icon={<Icons.RefreshCw className="size-4" />}
+                    label="Refresh Session changes"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {}}
+                  />
+                }
+              >
+                <p className="text-xs text-muted">
+                  3 files · <span className="text-success">+18</span>{" "}
+                  <span className="text-danger">-4</span>
+                </p>
+              </SessionSurfaceBar>
+              <p className="px-2 text-sm text-muted">
                 {sessionSurfaces[activeSurfaceId].title} surface content — the
                 panel hosts whichever surface the rail selects.
               </p>
             </SessionDock>
           </div>
         </Variant>
-        <Variant caption="Terminal active — same panel, rail switches the surface; flushContent drops the header/content padding">
+        <Variant caption="Terminal active — the instance strip is the surface's first row, on Chat's title baseline">
           <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
             <SessionDock
               activeSurfaceId="terminal"
+              badges={{ terminal: "3" }}
               onActiveSurfaceChange={() => {}}
             >
-              <p className="text-sm text-muted">
+              <SessionSurfaceBar>
+                <SessionSurfaceTabsSample items={galleryTerminalInstances} />
+              </SessionSurfaceBar>
+              <p className="px-2 text-sm text-muted">
                 Session-scoped shells, edge-to-edge.
               </p>
             </SessionDock>
+          </div>
+        </Variant>
+        <Variant caption="SessionSurfaceBar — status + actions">
+          <div className="w-[24rem] rounded-md border border-separator">
+            <SessionSurfaceBar
+              actions={
+                <IconButton
+                  icon={<Icons.RefreshCw className="size-4" />}
+                  label="Refresh"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {}}
+                />
+              }
+            >
+              <p className="text-xs text-muted">
+                3 files · <span className="text-success">+18</span>{" "}
+                <span className="text-danger">-4</span>
+              </p>
+            </SessionSurfaceBar>
+          </div>
+        </Variant>
+        <Variant caption="SessionSurfaceBar — status only">
+          <div className="w-[24rem] rounded-md border border-separator">
+            <SessionSurfaceBar>
+              <p className="text-xs text-muted">Working tree clean</p>
+            </SessionSurfaceBar>
+          </div>
+        </Variant>
+        <Variant caption="SessionSurfaceTabs — several instances, one exited">
+          <div className="w-[24rem] rounded-md border border-separator">
+            <SessionSurfaceBar>
+              <SessionSurfaceTabsSample items={galleryTerminalInstances} />
+            </SessionSurfaceBar>
+          </div>
+        </Variant>
+        <Variant caption="SessionSurfaceTabs — a single instance">
+          <div className="w-[24rem] rounded-md border border-separator">
+            <SessionSurfaceBar>
+              <SessionSurfaceTabsSample
+                items={galleryTerminalInstances.slice(0, 1)}
+              />
+            </SessionSurfaceBar>
           </div>
         </Variant>
         <Variant caption="collapsed — panel and rail are both gone; only this toolbar toggle remains">

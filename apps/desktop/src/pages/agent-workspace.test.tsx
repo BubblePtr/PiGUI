@@ -424,7 +424,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     const terminalDialog = await openSessionSurfaceSheet(user, "Terminal");
     expect(terminalDialog).toHaveAttribute("data-testid", "session-dock");
-    expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
+    expect(
+      within(terminalDialog).queryByRole("button", { name: "Refresh Session changes" }),
+    ).not.toBeInTheDocument();
     expect(
       within(terminalDialog).getByText("Terminal requires the desktop app."),
     ).toBeInTheDocument();
@@ -437,7 +439,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     const toggle = await screen.findByRole("button", { name: "Session dock" });
     await user.click(toggle);
     const panel = await screen.findByRole("complementary", { name: "Changes" });
-    expect(within(panel).getByText("Diff summary")).toBeInTheDocument();
+    expect(
+      within(panel).getByRole("button", { name: "Refresh Session changes" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-workspace-split-view")).toBeInTheDocument();
     await user.click(within(panel).getByRole("button", { name: "Terminal" }));
@@ -511,23 +515,25 @@ describe("AgentWorkspaceSessionsPage", () => {
     const aside = await screen.findByRole("complementary", { name: "Changes" });
     const splitView = aside.closest('[data-slot="resizable"]');
 
-    expect(within(aside).getByText("Diff summary")).toBeInTheDocument();
+    expect(
+      within(aside).getByRole("button", { name: "Refresh Session changes" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     // The handle is the 1px divider itself: no margins, so the grab zone and
     // pill overlay the panes instead of taking width from them.
     expect(screen.getByLabelText("Resize Session dock")).not.toHaveClass("mx-2");
-    // The titlebar band is a real 40px row on the Chat side; the dock's
-    // own header fills that band on the aside side, so the aside pane carries
-    // no offset. One hairline under the band spans the whole view (across the
-    // resize handle too) rather than being drawn per column.
+    // The titlebar band is a real 40px row on the Chat side; on the aside
+    // side the surface's own first row fills that band (ADR-0028), so the
+    // aside pane carries no offset. One hairline under the band spans the
+    // whole view (across the resize handle too) rather than being drawn per
+    // column.
     expect(
       within(screen.getByTestId("session-workspace-main-pane")).getByTestId(
         "session-workspace-titlebar-band",
       ),
     ).toHaveClass("h-10");
     expect(screen.getByTestId("session-workspace-aside-pane")).not.toHaveClass("pt-10");
-    expect(within(aside).getByRole("banner")).toHaveClass("h-10");
-    expect(within(aside).getByRole("banner")).not.toHaveClass("border-b");
+    expect(within(aside).getByTestId("session-surface-bar")).toHaveClass("h-10");
     expect(
       within(screen.getByTestId("project-sessions-view")).getByTestId(
         "session-workspace-titlebar-rule",
@@ -560,10 +566,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       within(terminalAside).getByText("Terminal requires the desktop app."),
     ).toBeInTheDocument();
-    expect(within(terminalAside).queryByText("Diff summary")).not.toBeInTheDocument();
+    expect(
+      within(terminalAside).queryByRole("button", { name: "Refresh Session changes" }),
+    ).not.toBeInTheDocument();
 
-    // No close button in the docked header; the toolbar toggle is the one
-    // way in and out.
+    // No close button in the panel; the toolbar toggle is the one way in and
+    // out.
     expect(
       within(terminalAside).queryByRole("button", { name: "Close Session dock" }),
     ).not.toBeInTheDocument();
@@ -6877,10 +6885,12 @@ describe("Session changes action surface", () => {
       error = null,
       loading = false,
       onRefresh = () => {},
+      sessionId = projection.id as string | null,
     }: {
       error?: string | null;
       loading?: boolean;
       onRefresh?: () => void;
+      sessionId?: string | null;
     } = {},
   ) {
     return (
@@ -6888,12 +6898,66 @@ describe("Session changes action surface", () => {
         changes={loaded}
         error={error}
         loading={loading}
-        sessionId={projection.id}
+        sessionId={sessionId}
         stale={projection.stale}
         onRefresh={onRefresh}
       />
     );
   }
+
+  // ADR-0028 (2026-09-05): Changes is single-instance, so its first row is its
+  // own state on the left and its actions on the right — no "Diff summary"
+  // label, which the rail already says.
+  it("states the working tree in the surface's first row, with refresh beside it", async () => {
+    const user = userEvent.setup();
+    const onRefresh = vi.fn();
+    const bar = () => screen.getByTestId("session-surface-bar");
+    const view = render(panel(changes(), { onRefresh }));
+
+    expect(within(bar()).getByText("2 files ·", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText("Diff summary")).not.toBeInTheDocument();
+    await user.click(
+      within(bar()).getByRole("button", { name: "Refresh Session changes" }),
+    );
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    view.rerender(panel(null, { loading: true }));
+    expect(within(bar()).getByText("Loading…")).toBeInTheDocument();
+
+    view.rerender(
+      panel(
+        changes({
+          state: "clean",
+          files: [],
+          totals: {
+            files: 0,
+            additions: 0,
+            deletions: 0,
+            binaryFiles: 0,
+            conflictedFiles: 0,
+          },
+        }),
+      ),
+    );
+    expect(within(bar()).getByText("Working tree clean")).toBeInTheDocument();
+
+    view.rerender(panel(changes({ state: "non-git", files: [], repositoryRoot: null })));
+    expect(within(bar()).getByText("Not a Git repository")).toBeInTheDocument();
+
+    // A failed read has no state to report: the alert below carries the
+    // message, and the row keeps only the action that can fix it.
+    view.rerender(panel(null, { error: "Git is temporarily unavailable" }));
+    expect(
+      within(bar()).queryByText(/files|Working tree|Git repository|Loading/),
+    ).not.toBeInTheDocument();
+    expect(
+      within(bar()).getByRole("button", { name: "Refresh Session changes" }),
+    ).toBeInTheDocument();
+
+    // No Session: no state and no action, so no band at all.
+    view.rerender(panel(null, { sessionId: null }));
+    expect(screen.queryByTestId("session-surface-bar")).not.toBeInTheDocument();
+  });
 
   it("lists loaded changes, switches files, and changes the diff layout", async () => {
     const user = userEvent.setup();

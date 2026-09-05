@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Trash2,
 } from "@/shared/ui/icons";
+import { SessionSurfaceBar } from "@/shared/ui/session-dock/surface-bar";
 
 /**
  * Chrome for the embedded browser surface: an address band plus the region the
@@ -89,9 +90,69 @@ export function BrowserSurface({
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
       {hasChrome ? (
-        // A second 40px band under the dock header, matching the Terminal
-        // surface's tab strip: 28px controls with 6px either side.
-        <div className="flex shrink-0 items-center gap-1 py-1.5">
+        // The surface's first row (ADR-0028): where the page is on the left,
+        // what can be done to it on the right. No instance tabs — the browser
+        // is single-instance until #185.
+        <SessionSurfaceBar
+          actions={
+            <>
+              {/* Plain buttons only. Anything that opens a layer — Popover,
+                  Tooltip, Select — would trip the overlay detection and freeze
+                  the page into a still, leaving the user marking up a
+                  screenshot. */}
+              <ToggleButton
+                icon={<Crosshair className="size-4" />}
+                isDisabled={!isLive}
+                // Nothing can be marked where no page is live, so the toggle
+                // never reads as pressed there — a pressed, disabled control
+                // claims a state the user cannot leave.
+                isPressed={isLive && designMode}
+                label="Design"
+                size="sm"
+                onPressedChange={onDesignModeChange}
+              />
+              {isLive && annotationCount > 0 ? (
+                <span
+                  className="shrink-0 text-xs tabular-nums text-muted"
+                  data-testid="browser-annotation-count"
+                >
+                  {annotationCount} marked
+                </span>
+              ) : null}
+              <IconButton
+                icon={<Trash2 className="size-4" />}
+                isDisabled={!isLive || annotationCount === 0}
+                label="Clear marks"
+                size="sm"
+                variant="ghost"
+                onClick={onClearAnnotations}
+              />
+              {/* The action design mode exists for, so it is the one control
+                  here that carries its own label. Nothing to send without a
+                  mark: the prompt would be a URL and a screenshot with no
+                  question on it. */}
+              <Button
+                // Disabled while one is in flight: the page has to settle its
+                // overlay before the shot, and a second click during that would
+                // paste the block into the draft twice. Astryx only dedupes
+                // `clickAction`, and that is a layer-free promise this button
+                // cannot use.
+                isDisabled={!isLive || annotationCount === 0 || isSending}
+                label="Send to composer"
+                size="sm"
+                onClick={onSendToComposer}
+              />
+              <IconButton
+                icon={<LinkExternal className="size-4" />}
+                isDisabled={!isLive}
+                label="Open in default browser"
+                size="sm"
+                variant="ghost"
+                onClick={onOpenExternal}
+              />
+            </>
+          }
+        >
           <IconButton
             icon={<ArrowLeft className="size-4" />}
             isDisabled={!canGoBack}
@@ -125,59 +186,7 @@ export function BrowserSurface({
             onChange={onAddressChange}
             onEnter={() => onAddressSubmit(address)}
           />
-          {/* Plain buttons only. Anything that opens a layer — Popover,
-              Tooltip, Select — would trip the overlay detection and freeze the
-              page into a still, leaving the user marking up a screenshot. */}
-          <ToggleButton
-            icon={<Crosshair className="size-4" />}
-            isDisabled={!isLive}
-            // Nothing can be marked where no page is live, so the toggle never
-            // reads as pressed there — a pressed, disabled control claims a
-            // state the user cannot leave.
-            isPressed={isLive && designMode}
-            label="Design"
-            size="sm"
-            onPressedChange={onDesignModeChange}
-          />
-          {isLive && annotationCount > 0 ? (
-            <span
-              className="shrink-0 text-xs tabular-nums text-muted"
-              data-testid="browser-annotation-count"
-            >
-              {annotationCount} marked
-            </span>
-          ) : null}
-          <IconButton
-            icon={<Trash2 className="size-4" />}
-            isDisabled={!isLive || annotationCount === 0}
-            label="Clear marks"
-            size="sm"
-            variant="ghost"
-            onClick={onClearAnnotations}
-          />
-          {/* The action design mode exists for, so it is the one control here
-              that carries its own label. Nothing to send without a mark: the
-              prompt would be a URL and a screenshot with no question on it. */}
-          <Button
-            // Disabled while one is in flight: the page has to settle its
-            // overlay before the shot, and a second click during that would
-            // paste the block into the draft twice. Astryx only dedupes
-            // `clickAction`, and that is a layer-free promise this button
-            // cannot use.
-            isDisabled={!isLive || annotationCount === 0 || isSending}
-            label="Send to composer"
-            size="sm"
-            onClick={onSendToComposer}
-          />
-          <IconButton
-            icon={<LinkExternal className="size-4" />}
-            isDisabled={!isLive}
-            label="Open in default browser"
-            size="sm"
-            variant="ghost"
-            onClick={onOpenExternal}
-          />
-        </div>
+        </SessionSurfaceBar>
       ) : null}
       {hasChrome && notice ? (
         // Its own line rather than a layer or a toast: the native view covers

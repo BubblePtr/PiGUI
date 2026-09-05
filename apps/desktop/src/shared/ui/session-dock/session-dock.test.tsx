@@ -43,6 +43,23 @@ describe("SessionDock", () => {
     expect(within(dock).getByText("Terminal surface content")).toBeInTheDocument();
   });
 
+  // ADR-0028 (2026-09-05): the rail names the surface and its tooltip explains
+  // it, so a header would say the same thing a third time — and push every
+  // surface's own first row into a second band.
+  it("writes no title or hint of its own above the surface", () => {
+    renderDock({ activeSurfaceId: "terminal" });
+
+    const dock = screen.getByRole("complementary", { name: "Terminal" });
+
+    expect(within(dock).queryByRole("heading")).not.toBeInTheDocument();
+    expect(
+      within(dock).queryByText(sessionSurfaces.terminal.hint),
+    ).not.toBeInTheDocument();
+    // The content column starts at the top of the panel: no band of ours
+    // between it and the titlebar.
+    expect(dock.firstElementChild).toHaveTextContent("Terminal surface content");
+  });
+
   it("puts every registered surface on the rail", () => {
     renderDock();
 

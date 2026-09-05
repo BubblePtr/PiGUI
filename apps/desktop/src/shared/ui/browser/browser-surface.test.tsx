@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
@@ -33,6 +33,27 @@ function renderSurface(overrides: Partial<Parameters<typeof BrowserSurface>[0]> 
 }
 
 describe("BrowserSurface", () => {
+  // ADR-0028 (2026-09-05): the address band is the surface's first row, so it
+  // sits on Chat's 40px title baseline instead of under a dock header.
+  it("puts the address band on the surface's 40px first row", () => {
+    renderSurface({ address: "localhost:5173" });
+
+    const bar = screen.getByTestId("session-surface-bar");
+
+    expect(bar).toHaveClass("h-10");
+    expect(within(bar).getByRole("textbox", { name: "Address" })).toBeInTheDocument();
+    expect(within(bar).getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(
+      within(bar).getByRole("button", { name: "Open in default browser" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no first row where there is no chrome to put in it", () => {
+    renderSurface({ state: { kind: "unsupported" } });
+
+    expect(screen.queryByTestId("session-surface-bar")).not.toBeInTheDocument();
+  });
+
   it("submits the typed address on Enter", async () => {
     const user = userEvent.setup();
     const onAddressSubmit = vi.fn();
