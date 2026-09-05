@@ -4,7 +4,7 @@ import type { BrowserViewRect } from "@/shared/browser-protocol";
 /**
  * Keeps the main process's native view aligned with a renderer placeholder.
  *
- * The inspector's width bound is only computed at mount and the live width is
+ * The dock's width bound is only computed at mount and the live width is
  * a `style` value that changes per drag frame, so the placeholder's own rect
  * is the single source of truth (PRD section 6). The header band and the
  * resize handle's gutter are already outside that rect, so nothing is

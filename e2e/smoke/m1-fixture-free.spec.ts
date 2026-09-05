@@ -43,7 +43,7 @@ async function openSession(
 
   await expect(session).toBeVisible();
   await session.click();
-  await expect(window.getByRole("button", { name: "Session inspector", exact: true })).toBeVisible();
+  await expect(window.getByRole("button", { name: "Session dock", exact: true })).toBeVisible();
 }
 
 test.describe("M1: Real-data-only", () => {
@@ -84,7 +84,7 @@ test.describe("M2: Reliable lifecycle", () => {
         testApp.project!,
         testApp.projection!,
       );
-      // Archive lives on the sidebar row's action menu (the inspector's
+      // Archive lives on the sidebar row's action menu (the dock's
       // Actions surface was removed; the row menu is the remaining entry).
       await testApp.window
         .getByRole("button", {
@@ -182,7 +182,7 @@ test.describe("M3: Real diff action surface", () => {
         testApp.projection!,
       );
       await testApp.resizeWindow(960, 780);
-      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "Session dock", exact: true }).click();
       await expect(testApp.window.getByRole("complementary", { name: "Changes" })).toBeVisible();
       await expect(testApp.window.getByRole("dialog")).toHaveCount(0);
 
@@ -198,30 +198,30 @@ test.describe("M3: Real diff action surface", () => {
         }),
       ).toBeVisible({ timeout: 15_000 });
 
-      const panel = testApp.window.getByTestId("session-inspector");
+      const panel = testApp.window.getByTestId("session-dock");
       const bounds = await panel.boundingBox();
       const viewport = await testApp.window.evaluate(() => ({width: innerWidth, height: innerHeight}));
       expect(bounds).not.toBeNull();
       expect(bounds!.x).toBeGreaterThan(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
-      await testApp.window.screenshot({path: "output/playwright/session-inspector-narrow.png"});
+      await testApp.window.screenshot({path: "output/playwright/session-dock-narrow.png"});
       await panel.getByRole("button", {name: "Terminal", exact: true}).click();
       await expect(testApp.window.getByRole("complementary", {name: "Terminal"})).toBeVisible();
-      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "Session dock", exact: true }).click();
       await expect(panel).toHaveCount(0);
       await expect(testApp.window.getByRole("dialog")).toHaveCount(0);
-      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "Session dock", exact: true }).click();
       await expect(panel).toBeVisible();
       await testApp.resizeWindow(1440, 900);
       await expect(panel).toBeVisible();
       await panel.getByRole("button", {name: "Changes", exact: true}).click();
-      await testApp.window.screenshot({path: "output/playwright/session-inspector-wide.png"});
+      await testApp.window.screenshot({path: "output/playwright/session-dock-wide.png"});
     } finally {
       await testApp.close();
     }
   });
 
-  test("docks the Session inspector beside Chat in a wide Electron window", async () => {
+  test("puts the Session dock beside Chat in a wide Electron window", async () => {
     const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
 
     try {
@@ -231,13 +231,13 @@ test.describe("M3: Real diff action surface", () => {
         testApp.project!,
         testApp.projection!,
       );
-      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "Session dock", exact: true }).click();
 
-      const changesAside = testApp.window.getByTestId("session-inspector");
+      const changesAside = testApp.window.getByTestId("session-dock");
 
       await expect(changesAside).toBeVisible();
       await expect(testApp.window.getByLabel("Live Chat messages")).toBeVisible();
-      await expect(testApp.window.getByLabel("Resize Session inspector")).toBeVisible();
+      await expect(testApp.window.getByLabel("Resize Session dock")).toBeVisible();
       await expect(
         testApp.window.getByRole("dialog", { name: "Changes" }),
       ).toHaveCount(0);
@@ -248,7 +248,7 @@ test.describe("M3: Real diff action surface", () => {
         }),
       ).toBeVisible({ timeout: 15_000 });
 
-      const resizeHandle = testApp.window.getByLabel("Resize Session inspector");
+      const resizeHandle = testApp.window.getByLabel("Resize Session dock");
       const handleBox = await resizeHandle.boundingBox();
       const initialAsideBox = await changesAside.boundingBox();
       const viewportHeight = await testApp.window.evaluate(() => window.innerHeight);
@@ -300,7 +300,7 @@ test.describe("M3: Real diff action surface", () => {
       // Dragging as far as the handle will go hands the panel everything Chat
       // does not need — Chat keeps its 400px minimum and no more.
       const handleAgain = (await testApp.window
-        .getByRole("separator", { name: "Resize Session inspector" })
+        .getByRole("separator", { name: "Resize Session dock" })
         .boundingBox())!;
 
       await testApp.window.mouse.move(

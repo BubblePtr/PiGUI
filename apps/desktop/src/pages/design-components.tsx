@@ -7,13 +7,13 @@ import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
 import {
-  SessionInspector,
-  SessionInspectorTrigger,
-} from "@/shared/ui/session-inspector/session-inspector";
+  SessionDock,
+  SessionDockTrigger,
+} from "@/shared/ui/session-dock/session-dock";
 import {
   sessionSurfaces,
   type SessionSurfaceId,
-} from "@/shared/ui/session-inspector/surface-registry";
+} from "@/shared/ui/session-dock/surface-registry";
 import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
 import {
   PiTraceInspector,
@@ -210,17 +210,17 @@ function PiBarChartGallery() {
 }
 
 
-function SessionInspectorGallery() {
+function SessionDockGallery() {
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <GallerySection title="SessionInspector">
+    <GallerySection title="SessionDock">
       <VariantRow>
         <Variant caption="Changes active — rail badge carries the file count">
           <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
-            <SessionInspector
+            <SessionDock
               activeSurfaceId={activeSurfaceId}
               badges={{ changes: "3" }}
               onActiveSurfaceChange={setActiveSurfaceId}
@@ -229,27 +229,27 @@ function SessionInspectorGallery() {
                 {sessionSurfaces[activeSurfaceId].title} surface content — the
                 panel hosts whichever surface the rail selects.
               </p>
-            </SessionInspector>
+            </SessionDock>
           </div>
         </Variant>
         <Variant caption="Terminal active — same panel, rail switches the surface; flushContent drops the header/content padding">
           <div className="h-72 w-[30rem] overflow-hidden rounded-md border border-separator">
-            <SessionInspector
+            <SessionDock
               activeSurfaceId="terminal"
               onActiveSurfaceChange={() => {}}
             >
               <p className="text-sm text-muted">
                 Session-scoped shells, edge-to-edge.
               </p>
-            </SessionInspector>
+            </SessionDock>
           </div>
         </Variant>
         <Variant caption="collapsed — panel and rail are both gone; only this toolbar toggle remains">
-          <SessionInspectorTrigger isOpen={isOpen} onOpenChange={setIsOpen} />
+          <SessionDockTrigger isOpen={isOpen} onOpenChange={setIsOpen} />
         </Variant>
         <Variant caption="docked toggle — alignToRail seats it on the 44px rail axis (slot cancels the header's 1rem inset)">
           <div className="flex w-40 justify-end border-r border-separator pr-4">
-            <SessionInspectorTrigger
+            <SessionDockTrigger
               alignToRail
               isOpen={isOpen}
               onOpenChange={setIsOpen}
@@ -421,7 +421,7 @@ function BrowserSurfaceGallery() {
             />
           </div>
         </Variant>
-        <Variant caption="narrow — below 1280px the inspector is a Dialog portal, so the chrome goes away with the view">
+        <Variant caption="narrow — below 1280px the dock is a Dialog portal, so the chrome goes away with the view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface
               address=""
@@ -2108,7 +2108,7 @@ export const componentExamples: ComponentExample[] = [
   { name: "ChatTool", category: "Reasoning & tools", description: "A tool call from input streaming through success or error.", Preview: ChatToolGallery },
   { name: "ChatToolGroup", category: "Reasoning & tools", description: "Single and grouped tool calls with compact summaries.", Preview: ChatToolGroupGallery },
   { name: "ChatStatusLine", category: "Reasoning & tools", description: "Current thinking or acting phase with elapsed time.", Preview: ChatStatusLineGallery },
-  { name: "SessionInspector", category: "Workspace & trace", description: "Switch between changes, terminal, and browser surfaces.", Preview: SessionInspectorGallery },
+  { name: "SessionDock", category: "Workspace & trace", description: "Switch between changes, terminal, and browser surfaces.", Preview: SessionDockGallery },
   { name: "BrowserSurface", category: "Workspace & trace", description: "Browser chrome, annotations, snapshots, and unavailable states.", Preview: BrowserSurfaceGallery },
   { name: "TerminalView", category: "Workspace & trace", description: "Interactive terminal display with sample shell output.", Preview: TerminalViewGallery },
   { name: "PiTraceLedger", category: "Workspace & trace", description: "Run and turn records with execution status and focus.", Preview: PiTraceLedgerGallery },

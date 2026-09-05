@@ -149,16 +149,16 @@ describe("Design page tabs", () => {
   });
 
   // AGENTS.md hard rule: every shared/ui component registers here.
-  it("registers the SessionInspector surface host", async () => {
+  it("registers the SessionDock surface host", async () => {
     const user = userEvent.setup();
 
     render(<DesignPageContent />);
 
     await user.click(screen.getByRole("button", { name: "Components" }));
-    await user.click(screen.getByRole("button", { name: "SessionInspector" }));
+    await user.click(screen.getByRole("button", { name: "SessionDock" }));
 
     expect(
-      screen.getByRole("region", { name: "SessionInspector" }),
+      screen.getByRole("region", { name: "SessionDock" }),
     ).toBeInTheDocument();
   });
 });

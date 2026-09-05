@@ -234,7 +234,7 @@ async function openSessionSurfaceSheet(
   user: ReturnType<typeof userEvent.setup>,
   surfaceTitle: "Changes" | "Terminal",
 ) {
-  await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+  await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
   const sheet = await screen.findByRole("complementary", { name: "Changes" });
 
@@ -243,7 +243,7 @@ async function openSessionSurfaceSheet(
   return sheet;
 }
 
-function setDockedSessionInspectorLayout(matches: boolean) {
+function setDockedLayout(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     configurable: true,
@@ -262,7 +262,7 @@ function setDockedSessionInspectorLayout(matches: boolean) {
 
 describe("AgentWorkspaceSessionsPage", () => {
   beforeEach(() => {
-    setDockedSessionInspectorLayout(false);
+    setDockedLayout(false);
     window.localStorage.clear();
     delete window.pigui;
     delete (
@@ -307,14 +307,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
     expect(within(liveColumn).queryByRole("heading", { name: "Live Chat" })).not.toBeInTheDocument();
     expect(within(liveColumn).queryByRole("heading", { name: "Run timeline" })).not.toBeInTheDocument();
-    expect(within(liveColumn).queryByRole("button", { name: "Session inspector" })).not.toBeInTheDocument();
+    expect(within(liveColumn).queryByRole("button", { name: "Session dock" })).not.toBeInTheDocument();
     expect(liveColumn).toHaveClass("h-full");
     expect(sessionsView).toHaveClass("-mt-10", "h-[calc(100%+2.5rem)]", "pb-0");
     expect(sessionsView).not.toHaveClass("pt-6", "py-6");
-    // One toolbar toggle now stands for the whole inspector; Changes and
+    // One toolbar toggle now stands for the whole dock; Changes and
     // Actions are surfaces inside it, not separate toolbar buttons.
-    const sessionInspectorButton = within(navbarActions).getByRole("button", {
-      name: "Session inspector",
+    const sessionDockButton = within(navbarActions).getByRole("button", {
+      name: "Session dock",
     });
 
     expect(
@@ -335,7 +335,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       screen.getByRole("group", { name: "Trace and usage navigation" }),
     ).getByText("New Session");
 
-    expect(sessionInspectorButton).toHaveAttribute("aria-pressed", "false");
+    expect(sessionDockButton).toHaveAttribute("aria-pressed", "false");
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
       "data-window-drag-region",
     );
@@ -423,18 +423,18 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     const terminalDialog = await openSessionSurfaceSheet(user, "Terminal");
-    expect(terminalDialog).toHaveAttribute("data-testid", "session-inspector");
+    expect(terminalDialog).toHaveAttribute("data-testid", "session-dock");
     expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
     expect(
       within(terminalDialog).getByText("Terminal requires the desktop app."),
     ).toBeInTheDocument();
   });
 
-  it("uses the same inspector panel in narrow windows without a dialog", async () => {
+  it("uses the same dock panel in narrow windows without a dialog", async () => {
     const user = userEvent.setup();
-    setDockedSessionInspectorLayout(false);
+    setDockedLayout(false);
     renderProjectSessions();
-    const toggle = await screen.findByRole("button", { name: "Session inspector" });
+    const toggle = await screen.findByRole("button", { name: "Session dock" });
     await user.click(toggle);
     const panel = await screen.findByRole("complementary", { name: "Changes" });
     expect(within(panel).getByText("Diff summary")).toBeInTheDocument();
@@ -444,13 +444,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     const terminal = await screen.findByRole("complementary", { name: "Terminal" });
     expect(within(terminal).getByText("Terminal requires the desktop app.")).toBeInTheDocument();
     await user.click(toggle);
-    expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("clamps the docked panel when the window no longer has room for it", async () => {
     const user = userEvent.setup();
-    setDockedSessionInspectorLayout(true);
+    setDockedLayout(true);
 
     // The split container's own ResizeObserver is the production signal, so
     // the test drives that rather than a stand-in: a controllable observer
@@ -475,7 +475,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     try {
       renderProjectSessions();
-      await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+      await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
       const aside = await screen.findByRole("complementary", { name: "Changes" });
       const asidePane = aside.closest('[data-slot="resizable-panel"]') as HTMLElement;
@@ -500,13 +500,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     }
   });
 
-  it("docks the Session inspector beside Chat on wide Workspaces", async () => {
+  it("puts the Session dock beside Chat on wide Workspaces", async () => {
     const user = userEvent.setup();
-    setDockedSessionInspectorLayout(true);
+    setDockedLayout(true);
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+    await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
     const aside = await screen.findByRole("complementary", { name: "Changes" });
     const splitView = aside.closest('[data-slot="resizable"]');
@@ -515,8 +515,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByLabelText("Live Chat messages")).toBeVisible();
     // The handle is the 1px divider itself: no margins, so the grab zone and
     // pill overlay the panes instead of taking width from them.
-    expect(screen.getByLabelText("Resize Session inspector")).not.toHaveClass("mx-2");
-    // The titlebar band is a real 40px row on the Chat side; the inspector's
+    expect(screen.getByLabelText("Resize Session dock")).not.toHaveClass("mx-2");
+    // The titlebar band is a real 40px row on the Chat side; the dock's
     // own header fills that band on the aside side, so the aside pane carries
     // no offset. One hairline under the band spans the whole view (across the
     // resize handle too) rather than being drawn per column.
@@ -542,8 +542,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     // The toolbar toggle is the head of the rail column: docked, it sits on
     // the rail's axis (a rail-width slot that cancels the header inset).
     expect(
-      screen.getByRole("button", { name: "Session inspector" }).closest(
-        '[data-testid="session-inspector-trigger-rail-slot"]',
+      screen.getByRole("button", { name: "Session dock" }).closest(
+        '[data-testid="session-dock-trigger-rail-slot"]',
       ),
     ).toHaveClass("w-11", "-mr-4", "justify-center");
 
@@ -565,14 +565,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     // No close button in the docked header; the toolbar toggle is the one
     // way in and out.
     expect(
-      within(terminalAside).queryByRole("button", { name: "Close Session inspector" }),
+      within(terminalAside).queryByRole("button", { name: "Close Session dock" }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Session inspector" }));
+    await user.click(screen.getByRole("button", { name: "Session dock" }));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Session inspector" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Session dock" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
@@ -580,7 +580,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("counts changed files on the rail, whichever surface is showing", async () => {
     const user = userEvent.setup();
-    setDockedSessionInspectorLayout(true);
+    setDockedLayout(true);
     const persisted = {
       sessionId: "persisted-session-1",
       runtimeId: "pi-sdk:persisted-session-1",
@@ -654,14 +654,14 @@ describe("AgentWorkspaceSessionsPage", () => {
     renderProjectSessions();
 
     // The composer footer reads Git as soon as the Session is on screen, so
-    // the same round-trip later feeds the inspector badge and panel.
+    // the same round-trip later feeds the dock badge and panel.
     await waitFor(() => {
       expect(screen.getByTestId("git-branch-status-trigger")).toHaveTextContent(
         "main",
       );
     });
 
-    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+    await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
     const rail = await screen.findByRole("group", { name: "Session surfaces" });
 
@@ -686,11 +686,11 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("keeps the rail badge empty when the working tree cannot be read", async () => {
     const user = userEvent.setup();
-    setDockedSessionInspectorLayout(true);
+    setDockedLayout(true);
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+    await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
     const aside = await screen.findByRole("complementary", { name: "Changes" });
 
@@ -734,7 +734,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       expect(invoke).toHaveBeenCalledWith("list_session_projections", undefined);
     });
     expect(await screen.findByTestId("project-sessions-view")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Session inspector" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Session dock" })).not.toBeInTheDocument();
     expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
     expect(screen.queryByText("Usage evidence review")).not.toBeInTheDocument();
     expect(screen.queryByText("Create the Agent Workspace entry shape for this Project.")).not.toBeInTheDocument();
@@ -1071,7 +1071,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
   it("exposes the Terminal surface on the rail, without file tree or abort placeholders", async () => {
     const user = userEvent.setup();
-    setDockedSessionInspectorLayout(true);
+    setDockedLayout(true);
 
     renderProjectSessions();
 
@@ -1080,7 +1080,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(within(sessionsView).queryByText(/file tree|file explorer/i)).not.toBeInTheDocument();
     expect(within(sessionsView).queryByText("Abort")).not.toBeInTheDocument();
 
-    await user.click(await screen.findByRole("button", { name: "Session inspector" }));
+    await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
     const rail = await screen.findByRole("group", { name: "Session surfaces" });
     const terminalToggle = within(rail).getByRole("button", { name: "Terminal" });
@@ -6792,7 +6792,7 @@ describe("Context usage placement", () => {
     ).toBeInTheDocument();
   });
 
-  it("leaves the Session toolbar to the inspector toggle", () => {
+  it("leaves the Session toolbar to the dock toggle", () => {
     const { container } = render(
       <SessionToolbarActions />,
     );

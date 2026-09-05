@@ -187,7 +187,7 @@ export function SessionBrowserPanel({
   useBrowserViewBounds(viewportRef, pushBounds, state.kind === "live");
 
   // A native view paints above every DOM layer, so any open overlay — the
-  // inspector rail's own tooltips most of all, which open right against it —
+  // dock rail's own tooltips most of all, which open right against it —
   // would be covered. While one is up the page is replaced by a still of
   // itself and the view steps aside.
   const overlayOpen = useOverlayPresence(available && state.kind === "live");
@@ -228,7 +228,7 @@ export function SessionBrowserPanel({
     void setBrowserVisible(state.kind === "live" && !snapshot).catch(() => {});
   }, [available, snapshot, state.kind]);
 
-  // Leaving the surface (other surface, inspector closed, Session switch) hides
+  // Leaving the surface (other surface, dock closed, Session switch) hides
   // the view without discarding the page. Design mode and the marks go with
   // it: the page outlives this component, and one left marking would swallow
   // every click with no toolbar in sight.
@@ -369,7 +369,7 @@ function surfaceState(input: {
   hasPage: boolean;
   loadError: string | null;
 }): BrowserSurfaceState {
-  // Below the dock breakpoint the inspector is a Dialog portal; a native view
+  // Below the docked breakpoint the dock is a Dialog portal; a native view
   // would paint over its overlay, so the surface stays purely DOM there.
   if (!input.docked) {
     return { kind: "narrow" };

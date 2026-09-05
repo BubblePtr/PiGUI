@@ -43,7 +43,7 @@ describe("matchRegion", () => {
 
   it("treats earlier stack entries as more specific", () => {
     const stack = [componentEntry("SessionDetailView"), componentEntry("PiTraceLedger")];
-    expect(matchRegion(stack, null)?.region.term).toBe("Trace Cockpit");
+    expect(matchRegion(stack, null)?.region.term).toBe("Trajectory Cockpit");
   });
 
   it("prefers the clicked element's own attributes over the stack", () => {
@@ -74,8 +74,8 @@ describe("additional named regions", () => {
     ["ChatChainOfThought", "Chain of Thought"],
     ["ChatThoughtStep", "Thinking"],
     ["ChatToolStep", "Tool Call"],
-    ["SessionBrowserPanel", "Structured Action Surface"],
-    ["TerminalView", "Structured Action Surface"],
+    ["SessionBrowserPanel", "Surface"],
+    ["TerminalView", "Surface"],
     ["CheckoutStrategyPicker", "Execution Checkout"],
   ])("maps %s to %s", (name, term) => {
     expect(matchRegion([componentEntry(name)], null)?.region.term).toBe(term);

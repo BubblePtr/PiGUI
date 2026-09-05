@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import { FileDiff, Globe, Terminal } from "@/shared/ui/icons";
 
 /**
- * Registry of the Session-scoped surfaces the SessionInspector can host.
+ * Registry of the Session-scoped surfaces the SessionDock can host.
  *
  * Metadata only: the panel content stays with the feature that owns the data
  * (Changes, Terminal, Browser), so the registry never grows a dependency on
@@ -23,7 +23,7 @@ export type SessionSurfaceMeta = {
    */
   multiInstance?: boolean;
   /**
-   * Flush surfaces render edge-to-edge: the inspector drops its content
+   * Flush surfaces render edge-to-edge: the dock drops its content
    * padding and the surface owns every inset itself (terminal canvases want
    * this; documents and forms want the default padding).
    */

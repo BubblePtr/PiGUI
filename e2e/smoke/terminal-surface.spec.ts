@@ -27,13 +27,13 @@ test("Terminal surface runs a real shell, multi-instance, with replay", async ()
     await expect(session).toBeVisible();
     await session.click();
 
-    // Open the inspector docked, then switch the rail to Terminal.
-    const inspectorToggle = window.getByLabel("Session inspector");
+    // Open the dock, then switch the rail to Terminal.
+    const dockToggle = window.getByLabel("Session dock");
 
-    await expect(inspectorToggle).toBeVisible();
-    await inspectorToggle.click();
+    await expect(dockToggle).toBeVisible();
+    await dockToggle.click();
 
-    const aside = window.getByTestId("session-inspector");
+    const aside = window.getByTestId("session-dock");
 
     await expect(aside).toBeVisible();
     await aside.getByRole("button", { name: "Terminal" }).click();

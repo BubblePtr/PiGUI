@@ -143,7 +143,7 @@ const ansiLight: typeof ansiDark = {
 
 /**
  * Chrome colors come from the app's semantic tokens so the terminal sits in
- * the panel like any other surface (background = --surface, the inspector's
+ * the panel like any other surface (background = --surface, the dock's
  * own fill). The custom scrollbar slider follows the app's translucent-thumb
  * scrollbar language (styles.css) at the same 18/28% intensities. Recomputed
  * on OS scheme flips via the caller's matchMedia listener; theme-neutral's

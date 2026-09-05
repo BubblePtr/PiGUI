@@ -273,7 +273,7 @@ export function SessionTerminalPanel({
     <div className="flex h-full min-h-0 flex-col">
       {/* Flush surface (registry flushContent): the panel and header run
           edge-to-edge. py-1.5 makes the strip a second 40px band — the chip
-          row is 28px, so 6px either side matches the inspector header (h-10)
+          row is 28px, so 6px either side matches the dock header (h-10)
           exactly. px-2 starts the chip 8px off the divider; with the chip's
           own 8px inset its icon lands on the same 16px column as the terminal
           text below. */}

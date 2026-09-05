@@ -39,14 +39,14 @@ import {
   useFilePicker,
 } from "@/shared/ui/composer-attachments";
 import {
-  SessionInspector,
-  SessionInspectorTrigger,
-  sessionInspectorDefaultWidthPx,
-  sessionInspectorResizableBounds,
-} from "@/shared/ui/session-inspector/session-inspector";
+  SessionDock,
+  SessionDockTrigger,
+  sessionDockDefaultWidthPx,
+  sessionDockResizableBounds,
+} from "@/shared/ui/session-dock/session-dock";
 import {
   type SessionSurfaceId,
-} from "@/shared/ui/session-inspector/surface-registry";
+} from "@/shared/ui/session-dock/surface-registry";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
 import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pigui/core";
@@ -2272,7 +2272,7 @@ export function SessionChangesPanel({
   );
 }
 
-/** Renders the active surface inside the shared inspector panel. */
+/** Renders the active surface inside the shared dock panel. */
 function SessionSurfaceContent({
   surfaceId,
   projection,
@@ -2400,17 +2400,17 @@ async function restoreProjectionRuntimeState(input: {
 }
 
 export function SessionToolbarActions({
-  inspectorOpen = false,
-  onInspectorOpenChange = () => {},
+  dockOpen = false,
+  onDockOpenChange = () => {},
 }: {
-  inspectorOpen?: boolean;
-  onInspectorOpenChange?: (isOpen: boolean) => void;
+  dockOpen?: boolean;
+  onDockOpenChange?: (isOpen: boolean) => void;
 }) {
   return (
-    <SessionInspectorTrigger
+    <SessionDockTrigger
       alignToRail
-      isOpen={inspectorOpen}
-      onOpenChange={onInspectorOpenChange}
+      isOpen={dockOpen}
+      onOpenChange={onDockOpenChange}
     />
   );
 }
@@ -3247,7 +3247,7 @@ function LiveSessionColumn({
 const resizeHandleGutterPx = 1;
 
 /**
- * The 40px row under the fixed header chrome on the Chat side. The inspector
+ * The 40px row under the fixed header chrome on the Chat side. The dock
  * fills the same band with its own header; the hairline under both is drawn
  * once by the sessions view.
  */
@@ -3363,11 +3363,11 @@ export function AgentWorkspaceSessionsView({
     return () => observer.disconnect();
   }, [splitElement]);
 
-  const asideSizeBounds = sessionInspectorResizableBounds(
+  const asideSizeBounds = sessionDockResizableBounds(
     Math.max(0, splitWidth - resizeHandleGutterPx),
   );
   const asideResizable = useResizable({
-    defaultSize: sessionInspectorDefaultWidthPx,
+    defaultSize: sessionDockDefaultWidthPx,
     minSizePx: asideSizeBounds.minSizePx,
     maxSizePx: asideSizeBounds.maxSizePx,
   });
@@ -3389,7 +3389,7 @@ export function AgentWorkspaceSessionsView({
     >
       {/* One hairline under the titlebar band for the whole view. Drawn once
           here rather than per column so it does not break at the resize
-          handle between Chat and the inspector. */}
+          handle between Chat and the dock. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-10 z-10 h-px bg-separator"
@@ -3397,7 +3397,7 @@ export function AgentWorkspaceSessionsView({
       />
       {/* Both layouts span the full width: Chat centers itself via its own
           max-width, so an outer centered box would only strand the docked
-          inspector's rail (ADR-0028) and Chat's scrollbar short of the
+          dock's rail (ADR-0028) and Chat's scrollbar short of the
           window edge. */}
       {aside ? (
         <div
@@ -3422,7 +3422,7 @@ export function AgentWorkspaceSessionsView({
             direction="horizontal"
             hasDivider
             isReversed
-            label="Resize Session inspector"
+            label="Resize Session dock"
             // Astryx 0.3.0 `hitAreaOffsetX` carries a `-50%` Y translate meant
             // for vertical handles, so a side-biased pill shifts the grab zone
             // up by half its height and only the divider's top half is
@@ -3492,8 +3492,8 @@ export function AgentWorkspaceSessionsPage() {
   // surface while it is mounted; reset per Session below.
   const [terminalInstanceCount, setTerminalInstanceCount] = useState(0);
   // Open state and the active surface are Workspace-level, so switching
-  // Sessions keeps the inspector where the user left it.
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  // Sessions keeps the dock where the user left it.
+  const [dockOpen, setDockOpen] = useState(false);
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
   const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
@@ -3507,7 +3507,7 @@ export function AgentWorkspaceSessionsPage() {
   // rail badge. The docked rail carries the Changes count whatever surface
   // is showing, so it needs the diff even on Terminal. The composer footer
   // needs the branch whenever a live Session is on screen, which is why this
-  // is no longer gated on the inspector being open.
+  // is no longer gated on the dock being open.
   const sessionChanges = useSessionChanges({
     sessionId: selectedSessionProjection?.id ?? null,
     enabled: Boolean(selectedSessionProjection?.id) && !showDraft,
@@ -3539,7 +3539,7 @@ export function AgentWorkspaceSessionsPage() {
 
   useEffect(() => {
     if (!selectedSessionProjection) {
-      setInspectorOpen(false);
+      setDockOpen(false);
     }
   }, [selectedSessionProjection?.id]);
 
@@ -3625,16 +3625,16 @@ export function AgentWorkspaceSessionsPage() {
       onSelectedSessionIdChange={setSelectedSessionId}
       toolbarActions={selectedSessionProjection ? (
         <SessionToolbarActions
-          inspectorOpen={inspectorOpen}
-          onInspectorOpenChange={setInspectorOpen}
+          dockOpen={dockOpen}
+          onDockOpenChange={setDockOpen}
         />
       ) : undefined}
     >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
         aside={
-          inspectorOpen ? (
-            <SessionInspector
+          dockOpen ? (
+            <SessionDock
               activeSurfaceId={activeSurfaceId}
               badges={{
                 changes: sessionChangesBadge(sessionChanges.changes),
@@ -3650,7 +3650,7 @@ export function AgentWorkspaceSessionsPage() {
                 projection={selectedSessionProjection}
                 onTerminalInstancesChange={handleTerminalInstancesChange}
               />
-            </SessionInspector>
+            </SessionDock>
           ) : undefined
         }
         projectId={projectId}
