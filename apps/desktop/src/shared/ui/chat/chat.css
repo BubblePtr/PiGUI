@@ -494,17 +494,26 @@
   white-space: nowrap;
 }
 
-.chat-tool-step__glyph {
+/* Kind icons sit in the same 14px slot the chevron uses, so header and
+   expanded rows share one left column (Codex's type-icon alignment). */
+.chat-tool-kind {
+  display: inline-flex;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
   width: 14px;
   height: 14px;
   color: var(--color-icon-secondary);
 }
 
-/* Only failure earns a colour: a green tick on every settled row would make a
-   trace of successful calls read as an alert list. */
-.chat-tool-step__glyph[data-state="error"] {
-  color: var(--color-danger);
+.chat-tool-kind svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.chat-tool-step > .chat-step__panel {
+  padding-inline-start: 0;
 }
 
 .chat-tool-step__list {
@@ -514,6 +523,31 @@
   margin: var(--spacing-1) 0 0;
   padding: 0;
   list-style: none;
+}
+
+.chat-tool-step__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-1-5);
+  min-width: 0;
+}
+
+.chat-tool-step__item .chat-tool-kind {
+  /* Sit on the Astryx row's first-line center, not the box top. */
+  margin-block-start: 0.2em;
+}
+
+.chat-tool-step__item .chat-tool {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Astryx's status circle (check / spinner / x) is a second leading glyph
+   next to the kind icon. Failure still reads as "N failed" on the
+   summary; the kind icon is the type signal, matching Codex. */
+.chat-tool-step__item .astryx-chat-tool-calls [role="button"] > span:first-child,
+.chat-tool-step__item .astryx-chat-tool-calls > div > span:first-child {
+  display: none;
 }
 
 /* —— Status line —— */

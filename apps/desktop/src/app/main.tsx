@@ -160,11 +160,30 @@ const preflightRoute = createRoute({
 // must live inside the DEV branch: a top-level createRoute() is not provably
 // pure, and a static import would keep the page in the production bundle
 // even with the route unregistered.
+function DevRouteError({ error }: { error: Error }) {
+  return (
+    <pre
+      data-testid="route-error"
+      style={{
+        margin: 0,
+        padding: 16,
+        color: "crimson",
+        whiteSpace: "pre-wrap",
+        fontSize: 12,
+      }}
+    >
+      {error.stack ?? error.message}
+    </pre>
+  );
+}
+
 const devOnlyRoutes = import.meta.env.DEV
   ? [
       createRoute({
         getParentRoute: () => rootRoute,
         path: "/design",
+        wrapInSuspense: true,
+        errorComponent: DevRouteError,
         component: React.lazy(async () => ({
           default: (await import("@/pages/design")).DesignPage,
         })),
@@ -183,6 +202,14 @@ const DevUiIntentPicker = import.meta.env.DEV
 
 const router = createRouter({
   ...(isElectronRuntime() ? { history: createHashHistory() } : {}),
+  ...(import.meta.env.DEV
+    ? {
+        defaultErrorComponent: DevRouteError,
+        defaultOnCatch: (error: Error) => {
+          console.error("[router]", error);
+        },
+      }
+    : {}),
   routeTree: rootRoute.addChildren([
     indexRoute,
     traceIndexRoute,

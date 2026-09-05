@@ -1311,9 +1311,13 @@ describe("AppFrame", () => {
     const styles = readFileSync(join(process.cwd(), "apps/desktop/src/app/styles.css"), "utf8");
 
     // Astryx SideNavSection spaces top-level items, but nested session rows
-    // live in childrenInner with no gap — hover/selected pills collide.
+    // live in childrenInner with no gap — hover/selected pills collide, and
+    // the project header sits flush on the first session row.
     expect(styles).toMatch(
       /\.pigui-sidenav-row-with-actions \[role="group"\] > div:not\(#\\#\):not\(#\\#\):not\(#\\#\) \{[^}]*display: flex;[^}]*flex-direction: column;[^}]*gap: var\(--pigui-sidebar-row-gap\);/,
+    );
+    expect(styles).toMatch(
+      /\.pigui-sidenav-row-with-actions \[role="group"\] > div:not\(#\\#\):not\(#\\#\):not\(#\\#\) \{[^}]*padding-block-start: var\(--pigui-sidebar-row-gap\);/,
     );
     expect(styles).toContain("--pigui-sidebar-row-gap: var(--spacing-1);");
   });

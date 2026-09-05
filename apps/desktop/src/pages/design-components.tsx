@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { GallerySection } from "@/pages/design";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
@@ -31,6 +31,7 @@ import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
 import { ChatStatusLine } from "@/shared/ui/chat/chat-status-line";
 import { ChatThoughtStep, type ChatThoughtStepItem } from "@/shared/ui/chat/chat-thought-step";
 import { ChatToolStep, type ChatToolStepItem } from "@/shared/ui/chat/chat-tool-step";
+import { ChatToolKindIcon, type ToolKind } from "@/shared/ui/chat/chat-tool-kind";
 import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import {
   ChatChainOfThoughtRail,
@@ -75,6 +76,36 @@ function Variant({ caption, children }: { caption: string; children: ReactNode }
       <span className="text-[10px] text-muted">{caption}</span>
     </div>
   );
+}
+
+class GalleryErrorBoundary extends Component<
+  { name: string; children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <section aria-label={`${this.props.name} error`}>
+          <h2 className="text-sm font-semibold text-danger">{this.props.name} crashed</h2>
+          <pre className="whitespace-pre-wrap text-[11px] text-danger">
+            {this.state.error.stack ?? this.state.error.message}
+          </pre>
+        </section>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function gallery(name: string, node: ReactNode) {
+  return <GalleryErrorBoundary name={name}>{node}</GalleryErrorBoundary>;
 }
 
 function VariantRow({ children }: { children: ReactNode }) {
@@ -945,15 +976,31 @@ function IconsGallery() {
   return (
     <GallerySection title="Icons">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
-        {Object.entries(Icons).map(([name, Icon]) => (
-          <div
-            key={name}
-            className="flex flex-col items-center gap-1 rounded-md border border-separator bg-surface p-2"
-          >
-            <Icon aria-hidden="true" className="size-4" />
-            <span className="text-[10px] text-muted">{name}</span>
-          </div>
-        ))}
+        {Object.entries(Icons)
+          .filter((entry, index, all): entry is [string, (props: { className?: string }) => unknown] => {
+            const [name, Icon] = entry;
+            if (typeof Icon !== "function") {
+              return false;
+            }
+
+            // `export const File` can bind to the host File constructor.
+            const host = (globalThis as Record<string, unknown>)[name];
+            if (Icon === host) {
+              return false;
+            }
+
+            // Aliases (Terminal = SquareTerminal) would otherwise double-tile.
+            return all.findIndex(([, other]) => other === Icon) === index;
+          })
+          .map(([name, Icon]) => (
+            <div
+              key={name}
+              className="flex flex-col items-center gap-1 rounded-md border border-separator bg-surface p-2"
+            >
+              <Icon aria-hidden="true" className="size-4" />
+              <span className="text-[10px] text-muted">{name}</span>
+            </div>
+          ))}
       </div>
     </GallerySection>
   );
@@ -1507,6 +1554,36 @@ const settledToolBurst: ChatToolStepItem = {
   ],
 };
 
+const mixedKindToolStep: ChatToolStepItem = {
+  kind: "tools",
+  id: "design-tools-mixed",
+  live: false,
+  tools: [
+    {
+      toolCallId: "design-mixed-1",
+      toolName: "bash",
+      state: "output-available",
+      durationMs: 420,
+      argsText: JSON.stringify({ command: "pwd && rg --files -g 'AGENTS.md'" }),
+      output: "ok",
+    },
+    {
+      toolCallId: "design-mixed-2",
+      toolName: "read",
+      state: "output-available",
+      durationMs: 80,
+      argsText: JSON.stringify({ path: "AGENTS.md" }),
+    },
+    {
+      toolCallId: "design-mixed-3",
+      toolName: "web_search",
+      state: "output-available",
+      durationMs: 1100,
+      argsText: JSON.stringify({ query: "site.matharena.ai Kimi K3" }),
+    },
+  ],
+};
+
 const failedToolStep: ChatToolStepItem = {
   kind: "tools",
   id: "design-tools-failed",
@@ -1623,6 +1700,20 @@ function ChatThoughtStepGallery() {
   );
 }
 
+function ChatToolKindIconGallery() {
+  return (
+    <GallerySection title="ChatToolKindIcon">
+      <VariantRow>
+        {(["shell", "search", "web", "file", "edit", "tool"] as const).map((kind: ToolKind) => (
+          <Variant key={kind} caption={kind}>
+            <ChatToolKindIcon kind={kind} />
+          </Variant>
+        ))}
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
 function ChatToolStepGallery() {
   return (
     <GallerySection title="ChatToolStep">
@@ -1641,6 +1732,9 @@ function ChatToolStepGallery() {
         </Variant>
         <Variant caption="settled, with a failure">
           <ChatToolStep step={failedToolStep} />
+        </Variant>
+        <Variant caption="settled, mixed kinds">
+          <ChatToolStep step={mixedKindToolStep} />
         </Variant>
       </div>
     </GallerySection>
@@ -2033,39 +2127,40 @@ function ModelSelectorControlGallery() {
 export function DesignComponentsLayer() {
   return (
     <>
-      <PiKpiGallery />
-      <PiBarChartGallery />
-      <PiSheetGallery />
-      <SessionInspectorGallery />
-      <BrowserSurfaceGallery />
-      <TerminalViewGallery />
-      <PiTraceLedgerGallery />
-      <PiTraceStripGallery />
-      <PiTraceInspectorGallery />
-      <DotMatrixGallery />
-      <IconsGallery />
-      <ChatMessageGallery />
-      <ChatMarkdownGallery />
-      <ChatCodeBlockGallery />
-      <ChatToolGallery />
-      <ChatToolGroupGallery />
-      <ChatPromptInputGallery />
-      <ChatQueuedMessageGallery />
-      <ChatPromptSuggestionGallery />
-      <ChatChainOfThoughtGallery />
-      <ChatPixelLoaderGallery />
-      <ChatInlinePagerGallery />
-      <ChatThoughtStepGallery />
-      <ChatToolStepGallery />
-      <ChatStatusLineGallery />
-      <ChatThoughtMarkdownGallery />
-      <ChatChainOfThoughtRailGallery />
-      <ChatConversationGallery />
-      <TextShimmerGallery />
-      <ContextUsageMeterGallery />
-      <ModelSelectorControlGallery />
-      <ComposerInsertMenuGallery />
-      <ComposerAttachmentDrawerGallery />
+      {gallery("PiKpi", <PiKpiGallery />)}
+      {gallery("PiBarChart", <PiBarChartGallery />)}
+      {gallery("PiSheet", <PiSheetGallery />)}
+      {gallery("SessionInspector", <SessionInspectorGallery />)}
+      {gallery("BrowserSurface", <BrowserSurfaceGallery />)}
+      {gallery("TerminalView", <TerminalViewGallery />)}
+      {gallery("PiTraceLedger", <PiTraceLedgerGallery />)}
+      {gallery("PiTraceStrip", <PiTraceStripGallery />)}
+      {gallery("PiTraceInspector", <PiTraceInspectorGallery />)}
+      {gallery("DotMatrix", <DotMatrixGallery />)}
+      {gallery("Icons", <IconsGallery />)}
+      {gallery("ChatMessage", <ChatMessageGallery />)}
+      {gallery("ChatMarkdown", <ChatMarkdownGallery />)}
+      {gallery("ChatCodeBlock", <ChatCodeBlockGallery />)}
+      {gallery("ChatTool", <ChatToolGallery />)}
+      {gallery("ChatToolGroup", <ChatToolGroupGallery />)}
+      {gallery("ChatPromptInput", <ChatPromptInputGallery />)}
+      {gallery("ChatQueuedMessage", <ChatQueuedMessageGallery />)}
+      {gallery("ChatPromptSuggestion", <ChatPromptSuggestionGallery />)}
+      {gallery("ChatChainOfThought", <ChatChainOfThoughtGallery />)}
+      {gallery("ChatPixelLoader", <ChatPixelLoaderGallery />)}
+      {gallery("ChatInlinePager", <ChatInlinePagerGallery />)}
+      {gallery("ChatThoughtStep", <ChatThoughtStepGallery />)}
+      {gallery("ChatToolKindIcon", <ChatToolKindIconGallery />)}
+      {gallery("ChatToolStep", <ChatToolStepGallery />)}
+      {gallery("ChatStatusLine", <ChatStatusLineGallery />)}
+      {gallery("ChatThoughtMarkdown", <ChatThoughtMarkdownGallery />)}
+      {gallery("ChatChainOfThoughtRail", <ChatChainOfThoughtRailGallery />)}
+      {gallery("ChatConversation", <ChatConversationGallery />)}
+      {gallery("TextShimmer", <TextShimmerGallery />)}
+      {gallery("ContextUsageMeter", <ContextUsageMeterGallery />)}
+      {gallery("ModelSelectorControl", <ModelSelectorControlGallery />)}
+      {gallery("ComposerInsertMenu", <ComposerInsertMenuGallery />)}
+      {gallery("ComposerAttachmentDrawer", <ComposerAttachmentDrawerGallery />)}
     </>
   );
 }

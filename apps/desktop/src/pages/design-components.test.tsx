@@ -32,6 +32,7 @@ describe("Design components layer", () => {
       "ChatPixelLoader",
       "ChatInlinePager",
       "ChatThoughtStep",
+      "ChatToolKindIcon",
       "ChatToolStep",
       "ChatStatusLine",
       "ChatThoughtMarkdown",
@@ -192,7 +193,7 @@ describe("Design components layer", () => {
 
     const section = screen.getByRole("region", { name: "Icons" });
 
-    for (const iconName of ["Activity", "Palette", "Wrench", "BotMessage"]) {
+    for (const iconName of ["Activity", "Palette", "Wrench", "BotMessage", "FileIcon", "Search", "SquareTerminal"]) {
       expect(within(section).getByText(iconName)).toBeInTheDocument();
     }
   });
@@ -352,6 +353,13 @@ describe("Design components layer", () => {
     expect(within(tools).getByText("settled, one call")).toBeInTheDocument();
     expect(within(tools).getByText("settled, a burst")).toBeInTheDocument();
     expect(within(tools).getByText("settled, with a failure")).toBeInTheDocument();
+    expect(within(tools).getByText("settled, mixed kinds")).toBeInTheDocument();
+
+    const kinds = screen.getByRole("region", { name: "ChatToolKindIcon" });
+
+    for (const kind of ["shell", "search", "web", "file", "edit", "tool"]) {
+      expect(within(kinds).getByText(kind)).toBeInTheDocument();
+    }
   });
 
   it("shows the motion atoms with their reduced-motion behaviour spelled out", () => {

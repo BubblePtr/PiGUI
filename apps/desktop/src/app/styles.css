@@ -202,12 +202,15 @@ body {
    the same size as the project folder, so that extra indent pushes titles —
    especially short empty-state labels like "No chats" — toward the row center.
    Match StyleX specificity and drop the indent so the two columns line up.
-   childrenInner is a block box with no gap; space the session pills so
-   hover/selected washes do not pinch. */
+   childrenInner is a block box with no gap; space the session pills from the
+   project header and from each other so hover/selected washes do not pinch.
+   padding-block-start lives on childrenInner (inside the 0fr collapse) so
+   the gap clips away when the project is folded. */
 .pigui-sidenav-row-with-actions [role="group"] > div:not(#\#):not(#\#):not(#\#) {
   display: flex;
   flex-direction: column;
   gap: var(--pigui-sidebar-row-gap);
+  padding-block-start: var(--pigui-sidebar-row-gap);
   padding-inline-start: 0;
 }
 

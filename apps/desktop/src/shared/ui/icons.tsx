@@ -16,9 +16,11 @@ import {
   CircleIcon,
   CommandIcon,
   ComputerIcon,
+  ComputerTerminal01Icon,
   Copy01Icon,
   CrosshairIcon,
   Delete02Icon,
+  File01Icon,
   FileDiffIcon,
   FlashIcon,
   Folder01Icon,
@@ -37,12 +39,12 @@ import {
   PuzzleIcon,
   RefreshIcon,
   RobotIcon,
+  Search01Icon,
   Settings01Icon,
   Settings02Icon,
   SidebarLeftIcon,
   SparklesIcon,
   StopIcon as HugeStopIcon,
-  TerminalIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   Tick02Icon,
@@ -85,6 +87,10 @@ export const Command = iconComponent(CommandIcon);
 export const Computer = iconComponent(ComputerIcon);
 export const Copy = iconComponent(Copy01Icon);
 export const Crosshair = iconComponent(CrosshairIcon);
+// Not `File`: that name is the host File constructor, and some Vite/HMR
+// transforms bind the export to it. IconsGallery then renders the constructor
+// and React 19 throws "Cannot read properties of null (reading 'use')".
+export const FileIcon = iconComponent(File01Icon);
 export const FileDiff = iconComponent(FileDiffIcon);
 export const Flash = iconComponent(FlashIcon);
 export const FolderClosed = iconComponent(Folder01Icon);
@@ -103,12 +109,16 @@ export const Pencil = iconComponent(PencilEdit01Icon);
 export const Plus = iconComponent(AddIcon);
 export const Puzzle = iconComponent(PuzzleIcon);
 export const RefreshCw = iconComponent(RefreshIcon);
+export const Search = iconComponent(Search01Icon);
 export const Settings = iconComponent(Settings01Icon);
 export const Settings2 = iconComponent(Settings02Icon);
 export const SidebarLeft = iconComponent(SidebarLeftIcon);
 export const Sparkles = iconComponent(SparklesIcon);
 export const Stop = iconComponent(HugeStopIcon);
-export const Terminal = iconComponent(TerminalIcon);
+// Lucide SquareTerminal: framed console with a prompt. Hugeicons names
+// that glyph ComputerTerminal01; the unframed TerminalIcon stays unused.
+export const SquareTerminal = iconComponent(ComputerTerminal01Icon);
+export const Terminal = SquareTerminal;
 export const ThumbsDown = iconComponent(ThumbsDownIcon);
 export const ThumbsUp = iconComponent(ThumbsUpIcon);
 export const Trash2 = iconComponent(Delete02Icon);

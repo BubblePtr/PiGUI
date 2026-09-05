@@ -59,6 +59,17 @@ describe("Electron shell", () => {
     expect(renderer).toContain("isElectronRuntime()");
   });
 
+  // bun nests a second `react` under @astryxdesign/core. Vite then prebundles
+  // Astryx CodeBlock's `useTranslator` against that copy while the renderer
+  // uses the workspace copy — React 19 throws `reading 'use'` on /design.
+  it("pins the renderer to a single React copy", () => {
+    const config = readProjectFile("apps/desktop/electron.vite.config.ts");
+
+    expect(config).toContain('dedupe: ["react", "react-dom"]');
+    expect(config).toMatch(/react:\s*reactPackage/);
+    expect(config).toMatch(/"react-dom":\s*reactDomPackage/);
+  });
+
   it("exposes only a typed PiGUI API from preload", () => {
     const preload = readProjectFile("apps/desktop/electron/preload.ts");
 

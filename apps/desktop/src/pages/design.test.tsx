@@ -1,7 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Theme } from "@astryxdesign/core";
+import { neutralTheme } from "@astryxdesign/theme-neutral/built";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { StrictMode } from "react";
 import { describe, expect, it } from "vitest";
 import {
   DataPaletteSection,
@@ -125,6 +128,24 @@ describe("Design page tabs", () => {
     await user.click(screen.getByRole("button", { name: "Tokens" }));
 
     expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
+  });
+
+  it("opens Components under Theme and StrictMode without crashing", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <StrictMode>
+        <Theme theme={neutralTheme}>
+          <DesignPageContent />
+        </Theme>
+      </StrictMode>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Components" }));
+
+    expect(screen.getByRole("region", { name: "PiKpi" })).toBeInTheDocument();
+    expect(screen.queryByText(/crashed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reading 'use'/i)).not.toBeInTheDocument();
   });
 
   // AGENTS.md hard rule: every shared/ui component registers here.
