@@ -3240,10 +3240,11 @@ function LiveSessionColumn({
 }
 
 /**
- * What the resize handle takes out of the width Chat and the panel share: its
- * `mx-2` margins plus the 1px divider it draws between them.
+ * What the resize handle takes out of the width Chat and the panel share: only
+ * the 1px divider it draws between them. Its 16px grab zone and pill are
+ * absolutely positioned over both panes, so they cost no layout width.
  */
-const resizeHandleGutterPx = 17;
+const resizeHandleGutterPx = 1;
 
 /**
  * The 40px row under the fixed header chrome on the Chat side. The inspector
@@ -3418,7 +3419,6 @@ export function AgentWorkspaceSessionsView({
             </div>
           </div>
           <ResizeHandle
-            className="mx-2"
             direction="horizontal"
             hasDivider
             isReversed
