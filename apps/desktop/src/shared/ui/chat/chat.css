@@ -49,6 +49,13 @@
   font-family: inherit;
 }
 
+/* styles.css flattens every weight under .pigui-app-layout to 400 for the
+   side nav; that also erased **bold** in assistant answers (Astryx's own
+   strong rule has the same specificity and loses on order). Restore it. */
+.chat-markdown :is(strong, b) {
+  font-weight: var(--font-weight-semibold);
+}
+
 .chat-markdown .astryx-markdown-heading[data-level="3"] {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
@@ -162,8 +169,12 @@
   gap: var(--spacing-2);
 }
 
+/* Astryx ChatMessage roots at 16px while its bubble, markdown and the
+   composer all sit at --font-size-base (14px). Pin the content so plain-text
+   assistant messages (control labels) do not render a size above the rest. */
 .chat-message__content {
   min-width: 0;
+  font-size: var(--font-size-base);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -234,6 +245,13 @@
      leak at the block, whatever a future row does. */
   contain: inline-size;
   font-size: var(--font-size-base);
+  /* Icon slot sized to the text, not to 1em: a Hugeicons glyph fills ~12/14
+     of its box, so 13px puts its ink (~11px) just over Figtree's 9.8px cap
+     height instead of a head above it. Stroke 2 scales to ~1.1px, matching
+     the 14px text's 1.25px stems; the global 1.5 is tuned for 16px nav icons
+     and reads thin here. */
+  --chat-icon-size: 13px;
+  --chat-icon-stroke: 2;
 }
 
 /* Astryx lays the assistant body out with align-items: start, so it is
@@ -441,9 +459,13 @@
   padding-block: 0.15em;
 }
 
+/* "Thought 2s" is one phrase: the number keeps the label's size and tone.
+   A smaller, disabled-grey figure read as a second, unrelated glyph and,
+   at 12px #a3a3a3, fell below AA contrast. Tabular figures keep "1.2s" and
+   "4.7s" the same width so a live burst does not nudge its chevron. */
 .chat-step__meta {
-  color: var(--color-text-disabled);
-  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-size: inherit;
   font-variant-numeric: tabular-nums;
 }
 
@@ -455,8 +477,8 @@
    a chevron appears: header, Thought row, tool row. */
 .chat-step__chevron {
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
+  width: var(--chat-icon-size, 13px);
+  height: var(--chat-icon-size, 13px);
   color: var(--color-icon-secondary);
   rotate: 0deg;
   transition: rotate var(--duration-fast) var(--ease-standard);
@@ -467,7 +489,7 @@
 }
 
 .chat-step__panel {
-  padding-inline-start: calc(14px + var(--spacing-1-5));
+  padding-inline-start: calc(var(--chat-icon-size, 13px) + var(--spacing-1-5));
 }
 
 .chat-step__body {
@@ -494,22 +516,31 @@
   white-space: nowrap;
 }
 
-/* Kind icons sit in the same 14px slot the chevron uses, so header and
+/* Kind icons sit in the same slot the chevron uses, so header and
    expanded rows share one left column (Codex's type-icon alignment). */
 .chat-tool-kind {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: var(--chat-icon-size, 13px);
+  height: var(--chat-icon-size, 13px);
   color: var(--color-icon-secondary);
 }
 
 .chat-tool-kind svg {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: var(--chat-icon-size, 13px);
+  height: var(--chat-icon-size, 13px);
+}
+
+/* Hugeicons writes stroke-width as a presentation attribute on every path;
+   a CSS declaration outranks it, so one rule retunes the whole set. */
+.chat-tool-kind svg,
+.chat-tool-kind svg *,
+.chat-step__chevron,
+.chat-step__chevron * {
+  stroke-width: var(--chat-icon-stroke, 2);
 }
 
 .chat-tool-step > .chat-step__panel {
@@ -556,6 +587,14 @@
   display: none;
 }
 
+/* Astryx paints the row's target path and duration in --color-text-disabled
+   (#a3a3a3 at 12px, ~2.6:1 on white). They are read, not disabled: lift them
+   to the secondary tone the step rows above already use. The name span stays
+   Astryx's; the trailing chevron span carries no text. */
+.chat-tool-step__item .astryx-chat-tool-calls [role="button"] > span:not(:first-child):not(:last-child) {
+  color: var(--color-text-secondary);
+}
+
 /* —— Status line —— */
 
 /* Always the last line while the run is live, and the only heartbeat. */
@@ -575,9 +614,11 @@
   padding-block: 0.15em;
 }
 
+/* Same face as the status word beside it: a monospace clock on a Figtree
+   line reads as a foreign object. Tabular figures alone stop the jitter. */
 .chat-status-line__clock {
   color: var(--color-text-secondary);
-  font-family: var(--font-family-mono, ui-monospace, monospace);
+  font-family: inherit;
   font-size: inherit;
   line-height: inherit;
   font-variant-numeric: tabular-nums;

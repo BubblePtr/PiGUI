@@ -134,12 +134,15 @@ body {
   margin: 0;
 }
 
-.pigui-app-layout :where(*) {
+/* Weight normalization for the Astryx side nav: section titles and the
+   selected item label must stay at normal weight (everything 400). Scoped to
+   the nav on purpose: the HeroUI-era version of this rule sat on the whole
+   layout and silently flattened every weight in the app, markdown bold and
+   Tailwind font-medium included. */
+.pigui-app-layout .astryx-side-nav :where(*) {
   font-weight: var(--font-weight-normal, 400);
 }
 
-/* Weight normalization for the Astryx side nav: section titles and the
-   selected item label must stay at normal weight (everything 400). */
 .pigui-app-layout .astryx-side-nav-section span,
 .pigui-app-layout .astryx-side-nav-item,
 .pigui-app-layout .astryx-side-nav-item[data-selected="selected"] {

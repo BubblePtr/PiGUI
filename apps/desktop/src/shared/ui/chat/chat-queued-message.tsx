@@ -22,7 +22,7 @@ export function ChatQueuedMessage({
   if (isWithdrawn) {
     return (
       <div
-        className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm opacity-60"
+        className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
         data-testid="chat-queued-message"
         data-withdrawn=""
       >
