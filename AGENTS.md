@@ -38,6 +38,22 @@ With the dev server running, the renderer mounts a floating crosshair button (or
 
 The CONTEXT.md term ↔ code binding table is `apps/desktop/src/dev/ui-intent/regions.ts`. **When you rename or move a region-level component, update that table in the same PR** (a test asserts every bound term still exists as a `**Term**:` heading in CONTEXT.md).
 
+## Git workflow
+
+- Code changes go through a PR from a `feat/` / `fix/` / `chore/` branch; never push code directly to `main`. Docs- or config-only changes touching a few files may land on `main` directly. Merge with a merge commit (`gh pr merge --merge`), matching the existing history.
+- **Dependent PRs use `gh stack`** (the official `github/gh-stack` extension, docs at https://gh.io/stacks). Never hand-roll a stack by pointing one PR's base at another PR's branch: deleting the lower branch after merge (`gh pr merge --delete-branch`) closes every PR based on it, and a closed PR cannot be retargeted (#181 had to be recreated as #182).
+
+  ```sh
+  gh stack init                 # start a stack on main (or: gh stack init b1 b2 b3 to adopt existing branches)
+  gh stack add <branch>         # new layer on top; commit as usual
+  gh stack submit               # push every branch, create/update the PR chain (--auto skips the editor, creates drafts; add --open for ready-for-review)
+  gh stack sync                 # after the trunk or a lower layer changes: fetch, cascade-rebase, force-with-lease push, relink the stack
+  gh stack merge                # atomic merge up to the chosen layer: all-or-nothing, no manual retargeting
+  gh stack view                 # where am I in the stack
+  ```
+
+- After a merge, switch back to `main`, pull, and delete the merged local branch.
+
 ## Runtime gotchas
 
 - **Never exercise the terminal pty driver (`packages/backend/src/drivers/terminal.ts`) under the Bun runtime** (`bun script.ts`, `bun -e`). Bun's Node-API support breaks `@lydell/node-pty`: the pty spawns, then its fd dies early (`ioctl(2) failed, EBADF`) and output is lost. The production path never hits this — the backend runs in Electron's Node via `utilityProcess`, and vitest runs on Node too — so the rule only applies to one-off debug scripts: run those with `node script.mjs` instead.
