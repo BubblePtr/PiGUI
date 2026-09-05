@@ -9,32 +9,32 @@ import {
   sessionSurfaceOrder,
   sessionSurfaces,
   type SessionSurfaceId,
-} from "@/shared/ui/session-inspector/surface-registry";
+} from "@/shared/ui/session-dock/surface-registry";
 
 /**
  * Session-scoped surface host: one panel plus an icon rail on its own right
- * edge. The rail belongs to the panel, so closing the inspector removes both —
+ * edge. The rail belongs to the panel, so closing the dock removes both —
  * nothing stays docked against the window (ADR-0028).
  */
 
-const headingId = "session-inspector-heading";
+const headingId = "session-dock-heading";
 
 /** Panel geometry (ADR-0028); the drag itself is Astryx `useResizable`. */
-export const sessionInspectorDefaultWidthPx = 560;
+export const sessionDockDefaultWidthPx = 560;
 const minWidthPx = 340;
 /**
  * What Chat keeps for itself. The panel may take everything else — a fixed
  * fraction of the viewport used to cap it, which left the Browser surface too
  * narrow on wide windows (ADR-0028, 2026-09-02 revision).
  */
-export const sessionInspectorChatMinWidthPx = 400;
+export const sessionDockChatMinWidthPx = 400;
 
 /**
  * @param availableWidth Width Chat and the panel actually share, i.e. the
  * split container minus whatever sits between them (the resize handle's
  * gutter). The caller owns that subtraction because it owns the handle.
  */
-export function sessionInspectorResizableBounds(availableWidth: number) {
+export function sessionDockResizableBounds(availableWidth: number) {
   return {
     minSizePx: minWidthPx,
     // Floor, not round: this ceiling exists to protect Chat's minimum, and a
@@ -42,16 +42,16 @@ export function sessionInspectorResizableBounds(availableWidth: number) {
     // A window too narrow for both minimums must not produce an inverted range.
     maxSizePx: Math.max(
       minWidthPx,
-      Math.floor(availableWidth - sessionInspectorChatMinWidthPx),
+      Math.floor(availableWidth - sessionDockChatMinWidthPx),
     ),
   };
 }
 
 /**
- * Toolbar affordance for the whole inspector. It is the only way back once the
+ * Toolbar affordance for the whole dock. It is the only way back once the
  * panel (and with it the rail) is closed, so it lives with the component.
  */
-export function SessionInspectorTrigger({
+export function SessionDockTrigger({
   alignToRail = false,
   isOpen,
   onOpenChange,
@@ -74,9 +74,9 @@ export function SessionInspectorTrigger({
     <IconButton
       aria-pressed={isOpen}
       icon={<SidebarLeft className="size-4 rotate-180" />}
-      label="Session inspector"
+      label="Session dock"
       size="sm"
-      tooltip={isOpen ? "Hide inspector" : "Show inspector"}
+      tooltip={isOpen ? "Hide dock" : "Show dock"}
       variant="ghost"
       onClick={() => onOpenChange(!isOpen)}
     />
@@ -89,14 +89,14 @@ export function SessionInspectorTrigger({
   return (
     <span
       className="-mr-4 flex w-11 shrink-0 justify-center"
-      data-testid="session-inspector-trigger-rail-slot"
+      data-testid="session-dock-trigger-rail-slot"
     >
       {toggle}
     </span>
   );
 }
 
-export function SessionInspector({
+export function SessionDock({
   activeSurfaceId,
   badges,
   children,
@@ -115,7 +115,7 @@ export function SessionInspector({
     <aside
       aria-labelledby={headingId}
       className="flex h-full min-h-0 min-w-0 bg-surface"
-      data-testid="session-inspector"
+      data-testid="session-dock"
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Fills the titlebar band beside Chat's title; the hairline under the
@@ -160,7 +160,7 @@ export function SessionInspector({
           value={activeSurfaceId}
           onChange={(value) => {
             // Astryx reports null when the pressed button is clicked again;
-            // the inspector always shows exactly one surface.
+            // the dock always shows exactly one surface.
             if (value !== null) {
               onActiveSurfaceChange(value as SessionSurfaceId);
             }

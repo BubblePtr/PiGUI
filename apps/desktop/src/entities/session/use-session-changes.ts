@@ -4,7 +4,7 @@ import { getSessionChanges, checkoutSessionBranch } from "@/entities/session/ses
 
 /**
  * One read of a Session's working tree, shared by everything that shows it:
- * the composer git-branch chip, the Changes panel, and the inspector rail
+ * the composer git-branch chip, the Changes panel, and the dock rail
  * badge (ADR-0028). Keeping the read here — rather than inside each surface —
  * is what lets the footer and the rail share one Git round-trip.
  */

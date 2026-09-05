@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
  * Reports whether any DOM overlay is currently open.
  *
  * The embedded browser is a native child view painted over the renderer, so it
- * covers every DOM layer above it — including the inspector rail's own
+ * covers every DOM layer above it — including the dock rail's own
  * tooltips, which sit right against it. The surface swaps in a still of the
  * page while an overlay is up, and that swap needs a reliable "is anything
  * open" signal.

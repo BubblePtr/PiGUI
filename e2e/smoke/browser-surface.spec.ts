@@ -107,7 +107,7 @@ async function readBrowserViewWidth(app: ElectronApplication) {
   return widths.at(-1) ?? 0;
 }
 
-/** Opens the inspector on the Browser surface, with no page loaded yet. */
+/** Opens the dock on the Browser surface, with no page loaded yet. */
 async function openBrowserSurface(testApp: PiGUITestApplication) {
   const { window } = testApp;
 
@@ -118,9 +118,9 @@ async function openBrowserSurface(testApp: PiGUITestApplication) {
       name: new RegExp(`^${testApp.projection!.initialPrompt}`, "i"),
     })
     .click();
-  await window.getByLabel("Session inspector").click();
+  await window.getByLabel("Session dock").click();
 
-  const aside = window.getByTestId("session-inspector");
+  const aside = window.getByTestId("session-dock");
 
   await expect(aside).toBeVisible();
   await aside.getByRole("button", { name: "Browser" }).click();
@@ -152,7 +152,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     // placeholder's rect, so the two must still agree afterwards.
     const widthBeforeResize = await readBrowserViewWidth(testApp.app);
 
-    await window.getByRole("separator", { name: "Resize Session inspector" }).focus();
+    await window.getByRole("separator", { name: "Resize Session dock" }).focus();
     for (let step = 0; step < 12; step += 1) {
       await window.keyboard.press("ArrowLeft");
     }

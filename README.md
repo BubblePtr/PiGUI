@@ -4,13 +4,13 @@ English | [简体中文](README.zh-CN.md)
 
 > The missing GUI for [Pi Agent](https://pi.dev).
 
-Pi has a VS Code-like extension system — but no screen. PiGUI is that screen: a desktop app that turns everything Pi's runtime and plugin ecosystem produces — sessions, traces, costs, tool calls, and eventually plugin panels and dynamic workflows — into a visual, operable interface, layered with abilities a terminal can never offer.
+Pi has a VS Code-like extension system — but no screen. PiGUI is that screen: a desktop app that turns everything Pi's runtime and extension ecosystem produces — sessions, trajectories, costs, tool calls, and eventually extension-provided surfaces and dynamic workflows — into a visual, operable interface, layered with abilities a terminal can never offer.
 
 ## Vision
 
 PiGUI is built as three layers:
 
-1. **Visualize** — give every capability in Pi's ecosystem a face. Session traces — legible timelines with cost and token truth — are the first visualization type, not the product. Plugin-provided panels and dynamic workflow views come next.
+1. **Visualize** — give every capability in Pi's ecosystem a face. Session trajectories — legible timelines with cost and token truth — are the first visualization type, not the product. Extension-provided surfaces and dynamic workflow views come next.
 2. **Operate** — the agent-workspace control plane underneath: create, drive, steer, fork, and resume Pi sessions across projects and git worktrees. Pi remains the only runtime and owns session truth; PiGUI observes and steers it through a stable Runtime Gateway API.
 3. **Augment** — GUI-native abilities the terminal can't host, in the spirit of Codex's desktop app: an embedded browser with a DOM-annotation mode, and structured action surfaces in place of a terminal emulator.
 
@@ -22,7 +22,7 @@ Already today, PiGUI answers in seconds the three questions the terminal hides:
 
 ### Roadmap themes
 
-- **Plugin surfaces** — a protocol for Pi extensions to declare their own visualization panels, routed through the same event pipeline. The `surface` routing in the architecture below is the designed seam; the Extension-UI gateway protocol is a tracked capability gap in [ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md).
+- **Extension surfaces** — a protocol for Pi extensions to register their own surfaces in the Session Dock ([ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md)), routed through the same event pipeline. The `surface` routing in the architecture below is the designed seam; the Extension-UI gateway protocol is a tracked capability gap in [ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md).
 - **Embedded browser annotation** — preview pages and annotate DOM elements to feed precise UI feedback back to Pi. This is the load-bearing reason for the Electron shell ([ADR-0013](docs/adr/0013-electron-shell-and-relocatable-backend.md)).
 - **Dynamic workflow visualization** — when Pi runs multi-step or multi-agent workflows, render them as live, inspectable views instead of interleaved logs.
 
@@ -65,7 +65,7 @@ flowchart LR
 
 - **Pi session jsonl** (`~/.pi`) is *context truth*: on cold resume, Pi rebuilds the LLM context from it itself — PiGUI never assembles LLM context.
 - **Session Event Journal** (`~/.pigui`) is *presentation truth*: the UI timeline, run/turn identity, and control events only come from replaying it.
-- Every event carries a `surface` stamp (`chat | trace | status | composer | hidden`) that routes it to its visualization — today a closed set, and the designed extension point for plugin-declared panels tomorrow.
+- Every event carries a `surface` stamp (`chat | trace | status | composer | hidden`) that routes it to its visualization — today a closed set, and the designed extension point for extension-registered surfaces tomorrow (the `trace` value predates the Trajectory rename and stays as the wire contract).
 
 ### Where things live
 
@@ -93,7 +93,7 @@ What happens when you hit <kbd>Enter</kbd> in the composer:
 5. The SDK driver drives Pi's `AgentSession`; Pi runs the agent loop — `packages/backend/src/drivers/pi-sdk-driver.ts`.
 6. Raw Pi events are normalized into `AgentRuntimeEvent`s (phase, surface, deterministic run/turn/message ids) — `packages/backend/src/gateway/agent-runtime-event-normalizer.ts`.
 7. The Gateway stamps each event into a sequenced envelope, journals lifecycle boundaries, and updates the session projection — `packages/backend/src/persistence/`.
-8. Events stream back over the same transport; the renderer's projection routes them by `surface` into Live Chat bubbles, the trace panel, or hidden state — `apps/desktop/src/entities/runtime/`.
+8. Events stream back over the same transport; the renderer's projection routes them by `surface` into Live Chat bubbles, the trajectory panel, or hidden state — `apps/desktop/src/entities/runtime/`.
 
 The best entry point for understanding (and contributing to) the system is the normalizer's fixture contract tests — they are the executable spec of the event protocol. Adding a new fixture stream is a great first PR.
 

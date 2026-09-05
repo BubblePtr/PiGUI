@@ -21,7 +21,7 @@ PiGUI 左侧按添加时间倒序展示 Project Registry 中所有 Project 的�
 _Avoid_: Single-current-project-only sidebar, global session list, project tree auto-discovery, current-project state, session ownership, project detail navigation, global draft indicator
 
 **Project Registry**:
-PiGUI 持久保存的用户手动添加 Project 列表，是 Project Selector 的唯一来源。它属于 PiGUI 本地 app state，不属于项目 repo、Pi Runtime truth 或 Pi session logs；它跨 app 重启保留，并用规范化后的本地绝对路径作为首版 Project identity，按添加时间倒序呈现，默认显示名取目录 basename，但不从 session logs、历史 cwd 或文件系统扫描自动创建 Project。用户添加已存在路径时，PiGUI 不创建重复 Project，而是选中已有 Project 并进入全局唯一的 Session Draft。用户可以从 registry/sidebar 移除 Project；该动作不删除本地目录，也不删除已有 Session Projection 或 Session Trace。
+PiGUI 持久保存的用户手动添加 Project 列表，是 Project Selector 的唯一来源。它属于 PiGUI 本地 app state，不属于项目 repo、Pi Runtime truth 或 Pi session logs；它跨 app 重启保留，并用规范化后的本地绝对路径作为首版 Project identity，按添加时间倒序呈现，默认显示名取目录 basename，但不从 session logs、历史 cwd 或文件系统扫描自动创建 Project。用户添加已存在路径时，PiGUI 不创建重复 Project，而是选中已有 Project 并进入全局唯一的 Session Draft。用户可以从 registry/sidebar 移除 Project；该动作不删除本地目录，也不删除已有 Session Projection 或 Session Trajectory。
 _Avoid_: Session-derived project list, recent cwd list, auto-discovery cache, display-name identity, project delete, repo config, Pi runtime config, Git-only registry, duplicate project, last-used sorting, project rename
 
 **Project Removal**:
@@ -36,36 +36,36 @@ _Avoid_: Default project, prompt-before-project
 PiGUI 当前正在操作的 Project，决定新建 Session 的默认目标。用户从 composer 入口选择另一个 Project 时，该 Project 也成为 Current Project；全局 Session Draft 的文本保留，Project Sidebar 中的展开状态不改变 Current Project。
 _Avoid_: Composer-only project, selected session project, cwd override, expanded project
 
-**Session Trace**:
+**Session Trajectory**:
 一次 Pi 交互的事后运行记录，展示消息、thinking、工具调用、token 和成本。它属于 Analyze 视角的分析材料，不是 Project 下的交互入口本身。
 _Avoid_: Session, workspace, chat
 
-**Trace Cockpit**:
-Session Trace 的仪表盘式呈现形态：Strip、Tally、Ledger、Inspector 四个面板加 Playhead 游标的组合，对标 DevTools Network 面板的"概览带 + 请求表 + 详情栏"解剖。它是 Analyze 视角下阅读单条 Session Trace 的界面结构，不是 Live Session View。
+**Trajectory Cockpit**:
+Session Trajectory 的仪表盘式呈现形态：Strip、Tally、Ledger、Inspector 四个面板加 Playhead 游标的组合，对标 DevTools Network 面板的"概览带 + 请求表 + 详情栏"解剖。它是 Analyze 视角下阅读单条 Session Trajectory 的界面结构，不是 Live Session View。
 _Avoid_: Live chat, log viewer, dashboard
 
 **Strip**:
-Trace Cockpit 顶部的会话概览带，Input / Model / Tools 三条泳道：色块以"段"为粒度（user 输入、连续的模型输出、连续的工具执行各成一段），按角色点亮各自泳道，错误段变红。悬停显示游标竖线用于精确定位，单击选中该泳道块并跳到对应步骤，拖拽框选连续段作为聚焦选区（视频轨语义：选区外压暗，不过滤，不外扩成整段 Active Run），并投影 Playhead 的当前位置。支持等宽与按时长加权两种列宽；时长模式下工具段与模型段都取自 Pi 记录的真实起止（模型段 = 模型调用开始到消息结束），只有拿不到起止的模型调用才退回按轮次间隔估算，并以斜纹加弱化处理与实测段区分——估算不得伪装成实测。回答"这条 Session 整体长什么样、错误在哪、我在哪"。
+Trajectory Cockpit 顶部的会话概览带，Input / Model / Tools 三条泳道：色块以"段"为粒度（user 输入、连续的模型输出、连续的工具执行各成一段），按角色点亮各自泳道，错误段变红。悬停显示游标竖线用于精确定位，单击选中该泳道块并跳到对应步骤，拖拽框选连续段作为聚焦选区（视频轨语义：选区外压暗，不过滤，不外扩成整段 Active Run），并投影 Playhead 的当前位置。支持等宽与按时长加权两种列宽；时长模式下工具段与模型段都取自 Pi 记录的真实起止（模型段 = 模型调用开始到消息结束），只有拿不到起止的模型调用才退回按轮次间隔估算，并以斜纹加弱化处理与实测段区分——估算不得伪装成实测。回答"这条 Session 整体长什么样、错误在哪、我在哪"。
 _Avoid_: Timeline, minimap, progress bar, per-turn column
 
 **Tally**:
-Trace Cockpit 中的成本与规模汇总行（总成本、总 token、Turn 数）。它承载 cost and token truth 的汇总视图，是只读陈述，不是筛选器。
+Trajectory Cockpit 中的成本与规模汇总行（总成本、总 token、Turn 数）。它承载 cost and token truth 的汇总视图，是只读陈述，不是筛选器。
 _Avoid_: KPI grid, summary card, filter bar
 
 **Ledger**:
-Trace Cockpit 左侧的单行步骤台账：每个事件（tool/think/text/image/config）一行，两级分组——顶层按 Active Run（一次 user 输入及其后续全部 Turn 为一组，编号 Run #N），组内按消息（user 输入 / assistant Turn / 注解）细分并带角色标识。行永不内联展开，展开语义由 Inspector 承担。密度恒定、失败醒目是它的核心承诺。
+Trajectory Cockpit 左侧的单行步骤台账：每个事件（tool/think/text/image/config）一行，两级分组——顶层按 Active Run（一次 user 输入及其后续全部 Turn 为一组，编号 Run #N），组内按消息（user 输入 / assistant Turn / 注解）细分并带角色标识。行永不内联展开，展开语义由 Inspector 承担。密度恒定、失败醒目是它的核心承诺。
 _Avoid_: Chat list, message stream, expandable rows, per-message numbering
 
 **Inspector**:
-Trace Cockpit 右侧的步骤详情栏，按 Summary / Payload / Result / Schema / Timing 分 tab 呈现 Playhead 所指步骤的完整材料。大体量 payload 只在这里展开，不进 Ledger。Schema 显示工具的声明式定义（描述 + 参数 JSON Schema），由 Runtime Gateway 按工具名向运行时解析，不来自 Session Trace 本身；工具未注册或定义已漂移时显示不可用状态。
-_Avoid_: Inline detail, modal, sidebar
+Trajectory Cockpit 右侧的步骤详情栏（只指这一个；Live Session 页右侧的宿主是 Dock，见 ADR-0032），按 Summary / Payload / Result / Schema / Timing 分 tab 呈现 Playhead 所指步骤的完整材料。大体量 payload 只在这里展开，不进 Ledger。Schema 显示工具的声明式定义（描述 + 参数 JSON Schema），由 Runtime Gateway 按工具名向运行时解析，不来自 Session Trajectory 本身；工具未注册或定义已漂移时显示不可用状态。
+_Avoid_: Inline detail, modal, sidebar, Dock, session panel
 
 **Playhead**:
-Trace Cockpit 中当前被检视的步骤位置：Ledger 中的选中行、键盘上下移动的游标，以及 Strip 上的位置投影是同一个概念。它暗示 Session Trace 是可回放的时间序列。
+Trajectory Cockpit 中当前被检视的步骤位置：Ledger 中的选中行、键盘上下移动的游标，以及 Strip 上的位置投影是同一个概念。它暗示 Session Trajectory 是可回放的时间序列。
 _Avoid_: Selection, cursor, focus row
 
 **Session**:
-Project 下的一条 Pi Chat，代表一个已提交、可运行、可恢复、可归档的交互工作单元。实现上，一个 Session 对应一个 Agent Run 及其 Execution Checkout，并持续沉淀 Session Trace。Session 的运行真相属于 Pi Runtime；PiGUI 保存的是用于 UI、索引和生命周期管理的 Session Projection。
+Project 下的一条 Pi Chat，代表一个已提交、可运行、可恢复、可归档的交互工作单元。实现上，一个 Session 对应一个 Agent Run 及其 Execution Checkout，并持续沉淀 Session Trajectory。Session 的运行真相属于 Pi Runtime；PiGUI 保存的是用于 UI、索引和生命周期管理的 Session Projection。
 _Avoid_: Task, workspace, trace-only session, draft prompt
 
 **Session Draft**:
@@ -101,7 +101,7 @@ Session Projection 使用的内部收敛状态集合：`creating`、`running`、
 _Avoid_: Draft, full UI status taxonomy, arbitrary runtime string
 
 **Archived Session**:
-用户从默认工作视图中隐藏的 Session。Archived Session 默认不显示在左侧 Session 列表中，但仍可通过 Analyze 或历史入口找回。归档是 visibility 变化，不删除 Session Projection、Session Trace、checkout snapshot 或审计材料。正在运行的 Session 不能直接归档；必须先 stop/abort 到没有 active run。
+用户从默认工作视图中隐藏的 Session。Archived Session 默认不显示在左侧 Session 列表中，但仍可通过 Analyze 或历史入口找回。归档是 visibility 变化，不删除 Session Projection、Session Trajectory、checkout snapshot 或审计材料。正在运行的 Session 不能直接归档；必须先 stop/abort 到没有 active run。
 _Avoid_: Delete, completed, cleanup
 
 **Unread Result Indicator**:
@@ -113,7 +113,7 @@ Project 下 Session 列表的默认排序：active run 在前，其次是有 Unr
 _Avoid_: Status taxonomy ordering, alphabetical default, draft ordering
 
 **Live Session View**:
-PiGUI 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trace 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Structured Action Surface 的三栏结构，不包含完整 terminal emulator 或文件树。
+PiGUI 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trajectory 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Dock 的三栏结构（首版称 Structured Action Surface）；Dock 里的 Terminal / Browser Surface 已由 ADR-0028 / 0029 解冻，文件树仍不包含。
 _Avoid_: Trace replay, analyze page, log viewer, IDE
 
 **Steer**:
@@ -129,7 +129,7 @@ _Avoid_: Immediate steer, task queue, scheduler
 _Avoid_: Sent message, Live Chat final message, task
 
 **Analyze**:
-Project 中用于复盘和比较历史 Session Trace、用量、成本、工具调用和模型行为的分析视角。它回答“过去发生了什么、贵在哪里、模式是什么”，不负责发起新的 Pi Chat。
+Project 中用于复盘和比较历史 Session Trajectory、用量、成本、工具调用和模型行为的分析视角。它回答“过去发生了什么、贵在哪里、模式是什么”，不负责发起新的 Pi Chat。
 _Avoid_: Session list, chat, control plane
 
 **Control Plane**:
@@ -137,7 +137,7 @@ PiGUI 中负责创建、启动、切换、管理和观察 Agent Workspace 的产
 _Avoid_: Flight recorder, passive observer
 
 **Pi Runtime**:
-PiGUI 唯一支持的 agent runtime，负责模型调用、工具执行、session 状态、配置加载和 Pi 原生扩展能力。PiGUI 不把其他 agent runtime 纳入产品边界。
+PiGUI 唯一支持的 agent runtime，负责模型调用、工具执行、session 状态、配置加载和 Pi 原生扩展能力。PiGUI 不把其他 agent runtime 纳入产品边界。 Pi 自身的扩展层级（Package、Extension、Skill、Prompt、Theme）词义以 Pi 为准，PiGUI 不重述、不扩展；PiGUI 只命名扩展贡献的东西（如 Surface），不为贡献方另造名词（ADR-0032）。
 _Avoid_: Generic agent runtime, ACP agent, provider
 
 **Runtime Gateway**:
@@ -149,7 +149,7 @@ _Avoid_: AI Gateway, Pi SDK API, Pi RPC protocol, renderer bridge
 _Avoid_: Runtime, agent, workspace
 
 **Agent Run**:
-Agent Workspace 中一次可运行、可停止、可观察的 Pi Runtime 实例。一个 workspace 可以同时拥有多个 Agent Run；每个 Agent Run 对应独立进程、session 状态和 Session Trace。它是 runtime 实例语义，不是一次 agent loop 执行；后者叫 Active Run。
+Agent Workspace 中一次可运行、可停止、可观察的 Pi Runtime 实例。一个 workspace 可以同时拥有多个 Agent Run；每个 Agent Run 对应独立进程、session 状态和 Session Trajectory。它是 runtime 实例语义，不是一次 agent loop 执行；后者叫 Active Run。
 _Avoid_: Workspace, model, task label, active run, agent loop run
 
 **Active Run**:
@@ -209,11 +209,27 @@ Runtime Gateway 为每个 Pi session 保存的边界事件日志，只收录归�
 _Avoid_: Pi session file, projection cache, event replay stream, chat history
 
 **Structured Action Surface**:
-PiGUI 首版替代 terminal/file-tree 的结构化操作面，通常位于 Session 页右侧，承载 diff 摘要、checkout 信息、模型/成本摘要、打开外部编辑器、运行预设命令、handoff、commit、push、PR、archive 等明确动作。它不提供任意 shell 交互，也不承担通用文件浏览器职责。
+PiGUI 首版替代 terminal/file-tree 的结构化操作面，通常位于 Session 页右侧，承载 diff 摘要、checkout 信息、模型/成本摘要、打开外部编辑器、运行预设命令、handoff、commit、push、PR、archive 等明确动作。它不提供任意 shell 交互，也不承担通用文件浏览器职责。这是 ADR-0008 时期的职责边界，Terminal 与 Browser 解冻后区域本身由 Dock + Surface 承载（ADR-0032），词条保留作历史定义。
 _Avoid_: Terminal emulator, file explorer, IDE panel
 
+**Dock**:
+Live Session 页右侧宿主的整体：Surface 内容区加贴在右缘的图标 Rail。由工具栏开关开合、可拖宽，关闭时整体消失，窗口边上不留常驻物。它是 Session 级工作面板的停靠区，内置 Surface 与将来由 Pi 扩展注册的 Surface 都停在这里；形态是 ADR-0028 选定的 Rail 式面板，与 ADR-0028 否掉的"Dock 原型"（tab 条 + launcher）无关。
+_Avoid_: Inspector, sidebar, side panel, secondary sidebar, tool window
+
+**Rail**:
+Dock 右缘的 44px 图标列，每格对应一个 Surface，单选切换，可带徽标（如 Changes 文件数、Terminal 实例数）。它是 Dock 的一部分而不是窗口 chrome：Dock 关闭时 Rail 一起消失。
+_Avoid_: Activity bar, tab bar, toolbar
+
+**Surface**:
+Dock 里的一个面板，绑定当前 Session（它的 Execution Checkout、shell、预览页）。每个 Surface 在 Rail 上占一格，有 id、标题、图标、提示；多实例 Surface（如 Terminal）共用一格并在面板表头列出实例。Surface 的来源记在 provider 字段：`builtin` 或 Pi 的 extension id。
+_Avoid_: Panel, tab, view, plugin, widget
+
+**Built-in Surface**:
+PiGUI 自带的 Surface：Changes、Terminal、Browser。它们与将来扩展注册的 Surface 走同一套注册表与 Rail，只是 provider 为 `builtin`。
+_Avoid_: Core panel, native panel, first-party plugin
+
 **Session Projection**:
-PiGUI 自己保存的查询模型，用来支撑 Session 列表、Analyze、状态索引、成本聚合、checkout 生命周期、恢复入口和 UI 快速渲染。它是从 Pi Session State、Session Trace 和 PiGUI checkout 管理事件同步出来的投影，不是 Pi 会话内容的权威来源。
+PiGUI 自己保存的查询模型，用来支撑 Session 列表、Analyze、状态索引、成本聚合、checkout 生命周期、恢复入口和 UI 快速渲染。它是从 Pi Session State、Session Trajectory 和 PiGUI checkout 管理事件同步出来的投影，不是 Pi 会话内容的权威来源。
 _Avoid_: Runtime truth, independent chat state, source of record
 
 **Task**:

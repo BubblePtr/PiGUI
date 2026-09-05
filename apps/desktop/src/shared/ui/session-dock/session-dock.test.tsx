@@ -2,17 +2,17 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
-  SessionInspector,
-  sessionInspectorChatMinWidthPx,
-  sessionInspectorResizableBounds,
-} from "@/shared/ui/session-inspector/session-inspector";
+  SessionDock,
+  sessionDockChatMinWidthPx,
+  sessionDockResizableBounds,
+} from "@/shared/ui/session-dock/session-dock";
 import {
   sessionSurfaceOrder,
   sessionSurfaces,
   type SessionSurfaceId,
-} from "@/shared/ui/session-inspector/surface-registry";
+} from "@/shared/ui/session-dock/surface-registry";
 
-function renderInspector({
+function renderDock({
   activeSurfaceId = "changes" as SessionSurfaceId,
   badges,
   onActiveSurfaceChange = vi.fn(),
@@ -22,29 +22,29 @@ function renderInspector({
   onActiveSurfaceChange?: (surfaceId: SessionSurfaceId) => void;
 } = {}) {
   render(
-    <SessionInspector
+    <SessionDock
       activeSurfaceId={activeSurfaceId}
       badges={badges}
       onActiveSurfaceChange={onActiveSurfaceChange}
     >
       <p>{`${sessionSurfaces[activeSurfaceId].title} surface content`}</p>
-    </SessionInspector>,
+    </SessionDock>,
   );
 
   return { onActiveSurfaceChange };
 }
 
-describe("SessionInspector", () => {
+describe("SessionDock", () => {
   it("names the panel after the active surface and renders its content", () => {
-    renderInspector({ activeSurfaceId: "terminal" });
+    renderDock({ activeSurfaceId: "terminal" });
 
-    const inspector = screen.getByRole("complementary", { name: "Terminal" });
+    const dock = screen.getByRole("complementary", { name: "Terminal" });
 
-    expect(within(inspector).getByText("Terminal surface content")).toBeInTheDocument();
+    expect(within(dock).getByText("Terminal surface content")).toBeInTheDocument();
   });
 
   it("puts every registered surface on the rail", () => {
-    renderInspector();
+    renderDock();
 
     const rail = screen.getByRole("group", { name: "Session surfaces" });
 
@@ -60,7 +60,7 @@ describe("SessionInspector", () => {
 
   it("switches the active surface from the rail", async () => {
     const user = userEvent.setup();
-    const { onActiveSurfaceChange } = renderInspector();
+    const { onActiveSurfaceChange } = renderDock();
 
     await user.click(screen.getByRole("button", { name: "Terminal" }));
 
@@ -71,7 +71,7 @@ describe("SessionInspector", () => {
   // is clicked again; the rail must never end up without an active surface.
   it("keeps the active surface when its own rail icon is clicked again", async () => {
     const user = userEvent.setup();
-    const { onActiveSurfaceChange } = renderInspector();
+    const { onActiveSurfaceChange } = renderDock();
 
     await user.click(
       within(screen.getByRole("group", { name: "Session surfaces" })).getByRole(
@@ -84,15 +84,15 @@ describe("SessionInspector", () => {
   });
 
   it("has no close button of its own: the toolbar toggle owns open/close", () => {
-    renderInspector();
+    renderDock();
 
     expect(
-      screen.queryByRole("button", { name: "Close Session inspector" }),
+      screen.queryByRole("button", { name: "Close Session dock" }),
     ).not.toBeInTheDocument();
   });
 
   it("shows a rail badge only for surfaces that report one", () => {
-    renderInspector({ badges: { changes: "3" } });
+    renderDock({ badges: { changes: "3" } });
 
     const rail = screen.getByRole("group", { name: "Session surfaces" });
 
@@ -102,17 +102,17 @@ describe("SessionInspector", () => {
   it("lets the panel take everything Chat's minimum width does not need", () => {
     // Chat keeps 400px; the panel may have the rest, so a wide window can give
     // the Browser surface far more than the old 58% ceiling allowed.
-    expect(sessionInspectorResizableBounds(1440)).toEqual({
+    expect(sessionDockResizableBounds(1440)).toEqual({
       minSizePx: 340,
       maxSizePx: 1040,
     });
-    expect(sessionInspectorResizableBounds(sessionInspectorChatMinWidthPx + 340)).toEqual({
+    expect(sessionDockResizableBounds(sessionDockChatMinWidthPx + 340)).toEqual({
       minSizePx: 340,
       maxSizePx: 340,
     });
     // Narrower than both minimums together still needs max >= min, or
     // useResizable would clamp against an inverted range.
-    expect(sessionInspectorResizableBounds(500)).toEqual({
+    expect(sessionDockResizableBounds(500)).toEqual({
       minSizePx: 340,
       maxSizePx: 340,
     });

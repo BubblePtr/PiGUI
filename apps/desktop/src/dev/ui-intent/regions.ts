@@ -31,7 +31,7 @@ export const uiRegions: UiRegion[] = [
     match: { components: ["ProjectNavigation"], testIds: ["sidebar-projects"] },
   },
   {
-    term: "Trace Cockpit",
+    term: "Trajectory Cockpit",
     match: { components: ["SessionDetailView"], testIds: ["session-detail-view"] },
   },
   {
@@ -48,10 +48,11 @@ export const uiRegions: UiRegion[] = [
   },
   {
     term: "Inspector",
-    match: {
-      components: ["PiTraceInspector", "SessionInspector"],
-      testIds: ["session-inspector"],
-    },
+    match: { components: ["PiTraceInspector"] },
+  },
+  {
+    term: "Dock",
+    match: { components: ["SessionDock"], testIds: ["session-dock"] },
   },
   {
     term: "Playhead",
@@ -77,7 +78,7 @@ export const uiRegions: UiRegion[] = [
     match: { components: ["ProjectPicker"] },
   },
   {
-    term: "Structured Action Surface",
+    term: "Surface",
     match: { components: ["SessionChangesPanel", "SessionSurfaceContent", "SessionBrowserPanel", "BrowserSurface", "BrowserSurfaceBody", "SessionTerminalPanel", "TerminalView", "SessionDiffViewer"] },
   },
   {

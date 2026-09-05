@@ -89,7 +89,7 @@ export function BrowserSurface({
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
       {hasChrome ? (
-        // A second 40px band under the inspector header, matching the Terminal
+        // A second 40px band under the dock header, matching the Terminal
         // surface's tab strip: 28px controls with 6px either side.
         <div className="flex shrink-0 items-center gap-1 py-1.5">
           <IconButton
@@ -219,7 +219,7 @@ function BrowserSurfaceBody({
       return (
         <EmptyState
           className="h-full justify-center px-4"
-          description="A native browser view cannot sit inside the Sheet fallback, so the browser needs the docked inspector."
+          description="A native browser view cannot sit inside the Sheet fallback, so the browser needs the docked layout."
           icon={<Globe className="size-5 text-muted" />}
           isCompact
           title="Widen the window to use the browser"
