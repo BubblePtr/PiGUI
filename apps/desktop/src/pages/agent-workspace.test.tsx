@@ -228,8 +228,7 @@ function getOpenSelectorListbox() {
 }
 
 /**
- * Below the dock breakpoint both surfaces live in one Sheet, reached through
- * the toolbar toggle and the Sheet's surface switcher.
+ * Every window uses the same panel, reached through its toolbar and rail.
  */
 async function openSessionSurfaceSheet(
   user: ReturnType<typeof userEvent.setup>,
@@ -237,9 +236,9 @@ async function openSessionSurfaceSheet(
 ) {
   await user.click(await screen.findByRole("button", { name: "Session inspector" }));
 
-  const sheet = await screen.findByRole("dialog");
+  const sheet = await screen.findByRole("complementary", { name: "Changes" });
 
-  await user.click(within(sheet).getByRole("radio", { name: surfaceTitle }));
+  await user.click(within(sheet).getByRole("button", { name: surfaceTitle }));
 
   return sheet;
 }
@@ -424,49 +423,29 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     const terminalDialog = await openSessionSurfaceSheet(user, "Terminal");
-    const sheetPanel = document.querySelector('[data-slot="sheet-panel"]');
-
-    // PiSheet renders the right-side panel; slide-in styling lives in
-    // primitives.css, so no per-instance animation suppression is needed.
-    expect(sheetPanel).toBeInTheDocument();
-    expect(terminalDialog).toBe(sheetPanel);
+    expect(terminalDialog).toHaveAttribute("data-testid", "session-inspector");
     expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
     expect(
       within(terminalDialog).getByText("Terminal requires the desktop app."),
     ).toBeInTheDocument();
   });
 
-  it("reaches both surfaces through one Sheet below the docked breakpoint", async () => {
+  it("uses the same inspector panel in narrow windows without a dialog", async () => {
     const user = userEvent.setup();
-
+    setDockedSessionInspectorLayout(false);
     renderProjectSessions();
-
-    const inspectorButton = await screen.findByRole("button", {
-      name: "Session inspector",
-    });
-
-    await user.click(inspectorButton);
-
-    const changesDialog = await screen.findByRole("dialog", { name: "Changes" });
-    const sheetPanel = changesDialog.closest('[data-slot="sheet-panel"]');
-
-    expect(within(changesDialog).getByText("Diff summary")).toBeInTheDocument();
-    // Panel width and rounding come from the shared pi-sheet__panel styles.
-    expect(sheetPanel).toHaveClass("pi-sheet__panel");
+    const toggle = await screen.findByRole("button", { name: "Session inspector" });
+    await user.click(toggle);
+    const panel = await screen.findByRole("complementary", { name: "Changes" });
+    expect(within(panel).getByText("Diff summary")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-workspace-split-view")).toBeInTheDocument();
+    await user.click(within(panel).getByRole("button", { name: "Terminal" }));
+    const terminal = await screen.findByRole("complementary", { name: "Terminal" });
+    expect(within(terminal).getByText("Terminal requires the desktop app.")).toBeInTheDocument();
+    await user.click(toggle);
     expect(screen.queryByTestId("session-inspector")).not.toBeInTheDocument();
-    expect(inspectorButton).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.queryByTestId("session-inspector-trigger-rail-slot"),
-    ).not.toBeInTheDocument();
-
-    await user.click(within(changesDialog).getByRole("radio", { name: "Terminal" }));
-
-    const terminalDialog = await screen.findByRole("dialog", { name: "Terminal" });
-
-    expect(
-      within(terminalDialog).getByText("Terminal requires the desktop app."),
-    ).toBeInTheDocument();
-    expect(within(terminalDialog).queryByText("Diff summary")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("clamps the docked panel when the window no longer has room for it", async () => {
@@ -4453,7 +4432,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     // Abandoned retry partials never render as chat answers.
     expect(screen.queryByText("Partial answer before retry")).not.toBeInTheDocument();
     // The settled burst reads as what it did, with the call itself behind it.
-    expect(screen.getByText("Used AGENTS.md")).toBeInTheDocument();
+    expect(screen.getByText("Read AGENTS.md")).toBeInTheDocument();
     expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
@@ -5386,7 +5365,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     // "the last tool name and a number" would read two calls as one.
     const steps = assistantMessage!.querySelectorAll('[data-slot="chat-tool-step"]');
     expect(steps).toHaveLength(1);
-    expect(steps[0]).toHaveTextContent("Used 2 tools");
+    expect(steps[0]).toHaveTextContent("Read 1 file, ran 1 command");
     expect(steps[0]).toHaveTextContent("1 failed");
 
     // Expanding gives each call its own production row, never the multi-tool
@@ -6813,16 +6792,7 @@ describe("Context usage placement", () => {
 
   it("leaves the Session toolbar to the inspector toggle", () => {
     const { container } = render(
-      <SessionToolbarActions
-        sessionChanges={{
-          changes: null,
-          error: null,
-          loading: false,
-          refresh: () => {},
-          checkoutBranch: async () => {},
-        }}
-        projection={boundProjection()}
-      />,
+      <SessionToolbarActions />,
     );
 
     expect(

@@ -1,9 +1,11 @@
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { GallerySection } from "@/pages/design";
+import { DesignComponentBrowser, type ComponentExample } from "@/pages/design-component-browser";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
-import { PiSheet } from "@/shared/ui/pi-sheet";
 import {
   SessionInspector,
   SessionInspectorTrigger,
@@ -71,10 +73,21 @@ import type { RuntimeModelControls } from "@pigui/core";
 
 function Variant({ caption, children }: { caption: string; children: ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      {children}
-      <span className="text-[10px] text-muted">{caption}</span>
-    </div>
+    <VStack role="group" aria-label={caption} gap={0} style={{
+      minWidth: 0, maxWidth: "100%", flex: "1 1 auto",
+      border: "var(--border-width-1, thin) solid var(--separator)",
+      borderRadius: "var(--radius-container)",
+    }}>
+      <Text type="label" style={{
+        padding: "var(--spacing-3) var(--spacing-4)",
+        background: "var(--surface-muted)",
+        borderRadius: "var(--radius-container) var(--radius-container) 0 0",
+        borderBottom: "var(--border-width-1, thin) solid var(--separator)",
+      }}>{caption}</Text>
+      <VStack padding={4} style={{ minWidth: 0, overflowX: "auto" }}>
+        {children}
+      </VStack>
+    </VStack>
   );
 }
 
@@ -104,12 +117,8 @@ class GalleryErrorBoundary extends Component<
   }
 }
 
-function gallery(name: string, node: ReactNode) {
-  return <GalleryErrorBoundary name={name}>{node}</GalleryErrorBoundary>;
-}
-
 function VariantRow({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-start gap-6">{children}</div>;
+  return <HStack wrap="wrap" gap={4} vAlign="stretch" style={{ minWidth: 0 }}>{children}</HStack>;
 }
 
 function PiKpiGallery() {
@@ -200,56 +209,6 @@ function PiBarChartGallery() {
   );
 }
 
-function PiSheetGallery() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLongOpen, setIsLongOpen] = useState(false);
-
-  return (
-    <GallerySection title="PiSheet">
-      <VariantRow>
-        <Variant caption="right-side sheet with header + close">
-          <Button label="Open sheet" variant="secondary" onClick={() => setIsOpen(true)} />
-          <PiSheet isOpen={isOpen} onOpenChange={setIsOpen}>
-            <PiSheet.Content>
-              <PiSheet.Header>
-                <PiSheet.Heading>Sheet demo</PiSheet.Heading>
-                <PiSheet.CloseTrigger />
-              </PiSheet.Header>
-              <PiSheet.Body>
-                <p className="text-sm text-muted">
-                  Slide-in panel body. Escape and backdrop click close it.
-                </p>
-              </PiSheet.Body>
-            </PiSheet.Content>
-          </PiSheet>
-        </Variant>
-        <Variant caption="long content — body scrolls, header stays">
-          <Button
-            label="Open long sheet"
-            variant="secondary"
-            onClick={() => setIsLongOpen(true)}
-          />
-          <PiSheet isOpen={isLongOpen} onOpenChange={setIsLongOpen}>
-            <PiSheet.Content>
-              <PiSheet.Header>
-                <PiSheet.Heading>Long content</PiSheet.Heading>
-                <PiSheet.CloseTrigger />
-              </PiSheet.Header>
-              <PiSheet.Body>
-                {Array.from({ length: 40 }, (_, index) => (
-                  <p className="text-sm text-muted" key={index}>
-                    Row {index + 1} — enough copy to force the body to scroll while
-                    the header stays pinned.
-                  </p>
-                ))}
-              </PiSheet.Body>
-            </PiSheet.Content>
-          </PiSheet>
-        </Variant>
-      </VariantRow>
-    </GallerySection>
-  );
-}
 
 function SessionInspectorGallery() {
   const [activeSurfaceId, setActiveSurfaceId] =
@@ -977,7 +936,7 @@ function IconsGallery() {
     <GallerySection title="Icons">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
         {Object.entries(Icons)
-          .filter((entry, index, all): entry is [string, (props: { className?: string }) => unknown] => {
+          .filter((entry, index, all) => {
             const [name, Icon] = entry;
             if (typeof Icon !== "function") {
               return false;
@@ -2124,43 +2083,56 @@ function ModelSelectorControlGallery() {
   );
 }
 
-export function DesignComponentsLayer() {
+export const componentExamples: ComponentExample[] = [
+  { name: "PiKpi", category: "Data & metrics", description: "At-a-glance metrics, totals, deltas, and missing values.", Preview: PiKpiGallery },
+  { name: "PiBarChart", category: "Data & metrics", description: "Compare usage across time with single or stacked series.", Preview: PiBarChartGallery },
+  { name: "ChatMessage", category: "Conversation", description: "User and assistant messages with attachments and actions.", Preview: ChatMessageGallery },
+  { name: "ChatConversation", category: "Conversation", description: "Scrollable conversation history with automatic bottom pinning.", Preview: ChatConversationGallery },
+  { name: "ChatMarkdown", category: "Conversation", description: "Rich message content, heading hierarchy, and streaming Markdown.", Preview: ChatMarkdownGallery },
+  { name: "ChatCodeBlock", category: "Conversation", description: "Syntax-highlighted code with copy controls.", Preview: ChatCodeBlockGallery },
+  { name: "ChatThoughtMarkdown", category: "Conversation", description: "Lightweight inline Markdown for reasoning text.", Preview: ChatThoughtMarkdownGallery },
+  { name: "ChatPromptInput", category: "Composer", description: "Message entry across ready, streaming, and error states.", Preview: ChatPromptInputGallery },
+  { name: "ChatPromptSuggestion", category: "Composer", description: "Suggested prompts that help start a conversation.", Preview: ChatPromptSuggestionGallery },
+  { name: "ChatQueuedMessage", category: "Composer", description: "Pending messages waiting to be sent to the runtime.", Preview: ChatQueuedMessageGallery },
+  { name: "ModelSelectorControl", category: "Composer", description: "Choose a model, reasoning level, and fast mode.", Preview: ModelSelectorControlGallery },
+  { name: "ComposerInsertMenu", category: "Composer", description: "Add files, commands, skills, and plugins to a prompt.", Preview: ComposerInsertMenuGallery },
+  { name: "ComposerAttachmentDrawer", category: "Composer", description: "Review image and text attachments in the composer.", Preview: ComposerAttachmentDrawerGallery },
+  { name: "ChatChainOfThought", category: "Reasoning & tools", description: "Run progress with live phases and settled disclosures.", Preview: ChatChainOfThoughtGallery },
+  { name: "ChatChainOfThoughtRail", category: "Reasoning & tools", description: "A reasoning timeline with interleaved thoughts and tool calls.", Preview: ChatChainOfThoughtRailGallery },
+  { name: "ChatThoughtStep", category: "Reasoning & tools", description: "Individual reasoning steps with live and settled states.", Preview: ChatThoughtStepGallery },
+  { name: "ChatToolStep", category: "Reasoning & tools", description: "Tool execution steps, grouped bursts, and failures.", Preview: ChatToolStepGallery },
+  { name: "ChatTool", category: "Reasoning & tools", description: "A tool call from input streaming through success or error.", Preview: ChatToolGallery },
+  { name: "ChatToolGroup", category: "Reasoning & tools", description: "Single and grouped tool calls with compact summaries.", Preview: ChatToolGroupGallery },
+  { name: "ChatStatusLine", category: "Reasoning & tools", description: "Current thinking or acting phase with elapsed time.", Preview: ChatStatusLineGallery },
+  { name: "SessionInspector", category: "Workspace & trace", description: "Switch between changes, terminal, and browser surfaces.", Preview: SessionInspectorGallery },
+  { name: "BrowserSurface", category: "Workspace & trace", description: "Browser chrome, annotations, snapshots, and unavailable states.", Preview: BrowserSurfaceGallery },
+  { name: "TerminalView", category: "Workspace & trace", description: "Interactive terminal display with sample shell output.", Preview: TerminalViewGallery },
+  { name: "PiTraceLedger", category: "Workspace & trace", description: "Run and turn records with execution status and focus.", Preview: PiTraceLedgerGallery },
+  { name: "PiTraceStrip", category: "Workspace & trace", description: "Trace swimlanes with step and duration-based layouts.", Preview: PiTraceStripGallery },
+  { name: "PiTraceInspector", category: "Workspace & trace", description: "Inspect trace summaries, payloads, results, schema, and timing.", Preview: PiTraceInspectorGallery },
+  { name: "ContextUsageMeter", category: "Workspace & trace", description: "Context token budget, warning thresholds, and compaction.", Preview: ContextUsageMeterGallery },
+  { name: "DotMatrix", category: "Visual primitives", description: "Pixel patterns for compact visual indicators.", Preview: DotMatrixGallery },
+  { name: "Icons", category: "Visual primitives", description: "The complete icon set, labeled by its exported name.", Preview: IconsGallery },
+  { name: "ChatToolKindIcon", category: "Visual primitives", description: "Visual identifiers for shell, search, web, file, and edit tools.", Preview: ChatToolKindIconGallery },
+  { name: "ChatPixelLoader", category: "Visual primitives", description: "Animated pixel loading indicator with adjustable speed.", Preview: ChatPixelLoaderGallery },
+  { name: "ChatInlinePager", category: "Visual primitives", description: "Inline status text that flips between pages.", Preview: ChatInlinePagerGallery },
+  { name: "TextShimmer", category: "Visual primitives", description: "Subtle animated text for pending runtime activity.", Preview: TextShimmerGallery },
+];
+
+export function DesignComponentPreview({ entry }: { entry: ComponentExample }) {
   return (
-    <>
-      {gallery("PiKpi", <PiKpiGallery />)}
-      {gallery("PiBarChart", <PiBarChartGallery />)}
-      {gallery("PiSheet", <PiSheetGallery />)}
-      {gallery("SessionInspector", <SessionInspectorGallery />)}
-      {gallery("BrowserSurface", <BrowserSurfaceGallery />)}
-      {gallery("TerminalView", <TerminalViewGallery />)}
-      {gallery("PiTraceLedger", <PiTraceLedgerGallery />)}
-      {gallery("PiTraceStrip", <PiTraceStripGallery />)}
-      {gallery("PiTraceInspector", <PiTraceInspectorGallery />)}
-      {gallery("DotMatrix", <DotMatrixGallery />)}
-      {gallery("Icons", <IconsGallery />)}
-      {gallery("ChatMessage", <ChatMessageGallery />)}
-      {gallery("ChatMarkdown", <ChatMarkdownGallery />)}
-      {gallery("ChatCodeBlock", <ChatCodeBlockGallery />)}
-      {gallery("ChatTool", <ChatToolGallery />)}
-      {gallery("ChatToolGroup", <ChatToolGroupGallery />)}
-      {gallery("ChatPromptInput", <ChatPromptInputGallery />)}
-      {gallery("ChatQueuedMessage", <ChatQueuedMessageGallery />)}
-      {gallery("ChatPromptSuggestion", <ChatPromptSuggestionGallery />)}
-      {gallery("ChatChainOfThought", <ChatChainOfThoughtGallery />)}
-      {gallery("ChatPixelLoader", <ChatPixelLoaderGallery />)}
-      {gallery("ChatInlinePager", <ChatInlinePagerGallery />)}
-      {gallery("ChatThoughtStep", <ChatThoughtStepGallery />)}
-      {gallery("ChatToolKindIcon", <ChatToolKindIconGallery />)}
-      {gallery("ChatToolStep", <ChatToolStepGallery />)}
-      {gallery("ChatStatusLine", <ChatStatusLineGallery />)}
-      {gallery("ChatThoughtMarkdown", <ChatThoughtMarkdownGallery />)}
-      {gallery("ChatChainOfThoughtRail", <ChatChainOfThoughtRailGallery />)}
-      {gallery("ChatConversation", <ChatConversationGallery />)}
-      {gallery("TextShimmer", <TextShimmerGallery />)}
-      {gallery("ContextUsageMeter", <ContextUsageMeterGallery />)}
-      {gallery("ModelSelectorControl", <ModelSelectorControlGallery />)}
-      {gallery("ComposerInsertMenu", <ComposerInsertMenuGallery />)}
-      {gallery("ComposerAttachmentDrawer", <ComposerAttachmentDrawerGallery />)}
-    </>
+    <GalleryErrorBoundary key={entry.name} name={entry.name}>
+      <entry.Preview />
+    </GalleryErrorBoundary>
   );
+}
+
+// Keep error isolation per example, including after switching away and back.
+const catalogEntries = componentExamples.map((entry) => ({
+  ...entry,
+  Preview: () => <DesignComponentPreview entry={entry} />,
+}));
+
+export function DesignComponentsLayer() {
+  return <DesignComponentBrowser entries={catalogEntries} />;
 }

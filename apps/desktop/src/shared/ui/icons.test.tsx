@@ -21,7 +21,7 @@ describe("icons", () => {
   // and Electron transforms. IconsGallery then renders <File />, and React 19
   // throws "Cannot read properties of null (reading 'use')".
   it("does not export File, which collides with the host File constructor", () => {
-    expect(Object.hasOwn(icons, "File")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(icons, "File")).toBe(false);
     expect(icons.FileIcon).not.toBe(globalThis.File);
   });
 

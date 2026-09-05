@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
  *   and moves no node — a MutationObserver never fires. The Popover API's
  *   `toggle` event is the only signal, and since it does not bubble it has to
  *   be caught in the capture phase.
- * - **Base UI overlays** (Dialog, and the Sheet built on it) mount a
+ * - **Base UI overlays** (Dialog) mount a
  *   `[data-base-ui-portal]` subtree on `body` and mark the live popup with
  *   `data-open`. No popover involved, so the MutationObserver is what sees it.
  *   The portal check is what keeps inline `data-open` components — Collapsible

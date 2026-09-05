@@ -43,7 +43,7 @@ async function openSession(
 
   await expect(session).toBeVisible();
   await session.click();
-  await expect(window.getByLabel("Session inspector")).toBeVisible();
+  await expect(window.getByRole("button", { name: "Session inspector", exact: true })).toBeVisible();
 }
 
 test.describe("M1: Real-data-only", () => {
@@ -181,15 +181,10 @@ test.describe("M3: Real diff action surface", () => {
         testApp.project!,
         testApp.projection!,
       );
-      // Default window is now 1280×840 (docked aside). Force narrow width so
-      // the Changes panel renders as a sheet dialog, matching these assertions.
-      await testApp.resizeWindow(640, 780);
-      await testApp.window.getByLabel("Session inspector").click();
-
-      await expect(
-        testApp.window.getByRole("dialog", { name: "Changes" }),
-      ).toBeVisible();
-      await expect(testApp.window.getByTestId("session-inspector")).toHaveCount(0);
+      await testApp.resizeWindow(960, 780);
+      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await expect(testApp.window.getByRole("complementary", { name: "Changes" })).toBeVisible();
+      await expect(testApp.window.getByRole("dialog")).toHaveCount(0);
 
       await expect(testApp.window.getByText("src/app.ts").first()).toBeVisible();
       await expect(
@@ -203,31 +198,24 @@ test.describe("M3: Real diff action surface", () => {
         }),
       ).toBeVisible({ timeout: 15_000 });
 
-      // BrowserWindow now enforces minWidth 960 (S4), so the narrow 100%
-      // sheet breakpoint is unreachable; at 960 the medium sheet renders as
-      // a right-aligned 92vw sheet.
-      const narrowSheetBox = await testApp.window
-        .locator('[data-slot="sheet-panel"]')
-        .boundingBox();
-      const narrowViewport = await testApp.window.evaluate(() => ({
-        height: window.innerHeight,
-        width: window.innerWidth,
-      }));
-
-      expect(narrowSheetBox).not.toBeNull();
-      // Medium sheet is right-aligned: width ≈ 92vw, x ≈ 8vw.
-      expect(narrowSheetBox!.width).toBeGreaterThanOrEqual(
-        narrowViewport.width * 0.9,
-      );
-      expect(narrowSheetBox!.x).toBeGreaterThanOrEqual(
-        narrowViewport.width * 0.06,
-      );
-      expect(narrowSheetBox!.x).toBeLessThanOrEqual(
-        narrowViewport.width * 0.1,
-      );
-      expect(narrowSheetBox!.height).toBeGreaterThanOrEqual(
-        narrowViewport.height - 1,
-      );
+      const panel = testApp.window.getByTestId("session-inspector");
+      const bounds = await panel.boundingBox();
+      const viewport = await testApp.window.evaluate(() => ({width: innerWidth, height: innerHeight}));
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThan(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width + 1);
+      await testApp.window.screenshot({path: "output/playwright/session-inspector-narrow.png"});
+      await panel.getByRole("button", {name: "Terminal", exact: true}).click();
+      await expect(testApp.window.getByRole("complementary", {name: "Terminal"})).toBeVisible();
+      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await expect(panel).toHaveCount(0);
+      await expect(testApp.window.getByRole("dialog")).toHaveCount(0);
+      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
+      await expect(panel).toBeVisible();
+      await testApp.resizeWindow(1440, 900);
+      await expect(panel).toBeVisible();
+      await panel.getByRole("button", {name: "Changes", exact: true}).click();
+      await testApp.window.screenshot({path: "output/playwright/session-inspector-wide.png"});
     } finally {
       await testApp.close();
     }
@@ -243,7 +231,7 @@ test.describe("M3: Real diff action surface", () => {
         testApp.project!,
         testApp.projection!,
       );
-      await testApp.window.getByLabel("Session inspector").click();
+      await testApp.window.getByRole("button", { name: "Session inspector", exact: true }).click();
 
       const changesAside = testApp.window.getByTestId("session-inspector");
 
