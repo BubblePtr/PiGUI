@@ -35,10 +35,25 @@ ADR-0008 把 Live Session 页右侧定义为 Structured Action Surface。ADR-002
 v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR-0007 冻结；插件 surface 协议（#85 / ADR-0018）不受影响。
 
 > **修订（2026-09-03）**：Terminal 已由 PR #147 解冻，Browser 已由 ADR-0029 正式解冻并注册为第三个 surface；File surface 仍受 ADR-0007 冻结。
+>
+> **修订（2026-09-05）**：注册表元数据现为 id、title、icon、hint、`multiInstance`、`flushContent`；hint 只供 rail tooltip，`flushContent` 只控制内容内边距（表头已移除，见下文修订）。
 
 ### 多实例只建模，不实装
 
 未来的 Terminal、Subagent 可能是多实例。现在先把模型记下来，免得回头重做 rail：**rail 保持类型级、每类一个图标，永不随实例膨胀**；实例条放在面板表头，rail 徽标显示 `×N`。注册表保留 `multiInstance` 标志位；在真的出现多实例 surface 之前不上任何实例 UI。
+
+### 表头改为 Surface 第一行（2026-09-05 修订）
+
+上文那条 40px 表头（图标 + 标题 + hint）被移除。真机使用发现它只在重复 rail 已经表达的信息：rail 图标高亮命名了当前 surface，tooltip 里又是同一句 `title — hint`，表头是第三遍。更糟的是每个 surface 都在它下面再长一层自己的第一行——Terminal 的实例 tab 条、Browser 的地址栏、Changes 的 Diff summary 行——面板顶部于是叠着两条 40px 带，上面那条只剩标签。
+
+新规则用一句话统一单实例与多实例：**那条 40px 带就是 Surface 的第一行，放「状态 + 动作」**。
+
+- 带里永远不写 surface 标题和说明。命名由 rail 负责，说明留在 rail tooltip。
+- 多实例 surface 的第一行是实例 tab 条：状态是有哪些实例、哪个在前台，动作是新建与关闭。tab 条由宿主提供的共享组件 `SessionSurfaceTabs` 渲染，Terminal 与 Browser（#185）复用同一个，不各画一套。上文「实例条放在面板表头」的设想以此落地。
+- 单实例 surface 的第一行放自己的状态与动作。Changes 是内置三者中唯一的单实例（一个 checkout 只有一棵 working tree）：左侧文件统计 `N files · +A −D`，右侧刷新，动作位为将来 ADR-0008 时期的 checkout / commit / push 类动作预留。
+- 没有状态也没有动作的 surface 不渲染带，内容直接从顶部开始。不为了填满 40px 写一行字。
+
+排版约束保留：第一行高 40px（`SessionSurfaceBar`），与 Chat 标题同基线；rail 顶格那 40px 仍留给工具栏开关。宿主不再持有表头，`aside` 的可访问名改用 `aria-label`。注册表的 `hint` 只剩 rail tooltip 一个消费者。实施：#184。
 
 ### 所有窗口统一使用面板（2026-09-05 修订）
 
