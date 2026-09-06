@@ -52,7 +52,10 @@ The CONTEXT.md term ↔ code binding table is `apps/desktop/src/dev/ui-intent/re
   gh stack view                 # where am I in the stack
   ```
 
-- After a merge, switch back to `main`, pull, and delete the merged local branch.
+- After a merge, in the primary checkout: switch back to `main`, pull, and delete the merged local branch.
+- **Branch lifetime.** `main` and tagged release branches are the only long-lived branches. The repo has "automatically delete head branches" enabled, so a PR's remote branch disappears on merge; do not recreate or keep stale feature branches locally or on `origin`.
+- **Worktrees never check out `main`.** Git refuses to check out one branch in two worktrees, so a worktree holding `main` locks the primary checkout onto a detached HEAD. Every worktree gets its own `feat/` / `fix/` / `chore/` branch; when it needs current trunk code, `git fetch` and branch from `origin/main`.
+- **Worktree cleanup does no checkout.** After the PR merges, run `git worktree remove <path>` then `git branch -d <branch>`; the "switch to `main` and pull" step belongs to the primary checkout only.
 
 ## Runtime gotchas
 
