@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage, settingsModelsSectionId } from "@/pages/settings";
 import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
 import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { UpdateStatus } from "@/shared/update-protocol";
 
 const providerAuthStatus = {
   agentDir: "/agent",
@@ -73,7 +74,13 @@ const modelControls = {
   },
 };
 
-function renderSettings(path = "/settings") {
+const disabledUpdateStatus: UpdateStatus = {
+  state: "disabled",
+  currentVersion: "0.0.1",
+  reason: "Updates are only available in the packaged desktop app.",
+};
+
+function renderSettings(path = "/settings", updateStatus: UpdateStatus = disabledUpdateStatus) {
   const invoke = vi.fn(async (command: string) => {
     if (command === "list_provider_auth_status" || command === "set_provider_api_key") {
       return providerAuthStatus;
@@ -83,14 +90,24 @@ function renderSettings(path = "/settings") {
       return modelControls;
     }
 
+    if (
+      command === "update:status" ||
+      command === "update:check" ||
+      command === "update:install"
+    ) {
+      return updateStatus;
+    }
+
     throw new Error(`unexpected backend command ${command}`);
   });
 
   window.pigui = {
-    invoke,
+    invoke: invoke as unknown as PiGUIRendererApi["invoke"],
     onBackendEvent: vi.fn(() => vi.fn()),
+    onBrowserEvent: vi.fn(() => vi.fn()),
+    onUpdateEvent: vi.fn(() => vi.fn()),
     onWindowFocusChanged: vi.fn(() => vi.fn()),
-  } as unknown as PiGUIRendererApi;
+  };
 
   const rootRoute = createRootRoute({ component: SettingsPage });
   const router = createRouter({
@@ -220,5 +237,69 @@ describe("Settings — visible models", () => {
     );
 
     scrollIntoView.mockRestore();
+  });
+});
+
+describe("Settings — about and updates", () => {
+  async function findAboutSection() {
+    return screen.findByTestId("settings-about");
+  }
+
+  it("shows the current version and an enabled check button when updates are disabled", async () => {
+    renderSettings();
+
+    const section = await findAboutSection();
+
+    expect(await within(section).findByText(/0\.0\.1/)).toBeInTheDocument();
+    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(
+      within(section).queryByRole("button", { name: "Restart to update" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps restart hidden while an update is available", async () => {
+    renderSettings("/settings", {
+      state: "available",
+      currentVersion: "0.0.1",
+      availableVersion: "0.0.2",
+    });
+
+    const section = await findAboutSection();
+
+    expect(await within(section).findByText(/0\.0\.1/)).toBeInTheDocument();
+    expect(within(section).getByText(/0\.0\.2/)).toBeInTheDocument();
+    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(
+      within(section).queryByRole("button", { name: "Restart to update" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows restart to update only when an update is ready", async () => {
+    renderSettings("/settings", {
+      state: "ready",
+      currentVersion: "0.0.1",
+      availableVersion: "0.0.2",
+    });
+
+    const section = await findAboutSection();
+
+    expect(await within(section).findByRole("button", { name: "Restart to update" })).toBeEnabled();
+    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+  });
+
+  it("surfaces an update error without offering restart", async () => {
+    renderSettings("/settings", {
+      state: "error",
+      currentVersion: "0.0.1",
+      message: "GitHub releases timed out",
+    });
+
+    const section = await findAboutSection();
+
+    expect(await within(section).findByText("GitHub releases timed out")).toBeInTheDocument();
+    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(
+      within(section).queryByRole("button", { name: "Restart to update" }),
+    ).not.toBeInTheDocument();
   });
 });

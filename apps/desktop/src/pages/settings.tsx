@@ -10,7 +10,8 @@ import { AppFrame } from "@/app/app-shell";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
 import { isModelVisible } from "@/shared/ui/model-selector/model-selector-logic";
-import { invoke } from "@/shared/runtime";
+import { invoke, onUpdateEvent } from "@/shared/runtime";
+import type { UpdateStatus } from "@/shared/update-protocol";
 import type {
   ProviderAuthId,
   ProviderAuthStatusItem,
@@ -21,6 +22,7 @@ import type {
 
 export const providerAuthStatusQueryKey = ["provider-auth-status"] as const;
 const availableModelControlsQueryKey = ["available-model-controls"] as const;
+const updateStatusQueryKey = ["update-status"] as const;
 
 /** Link target for the selector's "Add Models" row (issue #102). */
 export const settingsModelsSectionId = "models";
@@ -333,6 +335,98 @@ function ModelVisibilitySection({
   );
 }
 
+function updateStatusText(status: UpdateStatus) {
+  switch (status.state) {
+    case "disabled":
+      return status.reason ?? "Updates are unavailable in this build.";
+    case "idle":
+      return "You're up to date.";
+    case "checking":
+      return "Checking for updates…";
+    case "available":
+      return status.availableVersion
+        ? `Version ${status.availableVersion} is available.`
+        : "An update is available.";
+    case "downloading":
+      return typeof status.progressPercent === "number"
+        ? `Downloading update… ${Math.round(status.progressPercent)}%`
+        : "Downloading update…";
+    case "ready":
+      return status.availableVersion
+        ? `Version ${status.availableVersion} is ready to install.`
+        : "An update is ready to install.";
+    case "error":
+      return status.message ?? "Could not check for updates.";
+  }
+}
+
+function AboutUpdatesSection() {
+  const queryClient = useQueryClient();
+  const statusQuery = useQuery({
+    queryKey: updateStatusQueryKey,
+    queryFn: () => invoke<UpdateStatus>("update:status"),
+  });
+
+  useEffect(() => {
+    return onUpdateEvent((status) => {
+      queryClient.setQueryData(updateStatusQueryKey, status);
+    });
+  }, [queryClient]);
+
+  const checkMutation = useMutation({
+    mutationFn: () => invoke("update:check"),
+  });
+  const installMutation = useMutation({
+    mutationFn: () => invoke("update:install"),
+  });
+
+  const status = statusQuery.data;
+
+  return (
+    <section
+      aria-labelledby="settings-about-heading"
+      className="flex flex-col gap-3"
+      data-testid="settings-about"
+    >
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold text-foreground" id="settings-about-heading">
+          About & Updates
+        </h2>
+        <p className="text-sm text-muted">
+          {status ? `Version ${status.currentVersion}` : "Loading version…"}
+        </p>
+        {status ? (
+          <p
+            className={
+              status.state === "error" ? "text-sm text-danger" : "text-sm text-muted"
+            }
+          >
+            {updateStatusText(status)}
+          </p>
+        ) : null}
+      </div>
+      <Card>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="primary"
+            label="Check for updates"
+            isDisabled={!status || status.state === "checking" || checkMutation.isPending}
+            onClick={() => checkMutation.mutate()}
+          />
+          {status?.state === "ready" ? (
+            <Button
+              variant="primary"
+              label="Restart to update"
+              isDisabled={installMutation.isPending}
+              onClick={() => installMutation.mutate()}
+            />
+          ) : null}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<AuthTab>("subscription");
@@ -487,6 +581,8 @@ export function SettingsPage() {
             models={modelsQuery.data?.models ?? []}
             providerLabels={providerLabels}
           />
+
+          <AboutUpdatesSection />
         </div>
       </main>
     </AppFrame>

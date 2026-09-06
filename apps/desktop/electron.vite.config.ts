@@ -107,7 +107,7 @@ export default defineConfig({
       __PIGUI_PI_VERSION__: JSON.stringify(piPackage.version),
     },
     plugins: [
-      externalizeDepsPlugin({ exclude: internalPackages }),
+      externalizeDepsPlugin({ exclude: [...internalPackages, "electron-updater"] }),
       copyMainRuntimeAssets(),
     ],
     build: mainBuild as any,

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { BackendRpcEvent } from "@pigui/backend";
 import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
+import { updateEventChannel, type UpdateStatus } from "@/shared/update-protocol";
 
 const api: PiGUIRendererApi = {
   invoke(command, args) {
@@ -27,6 +28,17 @@ const api: PiGUIRendererApi = {
     ipcRenderer.on(browserEventChannel, handler);
     return () => {
       ipcRenderer.removeListener(browserEventChannel, handler);
+    };
+  },
+
+  onUpdateEvent(listener: (event: UpdateStatus) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, event: UpdateStatus) => {
+      listener(event);
+    };
+
+    ipcRenderer.on(updateEventChannel, handler);
+    return () => {
+      ipcRenderer.removeListener(updateEventChannel, handler);
     };
   },
 

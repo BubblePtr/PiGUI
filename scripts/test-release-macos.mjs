@@ -22,6 +22,7 @@ test("a matching stable tag produces the exact ARM64 release artifact name", () 
     version: "0.0.1",
     prerelease: false,
     artifact: "PiGUI-0.0.1-arm64.dmg",
+    zipArtifact: "PiGUI-0.0.1-arm64.zip",
   });
 });
 
@@ -35,6 +36,7 @@ test("prerelease tags retain their full version and are marked as prereleases", 
     version: "1.2.3-rc.1",
     prerelease: true,
     artifact: "PiGUI-1.2.3-rc.1-arm64.dmg",
+    zipArtifact: "PiGUI-1.2.3-rc.1-arm64.zip",
   });
 });
 
@@ -44,6 +46,7 @@ test("SemVer build metadata is retained without changing prerelease status", () 
       version,
       prerelease,
       artifact: `PiGUI-${version}-arm64.dmg`,
+      zipArtifact: `PiGUI-${version}-arm64.zip`,
     });
   }
 });

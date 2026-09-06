@@ -1,6 +1,7 @@
 import browserSessionSummaries from "@/fixtures/browser-session-summaries.json";
 import type { BackendRpcEvent } from "@pigui/backend";
 import type { BrowserEvent } from "@/shared/browser-protocol";
+import type { UpdateStatus } from "@/shared/update-protocol";
 import type { SessionDetail } from "@/pages/session-detail";
 import type { SessionSummary } from "@/entities/session/sessions";
 
@@ -15,6 +16,7 @@ export type PiGUIRendererApi = {
   onBackendEvent(listener: (event: BackendRpcEvent) => void): () => void;
   /** Embedded browser view events; main-process only, never the backend. */
   onBrowserEvent(listener: (event: BrowserEvent) => void): () => void;
+  onUpdateEvent(listener: (event: UpdateStatus) => void): () => void;
   onWindowFocusChanged(listener: () => void): () => void;
 };
 
@@ -119,6 +121,14 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
 
 function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T> {
   switch (command) {
+    case "update:status":
+    case "update:check":
+    case "update:install":
+      return Promise.resolve({
+        state: "disabled",
+        currentVersion: "development",
+        reason: "Updates are only available in the packaged desktop app.",
+      } as T);
     case "select_project_directory": {
       if (typeof window === "undefined") {
         return Promise.resolve(null as T);
@@ -332,4 +342,12 @@ export function onBrowserEvent(listener: (event: BrowserEvent) => void) {
   }
 
   return window.pigui!.onBrowserEvent(listener);
+}
+
+export function onUpdateEvent(listener: (event: UpdateStatus) => void) {
+  if (!isElectronRuntime()) {
+    return () => {};
+  }
+
+  return window.pigui!.onUpdateEvent(listener);
 }

@@ -29,7 +29,12 @@ export function validateRelease({ tag, rootVersion, appVersion, platform, arch, 
   const missing = requiredSecrets.filter(name => !secrets[name]?.trim());
   if (missing.length) throw new Error(`Missing release secrets: ${missing.join(", ")}.`);
 
-  return { version, prerelease: Boolean(match[4]), artifact: `PiGUI-${version}-arm64.dmg` };
+  return {
+    version,
+    prerelease: Boolean(match[4]),
+    artifact: `PiGUI-${version}-arm64.dmg`,
+    zipArtifact: `PiGUI-${version}-arm64.zip`,
+  };
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

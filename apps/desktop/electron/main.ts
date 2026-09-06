@@ -15,8 +15,10 @@ import {
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { autoUpdater } from "electron-updater";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
 import { browserEventChannel, type BrowserEvent, type BrowserTabTarget } from "@/shared/browser-protocol";
+import { updateEventChannel } from "@/shared/update-protocol";
 import {
   acceptBrowserAnnotationMessage,
   browserAnnotationChannel,
@@ -34,6 +36,7 @@ import {
   isBrowserCommand,
   type BrowserHost,
 } from "./browser-host";
+import { createAppUpdater, type AppUpdater, type AutoUpdaterLike } from "./updater";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -42,6 +45,7 @@ type PendingRequest = {
 
 let mainWindow: BrowserWindow | null = null;
 let browserHost: BrowserHost | null = null;
+let appUpdater: AppUpdater | null = null;
 /**
  * Bind trusted webContents to their tab; embedded pages cannot choose identity.
  */
@@ -653,6 +657,18 @@ ipcMain.handle(
       return revealProjectInFinder(input.args);
     }
 
+    if (input.command === "update:status") {
+      return appUpdater?.getStatus();
+    }
+
+    if (input.command === "update:check") {
+      return appUpdater?.check();
+    }
+
+    if (input.command === "update:install") {
+      return appUpdater?.install();
+    }
+
     if (isBrowserCommand(input.command)) {
       return getBrowserHost().invoke(input.command, input.args);
     }
@@ -674,7 +690,20 @@ if (developmentUserDataPath) {
 app.whenReady().then(() => {
   applyDevelopmentDockIcon();
   startBackendBridge();
+  appUpdater = createAppUpdater({
+    // electron-updater's typed `on` only accepts its event map; the updater
+    // seam takes a stringly EventEmitter-shaped client so tests can inject one.
+    autoUpdater: autoUpdater as AutoUpdaterLike,
+    isPackaged: app.isPackaged,
+    currentVersion: app.getVersion(),
+  });
+  appUpdater.subscribe((status) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(updateEventChannel, status);
+    }
+  });
   createMainWindow();
+  appUpdater.start();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
