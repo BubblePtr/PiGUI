@@ -28,11 +28,21 @@ asarUnpack:
 
 artifactName: ${productName}-${version}-${arch}.${ext}
 
+# Generates latest-mac.yml / app-update.yml for electron-updater.
+# CI and local scripts still pass --publish never; uploads stay in publish-release.sh.
+publish:
+  provider: github
+  owner: BubblePtr
+  repo: PiGUI
+
 mac:
   icon: build/icon.icns
   category: public.app-category.developer-tools
   target:
     - target: dmg
+      arch:
+        - arm64
+    - target: zip
       arch:
         - arm64
   hardenedRuntime: true

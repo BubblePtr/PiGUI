@@ -22,6 +22,7 @@ describe("renderer runtime bridge", () => {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -34,6 +35,7 @@ describe("renderer runtime bridge", () => {
       invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -48,6 +50,7 @@ describe("renderer runtime bridge", () => {
       invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -60,6 +63,15 @@ describe("renderer runtime bridge", () => {
 
   it("treats Reveal in Finder as a no-op outside Electron", async () => {
     await expect(revealProjectInFinder("/Users/void/code/opensource/Pig")).resolves.toBeUndefined();
+  });
+
+  it("returns a disabled update status outside Electron", async () => {
+    const status = await invoke<{ state: string; reason?: string }>("update:status");
+
+    expect(status.state).toBe("disabled");
+    expect(status.reason).toEqual(expect.any(String));
+    await expect(invoke("update:check")).resolves.toEqual(status);
+    await expect(invoke("update:install")).resolves.toEqual(status);
   });
 
   it("returns browser development data outside Electron", async () => {
@@ -115,6 +127,7 @@ describe("renderer runtime bridge", () => {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: onWindowFocusChangedPreload,
     };
 
@@ -137,6 +150,7 @@ describe("renderer runtime bridge", () => {
         )) as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 
@@ -153,6 +167,7 @@ describe("renderer runtime bridge", () => {
         )) as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 

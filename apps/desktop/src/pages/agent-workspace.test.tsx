@@ -673,6 +673,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -750,6 +751,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -790,6 +792,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -841,6 +844,7 @@ describe("AgentWorkspaceSessionsPage", () => {
         return vi.fn();
       }),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -937,6 +941,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -983,6 +988,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -1048,6 +1054,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 
@@ -3389,6 +3396,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
     saveLastModelSelection({
@@ -3460,6 +3468,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
     saveLastModelSelection({

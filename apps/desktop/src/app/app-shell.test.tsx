@@ -223,6 +223,7 @@ describe("AppFrame", () => {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
+      onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -658,6 +659,7 @@ describe("AppFrame", () => {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
+      onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -683,6 +685,7 @@ describe("AppFrame", () => {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
+      onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -721,6 +724,7 @@ describe("AppFrame", () => {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
+      onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 
@@ -749,6 +753,7 @@ describe("AppFrame", () => {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
+      onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
     };
 

@@ -8,15 +8,26 @@ import test from "node:test";
 
 const publishScript = fileURLToPath(new URL("./publish-release.sh", import.meta.url));
 
-function runPublish(t, { existing = null, fail = "", prerelease = false } = {}) {
+const releaseAssets = (version) => {
+  const artifact = `PiGUI-${version}-arm64.dmg`;
+  const zipArtifact = `PiGUI-${version}-arm64.zip`;
+  return {
+    artifact,
+    zipArtifact,
+    files: [artifact, zipArtifact, `${zipArtifact}.blockmap`, "latest-mac.yml", "SHA256SUMS.txt"],
+  };
+};
+
+function runPublish(t, { existing = null, fail = "", prerelease = false, omit = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pigui-release-test-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   mkdirSync(join(dir, "bin"));
   mkdirSync(join(dir, "dist"));
   const version = prerelease ? "0.0.1-rc.1" : "0.0.1";
-  const artifact = `PiGUI-${version}-arm64.dmg`;
-  writeFileSync(join(dir, "dist", artifact), "verified-test-artifact");
-  writeFileSync(join(dir, "dist", "SHA256SUMS.txt"), "verified-test-checksum");
+  const { artifact, files } = releaseAssets(version);
+  for (const file of files) {
+    if (file !== omit) writeFileSync(join(dir, "dist", file), `verified-test-${file}`);
+  }
   const callsFile = join(dir, "calls.jsonl");
   writeFileSync(join(dir, "bin", "gh"), `#!${process.execPath}
 const fs = require('node:fs');
@@ -52,16 +63,21 @@ if (operation === 'api') {
   const calls = existsSync(callsFile)
     ? readFileSync(callsFile, "utf8").trim().split("\n").map(line => JSON.parse(line))
     : [];
-  return { result, calls, artifact };
+  return { result, calls, artifact, files };
 }
 
-test("a stable release is published only after both verified assets reach its draft", t => {
-  const { result, calls, artifact } = runPublish(t);
+function assertUploadedAssets(args, files) {
+  for (const file of files) {
+    assert.ok(args.includes(`dist/${file}`), `missing dist/${file} in ${args.join(" ")}`);
+  }
+}
+
+test("a stable release is published only after every required asset reaches its draft", t => {
+  const { result, calls, files } = runPublish(t);
   assert.equal(result.status, 0, result.stderr);
   const create = calls.find(args => args[1] === "create");
   assert.ok(create.includes("--draft"));
-  assert.ok(create.includes(`dist/${artifact}`));
-  assert.ok(create.includes("dist/SHA256SUMS.txt"));
+  assertUploadedAssets(create, files);
   const edit = calls.find(args => args[1] === "edit");
   assert.ok(edit.includes("--draft=false"));
   assert.ok(edit.includes("--prerelease=false"));
@@ -78,10 +94,12 @@ test("a prerelease is published without becoming the latest stable release", t =
 });
 
 test("an existing draft keeps its notes while its assets are updated and published", t => {
-  const { result, calls } = runPublish(t, { existing: true });
+  const { result, calls, files } = runPublish(t, { existing: true });
   assert.equal(result.status, 0, result.stderr);
   assert.ok(!calls.some(args => args[1] === "create"));
-  assert.ok(calls.some(args => args[1] === "upload" && args.includes("--clobber")));
+  const upload = calls.find(args => args[1] === "upload");
+  assert.ok(upload.includes("--clobber"));
+  assertUploadedAssets(upload, files);
   const edit = calls.find(args => args[1] === "edit");
   assert.ok(edit.includes("--draft=false"));
   assert.ok(!edit.some(arg => arg.startsWith("--notes")));
@@ -106,4 +124,12 @@ test("API failures cannot be mistaken for a missing release", t => {
   assert.notEqual(result.status, 0);
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "api");
+});
+
+test("missing any required asset exits before the release is published", t => {
+  for (const omit of releaseAssets("0.0.1").files) {
+    const { result, calls } = runPublish(t, { omit });
+    assert.notEqual(result.status, 0, `expected a failure when ${omit} is missing`);
+    assert.ok(!calls.some(args => args[0] === "release"), `gh release ran despite missing ${omit}`);
+  }
 });

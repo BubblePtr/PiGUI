@@ -83,6 +83,7 @@ function setupTerminalBridge(
       };
     },
     onBrowserEvent: () => () => {},
+    onUpdateEvent: () => () => {},
     onWindowFocusChanged: () => () => {},
   };
 

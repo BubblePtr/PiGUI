@@ -25,6 +25,7 @@ describe("session queries", () => {
       invoke: invoke as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
     };
 

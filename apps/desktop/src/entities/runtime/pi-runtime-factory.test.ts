@@ -57,6 +57,7 @@ describe("default Pi runtime bridge factory", () => {
       invoke,
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
     };
 

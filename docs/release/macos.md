@@ -7,7 +7,7 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 仓库提供两条流程，只构建 macOS ARM64 产物：
 
 - [Validate macOS ARM64 (manual)](../../.github/workflows/ci.yml)：仅在 Actions 中手动运行，用于按需验证未签名应用，不会由普通 PR、分支推送或合并自动触发。冻结安装依赖，运行发布预检与发布行为测试和完整单元测试，再执行类型检查、构建、内置运行时冒烟、未签名 `.app` 打包与完整 packaged-app E2E。不需要 Apple 凭据。
-- [Release macOS ARM64](../../.github/workflows/release-macos.yml)：推送 `v*` tag 时执行，也可以手动指定一个**已存在的 tag**重跑。校验版本与凭据后，执行测试、构建、原生依赖复制、签名、公证，挂载 DMG 后检查架构、签名、staple 和 Gatekeeper，并从镜像里的 App 运行完整 E2E。全部成功后上传 DMG 和 `SHA256SUMS.txt`，自动公开发布带发布说明的 GitHub Release。
+- [Release macOS ARM64](../../.github/workflows/release-macos.yml)：推送 `v*` tag 时执行，也可以手动指定一个**已存在的 tag**重跑。校验版本与凭据后，执行测试、构建、原生依赖复制、签名、公证，挂载 DMG 后检查架构、签名、staple 和 Gatekeeper，并从镜像里的 App 运行完整 E2E。构建命令带 `--publish never`：`electron-builder.yml` 里的 GitHub `publish` 只用来生成 `latest-mac.yml`，真正的上传仍由 `scripts/publish-release.sh` 完成。全部成功后上传五个资产（DMG、zip、zip 的 `.blockmap`、`latest-mac.yml`、覆盖 DMG 与 zip 的 `SHA256SUMS.txt`），草稿上传完毕后自动公开发布带发布说明的 GitHub Release。缺任一资产都不会公开。
 
 构建机器固定为 `macos-15`（GitHub 标准 ARM64 runner），并在运行时确认 `darwin/arm64`。`stage:node-pty` 根据宿主平台选择原生模块，因此不能换成 Intel runner 后仅传 `--arm64`。Node 使用 24，Bun 固定为 1.3.12；升级 Bun 时同步修改两条 workflow。Release 上传 job 使用 Ubuntu，仅传输已验证的文件，不构建 Linux 产物。
 
@@ -60,7 +60,11 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
    git push origin v0.0.1
    ```
 
-4. 在 Actions 中等待 `Release macOS ARM64` 完成。流程先在草稿中上传附件，确认上传成功后自动公开发布，无需手动点击 Publish。正式版本标记为 Latest，预发布版本不替换 Latest。
+4. 在 Actions 中等待 `Release macOS ARM64` 完成。流程先在草稿中上传五个资产，确认上传成功后自动公开发布，无需手动点击 Publish。正式版本标记为 Latest，预发布版本不替换 Latest。
+
+`electron-updater` 在 macOS 上消费 zip 与 `latest-mac.yml`（其中的 sha512 是完整性校验依据，必须原样上传，不要改写）。DMG 仍给首次安装用。`SHA256SUMS.txt` 只覆盖 DMG 与 zip，不含 blockmap / yml。
+
+首个带 updater 的版本是分水岭：更早装上的版本没有检查更新的能力，必须手动下载一次新 DMG。从该版本起，后续升级可以在设置页的 **About & Updates** 里完成。预发布只推给当前本身就是预发布的安装；正式版用户只收到正式版。
 
 预发布版本可使用 `0.1.0-rc.1` / `v0.1.0-rc.1`，生成的 Release 会标记为 prerelease。支持 SemVer 构建元数据，例如 `0.0.1+build.001`；标签和两处 `package.json` 必须保留完全相同的版本字符串。数字型预发布标识不允许前导零，构建元数据中的数字不受此限制。
 
@@ -157,6 +161,7 @@ xcrun stapler staple dist/mac-arm64/PiGUI.app
   --prepackaged dist/mac-arm64/PiGUI.app \
   --mac dmg \
   --arm64 \
+  --publish never \
   -c.mac.notarize=false
 ```
 
@@ -173,4 +178,4 @@ hdiutil verify dist/PiGUI-*-arm64.dmg
 bun run test:e2e:packaged:mac
 ```
 
-最终产物位于 `dist/PiGUI-<version>-arm64.dmg`。只有签名、公证、staple、Gatekeeper 和 packaged-app E2E 全部通过后，DMG 才可发布。
+本地 `bun run dist:mac` 的产物仍是 `dist/PiGUI-<version>-arm64.dmg`。发版流水线额外构建 zip，并上传 zip、`${zip}.blockmap`、`latest-mac.yml` 与覆盖 DMG/zip 的 `SHA256SUMS.txt`。只有签名、公证、staple、Gatekeeper 和 packaged-app E2E 全部通过后，才可发布。
