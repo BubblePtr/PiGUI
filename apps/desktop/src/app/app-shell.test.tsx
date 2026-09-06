@@ -18,6 +18,7 @@ import {
 import { addProjectToRegistry, getProjectRegistry } from "@/entities/project/project-registry";
 import { saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
+import { resetUpdateStatusStore } from "@/entities/update/use-update-status";
 import type { PiGUIRendererApi } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 
@@ -50,6 +51,7 @@ function mockUpdateBridge(initial: UpdateStatus) {
       };
     },
     onWindowFocusChanged: () => () => {},
+    onNavigateRequest: () => () => {},
   };
 
   return {
@@ -212,6 +214,7 @@ describe("AppFrame", () => {
   beforeEach(() => {
     window.localStorage.clear();
     delete window.pigui;
+    resetUpdateStatusStore();
   });
 
   it("renders Empty Workspace State when the Project Registry is empty", async () => {
@@ -258,6 +261,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions", { seedProjects: false });
@@ -694,6 +698,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -720,6 +725,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -759,6 +765,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -788,6 +795,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -1555,10 +1563,9 @@ describe("AppFrame", () => {
 
     renderAppFrame("/");
 
-    const badge = await screen.findByLabelText("Update ready");
-    const settingsRow = screen.getByTestId("sidebar-system");
+    const settingsRow = await screen.findByRole("button", { name: /Settings/ });
+    const badge = within(settingsRow).getByLabelText("Update ready");
 
-    expect(within(settingsRow).getByLabelText("Update ready")).toBe(badge);
     expect(badge).toHaveAttribute("role", "img");
     expect(badge).toHaveClass("size-2", "rounded-full", "bg-primary");
   });
@@ -1570,11 +1577,11 @@ describe("AppFrame", () => {
 
       renderAppFrame("/");
 
-      expect(await screen.findByText("Main content")).toBeInTheDocument();
+      const settingsRow = await screen.findByRole("button", { name: /Settings/ });
       await waitFor(() => {
         expect(window.pigui!.invoke).toHaveBeenCalledWith("update:status", undefined);
       });
-      expect(screen.queryByLabelText("Update ready")).not.toBeInTheDocument();
+      expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
     },
   );
 
@@ -1583,11 +1590,11 @@ describe("AppFrame", () => {
 
     renderAppFrame("/");
 
-    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const settingsRow = await screen.findByRole("button", { name: /Settings/ });
     await waitFor(() => {
       expect(window.pigui!.invoke).toHaveBeenCalledWith("update:status", undefined);
     });
-    expect(screen.queryByLabelText("Update ready")).not.toBeInTheDocument();
+    expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
 
     act(() => {
       bridge.emit({
@@ -1597,13 +1604,13 @@ describe("AppFrame", () => {
       });
     });
 
-    expect(screen.getByLabelText("Update ready")).toBeInTheDocument();
+    expect(within(settingsRow).getByLabelText("Update ready")).toBeInTheDocument();
 
     act(() => {
       bridge.emit({ state: "idle", currentVersion: "0.0.2" });
     });
 
-    expect(screen.queryByLabelText("Update ready")).not.toBeInTheDocument();
+    expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
   });
 
   it("keeps the Settings update badge while the Settings route is open", async () => {
@@ -1615,6 +1622,8 @@ describe("AppFrame", () => {
 
     renderAppFrame("/settings");
 
-    expect(await screen.findByLabelText("Update ready")).toBeInTheDocument();
+    const settingsRow = await screen.findByRole("button", { name: /Settings/ });
+
+    expect(within(settingsRow).getByLabelText("Update ready")).toBeInTheDocument();
   });
 });

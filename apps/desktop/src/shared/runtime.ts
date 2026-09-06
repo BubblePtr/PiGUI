@@ -1,6 +1,7 @@
 import browserSessionSummaries from "@/fixtures/browser-session-summaries.json";
 import type { BackendRpcEvent } from "@pigui/backend";
 import type { BrowserEvent } from "@/shared/browser-protocol";
+import type { NavigateRequest } from "@/shared/navigate-protocol";
 import type { UpdateStatus } from "@/shared/update-protocol";
 import type { SessionDetail } from "@/pages/session-detail";
 import type { SessionSummary } from "@/entities/session/sessions";
@@ -18,6 +19,7 @@ export type PiGUIRendererApi = {
   onBrowserEvent(listener: (event: BrowserEvent) => void): () => void;
   onUpdateEvent(listener: (event: UpdateStatus) => void): () => void;
   onWindowFocusChanged(listener: () => void): () => void;
+  onNavigateRequest(listener: (request: NavigateRequest) => void): () => void;
 };
 
 type InvokeArgs = Record<string, unknown>;
@@ -350,4 +352,12 @@ export function onUpdateEvent(listener: (event: UpdateStatus) => void) {
   }
 
   return window.pigui!.onUpdateEvent(listener);
+}
+
+export function onNavigateRequest(listener: (request: NavigateRequest) => void) {
+  if (!isElectronRuntime()) {
+    return () => {};
+  }
+
+  return window.pigui!.onNavigateRequest(listener);
 }

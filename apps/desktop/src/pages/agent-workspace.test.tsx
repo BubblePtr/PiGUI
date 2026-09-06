@@ -675,6 +675,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     renderProjectSessions();
@@ -753,6 +754,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     const { container } = renderProjectSessions();
@@ -794,6 +796,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     renderProjectSessions();
@@ -846,6 +849,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     renderProjectSessions();
@@ -943,6 +947,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     renderProjectSessions();
@@ -990,6 +995,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     renderProjectSessions();
@@ -1056,6 +1062,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     renderProjectSessions();
@@ -3398,6 +3405,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
     saveLastModelSelection({
       provider: "openai-codex",
@@ -3470,6 +3478,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
     saveLastModelSelection({
       provider: "openai-codex",

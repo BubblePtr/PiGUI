@@ -4,6 +4,7 @@ import type { SessionSummary } from "@/entities/session/sessions";
 import {
   invoke,
   isElectronRuntime,
+  onNavigateRequest,
   onWindowFocusChanged,
   revealProjectInFinder,
   type PiGUIRendererApi,
@@ -24,6 +25,7 @@ describe("renderer runtime bridge", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: vi.fn(),
     };
 
     expect(isElectronRuntime()).toBe(true);
@@ -37,6 +39,7 @@ describe("renderer runtime bridge", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: vi.fn(),
     };
 
     await expect(invoke("list_sessions")).resolves.toBe("electron:list_sessions");
@@ -52,6 +55,7 @@ describe("renderer runtime bridge", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: vi.fn(),
     };
 
     await revealProjectInFinder("/Users/void/code/opensource/Pig");
@@ -129,6 +133,7 @@ describe("renderer runtime bridge", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: onWindowFocusChangedPreload,
+      onNavigateRequest: vi.fn(),
     };
 
     const result = await onWindowFocusChanged(refetch);
@@ -152,6 +157,7 @@ describe("renderer runtime bridge", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: vi.fn(),
     };
 
     await expect(invoke("browser_navigate")).rejects.toThrowError(
@@ -169,10 +175,43 @@ describe("renderer runtime bridge", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: vi.fn(),
     };
 
     await expect(invoke("list_sessions")).rejects.toThrowError(
       new Error("PiGUI backend utility process is not connected."),
     );
+  });
+
+  it("treats navigate requests as a no-op outside Electron", () => {
+    const listener = vi.fn();
+
+    const unsubscribe = onNavigateRequest(listener);
+    unsubscribe();
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("delegates navigate requests to preload inside Electron", () => {
+    const listener = vi.fn();
+    const unlisten = vi.fn();
+    const onNavigateRequestPreload = vi.fn((handler: (request: { to: string }) => void) => {
+      handler({ to: "/settings" });
+      return unlisten;
+    });
+    window.pigui = {
+      invoke: vi.fn(),
+      onBackendEvent: vi.fn(),
+      onBrowserEvent: vi.fn(),
+      onUpdateEvent: vi.fn(),
+      onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: onNavigateRequestPreload,
+    };
+
+    const result = onNavigateRequest(listener);
+    result();
+
+    expect(listener).toHaveBeenCalledWith({ to: "/settings" });
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 });

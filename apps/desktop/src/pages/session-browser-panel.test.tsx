@@ -101,6 +101,7 @@ function installPreload(
     }) as PiGUIRendererApi["invoke"],
     onBackendEvent: () => () => {},
     onWindowFocusChanged: () => () => {},
+    onNavigateRequest: () => () => {},
     onUpdateEvent: () => () => {},
     onBrowserEvent: (listener) => {
       listeners.add(listener);

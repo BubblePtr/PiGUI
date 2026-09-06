@@ -38,6 +38,7 @@ import {
   type BrowserHost,
 } from "./browser-host";
 import { installAppMenu } from "./app-menu";
+import { navigateAppWindow } from "./app-navigation";
 import { createAppUpdater, type AppUpdater, type AutoUpdaterLike } from "./updater";
 
 type PendingRequest = {
@@ -164,6 +165,18 @@ function createMainWindow() {
   } else {
     void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
+
+  return mainWindow;
+}
+
+function navigateToSettings() {
+  navigateAppWindow(
+    {
+      getWindow: () => mainWindow,
+      createWindow: createMainWindow,
+    },
+    { to: "/settings" },
+  );
 }
 
 function createBackendBridge() {
@@ -712,9 +725,7 @@ app.whenReady().then(() => {
   installAppMenu({
     updater: appUpdater,
     menu: Menu,
-    navigateToSettings: () => {
-      void mainWindow?.webContents.executeJavaScript('location.hash = "#/settings"');
-    },
+    navigateToSettings,
   });
   createMainWindow();
   appUpdater.start();

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { UpdateStatus } from "@/shared/update-protocol";
-import { buildAppMenuTemplate } from "./app-menu";
+import { buildAppMenuTemplate, installAppMenu } from "./app-menu";
 
 type MenuNode = {
   label?: string;
@@ -91,3 +91,47 @@ describe("buildAppMenuTemplate", () => {
     expect(findLabeledItem(template, "Check for Updates…")).toBeUndefined();
   });
 });
+
+describe("installAppMenu", () => {
+  function createFakeMenu() {
+    const built = { role: "built-menu" };
+    return {
+      built,
+      buildFromTemplate: vi.fn((_template: unknown) => built),
+      setApplicationMenu: vi.fn(),
+    };
+  }
+
+  it("builds and sets the application menu on darwin", () => {
+    const menu = createFakeMenu();
+
+    installAppMenu({
+      platform: "darwin",
+      updater: createFakeUpdater("idle"),
+      navigateToSettings: vi.fn(),
+      menu,
+    });
+
+    expect(menu.buildFromTemplate).toHaveBeenCalledOnce();
+    expect(menu.setApplicationMenu).toHaveBeenCalledOnce();
+    expect(menu.setApplicationMenu).toHaveBeenCalledWith(menu.built);
+    expect(
+      findLabeledItem(menu.buildFromTemplate.mock.calls[0][0] as MenuNode[], "Check for Updates…"),
+    ).toEqual(expect.objectContaining({ label: "Check for Updates…", enabled: true }));
+  });
+
+  it("does not touch Menu off darwin", () => {
+    const menu = createFakeMenu();
+
+    installAppMenu({
+      platform: "linux",
+      updater: createFakeUpdater("idle"),
+      navigateToSettings: vi.fn(),
+      menu,
+    });
+
+    expect(menu.buildFromTemplate).not.toHaveBeenCalled();
+    expect(menu.setApplicationMenu).not.toHaveBeenCalled();
+  });
+});
+

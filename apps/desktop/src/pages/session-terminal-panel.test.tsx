@@ -85,6 +85,7 @@ function setupTerminalBridge(
     onBrowserEvent: () => () => {},
     onUpdateEvent: () => () => {},
     onWindowFocusChanged: () => () => {},
+    onNavigateRequest: () => () => {},
   };
 
   return {

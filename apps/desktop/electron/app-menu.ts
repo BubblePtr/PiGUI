@@ -1,4 +1,4 @@
-import type { Menu, MenuItemConstructorOptions } from "electron";
+import type { MenuItemConstructorOptions } from "electron";
 import type { AppUpdater } from "./updater";
 
 type AppMenuTemplateDependencies = {
@@ -6,8 +6,14 @@ type AppMenuTemplateDependencies = {
   navigateToSettings: () => void;
 };
 
-type AppMenuDependencies = AppMenuTemplateDependencies & {
-  menu: Pick<typeof Menu, "buildFromTemplate" | "setApplicationMenu">;
+type AppMenuApi<TMenu> = {
+  buildFromTemplate: (template: MenuItemConstructorOptions[]) => TMenu;
+  setApplicationMenu: (menu: TMenu) => void;
+};
+
+type AppMenuDependencies<TMenu> = AppMenuTemplateDependencies & {
+  menu: AppMenuApi<TMenu>;
+  platform?: NodeJS.Platform;
 };
 
 /**
@@ -53,18 +59,16 @@ export function buildAppMenuTemplate({
   ];
 }
 
-export function installAppMenu(options: AppMenuDependencies) {
-  if (process.platform !== "darwin") {
+export function installAppMenu<TMenu>(options: AppMenuDependencies<TMenu>) {
+  const { menu, platform = process.platform, ...templateOptions } = options;
+  const template = buildAppMenuTemplate({
+    ...templateOptions,
+    platform,
+  });
+
+  if (template.length === 0) {
     return;
   }
 
-  const { menu, ...templateOptions } = options;
-  menu.setApplicationMenu(
-    menu.buildFromTemplate(
-      buildAppMenuTemplate({
-        ...templateOptions,
-        platform: "darwin",
-      }),
-    ),
-  );
+  menu.setApplicationMenu(menu.buildFromTemplate(template));
 }

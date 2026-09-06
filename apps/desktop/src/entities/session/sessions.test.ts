@@ -27,6 +27,7 @@ describe("session queries", () => {
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
       onWindowFocusChanged: vi.fn(),
+      onNavigateRequest: vi.fn(),
     };
 
     await expect(listSessionProjections()).resolves.toEqual([

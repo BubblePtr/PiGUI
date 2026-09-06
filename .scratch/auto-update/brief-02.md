@@ -40,9 +40,11 @@ GitHub Issue #199（`gh issue view 199`）——目标、要做的事与验收�
 ### Hook
 
 - 路径：`apps/desktop/src/entities/update/use-update-status.ts`。
-- 用 `useState` + `useEffect` 调 `invoke("update:status")` 并 `onUpdateEvent` 订阅，对齐 `use-provider-auth-status.ts`。**不要用 react-query**：`AppFrame` 被大量页面测试挂载且没有 `QueryClientProvider`，`useQuery` 会把它们全部打爆。
-- 「同一状态源」= Settings 的 `AboutUpdatesSection` 删掉本地 `useQuery`/`setQueryData` 订阅，改为调这个 hook。check/install mutation 留在 section 里。
-- 无 `window.pigui` 时走现有 `invoke` / `onUpdateEvent` 的 browser fallback（disabled），现有 `app-shell` 测试才不会因缺 mock 而挂。
+- 模块级 snapshot：一次 `invoke("update:status")` + 一次 `onUpdateEvent` 订阅；hook 用 `useSyncExternalStore`。两个消费者读同一引用。组件卸载不拆订阅（切页 AppFrame 重挂时不闪、设置页不反复 Loading version…）。
+- 导出 `resetUpdateStatusStore()` 给测试：清 snapshot、停订阅、允许下次重新 start。`app-shell.test.tsx` 与 `settings.test.tsx` 的 `beforeEach` 必须调用。
+- **不要用 react-query**：`AppFrame` 被大量页面测试挂载且没有 `QueryClientProvider`。
+- 「同一状态源」= Settings 的 `AboutUpdatesSection` 调这个 hook。check/install mutation 留在 section 里。
+- 无 `window.pigui` 时走现有 `invoke` / `onUpdateEvent` 的 browser fallback（disabled）。
 
 ### 侧栏徽标
 
@@ -54,18 +56,8 @@ GitHub Issue #199（`gh issue view 199`）——目标、要做的事与验收�
 
 ### 菜单
 
-- 可测缝：导出纯函数 `buildAppMenuTemplate`（不 import `electron`），测试只打它。`installAppMenu({ updater, navigateToSettings })` 才 `Menu.buildFromTemplate` / `setApplicationMenu`。
-- 非 darwin：`installAppMenu` 直接 return，不碰默认菜单。darwin：保留 `appMenu`/`fileMenu`/`editMenu`/`viewMenu`/`windowMenu` 等 role；在应用菜单 About 之后插入 `Check for Updates…`（Unicode 省略号）。
+- 可测缝：导出纯函数 `buildAppMenuTemplate`（不 import `electron`）。`installAppMenu` 把 `process.platform` 传进 `buildAppMenuTemplate`；template 长度为 0 则 return，不调用 `setApplicationMenu`。禁止再写 `platform: "darwin"`。
+- darwin：保留 `appMenu`/`fileMenu`/`editMenu`/`viewMenu`/`windowMenu` 等 role；在应用菜单 About 之后插入 `Check for Updates…`（Unicode 省略号）。
 - `enabled: updater.getStatus().state !== "disabled"`。点击：`updater.check()` 然后 `navigateToSettings()`。
-- `main.ts`：`appUpdater` 创建后 `installAppMenu({ updater: appUpdater, navigateToSettings })`。导航用 hash router（Electron 下是 `createHashHistory`）：对主窗口 `webContents.executeJavaScript` 设 `location.hash = "#/settings"`。不要新 IPC，不要改 preload。
-
-### 测试
-
-- `app-shell.test.tsx`：`ready` 有徽标；`idle` / `available` / `disabled` 没有；`onUpdateEvent` 推送后切换；在 `/settings` 且 `ready` 时徽标仍在。mock `window.pigui` 的 `invoke("update:status")` + `onUpdateEvent`。`renderAppFrame` 不必包 QueryClient。
-- `app-menu.test.ts`：darwin 模板含该项且 click 调 `check`；disabled 时 `enabled: false`；非 darwin 不含该项。
-- `settings.test.tsx` 不回归。
-- 验证：`bun run test` 与 `bun run typecheck`（仓库根）。不要跑 e2e / packaging。
-
-### 文档
-
-- `docs/release/macos.md` About & Updates 那句补「侧栏徽标与应用菜单」。中文。
+- 关窗后菜单导航：抽出 `apps/desktop/electron/app-navigation.ts`。无窗口（`getWindow()` 为 null / destroyed）则 `createWindow()`，有窗口则 `show()` + `focus()`；再 `webContents.send(navigateRequestChannel, { to: "/settings" })`。主框架仍在加载则等到 `did-finish-load`。`main.ts` 的 `navigateToSettings` 只装配 helper；`activate` 仍按现有逻辑补窗。
+- 通道常量 `pigui:navigate`（`navigateRequestChannel`，preload / main / runtime 共用，payload `{ to: string }`）。`PiGUIRendererApi.onNavigateRequest`；Electron 走 preload，非 Electron fallback 为 no-op unsubscribe。`main.tsx` 在 router 创建后订阅并 `router.navigate({ to })`。

@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage, settingsModelsSectionId } from "@/pages/settings";
 import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
+import { resetUpdateStatusStore } from "@/entities/update/use-update-status";
 import type { PiGUIRendererApi } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 
@@ -107,6 +108,7 @@ function renderSettings(path = "/settings", updateStatus: UpdateStatus = disable
     onBrowserEvent: vi.fn(() => vi.fn()),
     onUpdateEvent: vi.fn(() => vi.fn()),
     onWindowFocusChanged: vi.fn(() => vi.fn()),
+    onNavigateRequest: vi.fn(() => vi.fn()),
   };
 
   const rootRoute = createRootRoute({ component: SettingsPage });
@@ -129,6 +131,10 @@ function renderSettings(path = "/settings", updateStatus: UpdateStatus = disable
 async function findModelsSection() {
   return screen.findByRole("region", { name: "Models" });
 }
+
+beforeEach(() => {
+  resetUpdateStatusStore();
+});
 
 describe("Settings — visible models", () => {
   beforeEach(() => {
