@@ -116,6 +116,8 @@ function createMainWindow() {
     height: 840,
     minWidth: 960,
     minHeight: 720,
+    // Headless macOS runners can expose displays smaller than the E2E viewport.
+    enableLargerThanScreen: process.env.PIGUI_E2E === "1",
     title: "PiGUI",
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 13 },
