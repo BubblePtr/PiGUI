@@ -500,32 +500,47 @@ function BrowserSurfaceGallery() {
             />
           </div>
         </Variant>
-        <Variant caption="empty — no URL remembered for this Project yet">
-          <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[]}
-              activeTabId={null}
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
-              address=""
-              annotationCount={0}
-              canGoBack={false}
-              canGoForward={false}
-              designMode={false}
-              state={{ kind: "empty" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
-            />
-          </div>
-        </Variant>
+        {[
+          { caption: "empty — explicit action before creating or restoring tabs" },
+          { caption: "initializing — only checking for existing tabs", isInitializing: true },
+          { caption: "opening — creation is pending, duplicate clicks are disabled", isOpening: true },
+          { caption: "creation failed — stay empty and offer another attempt", notice: "The browser could not be opened." },
+          { caption: "blank tab — created explicitly, ready for an address", hasTab: true },
+        ].map(({ caption, hasTab, ...status }) => (
+          <Variant caption={caption} key={caption}>
+            <VStack
+              style={{
+                height: "calc(var(--spacing-10) * 6)",
+                width: "calc(var(--spacing-10) * 12)",
+                overflow: "hidden",
+              }}
+            >
+              <BrowserSurface
+                {...status}
+                tabs={hasTab ? [{ id: "blank", label: "Browser 1" }] : []}
+                activeTabId={hasTab ? "blank" : null}
+                onActivateTab={() => {}}
+                onAddTab={() => {}}
+                onCloseTab={() => {}}
+                address=""
+                annotationCount={0}
+                canGoBack={false}
+                canGoForward={false}
+                designMode={false}
+                state={{ kind: "empty" }}
+                onAddressChange={() => {}}
+                onAddressSubmit={() => {}}
+                onBack={() => {}}
+                onClearAnnotations={() => {}}
+                onDesignModeChange={() => {}}
+                onForward={() => {}}
+                onOpenExternal={() => {}}
+                onReload={() => {}}
+                onSendToComposer={() => {}}
+              />
+            </VStack>
+          </Variant>
+        ))}
         <Variant caption="error — our own state, never Chromium's error page">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
             <BrowserSurface

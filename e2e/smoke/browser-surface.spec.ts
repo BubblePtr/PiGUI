@@ -139,7 +139,11 @@ async function openBrowserSurface(testApp: PiGUITestApplication) {
   await expect(aside).toBeVisible();
   await aside.getByRole("button", { name: "Browser" }).click();
 
-  // No URL remembered for this Project yet.
+  // Opening the dock must not create even a blank tab.
+  await expect(aside.getByText("No browser tabs open")).toBeVisible();
+  await expect(aside.getByRole("tab")).toHaveCount(0);
+  await expect(aside.getByRole("textbox", { name: "Address" })).toHaveCount(0);
+  await aside.getByRole("button", { name: "Open browser" }).click();
   await expect(aside.getByText("No page loaded")).toBeVisible();
 
   return aside;
@@ -506,7 +510,10 @@ test("Browser tabs isolate views and marks, restore the Project group, and close
     await expect.poll(() => readBrowserViews(app)).toHaveLength(1);
     await aside.getByRole("button", { name: "Close Browser 1" }).click();
     await expect(aside.getByRole("tab")).toHaveCount(0);
-    await expect(aside.getByText("No page loaded")).toBeVisible();
+    await expect(aside.getByText("No browser tabs open")).toBeVisible();
+    await aside.getByRole("button", { name: "Changes", exact: true }).click();
+    await aside.getByRole("button", { name: "Browser", exact: true }).click();
+    await expect(aside.getByText("No browser tabs open")).toBeVisible();
     await expect.poll(() => readBrowserViews(app)).toHaveLength(0);
     await expect(
       aside.getByRole("button", { name: "Browser", exact: true }),

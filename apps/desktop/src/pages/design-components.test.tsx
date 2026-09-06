@@ -262,7 +262,10 @@ describe("Design components layer", () => {
     const counts = strips.map((strip) => within(strip).queryAllByRole("tab").length);
     expect(counts).toContain(2);
     expect(counts).toContain(1);
-    expect(counts).toContain(0);
+    expect(within(section).getAllByText("No browser tabs open")).toHaveLength(3);
+    const openButtons = within(section).getAllByRole("button", { name: "Open browser" });
+    expect(openButtons.some((button) => button.hasAttribute("disabled"))).toBe(true);
+    expect(openButtons.some((button) => !button.hasAttribute("disabled"))).toBe(true);
     expect(within(section).getAllByRole("textbox", { name: "Address" }).some((input) => input.getAttribute("aria-busy") === "true")).toBe(true);
   });
 
@@ -292,7 +295,7 @@ describe("Design components layer", () => {
     expect(send.some((button) => !button.hasAttribute("disabled"))).toBe(true);
     expect(send.some((button) => button.hasAttribute("disabled"))).toBe(true);
     // And what a send leaves behind when it could not do all of it.
-    expect(within(section).getByTestId("browser-surface-notice")).toBeInTheDocument();
+    expect(within(section).getAllByTestId("browser-surface-notice")).toHaveLength(2);
   });
 
   it("registers the ContextUsageMeter in every level it can reach", () => {

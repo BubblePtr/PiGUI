@@ -44,6 +44,8 @@ function installPreload(
     activateGate?: Promise<void>;
     annotationGate?: Promise<void>;
     failCapture?: boolean;
+    openGate?: Promise<void>;
+    failOpen?: boolean;
   } = {},
 ) {
   const invocations: Array<{
@@ -80,6 +82,10 @@ function installPreload(
   window.pigui = {
     invoke: (async (command, args) => {
       invocations.push({ command, args });
+      if (command === "browser_open") {
+        await options.openGate;
+        if (options.failOpen) throw new Error("Browser could not start");
+      }
       if (command === "browser_capture") {
         await options.captureGate;
         return "data:image/png;base64,SNAP";
@@ -123,6 +129,9 @@ function mount() {
   return render(<SessionBrowserPanel docked projectId="p" sessionId="s" />);
 }
 async function restored() {
+  await waitFor(() => expect(screen.queryByText("Loading browser…")).not.toBeInTheDocument());
+  const open = screen.queryByRole("button", { name: "Open browser" });
+  if (open) await userEvent.click(open);
   await screen.findByDisplayValue("http://localhost:3000/");
 }
 
@@ -133,18 +142,30 @@ describe("SessionBrowserPanel multi-instance", () => {
     vi.restoreAllMocks();
   });
 
-  it("migrates a Project URL and restores its tab group and active item on a new Session", async () => {
+  it("restores saved Project tabs only after an explicit action, including on a new Session", async () => {
     const preload = installPreload();
+    const user = userEvent.setup();
     rememberProjectBrowserTabs("p", {
       tabs: ["http://localhost:3000/", "http://localhost:4000/"],
       activeIndex: 1,
     });
     const view = mount();
+    await screen.findByText("No browser tabs open");
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(screen.queryByRole("textbox", { name: "Address" })).not.toBeInTheDocument();
+    expect(await preload.target()).toBeUndefined();
+    expect(getProjectBrowserTabs("p").tabs).toHaveLength(2);
+    expect(preload.invocations).toEqual([{ command: "browser_attach", args: { sessionId: "s" } }]);
+
+    await user.click(screen.getByRole("button", { name: "Open browser" }));
     await screen.findByDisplayValue("http://localhost:4000/");
     expect(screen.getAllByRole("tab")).toHaveLength(2);
     view.rerender(
       <SessionBrowserPanel docked projectId="p" sessionId="next" />,
     );
+    await screen.findByText("No browser tabs open");
+    expect(await preload.target(0, "next")).toBeUndefined();
+    await user.click(screen.getByRole("button", { name: "Open browser" }));
     await waitFor(() =>
       expect(preload.invocations).toContainEqual(
         expect.objectContaining({
@@ -158,9 +179,48 @@ describe("SessionBrowserPanel multi-instance", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not restore saved tabs across repeated empty mounts", async () => {
+    const preload = installPreload();
+    rememberProjectBrowserUrl("p", "http://localhost:3000/");
+    const first = mount();
+    await screen.findByText("No browser tabs open");
+    first.unmount();
+    mount();
+    await screen.findByText("No browser tabs open");
+    expect(await preload.target()).toBeUndefined();
+    expect(getProjectBrowserTabs("p").tabs).toEqual(["http://localhost:3000/"]);
+    expect(preload.invocations.filter((item) => item.command === "browser_attach")).toEqual([
+      { command: "browser_attach", args: { sessionId: "s" } },
+      { command: "browser_attach", args: { sessionId: "s" } },
+    ]);
+  });
+
+  it("prevents duplicate creates while pending and allows retry after failure", async () => {
+    let release = () => {};
+    const options = {
+      openGate: new Promise<void>((resolve) => { release = resolve; }),
+      failOpen: true,
+    };
+    const preload = installPreload(options);
+    const user = userEvent.setup();
+    mount();
+    const open = await screen.findByRole("button", { name: "Open browser" });
+    await user.click(open);
+    expect(open).toBeDisabled();
+    await user.click(open);
+    expect(preload.invocations.filter((item) => item.command === "browser_open")).toHaveLength(1);
+    await act(async () => release());
+    expect(await screen.findByText("Browser could not start")).toBeInTheDocument();
+    expect(open).toBeEnabled();
+    options.failOpen = false;
+    await user.click(open);
+    expect(await screen.findByRole("tab", { name: "Browser 1" })).toBeInTheDocument();
+    expect(screen.queryByText("Browser could not start")).not.toBeInTheDocument();
+  });
+
   it("opens two pages, switches their drafts independently, reports counts and closes to empty", async () => {
     const user = userEvent.setup();
-    installPreload();
+    const preload = installPreload();
     const count = vi.fn();
     render(
       <SessionBrowserPanel
@@ -170,6 +230,7 @@ describe("SessionBrowserPanel multi-instance", () => {
         onInstancesChange={count}
       />,
     );
+    await user.click(await screen.findByRole("button", { name: "Open browser" }));
     await user.type(
       screen.getByRole("textbox", { name: "Address" }),
       "localhost:3000{Enter}",
@@ -197,8 +258,9 @@ describe("SessionBrowserPanel multi-instance", () => {
     expect(count.mock.lastCall?.[0]).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Close Browser 2" }));
     await user.click(screen.getByRole("button", { name: "Close Browser 1" }));
-    expect(screen.getByText("No page loaded")).toBeInTheDocument();
+    expect(screen.getByText("No browser tabs open")).toBeInTheDocument();
     expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(preload.invocations.filter((item) => item.command === "browser_open")).toHaveLength(2);
     expect(getProjectBrowserTabs("p")).toEqual({ tabs: [], activeIndex: -1 });
     expect(count.mock.lastCall?.[0]).toHaveLength(0);
   });
@@ -310,7 +372,7 @@ describe("SessionBrowserPanel multi-instance", () => {
     view.rerender(
       <SessionBrowserPanel docked projectId="q" sessionId="next" />,
     );
-    await screen.findByText("No page loaded");
+    await screen.findByText("No browser tabs open");
     act(() => {
       preload.host.tab(first).recordLoadFailure("OLD ERROR");
       preload.host.notify(first);

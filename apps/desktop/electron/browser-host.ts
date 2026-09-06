@@ -727,7 +727,8 @@ export function createBrowserHost(deps: BrowserHostDependencies) {
     const sessionId = readSessionId(args);
     switch (command) {
       case "browser_attach": {
-        if (!sessions.has(sessionId)) {
+        // An empty attached group may be restored later by an explicit user action.
+        if (!sessions.get(sessionId)?.tabs.size) {
           const urls = Array.isArray(args?.tabs)
             ? args.tabs.filter((url): url is string => typeof url === "string")
             : [];

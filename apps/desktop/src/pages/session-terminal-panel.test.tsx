@@ -115,14 +115,21 @@ describe("SessionTerminalPanel", () => {
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
-  it("auto-opens one shell when the Session has none", async () => {
+  it("waits for an explicit action before opening the first shell", async () => {
     const bridge = setupTerminalBridge();
     const onInstancesChange = vi.fn();
+    const user = userEvent.setup();
 
     render(
       <SessionTerminalPanel sessionId="session-1" onInstancesChange={onInstancesChange} />,
     );
 
+    expect(await screen.findByText("No terminals open")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.map(([command]) => command)).toEqual(["list_terminals"]);
+    expect(onInstancesChange).toHaveBeenLastCalledWith([]);
+
+    await user.click(screen.getByRole("button", { name: "New terminal" }));
     const strip = await screen.findByRole("tablist", { name: "Terminal instances" });
 
     expect(await within(strip).findByRole("tab", { name: "Terminal 1" })).toHaveAttribute(
@@ -139,6 +146,41 @@ describe("SessionTerminalPanel", () => {
         expect.objectContaining({ terminalId: "term-new-1" }),
       ]);
     });
+  });
+
+  it("does not create shells across repeated mounts or Session switches", async () => {
+    const bridge = setupTerminalBridge();
+    const view = render(<SessionTerminalPanel sessionId="session-1" />);
+    await screen.findByText("No terminals open");
+    view.rerender(<SessionTerminalPanel sessionId="session-2" />);
+    await screen.findByText("No terminals open");
+    view.unmount();
+    render(<SessionTerminalPanel sessionId="session-1" />);
+    await screen.findByText("No terminals open");
+    expect(bridge.invoke.mock.calls.map(([command]) => command)).toEqual([
+      "list_terminals", "list_terminals", "list_terminals",
+    ]);
+  });
+
+  it("prevents duplicate creates while pending and allows retry after failure", async () => {
+    const bridge = setupTerminalBridge();
+    const user = userEvent.setup();
+    render(<SessionTerminalPanel sessionId="session-1" />);
+    await screen.findByText("No terminals open");
+    let reject = (_reason: Error) => {};
+    bridge.invoke.mockImplementationOnce(() => new Promise((_, rejectPromise) => {
+      reject = rejectPromise;
+    }));
+    const create = screen.getByRole("button", { name: "New terminal" });
+    await user.click(create);
+    expect(create).toBeDisabled();
+    await user.click(create);
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "open_terminal")).toHaveLength(1);
+    await act(async () => reject(new Error("Shell could not start")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Shell could not start");
+    expect(create).toBeEnabled();
+    await user.click(create);
+    expect(await screen.findByRole("tab", { name: "Terminal 1" })).toBeInTheDocument();
   });
 
   // ADR-0028 (2026-09-05): the strip is the surface's first row, on Chat's
@@ -204,7 +246,7 @@ describe("SessionTerminalPanel", () => {
     });
   });
 
-  it("closes a tab, activates the neighbor, and respawns when the last one closes", async () => {
+  it("closes a tab, keeps the active neighbor, and returns to empty after the last close", async () => {
     const bridge = setupTerminalBridge([runningTerminal("term-a"), runningTerminal("term-b")]);
     const user = userEvent.setup();
 
@@ -223,17 +265,13 @@ describe("SessionTerminalPanel", () => {
       "true",
     );
 
-    // Closing the last tab starts a fresh shell rather than leaving a dead panel.
+    // Closing the last tab must not silently replace the shell.
     await user.click(within(strip).getByRole("button", { name: "Close Terminal 1" }));
 
     expect(bridge.invoke).toHaveBeenCalledWith("close_terminal", { terminalId: "term-a" });
-    expect(
-      await within(strip).findByRole("tab", { name: "Terminal 1" }),
-    ).toHaveAttribute("aria-selected", "true");
-    expect(bridge.invoke).toHaveBeenCalledWith(
-      "open_terminal",
-      expect.objectContaining({ sessionId: "session-1" }),
-    );
+    expect(await screen.findByText("No terminals open")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.some(([command]) => command === "open_terminal")).toBe(false);
   });
 
   it("mutes an instance's tab when its process exits", async () => {

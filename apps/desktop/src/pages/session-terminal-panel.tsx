@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@astryxdesign/core/Button";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Stack } from "@astryxdesign/core/Stack";
 import {
   attachTerminal,
   closeTerminal,
@@ -135,23 +138,27 @@ function ActiveTerminal({
   );
 }
 
-export function SessionTerminalPanel({
-  sessionId,
-  onInstancesChange,
-}: {
+type Props = {
   sessionId: string;
   onInstancesChange?: (instances: TerminalInstanceInfo[]) => void;
-}) {
+};
+
+export function SessionTerminalPanel(props: Props) {
+  return <TerminalSessionContent key={props.sessionId} {...props} />;
+}
+
+function TerminalSessionContent({ sessionId, onInstancesChange }: Props) {
   const [instances, setInstances] = useState<TerminalInstanceInfo[] | null>(null);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+  const openingRef = useRef(false);
   // Reused for every new shell so it starts at the viewport's current
   // geometry instead of a guess that immediately resizes.
   const lastSizeRef = useRef(defaultTerminalSize);
 
-  // Attach the Session's existing instances; a Session with none gets one
-  // shell created so the desktop panel is never a dead end.
+  // Opening the surface only lists existing shells; creation needs an explicit action.
   useEffect(() => {
     if (!isElectronRuntime()) {
       setUnavailable(true);
@@ -167,10 +174,7 @@ export function SessionTerminalPanel({
 
     void (async () => {
       try {
-        let list = await listTerminals(sessionId);
-        if (list.length === 0) {
-          list = [await openTerminal({ sessionId, ...lastSizeRef.current })];
-        }
+        const list = await listTerminals(sessionId);
         if (cancelled) {
           return;
         }
@@ -216,6 +220,9 @@ export function SessionTerminalPanel({
   }, [instances, onInstancesChange]);
 
   const openNewTerminal = async () => {
+    if (openingRef.current) return;
+    openingRef.current = true;
+    setIsOpening(true);
     setActionError(null);
 
     try {
@@ -226,6 +233,9 @@ export function SessionTerminalPanel({
       setActionError(
         error instanceof Error ? error.message : "A new terminal could not be opened.",
       );
+    } finally {
+      openingRef.current = false;
+      setIsOpening(false);
     }
   };
 
@@ -247,11 +257,6 @@ export function SessionTerminalPanel({
         error instanceof Error ? error.message : "The terminal could not be closed.",
       );
     }
-
-    // Closing the last tab starts a fresh shell; the panel never sits empty.
-    if (next.length === 0) {
-      await openNewTerminal();
-    }
   };
 
   if (unavailable) {
@@ -264,7 +269,33 @@ export function SessionTerminalPanel({
   }
 
   if (instances === null) {
-    return <p className="pt-3 text-sm text-muted">Opening a shell…</p>;
+    return (
+      <p className="pt-3 text-sm text-muted" role="status">Loading terminals…</p>
+    );
+  }
+
+  if (instances.length === 0) {
+    return (
+      <Stack height="100%" justify="center" padding={4}>
+        <EmptyState
+          title="No terminals open"
+          description="Create a terminal to run commands in this session’s working directory."
+          icon={<Terminal className="size-5 text-muted" />}
+          isCompact
+          actions={
+            <Button
+              label="New terminal"
+              size="sm"
+              isLoading={isOpening}
+              onClick={() => void openNewTerminal()}
+            />
+          }
+        />
+        {actionError ? (
+          <p className="text-xs text-danger" role="alert">{actionError}</p>
+        ) : null}
+      </Stack>
+    );
   }
 
   const activeInstance =
