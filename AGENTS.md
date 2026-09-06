@@ -56,4 +56,5 @@ The CONTEXT.md term ↔ code binding table is `apps/desktop/src/dev/ui-intent/re
 
 ## Runtime gotchas
 
+- **`bun run dev` writes to `~/.pigui-dev`, not `~/.pigui`.** The unpackaged app defaults its backend data directory to a sibling so a dev instance never mixes with the installed app's real sessions; set `PIGUI_DATA_DIR` to override. Details: `docs/dogfooding.md`.
 - **Never exercise the terminal pty driver (`packages/backend/src/drivers/terminal.ts`) under the Bun runtime** (`bun script.ts`, `bun -e`). Bun's Node-API support breaks `@lydell/node-pty`: the pty spawns, then its fd dies early (`ioctl(2) failed, EBADF`) and output is lost. The production path never hits this — the backend runs in Electron's Node via `utilityProcess`, and vitest runs on Node too — so the rule only applies to one-off debug scripts: run those with `node script.mjs` instead.

@@ -13,6 +13,7 @@ import {
   utilityProcess,
 } from "electron";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
 import { browserEventChannel, type BrowserEvent, type BrowserTabTarget } from "@/shared/browser-protocol";
@@ -22,6 +23,10 @@ import {
   browserAnnotationCommandChannel,
   type BrowserAnnotationCommand,
 } from "./browser-annotation";
+import {
+  resolveBackendEnvironment,
+  resolveDevelopmentUserDataPath,
+} from "./backend-environment";
 import {
   createBrowserHost,
   createBrowserSessionProvider,
@@ -159,6 +164,11 @@ function createBackendBridge() {
   backendGeneration += 1;
   const generation = backendGeneration;
   const backend = utilityProcess.fork(backendPath(), [], {
+    env: resolveBackendEnvironment({
+      env: process.env,
+      isPackaged: app.isPackaged,
+      homeDir: homedir(),
+    }),
     stdio: "pipe",
   });
   const { port1, port2 } = new MessageChannelMain();
@@ -650,6 +660,16 @@ ipcMain.handle(
     return invokeBackend(input.command, input.args);
   },
 );
+
+// Must run before any session/profile access, so it sits ahead of whenReady.
+const developmentUserDataPath = resolveDevelopmentUserDataPath({
+  isPackaged: app.isPackaged,
+  hasUserDataDirSwitch: app.commandLine.hasSwitch("user-data-dir"),
+  userDataPath: app.getPath("userData"),
+});
+if (developmentUserDataPath) {
+  app.setPath("userData", developmentUserDataPath);
+}
 
 app.whenReady().then(() => {
   applyDevelopmentDockIcon();
