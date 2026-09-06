@@ -172,23 +172,19 @@ function renderProjectSessions(
     path: "/projects/$projectId/sessions",
     component: AgentWorkspaceSessionsPage,
   });
-  // Stands in for the Settings page so navigation out of the workspace is
-  // observable without pulling that page's tree into these tests.
-  const settingsRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/settings",
-    component: () => <div>Settings route</div>,
-  });
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [routePath] }),
-    routeTree: rootRoute.addChildren([sessionsRoute, settingsRoute]),
+    routeTree: rootRoute.addChildren([sessionsRoute]),
   });
 
-  return render(
-    <SessionProjectionsProvider>
-      <RouterProvider router={router} />
-    </SessionProjectionsProvider>,
-  );
+  return {
+    ...render(
+      <SessionProjectionsProvider>
+        <RouterProvider router={router} />
+      </SessionProjectionsProvider>,
+    ),
+    router,
+  };
 }
 
 async function chooseProjectFromPicker(
@@ -3413,7 +3409,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
-  it("lists only the models Settings kept visible and links back to Settings", async () => {
+  it("lists only visible models and opens Models settings over the workspace", async () => {
     const user = userEvent.setup();
     const invoke = vi.fn(async (command: string) => {
       if (command === "list_session_projections") {
@@ -3479,7 +3475,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     saveVisibleModels([{ provider: "openai-codex", modelId: "gpt-5.6-sol" }]);
     saveSessionDraft(pigProjectPath, "");
 
-    renderProjectSessions("/projects/pig/sessions?view=draft");
+    const { router } = renderProjectSessions("/projects/pig/sessions?view=draft");
 
     await user.click(await screen.findByTestId("model-thinking-trigger"));
 
@@ -3490,7 +3486,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     await user.click(screen.getByText("Add Models"));
 
-    expect(await screen.findByText("Settings route")).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ view: "draft", settings: "models" }));
+    expect(router.state.location.pathname).toContain("/sessions");
+    expect(screen.getByTestId("model-thinking-trigger")).toBeInTheDocument();
   });
 
   it("submits the draft through Session Creation, clears the draft, and shows the first runtime event", async () => {

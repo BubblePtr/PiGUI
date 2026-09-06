@@ -9,8 +9,12 @@ import {
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SettingsPage, settingsModelsSectionId } from "@/pages/settings";
-import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
+import { SettingsDialog } from "@/pages/settings";
+import { AppFrame } from "@/app/app-shell";
+import {
+  getVisibleModels,
+  saveVisibleModels,
+} from "@/entities/model/visible-models";
 import type { PiGUIRendererApi } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 
@@ -80,9 +84,15 @@ const disabledUpdateStatus: UpdateStatus = {
   reason: "Updates are only available in the packaged desktop app.",
 };
 
-function renderSettings(path = "/settings", updateStatus: UpdateStatus = disabledUpdateStatus) {
+function renderSettings(
+  path = "/usage?settings=models",
+  updateStatus: UpdateStatus = disabledUpdateStatus,
+) {
   const invoke = vi.fn(async (command: string) => {
-    if (command === "list_provider_auth_status" || command === "set_provider_api_key") {
+    if (
+      command === "list_provider_auth_status" ||
+      command === "set_provider_api_key"
+    ) {
       return providerAuthStatus;
     }
 
@@ -109,10 +119,24 @@ function renderSettings(path = "/settings", updateStatus: UpdateStatus = disable
     onWindowFocusChanged: vi.fn(() => vi.fn()),
   };
 
-  const rootRoute = createRootRoute({ component: SettingsPage });
+  const rootRoute = createRootRoute({
+    component: () => (
+      <>
+        <AppFrame>
+          <textarea aria-label="Session draft" defaultValue="Keep my draft" />
+        </AppFrame>
+        <SettingsDialog />
+      </>
+    ),
+  });
+  const usageRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/usage",
+    component: () => null,
+  });
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
-    routeTree: rootRoute,
+    routeTree: rootRoute.addChildren([usageRoute]),
   });
 
   return {
@@ -121,6 +145,7 @@ function renderSettings(path = "/settings", updateStatus: UpdateStatus = disable
         <RouterProvider router={router} />
       </QueryClientProvider>,
     ),
+    router,
     countCalls: (command: string) =>
       invoke.mock.calls.filter(([called]) => called === command).length,
   };
@@ -142,17 +167,22 @@ describe("Settings — visible models", () => {
     const groups = await within(section).findAllByRole("group");
 
     expect(groups).toHaveLength(3);
-    expect(within(section).getByRole("group", { name: "Anthropic models" })).toBe(
-      groups[0],
-    );
-    expect(within(section).getByRole("group", { name: "Grok (xAI) models" })).toBe(
-      groups[1],
-    );
+    expect(
+      within(section).getByRole("group", { name: "Anthropic models" }),
+    ).toBe(groups[0]);
+    expect(
+      within(section).getByRole("group", { name: "Grok (xAI) models" }),
+    ).toBe(groups[1]);
     // A catalog provider without an auth entry falls back to its raw id.
-    expect(within(section).getByRole("group", { name: "moonshot models" })).toBe(
-      groups[2],
-    );
-    for (const name of ["Claude Sonnet 4", "Grok 4", "Grok 4 Fast", "Kimi K3"]) {
+    expect(
+      within(section).getByRole("group", { name: "moonshot models" }),
+    ).toBe(groups[2]);
+    for (const name of [
+      "Claude Sonnet 4",
+      "Grok 4",
+      "Grok 4 Fast",
+      "Kimi K3",
+    ]) {
       expect(within(section).getByRole("checkbox", { name })).toBeChecked();
     }
   });
@@ -212,11 +242,15 @@ describe("Settings — visible models", () => {
       expect(countCalls("list_available_model_controls")).toBe(1);
     });
 
+    await user.click(screen.getByRole("button", { name: "Providers" }));
     await user.click(screen.getByRole("button", { name: "API Key" }));
 
     const card = await screen.findByTestId("provider-api-key-anthropic");
 
-    await user.type(within(card).getByPlaceholderText("Paste API key"), "sk-test");
+    await user.type(
+      within(card).getByPlaceholderText("Paste API key"),
+      "sk-test",
+    );
     await user.click(within(card).getByRole("button", { name: "Replace key" }));
 
     await waitFor(() => {
@@ -224,24 +258,34 @@ describe("Settings — visible models", () => {
     });
   });
 
-  it("scrolls to the Models section when linked into it", async () => {
-    const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
-
-    renderSettings(`/settings#${settingsModelsSectionId}`);
-
-    await waitFor(() => {
-      expect(scrollIntoView).toHaveBeenCalled();
-    });
-    expect(scrollIntoView.mock.instances[0]).toBe(
-      document.getElementById(settingsModelsSectionId),
+  it("opens directly to Models and switches sections without losing an API key draft", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+    await findModelsSection();
+    expect(
+      screen.queryByRole("region", { name: "Providers" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Providers" }));
+    await user.click(screen.getByRole("button", { name: "API Key" }));
+    const card = await screen.findByTestId("provider-api-key-anthropic");
+    await user.type(
+      within(card).getByPlaceholderText("Paste API key"),
+      "sk-unsaved",
     );
-
-    scrollIntoView.mockRestore();
+    await user.click(screen.getByRole("button", { name: "Models" }));
+    await findModelsSection();
+    await user.click(screen.getByRole("button", { name: "Providers" }));
+    expect(within(card).getByPlaceholderText("Paste API key")).toHaveValue(
+      "sk-unsaved",
+    );
   });
 });
 
 describe("Settings — about and updates", () => {
   async function findAboutSection() {
+    await userEvent.click(
+      await screen.findByRole("button", { name: "About & Updates" }),
+    );
     return screen.findByTestId("settings-about");
   }
 
@@ -251,14 +295,16 @@ describe("Settings — about and updates", () => {
     const section = await findAboutSection();
 
     expect(await within(section).findByText(/0\.0\.1/)).toBeInTheDocument();
-    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeDisabled();
+    expect(
+      within(section).getByRole("button", { name: "Check for updates" }),
+    ).toBeDisabled();
     expect(
       within(section).queryByRole("button", { name: "Restart to update" }),
     ).not.toBeInTheDocument();
   });
 
   it("keeps restart hidden while an update is available", async () => {
-    renderSettings("/settings", {
+    renderSettings("/usage?settings=about", {
       state: "available",
       currentVersion: "0.0.1",
       availableVersion: "0.0.2",
@@ -268,14 +314,16 @@ describe("Settings — about and updates", () => {
 
     expect(await within(section).findByText(/0\.0\.1/)).toBeInTheDocument();
     expect(within(section).getByText(/0\.0\.2/)).toBeInTheDocument();
-    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(
+      within(section).getByRole("button", { name: "Check for updates" }),
+    ).toBeEnabled();
     expect(
       within(section).queryByRole("button", { name: "Restart to update" }),
     ).not.toBeInTheDocument();
   });
 
   it("shows restart to update only when an update is ready", async () => {
-    renderSettings("/settings", {
+    renderSettings("/usage?settings=about", {
       state: "ready",
       currentVersion: "0.0.1",
       availableVersion: "0.0.2",
@@ -283,12 +331,16 @@ describe("Settings — about and updates", () => {
 
     const section = await findAboutSection();
 
-    expect(await within(section).findByRole("button", { name: "Restart to update" })).toBeEnabled();
-    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(
+      await within(section).findByRole("button", { name: "Restart to update" }),
+    ).toBeEnabled();
+    expect(
+      within(section).getByRole("button", { name: "Check for updates" }),
+    ).toBeEnabled();
   });
 
   it("surfaces an update error without offering restart", async () => {
-    renderSettings("/settings", {
+    renderSettings("/usage?settings=about", {
       state: "error",
       currentVersion: "0.0.1",
       message: "GitHub releases timed out",
@@ -296,10 +348,53 @@ describe("Settings — about and updates", () => {
 
     const section = await findAboutSection();
 
-    expect(await within(section).findByText("GitHub releases timed out")).toBeInTheDocument();
-    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(
+      await within(section).findByText("GitHub releases timed out"),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("button", { name: "Check for updates" }),
+    ).toBeEnabled();
     expect(
       within(section).queryByRole("button", { name: "Restart to update" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Settings dialog navigation", () => {
+  it("opens over the current page and restores its route, draft and trigger on close", async () => {
+    const user = userEvent.setup();
+    const { router, countCalls } = renderSettings("/usage?range=week#totals");
+    const trigger = await screen.findByRole("button", { name: "Settings" });
+    const draft = screen.getByRole("textbox", { name: "Session draft" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(countCalls("list_provider_auth_status")).toBe(0);
+    await user.click(trigger);
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    expect(router.state.location.pathname).toBe("/usage");
+    expect(router.state.location.search).toMatchObject({
+      range: "week",
+      settings: "providers",
+    });
+    expect(router.state.location.hash).toBe("totals");
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(router.state.location.href).toBe("/usage?range=week#totals");
+    expect(screen.getByRole("textbox", { name: "Session draft" })).toBe(draft);
+    expect(draft).toHaveValue("Keep my draft");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes with Escape", async () => {
+    const user = userEvent.setup();
+    const { router } = renderSettings();
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Models" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(router.state.location.pathname).toBe("/usage");
   });
 });

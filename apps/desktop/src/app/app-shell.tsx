@@ -1,4 +1,5 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
+import { useSettingsDialog } from "@/shared/settings-navigation";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
@@ -904,6 +905,7 @@ export function AppFrame({
   onSelectedSessionIdChange,
 }: AppFrameProps) {
   const router = useRouter();
+  const { openSettings } = useSettingsDialog();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const draftViewActive = useRouterState({
     select: (state) => {
@@ -1101,6 +1103,10 @@ export function AppFrame({
     });
   };
   const handleNavigate = (to: string) => {
+    if (to === "/settings") {
+      openSettings();
+      return;
+    }
     void router.navigate({ to: to as never });
   };
   const handleNewSession = () => {

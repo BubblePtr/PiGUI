@@ -155,7 +155,7 @@ import { getVisibleModels } from "@/entities/model/visible-models";
 import type { TerminalInstanceInfo } from "@/entities/terminal/terminal-client";
 import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 import { SessionTerminalPanel } from "@/pages/session-terminal-panel";
-import { settingsModelsSectionId } from "@/pages/settings";
+import { useSettingsDialog } from "@/shared/settings-navigation";
 import {
   sessionProjectionFromPersistedProjection,
   useSessionProjections,
@@ -3538,6 +3538,7 @@ export function AgentWorkspaceSessionsView({
 
 export function AgentWorkspaceSessionsPage() {
   const navigate = useNavigate();
+  const { openSettings } = useSettingsDialog();
   const { projectId } = useParams({ from: "/projects/$projectId/sessions" });
   const showDraft = useRouterState({
     select: (state) => {
@@ -3754,9 +3755,7 @@ export function AgentWorkspaceSessionsPage() {
         sessionProjection={selectedSessionProjection}
         onProjectionChange={handleProjectionChange}
         onLatestMessageRendered={handleLatestMessageRendered}
-        onManageModels={() =>
-          void navigate({ to: "/settings", hash: settingsModelsSectionId })
-        }
+        onManageModels={() => openSettings("models")}
       />
     </AppFrame>
   );
