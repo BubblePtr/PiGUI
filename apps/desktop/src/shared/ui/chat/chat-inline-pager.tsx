@@ -11,7 +11,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * inside a trigger.
  */
 
-/** Mirrors --cot-flip-duration in chat.css (ADR-0030 §8). */
+/** Mirrors --cot-flip-duration in chat.css (ADR-0030 §8). Exit is
+ *  --cot-flip-exit-duration (220ms); dwell follows the longer enter so the
+ *  next flip cannot start while the incoming page is still moving. */
 const FLIP_DURATION_MS = 300;
 const DEFAULT_DWELL_MS = 700;
 
@@ -33,7 +35,7 @@ export function ChatInlinePager({
   dwellMs?: number;
   pageKey?: string;
 }) {
-  // A dwell shorter than the flip would cut the animation off half-way.
+  // A dwell shorter than the enter would cut the incoming page off half-way.
   const dwell = Math.max(dwellMs, FLIP_DURATION_MS);
   const [shown, setShown] = useState<Page>({ key: pageKey, node: children });
   const [outgoing, setOutgoing] = useState<ReactNode>(null);
@@ -99,15 +101,21 @@ export function ChatInlinePager({
     >
       <span className="chat-inline-pager__flip">
         {outgoing ? (
-          <span
-            className="chat-inline-pager__page"
-            data-motion="out"
-            onAnimationEnd={() => setOutgoing(null)}
-          >
+          <span className="chat-inline-pager__page" data-motion="out">
             {outgoing}
           </span>
         ) : null}
-        <span className="chat-inline-pager__page" data-motion={outgoing ? "in" : undefined}>
+        <span
+          className="chat-inline-pager__page"
+          data-motion={outgoing ? "in" : undefined}
+          onAnimationEnd={(event) => {
+            // Exit is shorter than enter; clear outgoing when the incoming
+            // page finishes so removing data-motion="in" cannot cut it off.
+            if (event.target === event.currentTarget) {
+              setOutgoing(null);
+            }
+          }}
+        >
           {shown.node}
         </span>
       </span>

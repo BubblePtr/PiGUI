@@ -53,6 +53,7 @@ export function ChatQueuedMessage({
       <div className="flex shrink-0 items-center gap-1">
         {onSteer ? (
           <Button
+            className="pigui-pressable"
             label="Steer the run with this message"
             size="sm"
             variant="secondary"
@@ -63,6 +64,7 @@ export function ChatQueuedMessage({
         ) : null}
         {onWithdraw ? (
           <Button
+            className="pigui-pressable"
             label="Withdraw queued message"
             size="sm"
             variant="ghost"

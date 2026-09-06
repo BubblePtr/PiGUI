@@ -250,8 +250,10 @@
 
 .chain-of-thought {
   /* ADR-0030 §8: page turns and the settled fold both run at 300ms. The
-     theme's --duration-slow-max is 0.935s, so this is its own constant. */
+     theme's --duration-slow-max is 0.935s, so this is its own constant.
+     Exit is ~25% faster so the outgoing page gets out of the way. */
   --cot-flip-duration: 300ms;
+  --cot-flip-exit-duration: 220ms;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -418,7 +420,7 @@
   position: absolute;
   inset-inline-start: 0;
   top: 0;
-  animation: chat-inline-pager-out var(--cot-flip-duration, 300ms) var(--ease-standard) both;
+  animation: chat-inline-pager-out var(--cot-flip-exit-duration, 220ms) var(--ease-standard) both;
 }
 
 @keyframes chat-inline-pager-in {

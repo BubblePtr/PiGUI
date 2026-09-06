@@ -79,6 +79,7 @@ export function SetupInventoryControls({
           <p className="mt-1 text-xs text-muted">Read-only Pi inventory</p>
         </div>
         <IconButton
+          className="pigui-pressable"
           label="Refresh setup"
           icon={<RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />}
           isDisabled={isFetching}

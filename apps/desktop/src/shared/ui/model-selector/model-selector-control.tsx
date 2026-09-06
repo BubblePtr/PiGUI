@@ -6,7 +6,7 @@
 // it is never stolen by rows on the way. Decision record:
 // .scratch/model-selector/PRD.md
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Popover } from "@astryxdesign/core/Popover";
@@ -58,6 +58,8 @@ const thinkingLevelLabels: Record<RuntimeThinkingLevel, string> = {
  * commits immediately.
  */
 const FLYOUT_CLOSE_GRACE_MS = 300;
+/** Matches .pigui-model-flyout exit in styles.css. */
+const FLYOUT_EXIT_MS = 120;
 const POINTER_TRAIL_MS = 200;
 const SWITCH_RECHECK_MS = 100;
 const PARKED_DISTANCE_PX = 3;
@@ -70,6 +72,7 @@ function modelKey(model: RuntimeModelCapability) {
 
 function useModelFlyout() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [presentKey, setPresentKey] = useState<string | null>(null);
   const [flyoutTop, setFlyoutTop] = useState(0);
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,6 +109,7 @@ function useModelFlyout() {
   const commitOpen = (key: string, row: HTMLElement | null) => {
     activeKeyRef.current = key;
     setActiveKey(key);
+    setPresentKey(key);
 
     if (row && anchorRef.current) {
       const rowRect = row.getBoundingClientRect();
@@ -187,8 +191,29 @@ function useModelFlyout() {
     }, FLYOUT_CLOSE_GRACE_MS);
   };
 
+  useEffect(() => {
+    if (activeKey !== null) {
+      setPresentKey(activeKey);
+      return;
+    }
+
+    if (presentKey === null) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const timeout = window.setTimeout(
+      () => setPresentKey(null),
+      reduceMotion ? 0 : FLYOUT_EXIT_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [activeKey, presentKey]);
+
   return {
     activeKey,
+    presentKey,
     flyoutTop,
     anchorRef,
     openFlyout,
@@ -364,6 +389,7 @@ export function ModelSelectorControl({
   const [query, setQuery] = useState("");
   const {
     activeKey,
+    presentKey,
     flyoutTop,
     anchorRef,
     openFlyout,
@@ -395,8 +421,8 @@ export function ModelSelectorControl({
   const listedModels = baseModels.filter((model) =>
     matchesModelQuery(model, query),
   );
-  const flyoutModel = activeKey
-    ? listedModels.find((model) => modelKey(model) === activeKey)
+  const flyoutModel = presentKey
+    ? listedModels.find((model) => modelKey(model) === presentKey)
     : undefined;
 
   const anchorTop = anchorRef.current?.getBoundingClientRect().top ?? 0;
@@ -552,6 +578,7 @@ export function ModelSelectorControl({
               <div
                 aria-label={`${flyoutModel.name} options`}
                 className="pigui-model-flyout w-[15rem]"
+                data-open={activeKey ? "true" : undefined}
                 data-slot="model-selector-flyout"
                 role="group"
                 style={{ left: "calc(100% + 28px)", top: clampedFlyoutTop }}

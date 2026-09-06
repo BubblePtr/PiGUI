@@ -339,9 +339,32 @@ body {
   shape-rendering: geometricPrecision;
 }
 
+/* Low-frequency action buttons (send, steer/withdraw, dock, refresh).
+   Astryx Button already presses via `transform: scale(0.98)`; neutralize
+   that so the individual `scale` does not multiply below 0.95. */
+.pigui-pressable {
+  transition: scale 150ms ease-out;
+}
+
+.pigui-pressable:active {
+  transform: none;
+  scale: 0.96;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pigui-pressable,
+  .pigui-pressable:active {
+    transition: none;
+    scale: none;
+    transform: none;
+  }
+}
+
 /* Model selector options flyout (shared/ui/model-selector). Position and
    width come from the component; the 32px ::before bridge keeps hover alive
-   across the gap between the panel and the flyout. */
+   across the gap between the panel and the flyout. Open/close is a CSS
+   transition (interruptible) driven by [data-open]; @starting-style covers
+   the first mount so enter is not a hard cut from opacity 1. */
 .pigui-model-flyout {
   position: absolute;
   z-index: 10;
@@ -353,7 +376,28 @@ body {
     0 1px 3px rgb(0 0 0 / 0.06),
     0 8px 24px -6px rgb(0 0 0 / 0.12);
   transform-origin: left top;
-  animation: pigui-model-flyout-in 150ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none;
+  transition:
+    opacity 120ms ease-in,
+    transform 120ms ease-in;
+}
+
+.pigui-model-flyout[data-open] {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  transition:
+    opacity 150ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@starting-style {
+  .pigui-model-flyout[data-open] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
 
 .pigui-model-flyout::before {
@@ -365,20 +409,16 @@ body {
   width: 32px;
 }
 
-@keyframes pigui-model-flyout-in {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pigui-model-flyout {
-    animation: none;
+    transition: none;
+  }
+
+  @starting-style {
+    .pigui-model-flyout[data-open] {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }
 
@@ -459,7 +499,7 @@ body {
 }
 
 .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
-  transition: width 200ms ease;
+  transition: width 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Session dock open/close: transform + opacity only, so Chat's column width

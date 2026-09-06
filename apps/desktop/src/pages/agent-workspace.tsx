@@ -2133,6 +2133,7 @@ export function SessionChangesPanel({
         <SessionSurfaceBar
           actions={
             <IconButton
+              className="pigui-pressable"
               icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
               isDisabled={loading}
               label="Refresh Session changes"
@@ -2161,8 +2162,8 @@ export function SessionChangesPanel({
         </p>
       ) : loading && !changes ? (
         <div className="mt-3 grid gap-2" aria-label="Loading Session changes">
-          <div className="h-8 animate-pulse rounded-md bg-default/40" />
-          <div className="h-24 animate-pulse rounded-md bg-default/30" />
+          <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
+          <div className="h-24 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
         </div>
       ) : error ? (
         <div
@@ -2271,7 +2272,7 @@ export function SessionChangesPanel({
               <Suspense
                 fallback={
                   <div
-                    className="h-40 animate-pulse rounded-md bg-default/30"
+                    className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
                     aria-label="Loading diff renderer"
                   />
                 }
