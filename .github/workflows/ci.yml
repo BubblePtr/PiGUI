@@ -1,0 +1,57 @@
+name: macOS ARM64 CI
+
+on:
+  pull_request:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    # Same-repository PRs reuse their branch-push checks; fork PRs need their own run.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - name: Verify native ARM64 runner
+        run: node -e 'if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Expected darwin/arm64")'
+      - run: bun install --frozen-lockfile
+      - run: bun run test:release
+      - run: bun run test --maxWorkers=2
+        env:
+          PIGUI_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
+      - name: Build unsigned app and validate the bundled runtime
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: bun run package:mac:unsigned
+      - name: Test packaged app
+        run: bun run test:e2e:packaged:mac --workers=1
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64-test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

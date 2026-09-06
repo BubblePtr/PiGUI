@@ -1,0 +1,109 @@
+import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+const publishScript = fileURLToPath(new URL("./publish-release.sh", import.meta.url));
+
+function runPublish(t, { existing = null, fail = "", prerelease = false } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "pigui-release-test-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "bin"));
+  mkdirSync(join(dir, "dist"));
+  const version = prerelease ? "0.0.1-rc.1" : "0.0.1";
+  const artifact = `PiGUI-${version}-arm64.dmg`;
+  writeFileSync(join(dir, "dist", artifact), "verified-test-artifact");
+  writeFileSync(join(dir, "dist", "SHA256SUMS.txt"), "verified-test-checksum");
+  const callsFile = join(dir, "calls.jsonl");
+  writeFileSync(join(dir, "bin", "gh"), `#!${process.execPath}
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.CALLS_FILE, JSON.stringify(args) + '\\n');
+const operation = args[0] === 'api' ? 'api' : args.slice(0, 2).join(' ');
+if (process.env.FAIL_OPERATION === operation) process.exit(1);
+if (operation === 'api') {
+  const existing = JSON.parse(process.env.EXISTING_RELEASE);
+  process.stdout.write(JSON.stringify(existing === null ? [] : [{ tag_name: process.env.RELEASE_TAG, draft: existing }]));
+} else if (operation === 'release view') {
+  process.stdout.write('Release: https://github.com/BubblePtr/PiGUI/releases/tag/' + process.env.RELEASE_TAG + '\\n');
+} else if (!['release create', 'release upload', 'release edit'].includes(operation)) process.exit(2);
+`, { mode: 0o755 });
+  const result = spawnSync("bash", [publishScript], {
+    cwd: dir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+      CALLS_FILE: callsFile,
+      EXISTING_RELEASE: JSON.stringify(existing),
+      FAIL_OPERATION: fail,
+      GH_REPO: "BubblePtr/PiGUI",
+      RELEASE_TAG: `v${version}`,
+      VERSION: version,
+      PRERELEASE: String(prerelease),
+      DMG_NAME: artifact,
+      RUNNER_TEMP: dir,
+      GITHUB_STEP_SUMMARY: join(dir, "summary"),
+    },
+  });
+  const calls = existsSync(callsFile)
+    ? readFileSync(callsFile, "utf8").trim().split("\n").map(line => JSON.parse(line))
+    : [];
+  return { result, calls, artifact };
+}
+
+test("a stable release is published only after both verified assets reach its draft", t => {
+  const { result, calls, artifact } = runPublish(t);
+  assert.equal(result.status, 0, result.stderr);
+  const create = calls.find(args => args[1] === "create");
+  assert.ok(create.includes("--draft"));
+  assert.ok(create.includes(`dist/${artifact}`));
+  assert.ok(create.includes("dist/SHA256SUMS.txt"));
+  const edit = calls.find(args => args[1] === "edit");
+  assert.ok(edit.includes("--draft=false"));
+  assert.ok(edit.includes("--prerelease=false"));
+  assert.ok(edit.includes("--latest=true"));
+  assert.ok(calls.indexOf(edit) > calls.indexOf(create));
+});
+
+test("a prerelease is published without becoming the latest stable release", t => {
+  const { result, calls } = runPublish(t, { prerelease: true });
+  assert.equal(result.status, 0, result.stderr);
+  const edit = calls.find(args => args[1] === "edit");
+  assert.ok(edit.includes("--prerelease=true"));
+  assert.ok(edit.includes("--latest=false"));
+});
+
+test("an existing draft keeps its notes while its assets are updated and published", t => {
+  const { result, calls } = runPublish(t, { existing: true });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!calls.some(args => args[1] === "create"));
+  assert.ok(calls.some(args => args[1] === "upload" && args.includes("--clobber")));
+  const edit = calls.find(args => args[1] === "edit");
+  assert.ok(edit.includes("--draft=false"));
+  assert.ok(!edit.some(arg => arg.startsWith("--notes")));
+});
+
+test("an already published version is immutable", t => {
+  const { result, calls } = runPublish(t, { existing: false });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /already published/);
+  assert.ok(!calls.some(args => args[0] === "release"));
+});
+
+test("failed asset upload leaves an existing draft unpublished", t => {
+  const { result, calls } = runPublish(t, { existing: true, fail: "release upload" });
+  assert.notEqual(result.status, 0);
+  assert.ok(calls.some(args => args[1] === "upload"));
+  assert.ok(!calls.some(args => args[1] === "edit"));
+});
+
+test("API failures cannot be mistaken for a missing release", t => {
+  const { result, calls } = runPublish(t, { fail: "api" });
+  assert.notEqual(result.status, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "api");
+});
