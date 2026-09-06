@@ -136,3 +136,11 @@ Object.defineProperty(HTMLElement.prototype, "getAnimations", {
   configurable: true,
   value: () => [],
 });
+
+// jsdom lacks the native modal lifecycle; Chromium/Electron tests cover focus trapping.
+HTMLDialogElement.prototype.showModal = function () {
+  this.setAttribute("open", "");
+};
+HTMLDialogElement.prototype.close = function () {
+  this.removeAttribute("open");
+};

@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { Dialog } from "@base-ui-components/react/dialog";
+import {
+  Dialog as AstryxDialog,
+  DialogHeader,
+} from "@astryxdesign/core/Dialog";
 import { useOverlayPresence } from "@/shared/ui/browser/use-overlay-presence";
 
 /**
@@ -39,7 +43,9 @@ describe("useOverlayPresence", () => {
     );
 
     await user.unhover(screen.getByRole("button", { name: "Browser" }));
-    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("clear"));
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toHaveTextContent("clear"),
+    );
   });
 
   it("follows a Base UI sheet opening and closing", async () => {
@@ -78,7 +84,34 @@ describe("useOverlayPresence", () => {
     // The open sheet traps focus and hides the rest of the tree from a11y, so
     // Escape (Base UI's own dismissal) is the way back out.
     await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("clear"));
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toHaveTextContent("clear"),
+    );
+  });
+
+  it("follows a native Astryx dialog opening and closing", async () => {
+    function DialogProbe() {
+      const [isOpen, setIsOpen] = useState(false);
+      return (
+        <>
+          <Probe />
+          <button onClick={() => setIsOpen(true)}>Open settings</button>
+          <AstryxDialog isOpen={isOpen} onOpenChange={setIsOpen}>
+            <DialogHeader title="Settings" onOpenChange={setIsOpen} />
+          </AstryxDialog>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<DialogProbe />);
+    await user.click(screen.getByRole("button", { name: "Open settings" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toHaveTextContent("overlay"),
+    );
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toHaveTextContent("clear"),
+    );
   });
 
   it("reports nothing while disabled, so a hidden surface does no work", async () => {

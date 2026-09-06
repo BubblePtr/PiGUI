@@ -58,9 +58,10 @@ contextBridge.exposeInMainWorld("pigui", api);
 
 function markMacVibrancyDocument() {
   if (process.platform === "darwin") {
-    document.documentElement.setAttribute("data-pigui-vibrancy", "");
+    // HTTP dev pages can run preload before the HTML root is parsed.
+    document.documentElement?.setAttribute("data-pigui-vibrancy", "");
   }
 }
 
 markMacVibrancyDocument();
-window.addEventListener("DOMContentLoaded", markMacVibrancyDocument);
+window.addEventListener("DOMContentLoaded", markMacVibrancyDocument, { once: true });

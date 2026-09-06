@@ -9,8 +9,7 @@ import { useEffect, useState } from "react";
  * page while an overlay is up, and that swap needs a reliable "is anything
  * open" signal.
  *
- * The two overlay stacks in this app announce themselves very differently, and
- * neither can be detected the way the other is:
+ * The overlay families announce themselves through different DOM signals:
  *
  * - **Astryx layers** (Tooltip, Popover, Menu, Select) render a `[popover]`
  *   element inline in the trigger's own subtree. It is in the DOM whether open
@@ -18,6 +17,8 @@ import { useEffect, useState } from "react";
  *   and moves no node — a MutationObserver never fires. The Popover API's
  *   `toggle` event is the only signal, and since it does not bubble it has to
  *   be caught in the capture phase.
+ * - **Astryx dialogs** use native `<dialog>` and reflect modal state in
+ *   the `open` attribute, observed alongside the portal markers below.
  * - **Base UI overlays** (Dialog) mount a
  *   `[data-base-ui-portal]` subtree on `body` and mark the live popup with
  *   `data-open`. No popover involved, so the MutationObserver is what sees it.
@@ -43,7 +44,7 @@ function hasOpenOverlay() {
     }
   }
 
-  return document.querySelector(baseUiOpenOverlay) !== null;
+  return document.querySelector(`dialog[open], ${baseUiOpenOverlay}`) !== null;
 }
 
 export function useOverlayPresence(enabled: boolean) {
@@ -60,7 +61,7 @@ export function useOverlayPresence(enabled: boolean) {
 
     sync();
     observer.observe(document.body, {
-      attributeFilter: ["style", "data-open", "popover"],
+      attributeFilter: ["style", "data-open", "popover", "open"],
       attributes: true,
       childList: true,
       subtree: true,

@@ -219,6 +219,20 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
     await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
 
+    // Native dialogs also cover the browser without detaching its live page.
+    const workspaceUrl = window.url();
+    await window.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = window.getByRole("dialog", { name: "Settings" });
+    await expect(settings).toBeVisible();
+    await expect(window.getByTestId("browser-snapshot")).toBeVisible();
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(false);
+    await settings.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(settings).toBeHidden();
+    await expect(window).toHaveURL(workspaceUrl);
+    await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
+    await expect(embedded.locator("#home")).toHaveText("PiGUI preview home");
+
     // A page that replaces itself mid-load aborts the request the address bar
     // asked for. The page is fine, so the surface must not flip to its error
     // state over a page that is on screen and working.

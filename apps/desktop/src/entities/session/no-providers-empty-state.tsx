@@ -1,17 +1,17 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
-import { useNavigate } from "@tanstack/react-router";
+import { useSettingsDialog } from "@/shared/settings-navigation";
 
 /**
  * Post-preflight empty state when no provider credentials exist.
- * Not a full-screen preflight gate — only an in-app CTA to /settings.
+ * Not a full-screen preflight gate — an in-app CTA that opens the settings dialog.
  */
 export function NoProvidersEmptyState({
   testId = "no-providers-empty-state",
 }: {
   testId?: string;
 }) {
-  const navigate = useNavigate();
+  const { openSettings } = useSettingsDialog();
 
   return (
     <div
@@ -33,7 +33,7 @@ export function NoProvidersEmptyState({
             label="Open Provider Settings →"
             variant="primary"
             onClick={() => {
-              void navigate({ to: "/settings" });
+              openSettings();
             }}
           />
         </div>
