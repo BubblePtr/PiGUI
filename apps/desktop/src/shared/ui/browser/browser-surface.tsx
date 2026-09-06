@@ -107,7 +107,18 @@ export function BrowserSurface({
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
       {hasChrome ? (
-        <SessionSurfaceBar>
+        <SessionSurfaceBar
+          actions={
+            isLive && annotationCount > 0 ? (
+              <span
+                className="shrink-0 text-xs tabular-nums text-muted"
+                data-testid="browser-annotation-count"
+              >
+                {annotationCount} marked
+              </span>
+            ) : null
+          }
+        >
           <SessionSurfaceTabs
             activeId={activeTabId}
             addLabel="New browser tab"
@@ -140,14 +151,6 @@ export function BrowserSurface({
                 size="sm"
                 onPressedChange={onDesignModeChange}
               />
-              {isLive && annotationCount > 0 ? (
-                <span
-                  className="shrink-0 text-xs tabular-nums text-muted"
-                  data-testid="browser-annotation-count"
-                >
-                  {annotationCount} marked
-                </span>
-              ) : null}
               <IconButton
                 icon={<Trash2 className="size-4" />}
                 isDisabled={!isLive || annotationCount === 0}

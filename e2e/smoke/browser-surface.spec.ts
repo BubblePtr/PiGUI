@@ -194,7 +194,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     // attribute and moves no node — the Popover API's `toggle` event is the
     // only signal, and jsdom has no Popover API at all, so this is the one
     // place the production detection path can be proven.
-    expect(await readBrowserViewVisible(testApp.app)).toBe(true);
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
 
     // Hovered on each attempt rather than once: a tooltip opens on a pointer
     // that arrives and stays, and a single hover dispatched while the panel is
@@ -264,14 +264,15 @@ test("Design mode marks a strict-CSP page, keeps the overlay to itself, and send
     await expect(embedded.locator("#csp-home")).toHaveText(
       "Strict CSP preview",
     );
-    expect(await readBrowserViewVisible(testApp.app)).toBe(true);
+    // Page content can load before the renderer has synchronized native view bounds and visibility.
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
 
     await aside.getByRole("button", { name: "Design" }).click();
 
     // The toolbar is plain buttons on purpose: a layer would trip the overlay
     // detection and the user would end up marking a frozen screenshot.
     await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
-    expect(await readBrowserViewVisible(testApp.app)).toBe(true);
+    await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
 
     // The host element showing up is design mode actually reaching the page —
     // it is the one part of the overlay the page can see.
