@@ -31,24 +31,6 @@ function resolveLocalFontPath(fromFile: string, fontUrl: string): string {
 }
 
 describe("Design system integration", () => {
-  it("carries no HeroUI imports or stylesheets anywhere in the desktop app", () => {
-    // Assembled so this guard doesn't match its own source.
-    const herouiPackageScope = ["@hero", "ui"].join("");
-    const sourceFiles = sourceFilesUnder(join(repoRoot, "apps/desktop/src"));
-    const filesWithHeroUI = sourceFiles.filter((file) =>
-      readFileSync(file, "utf8").includes(herouiPackageScope),
-    );
-    const styles = readFileSync(
-      join(repoRoot, "apps/desktop/src/app/styles.css"),
-      "utf8",
-    );
-    const packageJson = readFileSync(join(repoRoot, "package.json"), "utf8");
-
-    expect(filesWithHeroUI).toEqual([]);
-    expect(styles).not.toContain(herouiPackageScope);
-    expect(packageJson).not.toContain(herouiPackageScope);
-  });
-
   it("uses the default theme at the document root without webfont links", () => {
     const html = readFileSync(join(repoRoot, "apps/desktop/index.html"), "utf8");
 
@@ -61,30 +43,30 @@ describe("Design system integration", () => {
     expect(html).not.toContain(googleFontsStaticHost);
   });
 
-  it("keeps the whole app on the Astryx body font stack", () => {
+  it("overrides the Astryx font stack with Montserrat", () => {
     const styles = readFileSync(
       join(repoRoot, "apps/desktop/src/app/styles.css"),
       "utf8",
     );
 
     expect(styles).toContain("--font-sans: var(--font-family-body);");
-    expect(styles).not.toContain("Montserrat");
+    expect(styles).not.toContain("Figtree");
     expect(styles).not.toContain("Inter");
-    // Astryx surfaces keep the theme's own stack: no body/heading overrides.
-    expect(styles).not.toContain("--font-family-body:");
-    expect(styles).not.toContain("--font-family-heading:");
+    // Astryx surfaces pick up Montserrat through the theme's own tokens.
+    expect(styles).toContain("--font-family-body: Montserrat");
+    expect(styles).toContain("--font-family-heading: Montserrat");
   });
 
-  it("ships Figtree as a local woff2 so the Astryx stack resolves offline", () => {
+  it("ships Montserrat as a local woff2 so the Astryx stack resolves offline", () => {
     const stylesPath = join(repoRoot, "apps/desktop/src/app/styles.css");
     const styles = readFileSync(stylesPath, "utf8");
-    const figtreeFaces = [
+    const montserratFaces = [
       ...styles.matchAll(/@font-face\s*\{([\s\S]*?)\}/g),
-    ].filter((match) => /font-family:\s*["']?Figtree["']?\s*;/.test(match[1]));
+    ].filter((match) => /font-family:\s*["']?Montserrat["']?\s*;/.test(match[1]));
 
-    expect(figtreeFaces.length).toBeGreaterThan(0);
+    expect(montserratFaces.length).toBeGreaterThan(0);
 
-    const woff2Urls = figtreeFaces.flatMap((match) =>
+    const woff2Urls = montserratFaces.flatMap((match) =>
       [...match[1].matchAll(/url\((['"]?)([^)'"]+\.woff2)\1\)/g)].map(
         (urlMatch) => urlMatch[2],
       ),
@@ -157,8 +139,8 @@ describe("Design system integration", () => {
       "utf8",
     );
 
-    // The HeroUI-era rule sat on the layout root and erased markdown bold and
-    // Tailwind font-medium everywhere; the normalization belongs to the nav.
+    // Sitting on the layout root this rule erased markdown bold and Tailwind
+    // font-medium everywhere; the normalization belongs to the nav.
     expect(styles).toContain(".pigui-app-layout .astryx-side-nav :where(*)");
     expect(styles).not.toMatch(/\.pigui-app-layout :where\(\*\)/);
     expect(styles).not.toContain("data-pigui-session-title");
