@@ -531,14 +531,17 @@ body {
 
 /* Session dock open/close: transform + opacity only, so Chat's column width
    is never interpolated. Enter/exit share endpoints so a mid-flight reverse
-   retargets instead of restarting. */
+   retargets instead of restarting.
+   The resting open state deliberately carries no `transform` / `will-change`:
+   either would make the dock its own stacking context, and the surface bar's
+   `z-index: 51` (see [data-slot="session-surface-bar"]) only beats the fixed
+   header chrome's drag spacer while both sit in the root context. `none` →
+   `translateX(100%)` still transitions, so nothing is lost. */
 .pigui-session-dock {
   opacity: 1;
-  transform: translateX(0);
   transition:
     opacity 250ms cubic-bezier(0.32, 0.72, 0, 1),
     transform 250ms cubic-bezier(0.32, 0.72, 0, 1);
-  will-change: transform;
 }
 
 .pigui-session-dock[data-open="false"] {

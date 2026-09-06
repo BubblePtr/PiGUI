@@ -283,4 +283,20 @@ describe("SessionDock", () => {
       /\.pigui-session-dock[^{]*\{[^}]*\bwidth\b[^}]*transition/,
     );
   });
+
+  it("keeps the resting open dock out of its own stacking context so the surface bar can sit above the header chrome drag region", () => {
+    // The header chrome is `position: fixed; z-index: 50` and its drag spacer
+    // spans the titlebar band. The surface bar wins with `z-index: 51` only
+    // while dock and chrome share the root stacking context, so the open dock
+    // must not carry `transform` or `will-change` at rest.
+    const styles = readFileSync(
+      join(process.cwd(), "apps/desktop/src/app/styles.css"),
+      "utf8",
+    );
+    const restingBlock = styles.match(/\n\.pigui-session-dock \{([^}]*)\}/)?.[1];
+
+    expect(restingBlock).toBeDefined();
+    expect(restingBlock).not.toMatch(/^\s*transform\s*:/m);
+    expect(restingBlock).not.toMatch(/will-change/);
+  });
 });
