@@ -36,6 +36,7 @@ import {
   isBrowserCommand,
   type BrowserHost,
 } from "./browser-host";
+import { installAppMenu } from "./app-menu";
 import { createAppUpdater, type AppUpdater, type AutoUpdaterLike } from "./updater";
 
 type PendingRequest = {
@@ -706,6 +707,12 @@ app.whenReady().then(() => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(updateEventChannel, status);
     }
+  });
+  installAppMenu({
+    updater: appUpdater,
+    navigateToSettings: () => {
+      void mainWindow?.webContents.executeJavaScript('location.hash = "#/settings"');
+    },
   });
   createMainWindow();
   appUpdater.start();

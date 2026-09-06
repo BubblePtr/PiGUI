@@ -9,8 +9,9 @@ import { useEffect, useMemo, useState } from "react";
 import { AppFrame } from "@/app/app-shell";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import { getVisibleModels, saveVisibleModels } from "@/entities/model/visible-models";
+import { useUpdateStatus } from "@/entities/update/use-update-status";
 import { isModelVisible } from "@/shared/ui/model-selector/model-selector-logic";
-import { invoke, onUpdateEvent } from "@/shared/runtime";
+import { invoke } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 import type {
   ProviderAuthId,
@@ -22,7 +23,6 @@ import type {
 
 export const providerAuthStatusQueryKey = ["provider-auth-status"] as const;
 const availableModelControlsQueryKey = ["available-model-controls"] as const;
-const updateStatusQueryKey = ["update-status"] as const;
 
 /** Link target for the selector's "Add Models" row (issue #102). */
 export const settingsModelsSectionId = "models";
@@ -361,26 +361,13 @@ function updateStatusText(status: UpdateStatus) {
 }
 
 function AboutUpdatesSection() {
-  const queryClient = useQueryClient();
-  const statusQuery = useQuery({
-    queryKey: updateStatusQueryKey,
-    queryFn: () => invoke<UpdateStatus>("update:status"),
-  });
-
-  useEffect(() => {
-    return onUpdateEvent((status) => {
-      queryClient.setQueryData(updateStatusQueryKey, status);
-    });
-  }, [queryClient]);
-
+  const status = useUpdateStatus();
   const checkMutation = useMutation({
     mutationFn: () => invoke("update:check"),
   });
   const installMutation = useMutation({
     mutationFn: () => invoke("update:install"),
   });
-
-  const status = statusQuery.data;
 
   return (
     <section

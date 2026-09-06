@@ -64,7 +64,7 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 
 `electron-updater` 在 macOS 上消费 zip 与 `latest-mac.yml`（其中的 sha512 是完整性校验依据，必须原样上传，不要改写）。DMG 仍给首次安装用。`SHA256SUMS.txt` 只覆盖 DMG 与 zip，不含 blockmap / yml。
 
-首个带 updater 的版本是分水岭：更早装上的版本没有检查更新的能力，必须手动下载一次新 DMG。从该版本起，后续升级可以在设置页的 **About & Updates** 里完成。预发布只推给当前本身就是预发布的安装；正式版用户只收到正式版。
+首个带 updater 的版本是分水岭：更早装上的版本没有检查更新的能力，必须手动下载一次新 DMG。从该版本起，后续升级可以在设置页的 **About & Updates** 里完成，也可通过侧栏徽标与应用菜单进入。预发布只推给当前本身就是预发布的安装；正式版用户只收到正式版。
 
 预发布版本可使用 `0.1.0-rc.1` / `v0.1.0-rc.1`，生成的 Release 会标记为 prerelease。支持 SemVer 构建元数据，例如 `0.0.1+build.001`；标签和两处 `package.json` 必须保留完全相同的版本字符串。数字型预发布标识不允许前导零，构建元数据中的数字不受此限制。
 
