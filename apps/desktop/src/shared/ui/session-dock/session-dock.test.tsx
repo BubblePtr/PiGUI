@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import {
   sessionDockChatMinWidthPx,
   sessionDockExitMs,
   sessionDockResizableBounds,
+  useSessionDockMotion,
   useSessionDockPresence,
 } from "@/shared/ui/session-dock/session-dock";
 import {
@@ -40,6 +41,49 @@ function renderDock({
 }
 
 describe("SessionDock", () => {
+  it("tells its surfaces when the panel is in motion, from an open/close flip until the aside's transition ends", () => {
+    function MotionProbe() {
+      return <span data-testid="motion">{useSessionDockMotion() ? "moving" : "still"}</span>;
+    }
+    const { rerender } = render(
+      <SessionDock activeSurfaceId="browser" open onActiveSurfaceChange={vi.fn()}>
+        <MotionProbe />
+      </SessionDock>,
+    );
+
+    // Resting open dock, no mount motion: nothing is moving.
+    expect(screen.getByTestId("motion")).toHaveTextContent("still");
+
+    rerender(
+      <SessionDock activeSurfaceId="browser" open={false} onActiveSurfaceChange={vi.fn()}>
+        <MotionProbe />
+      </SessionDock>,
+    );
+    expect(screen.getByTestId("motion")).toHaveTextContent("moving");
+
+    // A child's transition ending must not count as the dock settling.
+    fireEvent.transitionEnd(screen.getByTestId("session-dock-surface"));
+    expect(screen.getByTestId("motion")).toHaveTextContent("moving");
+
+    fireEvent.transitionEnd(screen.getByTestId("session-dock"));
+    expect(screen.getByTestId("motion")).toHaveTextContent("still");
+  });
+
+  it("starts in motion when inserted with mountMotion", () => {
+    function MotionProbe() {
+      return <span data-testid="motion">{useSessionDockMotion() ? "moving" : "still"}</span>;
+    }
+    render(
+      <SessionDock activeSurfaceId="browser" mountMotion open onActiveSurfaceChange={vi.fn()}>
+        <MotionProbe />
+      </SessionDock>,
+    );
+
+    expect(screen.getByTestId("motion")).toHaveTextContent("moving");
+    fireEvent.transitionEnd(screen.getByTestId("session-dock"));
+    expect(screen.getByTestId("motion")).toHaveTextContent("still");
+  });
+
   it("names the panel after the active surface and renders its content", () => {
     renderDock({ activeSurfaceId: "terminal" });
 

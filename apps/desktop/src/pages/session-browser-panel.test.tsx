@@ -19,6 +19,7 @@ import {
   type ComposerInjection,
 } from "@/entities/session/composer-injections";
 import { createBrowserHost } from "../../electron/browser-host";
+import { SessionDockMotionContext } from "@/shared/ui/session-dock/session-dock";
 import { SessionBrowserPanel } from "./session-browser-panel";
 
 const marks = [
@@ -419,6 +420,52 @@ describe("SessionBrowserPanel multi-instance", () => {
     expect(injections[0]?.files).toEqual([]);
     expect(injections[0]?.text).toContain("no screenshot could be taken");
     unsubscribe();
+  });
+
+  it("hides the native view behind a still while the dock moves, and reuses that still on the next mount", async () => {
+    const preload = installPreload();
+    rememberProjectBrowserUrl("p", "http://localhost:3000/");
+    const panel = (moving: boolean) => (
+      <SessionDockMotionContext.Provider value={moving}>
+        <SessionBrowserPanel docked projectId="p" sessionId="s" />
+      </SessionDockMotionContext.Provider>
+    );
+    const visibleCalls = (): unknown[] =>
+      preload.invocations
+        .filter((i) => i.command === "browser_set_visible")
+        .map((i) => i.args?.visible);
+    const { rerender, unmount } = render(panel(false));
+    await restored();
+    await waitFor(() => expect(visibleCalls()[visibleCalls().length - 1]).toBe(true));
+
+    // Dock starts closing: grab a still of the visible page, then step aside.
+    rerender(panel(true));
+    await waitFor(() => expect(visibleCalls()[visibleCalls().length - 1]).toBe(false));
+    await waitFor(() =>
+      expect(preload.invocations.some((i) => i.command === "browser_capture")).toBe(true),
+    );
+    expect(await screen.findByTestId("browser-snapshot")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,SNAP",
+    );
+
+    // Settled: the still goes away and the native view is back.
+    rerender(panel(false));
+    await waitFor(() => expect(screen.queryByTestId("browser-snapshot")).toBeNull());
+    await waitFor(() => expect(visibleCalls()[visibleCalls().length - 1]).toBe(true));
+
+    // Reopening plays the enter with the cached still instead of a capture of
+    // a view that is still hidden.
+    unmount();
+    preload.invocations.length = 0;
+    render(panel(true));
+    await restored();
+    expect(await screen.findByTestId("browser-snapshot")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,SNAP",
+    );
+    expect(preload.invocations.some((i) => i.command === "browser_capture")).toBe(false);
+    expect(visibleCalls()).not.toContain(true);
   });
 
   it("drops a delayed overlay still when the active tab changes", async () => {

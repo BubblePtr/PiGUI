@@ -3,7 +3,14 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@astryxdesign/core/ToggleButton";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { SidebarLeft } from "@/shared/ui/icons";
 import {
   sessionSurfaceOrder,
@@ -142,6 +149,50 @@ export function useSessionDockPresence(open: boolean): boolean {
   return open || mounted;
 }
 
+/**
+ * True while the panel is sliding open or closed. Surfaces that host native
+ * views (Browser) read it to step aside: a `WebContentsView` cannot follow a
+ * CSS transform, so it hides behind a still until the dock settles.
+ */
+export const SessionDockMotionContext = createContext(false);
+
+export function useSessionDockMotion(): boolean {
+  return useContext(SessionDockMotionContext);
+}
+
+/** Longest dock transition plus slack, in case `transitionend` never fires. */
+const dockMotionFallbackMs = 320;
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function useDockMotion(open: boolean, mountMotion: boolean) {
+  const [moving, setMoving] = useState(() => mountMotion && !prefersReducedMotion());
+  const openRef = useRef(open);
+
+  useEffect(() => {
+    if (openRef.current === open) {
+      return;
+    }
+    openRef.current = open;
+    setMoving(!prefersReducedMotion());
+  }, [open]);
+
+  useEffect(() => {
+    if (!moving) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setMoving(false), dockMotionFallbackMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [moving]);
+
+  return { moving, settle: () => setMoving(false) };
+}
+
 export function SessionDock({
   activeSurfaceId,
   badges,
@@ -163,6 +214,7 @@ export function SessionDock({
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
 }) {
   const surface = sessionSurfaces[activeSurfaceId];
+  const motion = useDockMotion(open, mountMotion);
   // Pointer vs keyboard is cheaper to remember on the rail than to thread
   // through Astryx's ToggleButtonGroup, which only reports the next value.
   const pointerSurfaceChangeRef = useRef(false);
@@ -185,6 +237,12 @@ export function SessionDock({
       data-open={open ? "true" : "false"}
       data-testid="session-dock"
       inert={open ? undefined : true}
+      onTransitionEnd={(event) => {
+        // Only the aside's own slide counts; surface fades bubble up too.
+        if (event.target === event.currentTarget) {
+          motion.settle();
+        }
+      }}
     >
       {/* Flush surfaces (registry flushContent) own every inset themselves, so
           their first row and content run edge-to-edge to the rail. */}
@@ -198,7 +256,9 @@ export function SessionDock({
         data-motion={surfaceMotionRef.current.enter ? "enter" : undefined}
         data-testid="session-dock-surface"
       >
-        {children}
+        <SessionDockMotionContext.Provider value={motion.moving}>
+          {children}
+        </SessionDockMotionContext.Provider>
       </div>
       <nav
         className="pigui-session-dock-rail flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface"
