@@ -2,6 +2,83 @@
 
 PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产物的固定标识为 `com.bubbleptr.pigui`，最低支持 macOS 12。
 
+## GitHub Actions
+
+仓库提供两条流程，只构建 macOS ARM64 产物：
+
+- [macOS ARM64 CI](../../.github/workflows/ci.yml)：分支推送、外部仓库 PR 或手动运行时，冻结安装依赖，运行发布预检与发布行为测试和完整单元测试，再执行类型检查、构建、内置运行时冒烟、未签名 `.app` 打包与完整 packaged-app E2E。同仓库 PR 复用分支推送的检查，避免重复构建。不需要 Apple 凭据。
+- [Release macOS ARM64](../../.github/workflows/release-macos.yml)：推送 `v*` tag 时执行，也可以手动指定一个**已存在的 tag**重跑。校验版本与凭据后，执行测试、构建、原生依赖复制、签名、公证，挂载 DMG 后检查架构、签名、staple 和 Gatekeeper，并从镜像里的 App 运行完整 E2E。全部成功后上传 DMG 和 `SHA256SUMS.txt`，自动公开发布带发布说明的 GitHub Release。
+
+构建机器固定为 `macos-15`（GitHub 标准 ARM64 runner），并在运行时确认 `darwin/arm64`。`stage:node-pty` 根据宿主平台选择原生模块，因此不能换成 Intel runner 后仅传 `--arm64`。Node 使用 24，Bun 固定为 1.3.12；升级 Bun 时同步修改两条 workflow。Release 上传 job 使用 Ubuntu，仅传输已验证的文件，不构建 Linux 产物。
+
+构建 job 只有 `contents: read`；仅上传 Release 的 job 获得 `contents: write`，使用 GitHub 自动提供的 `GITHUB_TOKEN`，不需要额外 PAT。Apple 凭据仅传入预检与签名步骤，`.p8` 写入 runner 临时目录并在使用后删除。失败的 E2E 诊断保留 7 天。
+
+### 首次运行需要准备什么
+
+在仓库 [Settings → Secrets and variables → Actions](https://github.com/BubblePtr/PiGUI/settings/secrets/actions) 配置以下 **Repository secrets**：
+
+| Secret | 内容 |
+| --- | --- |
+| `CSC_LINK` | 从钥匙串导出的 **Developer ID Application 证书及私钥**的 `.p12` 文件，经 Base64 编码后的完整内容。不是 Apple Development 证书。 |
+| `CSC_KEY_PASSWORD` | 导出 `.p12` 时设置的非空密码。 |
+| `APPLE_API_KEY_P8` | App Store Connect Team API key 的 `.p8` 完整文本，保留 BEGIN/END 行和换行。workflow 将其写入临时文件，再通过 `APPLE_API_KEY` 提供文件路径。 |
+| `APPLE_API_KEY_ID` | 上述 API key 的 Key ID。 |
+| `APPLE_API_ISSUER` | 同一 Team API key 的 Issuer ID。 |
+
+这需要可用的 Apple Developer Program 资格、Developer ID Application 签名证书及对应私钥，以及有公证权限的 App Store Connect Team API key。本机已有证书或 `pigui-notary` 钥匙串 profile **不会**自动传到 GitHub runner。
+
+还需要确认仓库允许 GitHub Actions 运行上述官方 actions，并允许 Release job 使用 `contents: write`。workflow 不绑定 GitHub Environment，因此不需要额外创建 environment。预检只判断凭据是否齐全；证书有效性、密码与公证权限由真实签名、公证阶段确认。
+
+缺少任一 Secret 时，Release 流程会在安装依赖前失败并列出缺少的名字。不会回退到未签名或未公证发布。`notarize: true` 本身不能保证公证发生，所以镜像中 App 的 `stapler validate` 与 Gatekeeper 检查都是必过步骤。
+
+### 导出证书、生成密钥并填写 Secrets
+
+1. 在 macOS「钥匙串访问」的「登录 → 我的证书」找到 `Developer ID Application`，展开后确认有对应私钥。选中该身份，使用「文件 → 导出项目」保存为 `.p12`，并设置导出密码。假设保存为 `~/Downloads/PiGUI-DeveloperID.p12`，执行下面的命令将 Base64 内容复制到剪贴板，粘贴为 `CSC_LINK`；导出密码填入 `CSC_KEY_PASSWORD`：
+
+   ```bash
+   base64 -i "$HOME/Downloads/PiGUI-DeveloperID.p12" | tr -d '\n' | pbcopy
+   ```
+
+2. 登录 [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api)，选择签名证书所属团队。进入「Users and Access → Integrations → App Store Connect API → Team Keys」，生成名为 `PiGUI CI` 的密钥。按当前 `@electron/notarize` 官方示例，Access 选 `App Manager`。若尚未开通 API，需要 Account Holder 先 Request Access；生成 Team Key 需要 Account Holder 或 Admin。
+3. 下载 `AuthKey_<KEY_ID>.p8`（只能下载一次），记录 Key ID 和 Issuer ID。将 `.p8` 全文填入 `APPLE_API_KEY_P8`，Key ID 填入 `APPLE_API_KEY_ID`，Issuer ID 填入 `APPLE_API_ISSUER`。Issuer ID 是 UUID，不是证书括号内的 Team ID；`.p8` 不需要 Base64 编码。
+4. 在仓库 Actions Secrets 页点击 **New repository secret**，按上面的表创建五项。完成后可运行 `gh secret list --repo BubblePtr/PiGUI` 核对名称。GitHub CI 不需要本机的 `pigui-notary` profile；该 profile 只用于下面的本地公证流程。
+
+操作参考：[Apple 钥匙串导出说明](https://support.apple.com/guide/keychain-access/import-and-export-keychain-items-kyca35961/mac)、[Apple Team API Key 创建说明](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)、[@electron/notarize 凭据要求](https://github.com/electron/notarize#usage-with-app-store-connect-api-key)。
+
+### 发一个版本
+
+首版从 `0.0.1` 开始，标签为 `v0.0.1`。版本遵循 [SemVer 2.0.0](https://semver.org/lang/zh-CN/)：兼容修复提升 PATCH，兼容的新功能提升 MINOR，不兼容的公共接口变更提升 MAJOR。`0.y.z` 属于初始开发阶段，尚不保证接口稳定。版本号由维护者根据变更内容决定，流水线不会在每次合入时自动升版。
+
+1. 在功能分支中同步修改根 `package.json` 与 `apps/desktop/package.json` 的 `version`，同步 `bun.lock` 中桌面 workspace 的版本，并运行 `bun install --frozen-lockfile` 验证后一同提交。两处清单版本都必须与 tag 去掉 `v` 后完全一致；其他内部 workspace 包无需同步升级。
+2. 通过 PR 合并版本变更及 workflow，确认 CI 通过。
+3. 从最新 `main` 创建并推送对应 tag。例如两处版本均为 `0.0.1` 时：
+
+   ```bash
+   git switch main
+   git pull --ff-only
+   git tag -a v0.0.1 -m "PiGUI 0.0.1"
+   git push origin v0.0.1
+   ```
+
+4. 在 Actions 中等待 `Release macOS ARM64` 完成。流程先在草稿中上传附件，确认上传成功后自动公开发布，无需手动点击 Publish。正式版本标记为 Latest，预发布版本不替换 Latest。
+
+预发布版本可使用 `0.1.0-rc.1` / `v0.1.0-rc.1`，生成的 Release 会标记为 prerelease。支持 SemVer 构建元数据，例如 `0.0.1+build.001`；标签和两处 `package.json` 必须保留完全相同的版本字符串。数字型预发布标识不允许前导零，构建元数据中的数字不受此限制。
+
+补齐 Secrets 或遇到临时公证失败后，可以重跑失败的 workflow，或在 Actions → Release macOS ARM64 → Run workflow 输入原 tag。已有草稿会替换同名附件、保留手工编辑的发布说明，上传成功后自动公开；已公开发布的版本会拒绝覆盖，需要创建新版本。若只是最终上传失败，可仅重跑失败的 job；构建附件保留 7 天，过期后需重新构建。
+
+### 本地检查流水线的前置逻辑
+
+```bash
+bun run test:release
+bun run test
+bun run package:mac:unsigned
+bun run test:e2e:packaged:mac --workers=1
+```
+
+`scripts/release-macos.mjs` 会校验 tag、两处版本号、宿主架构与五项 Secret。测试覆盖错误版本、非法 tag、预发布、构建元数据、架构不匹配和缺失凭据。`scripts/publish-release.sh` 的行为测试通过模拟 `gh` 验证公开发布顺序、失败处理与已发布版本不可覆盖；这些测试不会访问 Apple、发布真实 Release 或输出 Secret 的值。
+
+参考：[GitHub runner 规格](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)、[electron-builder macOS 签名与公证](https://www.electron.build/v26/docs/mac/)。
+
 ## 重建应用图标
 
 可编辑母版是 `build/icon.svg`。修改后必须用以下命令重建 `build/icon.icns`：
@@ -36,13 +113,13 @@ codesign --verify --deep --strict --verbose=2 dist/mac-arm64/PiGUI.app
 
 ## DMG 与公证
 
-`bun run dist:mac` 会强制签名，并在提供 Apple 公证凭据时自动调用 `notarytool`。自动化环境推荐使用 App Store Connect Team API key（Developer role），在构建进程中提供：
+`bun run dist:mac` 会强制签名，并在提供 Apple 公证凭据时自动调用 `notarytool`。当前流水线使用 App Store Connect Team API key（按 `@electron/notarize` 官方示例选择 App Manager access），在构建进程中提供：
 
 - `APPLE_API_KEY`：本机 `.p8` 文件路径
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER`
 
-个人 API key 不能用于 `notarytool`。本地开发推荐先把 Team API key 写入钥匙串：
+Xcode 26+ 的 `notarytool` 支持 Individual API key，但必须省略 Issuer ID。当前流水线要求 Team API key 的五项 Secrets，不采用 Individual 认证方式。本地开发可先把 Team API key 写入钥匙串：
 
 ```bash
 xcrun notarytool store-credentials "pigui-notary" \

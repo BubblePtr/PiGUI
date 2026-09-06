@@ -1,0 +1,152 @@
+name: Release macOS ARM64
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag to build (for example v0.0.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-macos-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.preflight.outputs.version }}
+      prerelease: ${{ steps.preflight.outputs.prerelease }}
+      artifact: ${{ steps.preflight.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Validate release version, architecture and credentials
+        id: preflight
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: node scripts/release-macos.mjs "$RELEASE_TAG"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - run: bun install --frozen-lockfile
+      - run: bun run test:release
+      - run: bun run test --maxWorkers=2
+        env:
+          PIGUI_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
+      - name: Build and validate the bundled runtime
+        run: bun run build:release
+      - run: bun run stage:node-pty
+      - name: Sign and notarize the ARM64 DMG
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          export APPLE_API_KEY="$RUNNER_TEMP/pigui-notary.p8"
+          (umask 077; printf '%s' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")
+          unset APPLE_API_KEY_P8
+          trap 'rm -f "$APPLE_API_KEY"' EXIT
+          ./node_modules/.bin/electron-builder --config electron-builder.yml --mac dmg --arm64 --publish never
+      - name: Mount and verify the distributable
+        env:
+          DMG_NAME: ${{ steps.preflight.outputs.artifact }}
+        run: |
+          hdiutil verify "dist/$DMG_NAME"
+          mkdir -p "$RUNNER_TEMP/pigui-dmg"
+          hdiutil attach "dist/$DMG_NAME" -readonly -nobrowse -mountpoint "$RUNNER_TEMP/pigui-dmg"
+          app="$RUNNER_TEMP/pigui-dmg/PiGUI.app"
+          test "$(lipo -archs "$app/Contents/MacOS/PiGUI")" = arm64
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+      - name: Test the app inside the DMG
+        timeout-minutes: 10
+        env:
+          DEBUG: pw:browser
+        run: |
+          system_profiler SPDisplaysDataType
+          PIGUI_E2E_EXECUTABLE="$RUNNER_TEMP/pigui-dmg/PiGUI.app/Contents/MacOS/PiGUI" \
+            bun run test:e2e --workers=1 --max-failures=1 --reporter=line
+      - name: Generate SHA-256 checksum
+        working-directory: dist
+        env:
+          DMG_NAME: ${{ steps.preflight.outputs.artifact }}
+        run: shasum -a 256 "$DMG_NAME" > SHA256SUMS.txt
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64-release
+          path: |
+            dist/${{ steps.preflight.outputs.artifact }}
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64-release-test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Clean up notarization key and mounted image
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/pigui-notary.p8"
+          if mount | grep -Fq " on $RUNNER_TEMP/pigui-dmg "; then
+            hdiutil detach "$RUNNER_TEMP/pigui-dmg"
+          fi
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-arm64-release
+          path: dist
+      - name: Verify downloaded assets
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS.txt
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+          DMG_NAME: ${{ needs.build.outputs.artifact }}
+        run: bash scripts/publish-release.sh

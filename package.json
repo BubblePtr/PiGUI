@@ -1,7 +1,7 @@
 {
   "name": "pigui",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "module",
   "workspaces": [
     "apps/*",
@@ -11,6 +11,7 @@
     "postinstall": "install-electron",
     "dev": "bun --filter @pigui/desktop dev",
     "test": "vitest run",
+    "test:release": "node --test scripts/test-release-macos.mjs scripts/test-release-publish.mjs",
     "test:bundled-runtime": "node --test scripts/test-bundled-runtime.mjs",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "test:e2e:linux": "env -u WAYLAND_DISPLAY PIGUI_E2E_ELECTRON_ARGS=--ozone-platform=x11 xvfb-run -s \"-screen 0 1920x1080x24\" playwright test --config e2e/playwright.config.ts",
