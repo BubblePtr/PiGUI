@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   MessageChannelMain,
   nativeImage,
   nativeTheme,
@@ -710,6 +711,7 @@ app.whenReady().then(() => {
   });
   installAppMenu({
     updater: appUpdater,
+    menu: Menu,
     navigateToSettings: () => {
       void mainWindow?.webContents.executeJavaScript('location.hash = "#/settings"');
     },

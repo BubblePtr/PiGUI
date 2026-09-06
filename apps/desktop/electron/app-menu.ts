@@ -1,12 +1,13 @@
-import { createRequire } from "node:module";
-import type { MenuItemConstructorOptions } from "electron";
+import type { Menu, MenuItemConstructorOptions } from "electron";
 import type { AppUpdater } from "./updater";
 
-const requireElectron = createRequire(import.meta.url);
-
-type AppMenuDependencies = {
+type AppMenuTemplateDependencies = {
   updater: Pick<AppUpdater, "getStatus" | "check">;
   navigateToSettings: () => void;
+};
+
+type AppMenuDependencies = AppMenuTemplateDependencies & {
+  menu: Pick<typeof Menu, "buildFromTemplate" | "setApplicationMenu">;
 };
 
 /**
@@ -17,7 +18,7 @@ export function buildAppMenuTemplate({
   platform,
   updater,
   navigateToSettings,
-}: AppMenuDependencies & { platform: NodeJS.Platform }): MenuItemConstructorOptions[] {
+}: AppMenuTemplateDependencies & { platform: NodeJS.Platform }): MenuItemConstructorOptions[] {
   if (platform !== "darwin") {
     return [];
   }
@@ -57,11 +58,11 @@ export function installAppMenu(options: AppMenuDependencies) {
     return;
   }
 
-  const { Menu } = requireElectron("electron") as typeof import("electron");
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate(
+  const { menu, ...templateOptions } = options;
+  menu.setApplicationMenu(
+    menu.buildFromTemplate(
       buildAppMenuTemplate({
-        ...options,
+        ...templateOptions,
         platform: "darwin",
       }),
     ),
