@@ -1,8 +1,10 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
 import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
 import {
+  ChatToolDetail,
   ChatToolGroup,
   formatToolDuration,
+  hasToolDetail,
   toolTargetFromArgs,
   type ChatToolItem,
 } from "@/shared/ui/chat/chat-tool";
@@ -20,8 +22,9 @@ import type { CotStep } from "@/entities/session/cot-view";
  * A burst of Tool Calls as one step row (ADR-0030 §3). Live it names the call
  * currently streaming or executing and turns the page as Pi moves on; settled
  * it is one past-tense verb summary. A single call is just the one-element
- * burst — no second shape — and either way the row expands to the production
- * per-call rows.
+ * burst — no second shape for the row — but its panel skips the per-call row:
+ * the step row already names the call, so expanding goes straight to the
+ * args and output instead of asking for a second click on a duplicate header.
  */
 
 export type ChatToolStepItem = Extract<CotStep, { kind: "tools" }>;
@@ -188,14 +191,22 @@ export function ChatToolStep({
         <ChevronRight aria-hidden="true" className="chat-step__chevron" />
       </Collapsible.Trigger>
       <Collapsible.Panel keepMounted className="chat-step__panel">
-        <ol className="chat-tool-step__list">
-          {tools.map((tool, index) => (
-            <li key={tool.toolCallId ?? index} className="chat-tool-step__item">
-              <ChatToolKindIcon kind={toolKindFromName(tool.toolName)} />
-              <ChatToolGroup tools={[tool]} />
-            </li>
-          ))}
-        </ol>
+        {tools.length === 1 ? (
+          hasToolDetail(tools[0]) ? (
+            <div className="chat-tool-step__detail" data-slot="chat-tool-step-detail">
+              <ChatToolDetail tool={tools[0]} />
+            </div>
+          ) : null
+        ) : (
+          <ol className="chat-tool-step__list">
+            {tools.map((tool, index) => (
+              <li key={tool.toolCallId ?? index} className="chat-tool-step__item">
+                <ChatToolKindIcon kind={toolKindFromName(tool.toolName)} />
+                <ChatToolGroup tools={[tool]} />
+              </li>
+            ))}
+          </ol>
+        )}
       </Collapsible.Panel>
     </Collapsible.Root>
   );

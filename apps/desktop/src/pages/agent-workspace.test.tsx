@@ -4525,9 +4525,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByText("The slice is shipped.")).toBeInTheDocument();
     // Abandoned retry partials never render as chat answers.
     expect(screen.queryByText("Partial answer before retry")).not.toBeInTheDocument();
-    // The settled burst reads as what it did, with the call itself behind it.
+    // The settled burst reads as what it did, with the call's args behind it.
     expect(screen.getByText("Read AGENTS.md")).toBeInTheDocument();
-    expect(screen.getByText("read_file")).toBeInTheDocument();
+    expect(screen.getByText('{"path":"AGENTS.md"}')).not.toBeVisible();
     expect(screen.getByText("Inspect the repo first.")).toBeInTheDocument();
   });
 
@@ -5269,12 +5269,11 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       within(assistantMessages[0]).getByText("Summarize the inspection."),
     ).toBeInTheDocument();
-    expect(within(assistantMessages[0]).getByText("shell")).toBeInTheDocument();
-    expect(within(assistantMessages[0]).queryByText("listed files")).not.toBeInTheDocument();
-    expect(within(assistantMessages[0]).getByText("read_file")).toBeInTheDocument();
-    expect(
-      within(assistantMessages[0]).queryByText("agent instructions loaded"),
-    ).not.toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("Ran ls -la")).toBeInTheDocument();
+    // Tool output stays behind the step rows until one is opened.
+    expect(within(assistantMessages[0]).getByText("listed files")).not.toBeVisible();
+    expect(within(assistantMessages[0]).getByText("Read AGENTS.md")).toBeInTheDocument();
+    expect(within(assistantMessages[0]).getByText("agent instructions loaded")).not.toBeVisible();
   });
 
   it("folds consecutive tool calls into one step that expands to a row per call", () => {
@@ -5570,9 +5569,8 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByTestId("runtime-fallback-banner")).not.toBeInTheDocument();
     expect(screen.getByText("Create a real Pi RPC-backed session")).toBeInTheDocument();
     expect(screen.getByText("Live session is ready.")).toBeInTheDocument();
-    expect(screen.getByText("read")).toBeInTheDocument();
-    expect(screen.getByText("read")).toBeInTheDocument();
-    expect(screen.queryByText("{\"path\":\"AGENTS.md\"}")).not.toBeInTheDocument();
+    expect(screen.getByText("Read AGENTS.md")).toBeInTheDocument();
+    expect(screen.getByText("{\"path\":\"AGENTS.md\"}")).not.toBeVisible();
     expect(screen.getByPlaceholderText("What do you want to know?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     // Single column too: Chat centers itself, so no outer max-width box may
@@ -6384,7 +6382,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const trace = assistantMessage!.querySelector(
       '[data-slot="chain-of-thought"]',
     );
-    const tool = assistantMessage!.querySelector('[data-slot="chat-tool-group"]');
+    const tool = assistantMessage!.querySelector('[data-slot="chat-tool-step"]');
     const streamingContent = assistantMessage!.querySelector(
       '[data-testid="stream-markdown-renderer"]',
     );
@@ -6396,10 +6394,10 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       assistantMessage!.querySelector('[data-slot="chat-message-actions"]'),
     ).not.toBeInTheDocument();
-    expect(tool).toHaveAttribute("data-state", "output-available");
-    expect(tool).toHaveTextContent("read");
-    expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
-    expect(tool).not.toHaveTextContent("Agent instructions loaded.");
+    expect(tool).toHaveTextContent("Read AGENTS.md");
+    // A single call's args and output sit behind the step row, one click away.
+    expect(tool!.querySelector('[data-slot="chat-tool-args"]')).not.toBeVisible();
+    expect(tool!.querySelector('[data-slot="chat-tool-result"]')).not.toBeVisible();
     await waitFor(() =>
       expect(streamingContent).toHaveTextContent("最终回答只保留结论。"),
     );
@@ -6500,7 +6498,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const trace = assistantMessage!.querySelector(
       '[data-slot="chain-of-thought"]',
     );
-    const tool = assistantMessage!.querySelector('[data-slot="chat-tool-group"]');
+    const tool = assistantMessage!.querySelector('[data-slot="chat-tool-step"]');
 
     expect(trace).toBeInTheDocument();
     expect(within(assistantMessage!).getByRole("button", { name: /^Worked/ })).toBeInTheDocument();
@@ -6508,9 +6506,9 @@ describe("AgentWorkspaceSessionsPage", () => {
       "chat-message__actions--persist",
     );
     expect(within(assistantMessage!).getByText("先读项目说明。")).toBeInTheDocument();
-    expect(tool).toHaveTextContent("read");
-    expect(tool).not.toHaveTextContent("{\"path\":\"AGENTS.md\"}");
-    expect(tool).not.toHaveTextContent("Agent instructions loaded.");
+    expect(tool).toHaveTextContent("Read AGENTS.md");
+    expect(tool!.querySelector('[data-slot="chat-tool-args"]')).not.toBeVisible();
+    expect(tool!.querySelector('[data-slot="chat-tool-result"]')).not.toBeVisible();
   });
 
   it("does not show fixture trace steps when a live Projection has no tool calls", async () => {

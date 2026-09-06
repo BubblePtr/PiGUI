@@ -83,22 +83,34 @@ export function formatToolDuration(durationMs: number | undefined): string | und
     : `${(durationMs / 1000).toFixed(1)}s`;
 }
 
+export function hasToolDetail(tool: ChatToolItem) {
+  return tool.argsText != null || tool.output != null;
+}
+
+/**
+ * The args and output panes of one call. Rendered inside the Astryx row when
+ * it expands, and directly by a single-call ChatToolStep, whose own row
+ * already names the call — a second header there would only cost a click.
+ */
+export function ChatToolDetail({ tool }: { tool: ChatToolItem }) {
+  return (
+    <>
+      {tool.argsText != null ? (
+        <pre className="chat-tool__section" data-slot="chat-tool-args">
+          {tool.argsText}
+        </pre>
+      ) : null}
+      {tool.output !== undefined ? (
+        <pre className="chat-tool__section" data-slot="chat-tool-result">
+          {tool.output}
+        </pre>
+      ) : null}
+    </>
+  );
+}
+
 function toAstryxCall(tool: ChatToolItem, index: number): ChatToolCallItem {
-  const resultDetail =
-    tool.argsText != null || tool.output != null ? (
-      <>
-        {tool.argsText != null ? (
-          <pre className="chat-tool__section" data-slot="chat-tool-args">
-            {tool.argsText}
-          </pre>
-        ) : null}
-        {tool.output !== undefined ? (
-          <pre className="chat-tool__section" data-slot="chat-tool-result">
-            {tool.output}
-          </pre>
-        ) : null}
-      </>
-    ) : undefined;
+  const resultDetail = hasToolDetail(tool) ? <ChatToolDetail tool={tool} /> : undefined;
 
   return {
     name: tool.toolName ?? "tool",

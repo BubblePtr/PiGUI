@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ChatToolStep, summarizeTools } from "@/shared/ui/chat/chat-tool-step";
 import type { ChatToolItem } from "@/shared/ui/chat/chat-tool";
@@ -191,5 +192,37 @@ describe("ChatToolStep", () => {
 
     expect(rows).toHaveLength(2);
     expect([...rows].every((row) => row.getAttribute("data-tool-count") === "1")).toBe(true);
+  });
+
+  // One call is the one-element burst, but the step row already says what
+  // the call did: a second header inside the panel only costs a second click.
+  it("opens a single call's args and output with one click", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ChatToolStep
+        step={step([
+          tool({
+            toolCallId: "c1",
+            toolName: "read",
+            argsText: '{"path":"AGENTS.md"}',
+            output: "Agent instructions loaded.",
+          }),
+        ])}
+      />,
+    );
+
+    expect(container.querySelector('[data-slot="chat-tool-args"]')).not.toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /Read AGENTS.md/ }));
+
+    expect(container.querySelector('[data-slot="chat-tool-args"]')).toHaveTextContent(
+      '{"path":"AGENTS.md"}',
+    );
+    expect(container.querySelector('[data-slot="chat-tool-args"]')).toBeVisible();
+    expect(container.querySelector('[data-slot="chat-tool-result"]')).toHaveTextContent(
+      "Agent instructions loaded.",
+    );
+    expect(container.querySelector('[data-slot="chat-tool-group"]')).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 });

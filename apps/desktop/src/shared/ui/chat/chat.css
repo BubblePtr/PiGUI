@@ -566,6 +566,17 @@
   padding-inline-start: 0;
 }
 
+/* A single call's args/output sit where the per-call rows would, indented
+   past the kind-icon column the step row and the burst rows share. */
+.chat-tool-step__detail {
+  margin-block-start: var(--spacing-1);
+  padding-inline-start: calc(var(--chat-icon-size, 13px) + var(--spacing-1-5));
+}
+
+.chat-tool-step__detail .chat-tool__section:first-child {
+  margin-block-start: 0;
+}
+
 .chat-tool-step__list {
   display: flex;
   flex-direction: column;
@@ -612,6 +623,24 @@
    Astryx's; the trailing chevron span carries no text. */
 .chat-tool-step__item .astryx-chat-tool-calls [role="button"] > span:not(:first-child):not(:last-child) {
   color: var(--color-text-secondary);
+}
+
+/* Astryx sets the call name in its code face and the target and duration a
+   size down. Inside a burst those rows are the same kind of line as the
+   step row above them, so they take that row's face and size — one level,
+   not a header over a sub-header. Chevron and status spans carry no text. */
+.chat-tool-step__item {
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+.chat-tool-step__item .astryx-chat-tool-calls [role="button"] > span,
+.chat-tool-step__item .astryx-chat-tool-calls > div > span {
+  font-family: inherit;
+  font-size: inherit;
+  font-style: normal;
+  font-weight: inherit;
+  letter-spacing: normal;
 }
 
 /* —— Status line —— */
