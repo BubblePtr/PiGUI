@@ -29,4 +29,5 @@
 
 ## 切片
 
-- #196：electron-updater 接入与发布资产扩展（单切片，含主进程、渲染层、CI 与文档）。
+- #196：electron-updater 接入与发布资产扩展（主进程、渲染层、CI 与文档）。已合并（PR #198）。
+- #199：主动入口——侧栏 Settings 徽标与 macOS 应用菜单 "Check for Updates…"。
