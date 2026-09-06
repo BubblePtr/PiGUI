@@ -1,16 +1,13 @@
-name: macOS ARM64 CI
+name: Validate macOS ARM64 (manual)
 
 on:
-  pull_request:
-  push:
-    branches: ['**']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: macos-ci-${{ github.event.pull_request.number || github.ref }}
+  group: macos-validation-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -19,8 +16,6 @@ defaults:
 
 jobs:
   check:
-    # Same-repository PRs reuse their branch-push checks; fork PRs need their own run.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: macos-15
     timeout-minutes: 30
     steps:

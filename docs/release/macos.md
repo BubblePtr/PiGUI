@@ -6,7 +6,7 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 
 仓库提供两条流程，只构建 macOS ARM64 产物：
 
-- [macOS ARM64 CI](../../.github/workflows/ci.yml)：分支推送、外部仓库 PR 或手动运行时，冻结安装依赖，运行发布预检与发布行为测试和完整单元测试，再执行类型检查、构建、内置运行时冒烟、未签名 `.app` 打包与完整 packaged-app E2E。同仓库 PR 复用分支推送的检查，避免重复构建。不需要 Apple 凭据。
+- [Validate macOS ARM64 (manual)](../../.github/workflows/ci.yml)：仅在 Actions 中手动运行，用于按需验证未签名应用，不会由普通 PR、分支推送或合并自动触发。冻结安装依赖，运行发布预检与发布行为测试和完整单元测试，再执行类型检查、构建、内置运行时冒烟、未签名 `.app` 打包与完整 packaged-app E2E。不需要 Apple 凭据。
 - [Release macOS ARM64](../../.github/workflows/release-macos.yml)：推送 `v*` tag 时执行，也可以手动指定一个**已存在的 tag**重跑。校验版本与凭据后，执行测试、构建、原生依赖复制、签名、公证，挂载 DMG 后检查架构、签名、staple 和 Gatekeeper，并从镜像里的 App 运行完整 E2E。全部成功后上传 DMG 和 `SHA256SUMS.txt`，自动公开发布带发布说明的 GitHub Release。
 
 构建机器固定为 `macos-15`（GitHub 标准 ARM64 runner），并在运行时确认 `darwin/arm64`。`stage:node-pty` 根据宿主平台选择原生模块，因此不能换成 Intel runner 后仅传 `--arm64`。Node 使用 24，Bun 固定为 1.3.12；升级 Bun 时同步修改两条 workflow。Release 上传 job 使用 Ubuntu，仅传输已验证的文件，不构建 Linux 产物。
@@ -50,7 +50,7 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 首版从 `0.0.1` 开始，标签为 `v0.0.1`。版本遵循 [SemVer 2.0.0](https://semver.org/lang/zh-CN/)：兼容修复提升 PATCH，兼容的新功能提升 MINOR，不兼容的公共接口变更提升 MAJOR。`0.y.z` 属于初始开发阶段，尚不保证接口稳定。版本号由维护者根据变更内容决定，流水线不会在每次合入时自动升版。
 
 1. 在功能分支中同步修改根 `package.json` 与 `apps/desktop/package.json` 的 `version`，同步 `bun.lock` 中桌面 workspace 的版本，并运行 `bun install --frozen-lockfile` 验证后一同提交。两处清单版本都必须与 tag 去掉 `v` 后完全一致；其他内部 workspace 包无需同步升级。
-2. 通过 PR 合并版本变更及 workflow，确认 CI 通过。
+2. 通过 PR 合并版本变更及 workflow。普通 PR 不自动执行 macOS 打包或 E2E；需要提前验证时，在 Actions 手动运行 `Validate macOS ARM64 (manual)`。下一步的标签发版流程会执行完整测试。
 3. 从最新 `main` 创建并推送对应 tag。例如两处版本均为 `0.0.1` 时：
 
    ```bash
