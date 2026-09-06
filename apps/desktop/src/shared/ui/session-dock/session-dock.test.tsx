@@ -306,7 +306,7 @@ describe("SessionDock", () => {
     );
   });
 
-  it("animates open/close on transform and opacity, never width, and disables under reduced motion", () => {
+  it("fades open/close and leaves the slide to the pane, never animating its own width or transform", () => {
     const styles = readFileSync(
       join(process.cwd(), "apps/desktop/src/app/styles.css"),
       "utf8",
@@ -314,8 +314,10 @@ describe("SessionDock", () => {
 
     expect(styles).toContain(".pigui-session-dock {");
     expect(styles).toContain(".pigui-session-dock[data-open=\"false\"]");
-    expect(styles).toContain("transform: translateX(100%)");
     expect(styles).toContain("opacity 250ms cubic-bezier(0.32, 0.72, 0, 1)");
+    // The pane's width transition is the one slide; a translate on the dock
+    // would double it and race ahead of the divider.
+    expect(styles).not.toMatch(/\.pigui-session-dock\[data-open="false"\] \{[^}]*transform/);
     expect(styles).toContain("transition-duration: 180ms");
     expect(styles).toContain(".pigui-session-dock-surface[data-motion=\"enter\"]");
     expect(styles).toContain("translateY(2px)");
@@ -324,7 +326,7 @@ describe("SessionDock", () => {
       /prefers-reduced-motion:\s*reduce[\s\S]*\.pigui-session-dock,/,
     );
     expect(styles).not.toMatch(
-      /\.pigui-session-dock[^{]*\{[^}]*\bwidth\b[^}]*transition/,
+      /\.pigui-session-dock(?!-pane)[^{]*\{[^}]*\bwidth\b[^}]*transition/,
     );
   });
 
@@ -352,5 +354,24 @@ describe("SessionDock", () => {
 
     expect(surfaceBlock).toBeDefined();
     expect(surfaceBlock).not.toMatch(/^\s*transform\s*:/m);
+  });
+
+  it("closes the split pane on the dock's own clock so the divider and Chat move with it", () => {
+    const styles = readFileSync(
+      join(process.cwd(), "apps/desktop/src/app/styles.css"),
+      "utf8",
+    );
+    const paneMotion = styles.match(
+      /\.pigui-session-dock-pane\[data-motion="true"\] \{([^}]*)\}/,
+    )?.[1];
+    const paneClosed = styles.match(
+      /\.pigui-session-dock-pane\[data-open="false"\] \{([^}]*)\}/,
+    )?.[1];
+
+    // Same enter curve and 250ms as .pigui-session-dock; same 180ms ease-in exit.
+    expect(paneMotion).toMatch(/width 250ms cubic-bezier\(0\.32, 0\.72, 0, 1\)/);
+    expect(paneClosed).toMatch(/width: 0/);
+    expect(paneClosed).toMatch(/transition-duration: 180ms/);
+    expect(styles).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.pigui-session-dock-pane/);
   });
 });

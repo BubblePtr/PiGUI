@@ -44,6 +44,7 @@ import {
   SessionDockTrigger,
   sessionDockDefaultWidthPx,
   sessionDockResizableBounds,
+  useSessionDockMotionState,
   useSessionDockPresence,
 } from "@/shared/ui/session-dock/session-dock";
 import { SessionSurfaceBar } from "@/shared/ui/session-dock/surface-bar";
@@ -51,7 +52,15 @@ import {
   type SessionSurfaceId,
 } from "@/shared/ui/session-dock/surface-registry";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
-import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pigui/core";
 import { promptImageDataUrl } from "@pigui/core";
 import { Thumbnail } from "@astryxdesign/core/Thumbnail";
@@ -3308,6 +3317,7 @@ export function AgentWorkspaceSessionsView({
   showDraft = false,
   workspace = fixtureWorkspace,
   aside,
+  asideOpen = true,
   onDraftSubmit = () => {},
   sessionCreator,
   checkoutManager,
@@ -3324,6 +3334,8 @@ export function AgentWorkspaceSessionsView({
   showDraft?: boolean;
   workspace?: AgentWorkspaceFixture;
   aside?: ReactNode;
+  /** False while the dock plays its exit; the pane closes on the same clock. */
+  asideOpen?: boolean;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
   sessionCreator?: SessionCreator;
   checkoutManager?: ExecutionCheckoutManager;
@@ -3414,6 +3426,8 @@ export function AgentWorkspaceSessionsView({
     maxSizePx: asideSizeBounds.maxSizePx,
   });
   const { resize: resizeAside, size: asideSize } = asideResizable;
+  // The split view mounts with the dock, so a mount always plays the enter.
+  const asideMotion = useSessionDockMotionState(asideOpen, true);
 
   // `useResizable` clamps each drag against the current bounds but keeps the
   // size it already holds, so a window that shrank under the panel has to be
@@ -3472,14 +3486,31 @@ export function AgentWorkspaceSessionsView({
             pillPlacement="center"
             resizable={asideResizable.props}
           />
+          {/* Width, not transform, on purpose: the divider and Chat's column
+              have to move with the dock's edge, and only a layout change
+              does that. It runs solely while the dock is in motion, so drags
+              stay 1:1; the inner box keeps the full width so the sliding
+              content is clipped, never squeezed. */}
           <div
-            className="h-full min-h-0 shrink-0"
+            className="pigui-session-dock-pane h-full min-h-0 shrink-0"
+            data-motion={asideMotion.moving ? "true" : undefined}
+            data-open={asideOpen ? "true" : "false"}
             data-slot="resizable-panel"
-            style={{ width: asideResizable.size }}
+            style={
+              {
+                "--pigui-session-dock-width": `${asideResizable.size}px`,
+              } as CSSProperties
+            }
+            onTransitionEnd={(event) => {
+              if (event.target === event.currentTarget) {
+                asideMotion.settle();
+              }
+            }}
           >
             <div
-              className="h-full min-h-0 min-w-0 overflow-hidden"
+              className="h-full min-h-0 overflow-hidden"
               data-testid="session-workspace-aside-pane"
+              style={{ width: asideResizable.size }}
             >
               {aside}
             </div>
@@ -3679,6 +3710,7 @@ export function AgentWorkspaceSessionsPage() {
     >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
+        asideOpen={dockOpen}
         aside={
           dockMounted ? (
             <SessionDock

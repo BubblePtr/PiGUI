@@ -489,7 +489,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       await user.click(await screen.findByRole("button", { name: "Session dock" }));
 
       const aside = await screen.findByRole("complementary", { name: "Changes" });
-      const asidePane = aside.closest('[data-slot="resizable-panel"]') as HTMLElement;
+      const asidePane = aside.closest('[data-testid="session-workspace-aside-pane"]') as HTMLElement;
 
       // 1440 container - 1px handle divider - 400px Chat leaves 1039, so the
       // 560px default is untouched.
@@ -587,6 +587,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     const closing = screen.getByTestId("session-dock");
     expect(closing).toHaveAttribute("data-open", "false");
     expect(closing).toHaveAttribute("aria-hidden", "true");
+    // The split pane, and with it the divider and Chat's width, closes on the
+    // same clock as the dock instead of waiting for the unmount.
+    const pane = screen.getByTestId("session-workspace-aside-pane").parentElement!;
+    expect(pane).toHaveAttribute("data-open", "false");
+    expect(pane).toHaveAttribute("data-motion", "true");
+    expect(pane.style.getPropertyValue("--pigui-session-dock-width")).toMatch(/px$/);
     expect(screen.getByRole("button", { name: "Session dock" })).toHaveAttribute(
       "aria-pressed",
       "false",

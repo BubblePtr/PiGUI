@@ -170,7 +170,12 @@ function prefersReducedMotion() {
   );
 }
 
-function useDockMotion(open: boolean, mountMotion: boolean) {
+/**
+ * "In motion" bookkeeping shared by the dock and the split pane that holds
+ * it: true from an open/close flip (or a motion-on mount) until `settle()` —
+ * wire that to the element's own `transitionend` — or the fallback timeout.
+ */
+export function useSessionDockMotionState(open: boolean, mountMotion: boolean) {
   const [moving, setMoving] = useState(() => mountMotion && !prefersReducedMotion());
   const openRef = useRef(open);
 
@@ -214,7 +219,7 @@ export function SessionDock({
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
 }) {
   const surface = sessionSurfaces[activeSurfaceId];
-  const motion = useDockMotion(open, mountMotion);
+  const motion = useSessionDockMotionState(open, mountMotion);
   // Pointer vs keyboard is cheaper to remember on the rail than to thread
   // through Astryx's ToggleButtonGroup, which only reports the next value.
   const pointerSurfaceChangeRef = useRef(false);
