@@ -46,7 +46,12 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: bun run package:mac:unsigned
       - name: Test packaged app
-        run: bun run test:e2e:packaged:mac --workers=1
+        timeout-minutes: 10
+        env:
+          DEBUG: pw:browser
+        run: |
+          system_profiler SPDisplaysDataType
+          bun run test:e2e:packaged:mac --workers=1 --max-failures=1 --reporter=line
       - name: Upload test diagnostics
         if: failure()
         uses: actions/upload-artifact@v7

@@ -85,9 +85,13 @@ jobs:
           xcrun stapler validate "$app"
           spctl --assess --type execute --verbose=2 "$app"
       - name: Test the app inside the DMG
+        timeout-minutes: 10
+        env:
+          DEBUG: pw:browser
         run: |
+          system_profiler SPDisplaysDataType
           PIGUI_E2E_EXECUTABLE="$RUNNER_TEMP/pigui-dmg/PiGUI.app/Contents/MacOS/PiGUI" \
-            bun run test:e2e --workers=1
+            bun run test:e2e --workers=1 --max-failures=1 --reporter=line
       - name: Generate SHA-256 checksum
         working-directory: dist
         env:
