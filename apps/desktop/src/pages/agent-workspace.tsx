@@ -21,6 +21,7 @@ import {
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
+import { usePresenceList } from "@/shared/ui/chat/use-presence-list";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
 import {
   type ChatToolItem,
@@ -536,8 +537,13 @@ function QueuedMessageList({
   const queuedMessages = projection.queuedMessages.filter(
     (queuedMessage) => queuedMessage.status !== "processing",
   );
+  const { present, onExitTransitionEnd } = usePresenceList(
+    queuedMessages,
+    (queuedMessage) => queuedMessage.id,
+    { exitTimeoutMs: 150 },
+  );
 
-  if (!queuedMessages.length) {
+  if (!present.length) {
     return null;
   }
 
@@ -546,11 +552,13 @@ function QueuedMessageList({
       className="mx-auto mb-3 grid w-full max-w-[44rem] gap-1.5"
       data-testid="queued-message-list"
     >
-      {queuedMessages.map((queuedMessage) => (
+      {present.map(({ item: queuedMessage, key, motion }) => (
         <ChatQueuedMessage
           body={queuedMessage.body || queuedMessage.images?.[0]?.name || "Attached image"}
           isWithdrawn={queuedMessage.status === "withdrawn"}
-          key={queuedMessage.id}
+          key={key}
+          presence={motion}
+          onExitTransitionEnd={() => onExitTransitionEnd(key)}
           onSteer={
             onSteer && queuedMessage.status === "pending"
               ? () => onSteer(queuedMessage.id)
