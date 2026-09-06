@@ -298,5 +298,15 @@ describe("SessionDock", () => {
     expect(restingBlock).toBeDefined();
     expect(restingBlock).not.toMatch(/^\s*transform\s*:/m);
     expect(restingBlock).not.toMatch(/will-change/);
+
+    // Same reason one level down: the surface fade may not leave a transform
+    // behind once it has settled, or the surface bar drops below the chrome
+    // after any pointer switch on the rail.
+    const surfaceBlock = styles.match(
+      /\n\.pigui-session-dock-surface\[data-motion="enter"\] \{([^}]*)\}/,
+    )?.[1];
+
+    expect(surfaceBlock).toBeDefined();
+    expect(surfaceBlock).not.toMatch(/^\s*transform\s*:/m);
   });
 });

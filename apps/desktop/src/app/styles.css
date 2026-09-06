@@ -503,7 +503,6 @@ body {
    does not interpolate. */
 .pigui-surface-tab {
   opacity: 1;
-  transform: scale(1);
   transition:
     opacity 150ms cubic-bezier(0.32, 0.72, 0, 1),
     transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -559,9 +558,11 @@ body {
   }
 }
 
+/* No resting `transform` here either: it would make the surface its own
+   stacking context and push the surface bar under the header chrome after
+   every pointer switch. `translateY(2px)` → `none` still transitions. */
 .pigui-session-dock-surface[data-motion="enter"] {
   opacity: 1;
-  transform: translateY(0);
   transition:
     opacity 150ms ease-out,
     transform 150ms ease-out;

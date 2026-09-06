@@ -12,7 +12,10 @@ import type { BrowserViewRect } from "@/shared/browser-protocol";
  *
  * `ResizeObserver` covers panel drags (the placeholder's width changes with
  * the panel); the window `resize` listener covers moves that leave the size
- * alone but shift the origin.
+ * alone but shift the origin. Neither fires for a `transform`, and the dock's
+ * open/close transition is exactly that: the first push lands while the dock
+ * still sits at its `translateX(100%)` start, so `transitionend` /
+ * `animationend` (bubbling from any ancestor) re-measure once motion settles.
  */
 export function useBrowserViewBounds(
   target: RefObject<HTMLElement | null>,
@@ -52,10 +55,14 @@ export function useBrowserViewBounds(
 
     observer.observe(element);
     window.addEventListener("resize", push);
+    document.addEventListener("transitionend", push);
+    document.addEventListener("animationend", push);
 
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", push);
+      document.removeEventListener("transitionend", push);
+      document.removeEventListener("animationend", push);
     };
   }, [enabled, onRectChange, target]);
 }
