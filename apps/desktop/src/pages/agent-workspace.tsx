@@ -2525,6 +2525,7 @@ function LiveSessionColumn({
   const [stoppingRun, setStoppingRun] = useState(false);
   const [liveClockNowMs, setLiveClockNowMs] = useState(() => Date.now());
   const resumeAttemptedKeysRef = useRef(new Set<string>());
+  const pendingResumeRequestsRef = useRef(new Map<string, Promise<PiSessionState>>());
   const resumeFailedKeysRef = useRef(new Set<string>());
   const [resumeRetryNonce, setResumeRetryNonce] = useState(0);
 
@@ -2611,11 +2612,10 @@ function LiveSessionColumn({
       return;
     }
 
-    resumeAttemptedKeysRef.current.add(resumeKey);
     let cancelled = false;
-
-    void bridge
-      .resumeSession({
+    let request = pendingResumeRequestsRef.current.get(resumeKey);
+    if (!request) {
+      request = bridge.resumeSession({
         sessionId: sessionProjection.id,
         projectId: sessionProjection.projectId,
         piSessionId: sessionProjection.piSessionId,
@@ -2625,12 +2625,19 @@ function LiveSessionColumn({
           workspace.checkout.runtimeCwd,
         sessionFile: sessionProjection.sessionFile,
         checkout: sessionProjection.checkout,
-      })
+      });
+      pendingResumeRequestsRef.current.set(resumeKey, request);
+    }
+
+    // Projection refreshes cancel the old effect, but the current view must
+    // still receive its pending resume without starting a second runtime.
+    void request
       .then((state) => {
         if (cancelled) {
           return;
         }
 
+        resumeAttemptedKeysRef.current.add(resumeKey);
         resumeFailedKeysRef.current.delete(resumeKey);
 
         // Re-base on the freshest projection: prompt/queue handlers may have
@@ -2676,6 +2683,9 @@ function LiveSessionColumn({
             occurredAt: new Date().toISOString(),
           }),
         );
+      })
+      .finally(() => {
+        pendingResumeRequestsRef.current.delete(resumeKey);
       });
 
     return () => {

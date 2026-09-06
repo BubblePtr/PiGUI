@@ -31,6 +31,7 @@ import {
   type AgentRuntimeEventEntry,
   type ForkSessionInput,
   type ForkSessionResult,
+  type PiSessionState,
 } from "@/entities/runtime/pi-runtime-bridge";
 import {
   createInMemoryPiRuntimeBridge,
@@ -2580,6 +2581,73 @@ describe("AgentWorkspaceSessionsPage", () => {
       { timeout: 3000 },
     );
   });
+
+  it.each(["refresh", "reopen"])(
+    "finishes a pending Session resume after a projection %s without duplicating the RPC",
+    async (change) => {
+      const bridge = createInMemoryPiRuntimeBridge();
+      let resolveResume!: (state: PiSessionState) => void;
+      const resumeSession = vi.fn(() => new Promise<PiSessionState>((resolve) => {
+        resolveResume = resolve;
+      }));
+      const resumingBridge = { ...bridge, resumeSession };
+      const selected = {
+        provider: "openai",
+        modelId: "gpt-5.5",
+        thinkingLevel: "high" as const,
+      };
+      const projection: SessionProjection = {
+        ...createSessionProjection({
+          id: "pending-resume",
+          projectId: "pig-docs",
+          initialPrompt: "Resume with refreshed projection",
+          createdAt: "2026-07-02T10:00:00.000Z",
+        }),
+        status: "completed",
+        creationStage: "accepted",
+        runtimeId: "runtime-pending",
+        piSessionId: "pi-pending",
+        sessionFile: "/sessions/pi-pending.jsonl",
+        modelControls: { models: [], selected },
+      };
+      const view = (showDraft = false) => (
+        <AgentWorkspaceSessionsView
+          projectId="pig-docs"
+          runtimeBridge={resumingBridge}
+          sessionProjection={{ ...projection }}
+          showDraft={showDraft}
+        />
+      );
+      const { rerender } = render(view());
+      await waitFor(() => expect(resumeSession).toHaveBeenCalledTimes(1));
+
+      // A projection reload or a quick Draft round-trip must keep the pending result usable.
+      if (change === "reopen") rerender(view(true));
+      rerender(view());
+      await act(async () => resolveResume({
+        piSessionId: "pi-pending",
+        runtimeId: "runtime-pending",
+        projectId: "pig-docs",
+        cwd: "/project",
+        status: "completed",
+        events: [],
+        modelControls: {
+          selected,
+          models: [{
+            provider: "openai",
+            modelId: "gpt-5.5",
+            name: "GPT-5.5",
+            thinkingLevels: ["off", "high"],
+          }],
+        },
+        updatedAt: projection.updatedAt,
+      }));
+
+      await waitFor(() => expect(screen.getByTestId("model-thinking-trigger")).toBeEnabled());
+      expect(screen.getByTestId("model-thinking-trigger")).toHaveTextContent("GPT-5.5 · High");
+      expect(resumeSession).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("keeps the submitted user bubble when a slow resume resync lands after the prompt echo", async () => {
     const user = userEvent.setup();
