@@ -716,8 +716,12 @@ describe("Browser multi-instance host", () => {
     expect(views[1]?.destroyed).toBe(false);
   });
 
-  it("restores only once per Session, preserves active tabs, and leaves the last close empty", async () => {
-    const { host } = createHostHarness();
+  it("restores saved tabs on request, preserves existing tabs, and leaves an empty reattach empty", async () => {
+    const { host, views } = createHostHarness();
+    expect(await host.invoke("browser_attach", { sessionId: "session-a" }))
+      .toMatchObject({ tabs: [], activeTabId: null });
+    expect(views).toHaveLength(0);
+
     await host.invoke("browser_attach", {
       sessionId: "session-a",
       tabs: ["localhost:3000", "localhost:4000"],
@@ -748,7 +752,6 @@ describe("Browser multi-instance host", () => {
     expect(
       await host.invoke("browser_attach", {
         sessionId: "session-a",
-        tabs: ["localhost:6000"],
       }),
     ).toMatchObject({ tabs: [], activeTabId: null });
   });

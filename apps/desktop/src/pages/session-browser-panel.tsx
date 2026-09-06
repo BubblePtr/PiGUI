@@ -77,6 +77,9 @@ function BrowserSessionContent({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [notices, setNotices] = useState<Record<string, string | null>>({});
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+  const openingRef = useRef(false);
+  const hasHadTabs = useRef(false);
   const [snapshot, setSnapshot] = useState<{
     tabId: string;
     image: string;
@@ -136,7 +139,8 @@ function BrowserSessionContent({
         ),
       });
     });
-    void attachBrowserSession(sessionId, getProjectBrowserTabs(projectId))
+    // Reattach live tabs, but do not restore saved URLs just by opening the dock.
+    void attachBrowserSession(sessionId)
       .then((restored) => {
         applyGroup({
           ...restored,
@@ -160,12 +164,16 @@ function BrowserSessionContent({
 
   useEffect(() => {
     if (!group) return;
-    rememberProjectBrowserTabs(projectId, {
-      tabs: group.tabs.map((tab) => tab.url),
-      activeIndex: group.tabs.findIndex(
-        (tab) => tab.tabId === group.activeTabId,
-      ),
-    });
+    // An initial empty group must not erase the URLs waiting for explicit restore.
+    if (group.tabs.length > 0) hasHadTabs.current = true;
+    if (hasHadTabs.current) {
+      rememberProjectBrowserTabs(projectId, {
+        tabs: group.tabs.map((tab) => tab.url),
+        activeIndex: group.tabs.findIndex(
+          (tab) => tab.tabId === group.activeTabId,
+        ),
+      });
+    }
     instancesCallback.current?.(group.tabs);
   }, [group, projectId]);
 
@@ -262,6 +270,19 @@ function BrowserSessionContent({
       if (alive.current) setActionError(errorMessage(error));
     }
   };
+  const openNewTab = async () => {
+    if (!available || openingRef.current) return;
+    openingRef.current = true;
+    setIsOpening(true);
+    await changeTabs(() => {
+      const remembered = getProjectBrowserTabs(projectId);
+      return !groupRef.current?.tabs.length && remembered.tabs.length > 0
+        ? attachBrowserSession(sessionId, remembered)
+        : openBrowserTab(sessionId);
+    });
+    openingRef.current = false;
+    if (alive.current) setIsOpening(false);
+  };
   const runPageCommand = (action: () => Promise<unknown>) => {
     void action().catch((error) => {
       if (alive.current) setActionError(errorMessage(error));
@@ -355,7 +376,9 @@ function BrowserSessionContent({
       onActivateTab={(tabId) =>
         void changeTabs(() => activateBrowserTab({ sessionId, tabId }))
       }
-      onAddTab={() => void changeTabs(() => openBrowserTab(sessionId))}
+      onAddTab={() => void openNewTab()}
+      isOpening={isOpening}
+      isInitializing={available && group === null && !actionError}
       onCloseTab={(tabId) =>
         void changeTabs(() => closeBrowserTab({ sessionId, tabId }))
       }

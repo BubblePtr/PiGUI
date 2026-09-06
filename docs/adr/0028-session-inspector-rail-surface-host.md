@@ -55,6 +55,12 @@ v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR
 
 排版约束保留：第一行高 40px（`SessionSurfaceBar`），与 Chat 标题同基线；rail 顶格那 40px 仍留给工具栏开关。宿主不再持有表头，`aside` 的可访问名改用 `aria-label`。注册表的 `hint` 只剩 rail tooltip 一个消费者。实施：#184。
 
+### 实例创建必须显式触发（2026-09-06 修订）
+
+点击 rail 的 Terminal / Browser 图标只打开面板并重新附着已有实例，不创建 shell，也不恢复保存的网页。没有实例时使用 Astryx `EmptyState`，只提供一个明确的创建入口，不显示空实例条或不可用的页面工具条。Terminal 的「New terminal」创建 shell；Browser 的「Open browser」恢复保存的项目 tab，若没有记录则创建空白 tab（ADR-0029）。创建期间禁用空态按钮，失败后保留空态与错误提示以便重试。
+
+关闭最后一个实例返回空态；Terminal 不再自动补建 shell。反复打开 Dock、切换 surface 或 Session 都不能隐式创建实例。
+
 ### 所有窗口统一使用面板（2026-09-05 修订）
 
 移除原先 1280px 的 Sheet 回退。窄窗口和宽窗口均通过同一个工具栏开关打开 `SessionInspector`，通过面板右侧 rail 切换 surface；窗口大小变化只调整面板宽度，不替换宿主。PiSheet 组件及临时 Dialog 替代路径均已删除。

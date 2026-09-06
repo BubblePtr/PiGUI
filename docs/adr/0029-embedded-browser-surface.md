@@ -21,8 +21,8 @@ ADR-0013 把「内嵌浏览器 + DOM 标注」定为切换 Electron 外壳的承
 - 作为 SessionDock 的第三个 surface `browser` 接入（ADR-0028）：注册表只加元数据，内容由 `agent-workspace.tsx` 注入，rail 单图标，`multiInstance: true`，徽标显示当前 Session 的 tab 数。
 - **多实例修订（2026-09-06，#185；前置 #184 已合入）**：每个 Session 持有自己的 tab 组，每个已导航的 tab 持有独立 `WebContentsView`。第一行复用 `SessionSurfaceBar` + `SessionSurfaceTabs`，地址栏与 design mode 工具条位于内容区第一行。
 - 命令按 `{ sessionId, tabId }` 寻址，页面事件由主进程按发送方绑定同一身份。每个 tab 独立维护 URL、历史、加载/错误状态、design mode 与标注；只有当前激活 tab 接收 bounds 和显示请求。切换先隐藏旧视图，新视图收到有效 bounds 后才显示。
-- 切 surface、关闭 Dock、切 Session 时隐藏视图，保留页面和标注；关闭 tab 才销毁它，关窗销毁全部。关闭最后一个 tab 后保留 Browser 空态，可通过地址栏或新建按钮再打开。
-- **恢复分两层**：同一 Session 重入或 renderer 重载，重新附着主进程中已有的 tab；新的 Session 或应用重启时，从所属 Project 的 `pigui.browserTabs.v1` 恢复 URL 列表和激活序号。旧 `pigui.browserUrls.v1` 的单 URL 记录惰性迁移为一个 tab。空列表显式持久化，避免关闭全部后旧 URL 复活。只有 URL 与激活项持久化，标注、截图和历史只在原生实例存活时保留。
+- 切 surface、关闭 Dock、切 Session 时隐藏视图，保留页面和标注；关闭 tab 才销毁它，关窗销毁全部。关闭最后一个 tab 后保留 Browser 空态，只显示「Open browser」入口，创建 tab 后才显示地址栏。
+- **恢复分两层**：同一 Session 重入或 renderer 重载，重新附着主进程中已有的 tab；新的 Session 或应用重启后，先显示空态，用户点击「Open browser」才从所属 Project 的 `pigui.browserTabs.v1` 恢复 URL 列表和激活序号（2026-09-06 显式创建修订）。初始空态不覆盖项目记录，关闭最后一个已打开的 tab 才保存空列表。旧 `pigui.browserUrls.v1` 的单 URL 记录惰性迁移为一个 tab。空列表显式持久化，避免关闭全部后旧 URL 复活。只有 URL 与激活项持久化，标注、截图和历史只在原生实例存活时保留。
 - URL 仍由用户输入。不做 dev server 探测、不读项目配置猜 URL、不代启 dev server。
 
 **命令面**：`browser_attach / list / open / close / activate / hide_session` 管理实例；`browser_navigate / back / forward / reload / set_bounds / set_visible / open_external / capture / set_design_mode / clear_annotations / capture_annotation` 操作具体页面。空 tab 在首次导航时才创建原生视图。事件统一发布 tab 状态快照，渲染层只更新对应 Session 内仍存在的 tab，通过每 tab 递增 revision 拒绝过期答复或事件。

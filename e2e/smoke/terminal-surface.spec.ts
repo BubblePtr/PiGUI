@@ -38,7 +38,12 @@ test("Terminal surface runs a real shell, multi-instance, with replay", async ()
     await expect(aside).toBeVisible();
     await aside.getByRole("button", { name: "Terminal" }).click();
 
-    // The first shell is created automatically; wait for the prompt to paint.
+    // Merely opening the surface must not start a shell.
+    await expect(aside.getByText("No terminals open")).toBeVisible();
+    await expect(aside.getByRole("tab")).toHaveCount(0);
+    await expect(window.getByTestId("terminal-viewport")).toHaveCount(0);
+    await aside.getByRole("button", { name: "New terminal" }).click();
+
     const viewport = window.getByTestId("terminal-viewport");
     const rows = viewport.locator(".xterm-rows");
 
@@ -71,6 +76,13 @@ test("Terminal surface runs a real shell, multi-instance, with replay", async ()
     await aside.getByRole("button", { name: "Close Terminal 2" }).click();
     await expect(secondTab).toHaveCount(0);
     await expect(rows).toContainText("E2E_PTY_ONE");
+
+    await aside.getByRole("button", { name: "Close Terminal 1" }).click();
+    await expect(aside.getByText("No terminals open")).toBeVisible();
+    await aside.getByRole("button", { name: "Changes", exact: true }).click();
+    await aside.getByRole("button", { name: "Terminal", exact: true }).click();
+    await expect(aside.getByText("No terminals open")).toBeVisible();
+    await expect(aside.getByRole("tab")).toHaveCount(0);
   } finally {
     await testApp.close();
   }

@@ -12,7 +12,7 @@ import type { ProjectBrowserTabs } from "./browser-url-memory";
 /** Native views belong to main; every page command names its Session and tab. */
 export function attachBrowserSession(
   sessionId: string,
-  remembered: ProjectBrowserTabs,
+  remembered?: ProjectBrowserTabs,
 ) {
   return invoke<BrowserSessionState>("browser_attach", {
     sessionId,

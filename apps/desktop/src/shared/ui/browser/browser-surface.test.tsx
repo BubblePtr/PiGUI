@@ -65,6 +65,33 @@ describe("BrowserSurface", () => {
     expect(props.onAddTab).toHaveBeenCalledTimes(1);
   });
 
+  it("shows only an explicit create action when there are no tabs", async () => {
+    const user = userEvent.setup();
+    const props = renderSurface({ tabs: [], activeTabId: null, state: { kind: "empty" } });
+
+    expect(screen.getByText("No browser tabs open")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("browser-viewport")).not.toBeInTheDocument();
+    expect(props.onAddTab).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Open browser" }));
+    expect(props.onAddTab).toHaveBeenCalledTimes(1);
+  });
+
+  it("withholds creation during initialization and disables it while opening", async () => {
+    const user = userEvent.setup();
+    const props = surfaceProps({ tabs: [], activeTabId: null, state: { kind: "empty" } });
+    const view = render(<BrowserSurface {...props} isInitializing />);
+    expect(screen.getByText("Loading browser…")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+
+    view.rerender(<BrowserSurface {...props} isOpening />);
+    const open = screen.getByRole("button", { name: "Open browser" });
+    expect(open).toBeDisabled();
+    await user.click(open);
+    expect(props.onAddTab).not.toHaveBeenCalled();
+  });
+
   it("renders no first row where there is no chrome to put in it", () => {
     renderSurface({ state: { kind: "unsupported" } });
 

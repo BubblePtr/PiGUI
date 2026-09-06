@@ -43,6 +43,8 @@ export function BrowserSurface({
   onActivateTab,
   onAddTab,
   onCloseTab,
+  isOpening,
+  isInitializing,
   isLoading,
   address,
   state,
@@ -69,6 +71,8 @@ export function BrowserSurface({
   onActivateTab: (id: string) => void;
   onAddTab: () => void;
   onCloseTab: (id: string) => void;
+  isOpening?: boolean;
+  isInitializing?: boolean;
   isLoading?: boolean;
   address: string;
   state: BrowserSurfaceState;
@@ -106,7 +110,7 @@ export function BrowserSurface({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
-      {hasChrome ? (
+      {hasChrome && tabs.length > 0 ? (
         <SessionSurfaceBar
           actions={
             isLive && annotationCount > 0 ? (
@@ -131,7 +135,7 @@ export function BrowserSurface({
           />
         </SessionSurfaceBar>
       ) : null}
-      {hasChrome ? (
+      {hasChrome && tabs.length > 0 ? (
         <SessionSurfaceBar
           actions={
             <>
@@ -239,6 +243,10 @@ export function BrowserSurface({
       ) : null}
       <div className="min-h-0 flex-1">
         <BrowserSurfaceBody
+          hasTabs={tabs.length > 0}
+          isOpening={isOpening}
+          isInitializing={isInitializing}
+          onAddTab={onAddTab}
           snapshot={snapshot}
           state={state}
           viewportRef={viewportRef}
@@ -251,11 +259,19 @@ export function BrowserSurface({
 
 function BrowserSurfaceBody({
   state,
+  hasTabs,
+  isOpening,
+  isInitializing,
+  onAddTab,
   snapshot,
   viewportRef,
   onReload,
 }: {
   state: BrowserSurfaceState;
+  hasTabs: boolean;
+  isOpening?: boolean;
+  isInitializing?: boolean;
+  onAddTab: () => void;
   snapshot?: string | null;
   viewportRef?: Ref<HTMLDivElement>;
   onReload: () => void;
@@ -281,6 +297,29 @@ function BrowserSurfaceBody({
         />
       );
     case "empty":
+      if (!hasTabs) {
+        return (
+          <EmptyState
+            style={{
+              height: "100%",
+              justifyContent: "center",
+              paddingInline: "var(--spacing-4)",
+            }}
+            title={isInitializing ? "Loading browser…" : "No browser tabs open"}
+            description="Open the browser to preview a website. Saved project tabs will be restored."
+            icon={<Globe className="size-5 text-muted" />}
+            isCompact
+            actions={isInitializing ? undefined : (
+              <Button
+                label="Open browser"
+                size="sm"
+                isLoading={isOpening}
+                onClick={onAddTab}
+              />
+            )}
+          />
+        );
+      }
       return (
         <EmptyState
           className="h-full justify-center px-4"
