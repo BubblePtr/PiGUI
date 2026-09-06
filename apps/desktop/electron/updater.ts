@@ -25,15 +25,18 @@ export function createAppUpdater(options: {
   autoUpdater: AutoUpdaterLike;
   isPackaged: boolean;
   currentVersion: string;
+  /** When set, the updater stays disabled even in a packaged app (E2E). */
+  disabledReason?: string;
 }): AppUpdater {
   const { autoUpdater, isPackaged, currentVersion } = options;
   autoUpdater.logger = console;
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
 
-  let status: UpdateStatus = isPackaged
-    ? { state: "idle", currentVersion }
-    : { state: "disabled", currentVersion, reason: disabledReason };
+  const offReason = options.disabledReason ?? (isPackaged ? undefined : disabledReason);
+  let status: UpdateStatus = offReason
+    ? { state: "disabled", currentVersion, reason: offReason }
+    : { state: "idle", currentVersion };
   const listeners = new Set<(next: UpdateStatus) => void>();
 
   const emit = (next: UpdateStatus) => {

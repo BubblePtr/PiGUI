@@ -696,6 +696,11 @@ app.whenReady().then(() => {
     autoUpdater: autoUpdater as AutoUpdaterLike,
     isPackaged: app.isPackaged,
     currentVersion: app.getVersion(),
+    // Packaged E2E is still isPackaged; without this it would hit GitHub after 10s.
+    disabledReason:
+      process.env.PIGUI_E2E === "1"
+        ? "Updates are disabled during end-to-end tests."
+        : undefined,
   });
   appUpdater.subscribe((status) => {
     for (const window of BrowserWindow.getAllWindows()) {

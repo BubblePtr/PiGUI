@@ -46,6 +46,32 @@ describe("createAppUpdater", () => {
     expect(updater.getStatus().state).toBe("disabled");
   });
 
+  it("stays disabled when an explicit reason is provided even if the app is packaged", () => {
+    const autoUpdater = createFakeAutoUpdater();
+    const updater = createAppUpdater({
+      autoUpdater,
+      isPackaged: true,
+      currentVersion: "0.0.1",
+      disabledReason: "Updates are disabled during end-to-end tests.",
+    });
+
+    expect(updater.getStatus()).toEqual({
+      state: "disabled",
+      currentVersion: "0.0.1",
+      reason: "Updates are disabled during end-to-end tests.",
+    });
+
+    vi.useFakeTimers();
+    updater.start();
+    updater.check();
+    updater.install();
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+
+    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(updater.getStatus().state).toBe("disabled");
+  });
+
   it("walks idle → checking → available → downloading → ready from autoUpdater events", () => {
     const autoUpdater = createFakeAutoUpdater();
     const updater = createAppUpdater({

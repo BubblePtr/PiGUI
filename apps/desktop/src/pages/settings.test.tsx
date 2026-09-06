@@ -245,13 +245,13 @@ describe("Settings — about and updates", () => {
     return screen.findByTestId("settings-about");
   }
 
-  it("shows the current version and an enabled check button when updates are disabled", async () => {
+  it("shows the current version and a disabled check button when updates are disabled", async () => {
     renderSettings();
 
     const section = await findAboutSection();
 
     expect(await within(section).findByText(/0\.0\.1/)).toBeInTheDocument();
-    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(within(section).getByRole("button", { name: "Check for updates" })).toBeDisabled();
     expect(
       within(section).queryByRole("button", { name: "Restart to update" }),
     ).not.toBeInTheDocument();

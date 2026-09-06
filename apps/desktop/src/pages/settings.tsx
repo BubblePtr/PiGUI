@@ -410,7 +410,12 @@ function AboutUpdatesSection() {
           <Button
             variant="primary"
             label="Check for updates"
-            isDisabled={!status || status.state === "checking" || checkMutation.isPending}
+            isDisabled={
+              !status ||
+              status.state === "disabled" ||
+              status.state === "checking" ||
+              checkMutation.isPending
+            }
             onClick={() => checkMutation.mutate()}
           />
           {status?.state === "ready" ? (
