@@ -36,6 +36,7 @@ import {
 } from "@/shared/ui/browser/browser-surface";
 import { useBrowserViewBounds } from "@/shared/ui/browser/use-browser-view-bounds";
 import { useOverlayPresence } from "@/shared/ui/browser/use-overlay-presence";
+import { useSessionDockMotion } from "@/shared/ui/session-dock/session-dock";
 
 type Props = {
   projectId: string;
@@ -43,6 +44,17 @@ type Props = {
   docked: boolean;
   onInstancesChange?: (tabs: BrowserTabState[]) => void;
 };
+
+/**
+ * Last still of each tab, kept across the panel's own lifetime: closing the
+ * dock unmounts the panel, and the reopening one needs a still from its very
+ * first frame — before the native view is visible enough to capture.
+ */
+const lastStills = new Map<string, string>();
+
+function stillKey(sessionId: string, tabId: string) {
+  return `${sessionId}:${tabId}`;
+}
 
 /** Key the renderer lifetime while main keeps each Session's native pages alive. */
 export function SessionBrowserPanel(props: Props) {
@@ -186,34 +198,60 @@ function BrowserSessionContent({
     available && state.kind === "live",
   );
   const overlayOpen = useOverlayPresence(available && state.kind === "live");
+  const dockMoving = useSessionDockMotion();
+  const frozen = overlayOpen || dockMoving;
   const currentSnapshot = snapshot?.tabId === tabId ? snapshot.image : null;
+  // What main was last told; a capture of a hidden view is blank, so only ask
+  // while the page is actually on screen.
+  const viewShownRef = useRef(false);
 
   useEffect(() => {
-    setSnapshot(null);
     const page = target();
-    if (!available || state.kind !== "live" || !overlayOpen || !page) return;
+    if (!available || state.kind !== "live" || !frozen || !page) {
+      setSnapshot(null);
+      return;
+    }
+    const key = stillKey(sessionId, page.tabId);
+    const cached = lastStills.get(key);
+    // The dock slide needs a still from its first frame; the previous still is
+    // close enough for ~250ms. Overlays keep the old behaviour of waiting.
+    setSnapshot(
+      dockMoving && cached ? { tabId: page.tabId, image: cached } : null,
+    );
+    if (!viewShownRef.current) return;
     let cancelled = false;
     void captureBrowser(page)
       .then((image) => {
-        if (!cancelled && image) setSnapshot({ tabId: page.tabId, image });
+        if (!image) return;
+        // Remember even when unmounted: the reopening dock reads this.
+        lastStills.set(key, image);
+        if (!cancelled) setSnapshot({ tabId: page.tabId, image });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [available, overlayOpen, state.kind, target]);
+  }, [available, dockMoving, frozen, sessionId, state.kind, target]);
+
+  // Hiding on page change / unmount is its own effect so that a visibility
+  // flip in the same commit does not run a cleanup before the still effect
+  // above has asked for its capture — the capture IPC must leave first.
+  useEffect(() => {
+    const page = target();
+    if (!available || !page) return;
+    return () => {
+      viewShownRef.current = false;
+      void setBrowserVisible(page, false).catch(() => {});
+    };
+  }, [available, target]);
 
   useEffect(() => {
     const page = target();
     if (!available || !page) return;
-    void setBrowserVisible(
-      page,
-      state.kind === "live" && !currentSnapshot,
-    ).catch(() => {});
-    return () => {
-      void setBrowserVisible(page, false).catch(() => {});
-    };
-  }, [available, currentSnapshot, state.kind, target]);
+    const visible = state.kind === "live" && !currentSnapshot && !dockMoving;
+    viewShownRef.current = visible;
+    void setBrowserVisible(page, visible).catch(() => {});
+  }, [available, currentSnapshot, dockMoving, state.kind, target]);
 
   const changeTabs = async (action: () => Promise<BrowserSessionState>) => {
     contextVersion.current += 1;

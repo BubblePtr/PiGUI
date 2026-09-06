@@ -1,5 +1,6 @@
 import { IconButton } from "@astryxdesign/core/IconButton";
 import type { ComponentType, ReactNode } from "react";
+import { usePresenceList } from "@/shared/ui/chat/use-presence-list";
 import { Cancel, Plus } from "@/shared/ui/icons";
 
 /**
@@ -84,23 +85,40 @@ export function SessionSurfaceTabs({
   onAdd: () => void;
   onClose: (id: string) => void;
 }) {
+  const { present, onExitTransitionEnd } = usePresenceList(
+    items,
+    (item) => item.id,
+    { exitTimeoutMs: 120 },
+  );
+
   return (
     <div
       aria-label={label}
       className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
       role="tablist"
     >
-      {items.map((item) => {
+      {present.map(({ item, key, motion }) => {
         const isActive = item.id === activeId;
 
         return (
           <span
-            className={`flex shrink-0 items-center rounded-md text-xs ${
+            className={`pigui-surface-tab flex shrink-0 items-center rounded-md text-xs ${
               isActive
                 ? "bg-surface-muted text-foreground"
                 : "text-muted hover:bg-surface-hover"
             }`}
-            key={item.id}
+            aria-hidden={motion === "exit" ? true : undefined}
+            data-presence={motion === "none" ? undefined : motion}
+            key={key}
+            onTransitionEnd={(event) => {
+              if (
+                motion === "exit" &&
+                event.target === event.currentTarget &&
+                event.propertyName === "opacity"
+              ) {
+                onExitTransitionEnd(key);
+              }
+            }}
           >
             <button
               aria-selected={isActive}

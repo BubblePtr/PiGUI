@@ -42,7 +42,7 @@ export function traceStepStatus(step: TraceStep): {
     return { glyph: "·", className: "text-muted", label: "—" };
   }
   if (step.isRunning) {
-    return { glyph: "●", className: "animate-pulse text-primary", label: "Running" };
+    return { glyph: "●", className: "animate-pulse motion-reduce:animate-none text-primary", label: "Running" };
   }
   if (step.isError) {
     return { glyph: "✕", className: "text-danger", label: "Error" };
@@ -174,7 +174,7 @@ function LedgerRow({
                 step.isError
                   ? "font-semibold text-danger"
                   : step.isRunning
-                    ? "animate-pulse text-primary"
+                    ? "animate-pulse motion-reduce:animate-none text-primary"
                     : "text-muted"
               }`}
             >

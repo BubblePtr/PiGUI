@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Terminal } from "@/shared/ui/icons";
@@ -140,5 +140,77 @@ describe("SessionSurfaceTabs", () => {
     expect(
       within(strip).getByRole("button", { name: "New terminal" }),
     ).toBeInTheDocument();
+  });
+
+  it("does not enter-animate tabs that exist on first render", () => {
+    const { strip } = renderTabs();
+
+    expect(strip.querySelector("[data-presence='enter']")).not.toBeInTheDocument();
+  });
+
+  it("enters a tab added after mount and holds a closed tab until the exit ends", () => {
+    const handlers = {
+      onActivate: vi.fn(),
+      onAdd: vi.fn(),
+      onClose: vi.fn(),
+    };
+    const two: SessionSurfaceTabItem[] = [
+      { id: "a", label: "Terminal 1" },
+      { id: "b", label: "Terminal 2" },
+    ];
+
+    const { rerender } = render(
+      <SessionSurfaceBar>
+        <SessionSurfaceTabs
+          activeId="a"
+          addLabel="New terminal"
+          icon={Terminal}
+          items={two}
+          label="Terminal instances"
+          {...handlers}
+        />
+      </SessionSurfaceBar>,
+    );
+
+    rerender(
+      <SessionSurfaceBar>
+        <SessionSurfaceTabs
+          activeId="a"
+          addLabel="New terminal"
+          icon={Terminal}
+          items={[...two, { id: "c", label: "Terminal 3" }]}
+          label="Terminal instances"
+          {...handlers}
+        />
+      </SessionSurfaceBar>,
+    );
+
+    const strip = screen.getByRole("tablist", { name: "Terminal instances" });
+    const entering = strip.querySelector("[data-presence='enter']");
+
+    expect(entering).toHaveTextContent("Terminal 3");
+
+    rerender(
+      <SessionSurfaceBar>
+        <SessionSurfaceTabs
+          activeId="a"
+          addLabel="New terminal"
+          icon={Terminal}
+          items={two}
+          label="Terminal instances"
+          {...handlers}
+        />
+      </SessionSurfaceBar>,
+    );
+
+    const leaving = strip.querySelector("[data-presence='exit']");
+    expect(leaving).toHaveTextContent("Terminal 3");
+    expect(leaving).toHaveAttribute("aria-hidden", "true");
+    expect(within(strip).getAllByRole("tab")).toHaveLength(2);
+
+    fireEvent.transitionEnd(leaving as HTMLElement, { propertyName: "opacity" });
+
+    expect(strip.querySelector("[data-presence='exit']")).not.toBeInTheDocument();
+    expect(within(strip).getAllByRole("tab")).toHaveLength(2);
   });
 });

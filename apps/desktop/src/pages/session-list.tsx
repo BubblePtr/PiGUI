@@ -124,7 +124,7 @@ function SessionRow({
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId: session.id }}
-        className={`block border-b border-separator px-4 py-2 pl-5 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
+        className={`block border-b border-separator px-4 py-2 pl-5 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
           selected ? "bg-surface-muted" : "hover:bg-surface-hover"
         }`}
       >
@@ -224,6 +224,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
             <p className="mt-1 text-xs text-muted">Historical Pi session traces</p>
           </div>
           <IconButton
+            className="pigui-pressable"
             icon={<RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />}
             isDisabled={sessions.isFetching}
             label="Refresh sessions"

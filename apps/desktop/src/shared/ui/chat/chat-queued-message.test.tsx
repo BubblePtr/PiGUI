@@ -56,6 +56,18 @@ describe("ChatQueuedMessage", () => {
     );
 
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-queued-message")).toHaveAttribute("data-withdrawn", "");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("exposes list presence on the row so enter/exit can be CSS-driven", () => {
+    render(
+      <ChatQueuedMessage body="Queued task" presence="enter" onWithdraw={() => {}} />,
+    );
+
+    expect(screen.getByTestId("chat-queued-message")).toHaveAttribute(
+      "data-presence",
+      "enter",
+    );
   });
 });

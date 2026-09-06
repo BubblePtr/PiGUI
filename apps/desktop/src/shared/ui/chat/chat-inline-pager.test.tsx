@@ -85,6 +85,7 @@ describe("ChatInlinePager", () => {
 
     expect(container.querySelector("[data-motion]")).not.toBeInTheDocument();
 
+    // Enter is 300ms; exit is 220ms. Dwell follows the longer enter.
     act(() => {
       vi.advanceTimersByTime(300);
     });

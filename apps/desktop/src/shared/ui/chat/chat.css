@@ -250,8 +250,10 @@
 
 .chain-of-thought {
   /* ADR-0030 §8: page turns and the settled fold both run at 300ms. The
-     theme's --duration-slow-max is 0.935s, so this is its own constant. */
+     theme's --duration-slow-max is 0.935s, so this is its own constant.
+     Exit is ~25% faster so the outgoing page gets out of the way. */
   --cot-flip-duration: 300ms;
+  --cot-flip-exit-duration: 220ms;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -418,7 +420,7 @@
   position: absolute;
   inset-inline-start: 0;
   top: 0;
-  animation: chat-inline-pager-out var(--cot-flip-duration, 300ms) var(--ease-standard) both;
+  animation: chat-inline-pager-out var(--cot-flip-exit-duration, 220ms) var(--ease-standard) both;
 }
 
 @keyframes chat-inline-pager-in {
@@ -1104,5 +1106,57 @@ details[open] > .chain-of-thought-rail__tool-row .chain-of-thought-rail__disclos
 
   .chain-of-thought-rail__marker {
     animation: none !important;
+  }
+}
+
+/* —— Queued messages ——
+   Enter is user-caused inserts only (`data-presence="enter"` + @starting-style).
+   First paint of an already-queued row stays idle. */
+
+.chat-queued-message {
+  opacity: 1;
+  transition:
+    opacity 200ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.chat-queued-message__body {
+  color: var(--color-text-primary);
+  transition:
+    color 150ms var(--ease-standard),
+    opacity 150ms var(--ease-standard);
+}
+
+.chat-queued-message[data-withdrawn] .chat-queued-message__body {
+  color: var(--color-text-secondary);
+}
+
+@starting-style {
+  .chat-queued-message[data-presence="enter"] {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.chat-queued-message[data-presence="exit"] {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 150ms ease-in,
+    transform 150ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-queued-message,
+  .chat-queued-message__body {
+    transition: none;
+  }
+
+  @starting-style {
+    .chat-queued-message[data-presence="enter"] {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

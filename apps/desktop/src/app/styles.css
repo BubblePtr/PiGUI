@@ -339,9 +339,32 @@ body {
   shape-rendering: geometricPrecision;
 }
 
+/* Low-frequency action buttons (send, steer/withdraw, dock, refresh).
+   Astryx Button already presses via `transform: scale(0.98)`; neutralize
+   that so the individual `scale` does not multiply below 0.95. */
+.pigui-pressable {
+  transition: scale 150ms ease-out;
+}
+
+.pigui-pressable:active {
+  transform: none;
+  scale: 0.96;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pigui-pressable,
+  .pigui-pressable:active {
+    transition: none;
+    scale: none;
+    transform: none;
+  }
+}
+
 /* Model selector options flyout (shared/ui/model-selector). Position and
    width come from the component; the 32px ::before bridge keeps hover alive
-   across the gap between the panel and the flyout. */
+   across the gap between the panel and the flyout. Open/close is a CSS
+   transition (interruptible) driven by [data-open]; @starting-style covers
+   the first mount so enter is not a hard cut from opacity 1. */
 .pigui-model-flyout {
   position: absolute;
   z-index: 10;
@@ -353,7 +376,28 @@ body {
     0 1px 3px rgb(0 0 0 / 0.06),
     0 8px 24px -6px rgb(0 0 0 / 0.12);
   transform-origin: left top;
-  animation: pigui-model-flyout-in 150ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none;
+  transition:
+    opacity 120ms ease-in,
+    transform 120ms ease-in;
+}
+
+.pigui-model-flyout[data-open] {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  transition:
+    opacity 150ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@starting-style {
+  .pigui-model-flyout[data-open] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
 
 .pigui-model-flyout::before {
@@ -365,20 +409,16 @@ body {
   width: 32px;
 }
 
-@keyframes pigui-model-flyout-in {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pigui-model-flyout {
-    animation: none;
+    transition: none;
+  }
+
+  @starting-style {
+    .pigui-model-flyout[data-open] {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }
 
@@ -458,8 +498,109 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Instance tabs: enter/exit the closing chip only. Neighbours snap with
+   flex layout — no width/gap transition, so keyboard or pointer reorder
+   does not interpolate. */
+.pigui-surface-tab {
+  opacity: 1;
+  transition:
+    opacity 150ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@starting-style {
+  .pigui-surface-tab[data-presence="enter"] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.pigui-surface-tab[data-presence="exit"] {
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none;
+  transition:
+    opacity 120ms ease-in,
+    transform 120ms ease-in;
+}
+
 .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
-  transition: width 200ms ease;
+  transition: width 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* The split pane holding the dock. Its width is what the divider and Chat's
+   column follow, so it is the one place a layout property animates — and
+   only under [data-motion], never during a resize drag. Timings mirror
+   .pigui-session-dock below so the three move as one. */
+.pigui-session-dock-pane {
+  width: var(--pigui-session-dock-width);
+  overflow: hidden;
+}
+
+.pigui-session-dock-pane[data-motion="true"] {
+  transition: width 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.pigui-session-dock-pane[data-open="false"] {
+  width: 0;
+  transition-duration: 180ms;
+  transition-timing-function: ease-in;
+}
+
+@starting-style {
+  .pigui-session-dock-pane[data-motion="true"] {
+    width: 0;
+  }
+}
+
+/* Session dock open/close. The slide itself comes from the pane above: its
+   left edge (and the divider and Chat with it) travels while the window edge
+   clips the dock, so the dock only fades — a translate here would double the
+   motion and race ahead of the divider. Enter/exit share endpoints so a
+   mid-flight reverse retargets instead of restarting.
+   No `transform` / `will-change` at any point: either would make the dock its
+   own stacking context, and the surface bar's `z-index: 51` (see
+   [data-slot="session-surface-bar"]) only beats the fixed header chrome's
+   drag spacer while both sit in the root context. */
+.pigui-session-dock {
+  opacity: 1;
+  transition: opacity 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.pigui-session-dock[data-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 180ms;
+  transition-timing-function: ease-in;
+}
+
+@starting-style {
+  .pigui-session-dock[data-mount-motion="true"] {
+    opacity: 0;
+  }
+}
+
+/* No resting `transform` here either: it would make the surface its own
+   stacking context and push the surface bar under the header chrome after
+   every pointer switch. `translateY(2px)` → `none` still transitions. */
+.pigui-session-dock-surface[data-motion="enter"] {
+  opacity: 1;
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+@starting-style {
+  .pigui-session-dock-surface[data-motion="enter"] {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+.pigui-session-dock-rail button {
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
 }
 
 /* macOS only: let under-window vibrancy show through the sidebar.
@@ -500,8 +641,26 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
 @media (prefers-reduced-motion: reduce) {
   .pigui-header-chrome__title,
   .pigui-header-chrome__title-track,
-  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"] {
+  .pigui-app-layout[data-sidebar-animating="true"] [data-testid="app-layout-sidebar"],
+  .pigui-session-dock,
+  .pigui-session-dock-pane,
+  .pigui-session-dock-surface[data-motion="enter"],
+  .pigui-session-dock-rail button,
+  .pigui-surface-tab {
     transition: none;
+  }
+
+  @starting-style {
+    .pigui-session-dock-pane[data-motion="true"] {
+      width: var(--pigui-session-dock-width);
+    }
+
+    .pigui-session-dock[data-mount-motion="true"],
+    .pigui-session-dock-surface[data-motion="enter"],
+    .pigui-surface-tab[data-presence="enter"] {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 

@@ -21,6 +21,7 @@ import {
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
+import { usePresenceList } from "@/shared/ui/chat/use-presence-list";
 import { ChatPromptSuggestion as PromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
 import {
   type ChatToolItem,
@@ -43,13 +44,23 @@ import {
   SessionDockTrigger,
   sessionDockDefaultWidthPx,
   sessionDockResizableBounds,
+  useSessionDockMotionState,
+  useSessionDockPresence,
 } from "@/shared/ui/session-dock/session-dock";
 import { SessionSurfaceBar } from "@/shared/ui/session-dock/surface-bar";
 import {
   type SessionSurfaceId,
 } from "@/shared/ui/session-dock/surface-registry";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
-import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pigui/core";
 import { promptImageDataUrl } from "@pigui/core";
 import { Thumbnail } from "@astryxdesign/core/Thumbnail";
@@ -535,8 +546,13 @@ function QueuedMessageList({
   const queuedMessages = projection.queuedMessages.filter(
     (queuedMessage) => queuedMessage.status !== "processing",
   );
+  const { present, onExitTransitionEnd } = usePresenceList(
+    queuedMessages,
+    (queuedMessage) => queuedMessage.id,
+    { exitTimeoutMs: 150 },
+  );
 
-  if (!queuedMessages.length) {
+  if (!present.length) {
     return null;
   }
 
@@ -545,11 +561,13 @@ function QueuedMessageList({
       className="mx-auto mb-3 grid w-full max-w-[44rem] gap-1.5"
       data-testid="queued-message-list"
     >
-      {queuedMessages.map((queuedMessage) => (
+      {present.map(({ item: queuedMessage, key, motion }) => (
         <ChatQueuedMessage
           body={queuedMessage.body || queuedMessage.images?.[0]?.name || "Attached image"}
           isWithdrawn={queuedMessage.status === "withdrawn"}
-          key={queuedMessage.id}
+          key={key}
+          presence={motion}
+          onExitTransitionEnd={() => onExitTransitionEnd(key)}
           onSteer={
             onSteer && queuedMessage.status === "pending"
               ? () => onSteer(queuedMessage.id)
@@ -2132,6 +2150,7 @@ export function SessionChangesPanel({
         <SessionSurfaceBar
           actions={
             <IconButton
+              className="pigui-pressable"
               icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
               isDisabled={loading}
               label="Refresh Session changes"
@@ -2160,8 +2179,8 @@ export function SessionChangesPanel({
         </p>
       ) : loading && !changes ? (
         <div className="mt-3 grid gap-2" aria-label="Loading Session changes">
-          <div className="h-8 animate-pulse rounded-md bg-default/40" />
-          <div className="h-24 animate-pulse rounded-md bg-default/30" />
+          <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
+          <div className="h-24 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
         </div>
       ) : error ? (
         <div
@@ -2270,7 +2289,7 @@ export function SessionChangesPanel({
               <Suspense
                 fallback={
                   <div
-                    className="h-40 animate-pulse rounded-md bg-default/30"
+                    className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
                     aria-label="Loading diff renderer"
                   />
                 }
@@ -3298,6 +3317,7 @@ export function AgentWorkspaceSessionsView({
   showDraft = false,
   workspace = fixtureWorkspace,
   aside,
+  asideOpen = true,
   onDraftSubmit = () => {},
   sessionCreator,
   checkoutManager,
@@ -3314,6 +3334,8 @@ export function AgentWorkspaceSessionsView({
   showDraft?: boolean;
   workspace?: AgentWorkspaceFixture;
   aside?: ReactNode;
+  /** False while the dock plays its exit; the pane closes on the same clock. */
+  asideOpen?: boolean;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
   sessionCreator?: SessionCreator;
   checkoutManager?: ExecutionCheckoutManager;
@@ -3404,6 +3426,8 @@ export function AgentWorkspaceSessionsView({
     maxSizePx: asideSizeBounds.maxSizePx,
   });
   const { resize: resizeAside, size: asideSize } = asideResizable;
+  // The split view mounts with the dock, so a mount always plays the enter.
+  const asideMotion = useSessionDockMotionState(asideOpen, true);
 
   // `useResizable` clamps each drag against the current bounds but keeps the
   // size it already holds, so a window that shrank under the panel has to be
@@ -3462,14 +3486,31 @@ export function AgentWorkspaceSessionsView({
             pillPlacement="center"
             resizable={asideResizable.props}
           />
+          {/* Width, not transform, on purpose: the divider and Chat's column
+              have to move with the dock's edge, and only a layout change
+              does that. It runs solely while the dock is in motion, so drags
+              stay 1:1; the inner box keeps the full width so the sliding
+              content is clipped, never squeezed. */}
           <div
-            className="h-full min-h-0 shrink-0"
+            className="pigui-session-dock-pane h-full min-h-0 shrink-0"
+            data-motion={asideMotion.moving ? "true" : undefined}
+            data-open={asideOpen ? "true" : "false"}
             data-slot="resizable-panel"
-            style={{ width: asideResizable.size }}
+            style={
+              {
+                "--pigui-session-dock-width": `${asideResizable.size}px`,
+              } as CSSProperties
+            }
+            onTransitionEnd={(event) => {
+              if (event.target === event.currentTarget) {
+                asideMotion.settle();
+              }
+            }}
           >
             <div
-              className="h-full min-h-0 min-w-0 overflow-hidden"
+              className="h-full min-h-0 overflow-hidden"
               data-testid="session-workspace-aside-pane"
+              style={{ width: asideResizable.size }}
             >
               {aside}
             </div>
@@ -3527,6 +3568,9 @@ export function AgentWorkspaceSessionsPage() {
   // Open state and the active surface are Workspace-level, so switching
   // Sessions keeps the dock where the user left it.
   const [dockOpen, setDockOpen] = useState(false);
+  // Terminal/Browser own live pty / WebContentsView instances, so the closed
+  // dock cannot stay mounted; keep it only through the exit transition.
+  const dockMounted = useSessionDockPresence(dockOpen);
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
   const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
@@ -3666,8 +3710,9 @@ export function AgentWorkspaceSessionsPage() {
     >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
+        asideOpen={dockOpen}
         aside={
-          dockOpen ? (
+          dockMounted ? (
             <SessionDock
               activeSurfaceId={activeSurfaceId}
               badges={{
@@ -3676,6 +3721,8 @@ export function AgentWorkspaceSessionsPage() {
                   terminalInstanceCount > 0 ? String(terminalInstanceCount) : undefined,
                 browser: browserInstanceCount > 0 ? String(browserInstanceCount) : undefined,
               }}
+              mountMotion
+              open={dockOpen}
               onActiveSurfaceChange={setActiveSurfaceId}
             >
               <SessionSurfaceContent

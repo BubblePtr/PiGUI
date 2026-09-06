@@ -231,6 +231,7 @@ export function UsageSummaryPanel({
         data-testid="usage-refresh-tooltip-trigger"
       >
         <IconButton
+          className="pigui-pressable"
           icon={<RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />}
           isDisabled={isFetching}
           label="Refresh usage"

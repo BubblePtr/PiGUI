@@ -3,7 +3,14 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@astryxdesign/core/ToggleButton";
-import type { ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { SidebarLeft } from "@/shared/ui/icons";
 import {
   sessionSurfaceOrder,
@@ -75,6 +82,7 @@ export function SessionDockTrigger({
   const toggle = (
     <IconButton
       aria-pressed={isOpen}
+      className="pigui-pressable"
       icon={<SidebarLeft className="size-4 rotate-180" />}
       label="Session dock"
       size="sm"
@@ -98,38 +106,174 @@ export function SessionDockTrigger({
   );
 }
 
+/**
+ * Exit is ~28% faster than the 250ms enter. JS unmount must match the CSS
+ * duration so a reverse mid-flight still has a node to retarget.
+ */
+export const sessionDockExitMs = 180;
+
+/**
+ * Keep the dock in the tree through its exit transition. Terminal/Browser
+ * surfaces own live pty / WebContentsView instances, so the closed dock
+ * cannot stay mounted indefinitely — only until the exit finishes.
+ */
+export function useSessionDockPresence(open: boolean): boolean {
+  const [mounted, setMounted] = useState(open);
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduced) {
+      setMounted(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (!openRef.current) {
+        setMounted(false);
+      }
+    }, sessionDockExitMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [open]);
+
+  return open || mounted;
+}
+
+/**
+ * True while the panel is sliding open or closed. Surfaces that host native
+ * views (Browser) read it to step aside: a `WebContentsView` cannot follow a
+ * CSS transform, so it hides behind a still until the dock settles.
+ */
+export const SessionDockMotionContext = createContext(false);
+
+export function useSessionDockMotion(): boolean {
+  return useContext(SessionDockMotionContext);
+}
+
+/** Longest dock transition plus slack, in case `transitionend` never fires. */
+const dockMotionFallbackMs = 320;
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/**
+ * "In motion" bookkeeping shared by the dock and the split pane that holds
+ * it: true from an open/close flip (or a motion-on mount) until `settle()` —
+ * wire that to the element's own `transitionend` — or the fallback timeout.
+ */
+export function useSessionDockMotionState(open: boolean, mountMotion: boolean) {
+  const [moving, setMoving] = useState(() => mountMotion && !prefersReducedMotion());
+  const openRef = useRef(open);
+
+  useEffect(() => {
+    if (openRef.current === open) {
+      return;
+    }
+    openRef.current = open;
+    setMoving(!prefersReducedMotion());
+  }, [open]);
+
+  useEffect(() => {
+    if (!moving) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setMoving(false), dockMotionFallbackMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [moving]);
+
+  return { moving, settle: () => setMoving(false) };
+}
+
 export function SessionDock({
   activeSurfaceId,
   badges,
   children,
+  mountMotion = false,
+  open = true,
   onActiveSurfaceChange,
 }: {
   activeSurfaceId: SessionSurfaceId;
   /** Live counts per surface, e.g. changed file count. */
   badges?: Partial<Record<SessionSurfaceId, string>>;
   children: ReactNode;
+  /**
+   * Play the enter transition when this instance is inserted. Off by default
+   * so always-mounted hosts (the design gallery) do not animate on page load.
+   */
+  mountMotion?: boolean;
+  open?: boolean;
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
 }) {
   const surface = sessionSurfaces[activeSurfaceId];
+  const motion = useSessionDockMotionState(open, mountMotion);
+  // Pointer vs keyboard is cheaper to remember on the rail than to thread
+  // through Astryx's ToggleButtonGroup, which only reports the next value.
+  const pointerSurfaceChangeRef = useRef(false);
+  const surfaceMotionRef = useRef({ id: activeSurfaceId, enter: false });
+
+  if (surfaceMotionRef.current.id !== activeSurfaceId) {
+    surfaceMotionRef.current = {
+      id: activeSurfaceId,
+      enter: pointerSurfaceChangeRef.current,
+    };
+    pointerSurfaceChangeRef.current = false;
+  }
 
   return (
     <aside
+      aria-hidden={open ? undefined : true}
       aria-label={surface.title}
-      className="flex h-full min-h-0 min-w-0 bg-surface"
+      className="pigui-session-dock flex h-full min-h-0 min-w-0 bg-surface"
+      data-mount-motion={mountMotion ? "true" : undefined}
+      data-open={open ? "true" : "false"}
       data-testid="session-dock"
+      inert={open ? undefined : true}
+      onTransitionEnd={(event) => {
+        // Only the aside's own slide counts; surface fades bubble up too.
+        if (event.target === event.currentTarget) {
+          motion.settle();
+        }
+      }}
     >
       {/* Flush surfaces (registry flushContent) own every inset themselves, so
           their first row and content run edge-to-edge to the rail. */}
       <div
+        key={activeSurfaceId}
         className={
           surface.flushContent
-            ? "min-h-0 min-w-0 flex-1 overflow-y-auto"
-            : "min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pt-3 pb-4"
+            ? "pigui-session-dock-surface min-h-0 min-w-0 flex-1 overflow-y-auto"
+            : "pigui-session-dock-surface min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pt-3 pb-4"
         }
+        data-motion={surfaceMotionRef.current.enter ? "enter" : undefined}
+        data-testid="session-dock-surface"
       >
-        {children}
+        <SessionDockMotionContext.Provider value={motion.moving}>
+          {children}
+        </SessionDockMotionContext.Provider>
       </div>
-      <nav className="flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface">
+      <nav
+        className="pigui-session-dock-rail flex w-11 shrink-0 flex-col items-center border-l border-separator bg-surface"
+        onKeyDownCapture={() => {
+          pointerSurfaceChangeRef.current = false;
+        }}
+        onPointerDownCapture={() => {
+          pointerSurfaceChangeRef.current = true;
+        }}
+      >
         {/* The toolbar toggle (header chrome) floats over this cell, so the
             rail reads as toggle / hairline / surfaces. */}
         <div aria-hidden="true" className="h-10 w-full shrink-0" />
