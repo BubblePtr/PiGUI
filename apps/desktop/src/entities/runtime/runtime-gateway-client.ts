@@ -1,4 +1,5 @@
 import type {
+  PrepareChatWorkspaceResult,
   RuntimeGatewayEventEnvelope,
   RuntimeGatewayQueuedMessage,
   RuntimeGatewaySnapshot,
@@ -524,7 +525,9 @@ function errorMessage(error: unknown) {
 
 export function createRuntimeGatewayClient(
   options: RuntimeGatewayClientOptions = {},
-): PiRuntimeBridge {
+): PiRuntimeBridge & {
+  prepareChatWorkspace(input: { sessionId: string }): Promise<PrepareChatWorkspaceResult>;
+} {
   const invoke = options.invoke ?? invokeRuntime;
   const onBackendEvent = options.onBackendEvent ?? onRuntimeBackendEvent;
   const now = options.now ?? (() => new Date().toISOString());
@@ -1024,6 +1027,12 @@ export function createRuntimeGatewayClient(
         sessionListeners.delete(listener);
         releaseBackendSubscriptionIfIdle();
       };
+    },
+
+    async prepareChatWorkspace(input) {
+      return invoke<PrepareChatWorkspaceResult>("prepare_chat_workspace", {
+        sessionId: input.sessionId,
+      });
     },
   };
 }

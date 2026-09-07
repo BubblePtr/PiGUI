@@ -9,6 +9,7 @@ import {
   buildSessionIndexWithCache,
   classifyTitle,
   createSessionIndexCache,
+  deriveProjectName,
   parseSession,
   type SessionPresenceProjection,
 } from "./sessions";
@@ -64,6 +65,16 @@ describe("backend session parser", () => {
 
     expect(sessions).toHaveLength(1);
     expect(sessions[0].project).toBe("Pig");
+  });
+
+  it("labels chat workspace cwds as Chat", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+
+    expect(deriveProjectName(join(dataDir, "chats", "session-abc"), dataDir)).toBe("Chat");
+    expect(deriveProjectName(join(dataDir, "chats-extra", "session-abc"), dataDir)).toBe(
+      "session-abc",
+    );
+    expect(deriveProjectName("/Users/void/code/opensource/Pig", dataDir)).toBe("Pig");
   });
 
   it("reconstructs detail turn order and merges tool results into assistant turns", async () => {

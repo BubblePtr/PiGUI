@@ -1459,4 +1459,31 @@ describe("Runtime Gateway client", () => {
       },
     ]);
   });
+
+  it("prepares a chat workspace through the Gateway", async () => {
+    const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const invoke: RuntimeGatewayClientOptions["invoke"] = async <T,>(
+      command: string,
+      args?: Record<string, unknown>,
+    ) => {
+      invocations.push({ command, args });
+
+      if (command === "prepare_chat_workspace") {
+        return { cwd: "/tmp/pigui/chats/session-1" } as T;
+      }
+
+      throw new Error(`unexpected command ${command}`);
+    };
+    const client = createRuntimeGatewayClient({
+      invoke,
+      onBackendEvent: vi.fn(() => vi.fn()),
+    });
+
+    await expect(client.prepareChatWorkspace({ sessionId: "session-1" })).resolves.toEqual({
+      cwd: "/tmp/pigui/chats/session-1",
+    });
+    expect(invocations).toEqual([
+      { command: "prepare_chat_workspace", args: { sessionId: "session-1" } },
+    ]);
+  });
 });

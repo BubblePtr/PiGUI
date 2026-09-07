@@ -153,6 +153,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
       }),
     projections: sessionProjectionStore,
     journal: runtimeJournal,
+    dataDir,
   });
   const listeners = new Set<(event: BackendRpcEvent) => void>();
   const terminalManager = options.terminalManager ?? createTerminalManager();
@@ -561,6 +562,7 @@ function isRuntimeGatewayMethod(method: string) {
     method === "create_session" ||
     method === "fork_session" ||
     method === "resume_session" ||
+    method === "prepare_chat_workspace" ||
     method === "send_prompt" ||
     method === "queue_follow_up" ||
     method === "withdraw_queued_message" ||

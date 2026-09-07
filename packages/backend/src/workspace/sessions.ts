@@ -11,6 +11,8 @@ import type {
   SessionSummary,
   Title,
 } from "@pigui/core";
+import { resolveDataDir } from "../persistence/session-event-journal";
+import { isChatWorkspaceCwd } from "./chat-workspace";
 
 const maxTextTitleChars = 96;
 const maxCommandArgsChars = 80;
@@ -927,7 +929,11 @@ function sortedNamedCounts(counts: Map<string, number>): NamedCount[] {
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
 }
 
-function deriveProjectName(cwd: string) {
+export function deriveProjectName(cwd: string, dataDir = resolveDataDir()) {
+  if (isChatWorkspaceCwd(dataDir, cwd)) {
+    return "Chat";
+  }
+
   const checkoutName = basename(cwd);
   const projectRoot = dirname(cwd);
 

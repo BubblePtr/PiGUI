@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1467,5 +1467,31 @@ describe("backend service", () => {
       }),
     ).resolves.toEqual({ id: "req-close", result: null });
     expect(terminalManager.close).toHaveBeenCalledWith("term-fake-1");
+  });
+
+  it("creates a chat workspace directory through prepare_chat_workspace", async () => {
+    const dataDir = await tempDataDir();
+    const sessionId = "session-rpc-chat";
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      dataDir,
+      runtimeDriver: {
+        onEvent: vi.fn(() => () => {}),
+      } as unknown as PiRuntimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-prepare",
+        method: "prepare_chat_workspace",
+        params: { sessionId },
+      }),
+    ).resolves.toEqual({
+      id: "req-prepare",
+      result: { cwd: join(dataDir, "chats", sessionId) },
+    });
+    expect((await stat(join(dataDir, "chats", sessionId))).isDirectory()).toBe(true);
   });
 });
