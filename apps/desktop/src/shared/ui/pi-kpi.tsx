@@ -1,8 +1,8 @@
 import { Card } from "@astryxdesign/core/Card";
 import { Text } from "@astryxdesign/core/Text";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-export type PiKpiProps = {
+type PiKpiOwnProps = {
   /** Stat label, e.g. "Total cost". */
   label: string;
   /** Numeric stat value, formatted with Intl.NumberFormat. */
@@ -19,6 +19,8 @@ export type PiKpiProps = {
   valueTestId?: string;
 };
 
+export type PiKpiProps = Omit<ComponentProps<typeof Card>, keyof PiKpiOwnProps> & PiKpiOwnProps;
+
 /**
  * Stat tile (label + value + optional delta) on Astryx Card/Text tokens.
  */
@@ -31,6 +33,8 @@ export function PiKpi({
   children,
   valueClassName = "",
   valueTestId,
+  className,
+  ...rest
 }: PiKpiProps) {
   const formattedValue =
     typeof value === "number"
@@ -38,7 +42,7 @@ export function PiKpi({
       : null;
 
   return (
-    <Card padding={4}>
+    <Card className={className} padding={4} {...rest}>
       <dl className={`pi-kpi pi-kpi--${layout}`} data-slot="kpi">
         <Text as="span" color="secondary" type="supporting">
           <dt className="pi-kpi__label">{label}</dt>

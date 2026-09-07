@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
@@ -26,17 +26,27 @@ function describeFailure(error: string) {
   };
 }
 
+type ChatRunFailureOwnProps = {
+  error: string;
+  onRetry?: () => Promise<void>;
+  onOpenProviderSettings?: () => void;
+  modelControl?: ReactNode;
+};
+
+export type ChatRunFailureProps = Omit<
+  ComponentProps<typeof VStack>,
+  keyof ChatRunFailureOwnProps | "children" | "gap"
+> &
+  ChatRunFailureOwnProps;
+
 export function ChatRunFailure({
   error,
   onRetry,
   onOpenProviderSettings,
   modelControl,
-}: {
-  error: string;
-  onRetry?: () => Promise<void>;
-  onOpenProviderSettings?: () => void;
-  modelControl?: ReactNode;
-}) {
+  className,
+  ...rest
+}: ChatRunFailureProps) {
   const [retrying, setRetrying] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const retryInFlight = useRef(false);
@@ -58,7 +68,7 @@ export function ChatRunFailure({
   };
 
   return (
-    <VStack gap={2}>
+    <VStack className={className} gap={2} {...rest}>
       <Banner status="error" title={summary.title} description={summary.description} />
       <HStack gap={2} wrap="wrap">
         {onOpenProviderSettings ? (

@@ -75,6 +75,8 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 
 ## 维护规则
 
+- **2026-09-08 契约层（#217）**：每个 `shared/ui` 组件接 `className` 并把它和剩余 props 透传到根元素；`PiTrajectoryLedger` 只把显式列出的 Run prop 转给 `Run`。守护测试 `shared/ui/contract.test.tsx`。命名统一见 #218。
+
 - **2026-09-07 New Chat 交互修复**：新增 ChatRunFailure 组合；ChatPromptInput 增加可选 inputRef 并展示建议后的聚焦，ChatChainOfThought 展示失败时的 Failed after Ns；ComposerInsertMenu 展示可搜索技能和可读插件名称。Chats 扁平列表与项目/执行方式选择仍为页面组合。
 
 - **2026-09-07 侧栏分组折叠**：Chats / Projects 的整组折叠复用 Astryx SideNavSection、IconButton 与 Stack，在 `app-shell.tsx` 中做页面组合；独立记忆状态，两个标题栏统一为折叠箭头与加号，移除独立 Add Project 列表行；不新增共享 UI 原语。

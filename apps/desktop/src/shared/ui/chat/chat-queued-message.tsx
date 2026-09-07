@@ -1,4 +1,5 @@
 import { Button } from "@astryxdesign/core/Button";
+import type { ComponentProps } from "react";
 import type { PresenceMotion } from "@/shared/ui/chat/use-presence-list";
 
 /**
@@ -8,14 +9,7 @@ import type { PresenceMotion } from "@/shared/ui/chat/use-presence-list";
  * Withdraw removes it. Order is expressed by position, not numbering.
  * Decision record: .scratch/composer-redesign/PRD.md
  */
-export function ChatQueuedMessage({
-  body,
-  isWithdrawn = false,
-  presence = "none",
-  onExitTransitionEnd,
-  onSteer,
-  onWithdraw,
-}: {
+type ChatQueuedMessageOwnProps = {
   body: string;
   isWithdrawn?: boolean;
   /** List presence; omit on first paint so a restored queue does not enter. */
@@ -24,17 +18,37 @@ export function ChatQueuedMessage({
   /** Omit when no run is active: Steer must not render as a dead action. */
   onSteer?: () => void;
   onWithdraw?: () => void;
-}) {
+};
+
+export type ChatQueuedMessageProps = Omit<
+  ComponentProps<"div">,
+  keyof ChatQueuedMessageOwnProps | "children"
+> &
+  ChatQueuedMessageOwnProps;
+
+export function ChatQueuedMessage({
+  body,
+  isWithdrawn = false,
+  presence = "none",
+  onExitTransitionEnd,
+  onSteer,
+  onWithdraw,
+  className,
+  onTransitionEnd,
+  ...rest
+}: ChatQueuedMessageProps) {
   return (
     <div
       className={`chat-queued-message flex min-w-0 items-center rounded-lg border border-border bg-surface text-sm ${
         isWithdrawn ? "gap-3 px-3 py-2" : "gap-2 py-1.5 pl-3 pr-2"
-      }`}
+      } ${className ?? ""}`.trim()}
       aria-hidden={presence === "exit" ? true : undefined}
       data-presence={presence === "none" ? undefined : presence}
       data-testid="chat-queued-message"
       data-withdrawn={isWithdrawn ? "" : undefined}
+      {...rest}
       onTransitionEnd={(event) => {
+        onTransitionEnd?.(event);
         if (
           presence === "exit" &&
           event.target === event.currentTarget &&

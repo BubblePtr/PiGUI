@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import type { ComponentProps, Ref } from "react";
 import { StackItem } from "@astryxdesign/core/Stack";
 import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
@@ -37,35 +37,7 @@ export type BrowserSurfaceState =
   | { kind: "live" }
   | { kind: "error"; message: string };
 
-export function BrowserSurface({
-  tabs,
-  activeTabId,
-  onActivateTab,
-  onAddTab,
-  onCloseTab,
-  isOpening,
-  isInitializing,
-  isLoading,
-  address,
-  state,
-  canGoBack,
-  canGoForward,
-  annotationCount,
-  designMode,
-  isSending,
-  notice,
-  snapshot,
-  viewportRef,
-  onAddressChange,
-  onAddressSubmit,
-  onBack,
-  onForward,
-  onReload,
-  onOpenExternal,
-  onClearAnnotations,
-  onDesignModeChange,
-  onSendToComposer,
-}: {
+type BrowserSurfaceOwnProps = {
   tabs: SessionSurfaceTabItem[];
   activeTabId: string | null;
   onActivateTab: (id: string) => void;
@@ -104,12 +76,54 @@ export function BrowserSurface({
   onDesignModeChange: (designMode: boolean) => void;
   /** Drops the marks and a screenshot of them into this Session's composer. */
   onSendToComposer: () => void;
-}) {
+};
+
+export type BrowserSurfaceProps = Omit<
+  ComponentProps<"div">,
+  keyof BrowserSurfaceOwnProps | "children"
+> &
+  BrowserSurfaceOwnProps;
+
+export function BrowserSurface({
+  tabs,
+  activeTabId,
+  onActivateTab,
+  onAddTab,
+  onCloseTab,
+  isOpening,
+  isInitializing,
+  isLoading,
+  address,
+  state,
+  canGoBack,
+  canGoForward,
+  annotationCount,
+  designMode,
+  isSending,
+  notice,
+  snapshot,
+  viewportRef,
+  onAddressChange,
+  onAddressSubmit,
+  onBack,
+  onForward,
+  onReload,
+  onOpenExternal,
+  onClearAnnotations,
+  onDesignModeChange,
+  onSendToComposer,
+  className,
+  ...rest
+}: BrowserSurfaceProps) {
   const hasChrome = state.kind !== "narrow" && state.kind !== "unsupported";
   const isLive = state.kind === "live";
 
   return (
-    <div className="flex h-full min-h-0 flex-col" data-slot="browser-surface">
+    <div
+      className={`flex h-full min-h-0 flex-col ${className ?? ""}`.trim()}
+      data-slot="browser-surface"
+      {...rest}
+    >
       {hasChrome && tabs.length > 0 ? (
         <SessionSurfaceBar
           actions={

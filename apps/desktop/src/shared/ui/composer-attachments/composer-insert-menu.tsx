@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { CommandPalette, CommandPaletteInput } from "@astryxdesign/core/CommandPalette";
 import { createStaticSource } from "@astryxdesign/core/Typeahead";
@@ -22,19 +22,29 @@ function pluginLabel(name: string) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+type ComposerInsertMenuOwnProps = {
+  commands?: readonly { label: string; insert: string }[];
+  skills?: readonly CatalogEntry[];
+  plugins?: readonly CatalogEntry[];
+  onAttach: () => void;
+  onInsert: (text: string) => void;
+};
+
+export type ComposerInsertMenuProps = Omit<
+  ComponentProps<typeof DropdownMenu>,
+  keyof ComposerInsertMenuOwnProps | "items" | "button" | "children"
+> &
+  ComposerInsertMenuOwnProps;
+
 export function ComposerInsertMenu({
   commands = DEFAULT_COMPOSER_COMMANDS,
   skills = [],
   plugins = [],
   onAttach,
   onInsert,
-}: {
-  commands?: readonly { label: string; insert: string }[];
-  skills?: readonly CatalogEntry[];
-  plugins?: readonly CatalogEntry[];
-  onAttach: () => void;
-  onInsert: (text: string) => void;
-}) {
+  className,
+  ...rest
+}: ComposerInsertMenuProps) {
   const [catalog, setCatalog] = useState<"skills" | "plugins" | null>(null);
   const source = useMemo(() => createStaticSource(
     (catalog === "skills" ? skills : plugins).map((entry) => ({
@@ -52,7 +62,8 @@ export function ComposerInsertMenu({
         hasChevron={false}
         placement="above"
         button={{ icon: <Plus aria-hidden="true" />, isIconOnly: true,
-          label: "Add to prompt", size: "sm", tooltip: "Add to prompt", variant: "ghost" }}
+          className, label: "Add to prompt", size: "sm", tooltip: "Add to prompt", variant: "ghost" }}
+        {...rest}
         items={[
           { icon: <ImageIcon />, label: "Add files", onClick: onAttach },
           { icon: <Sparkles />, label: "Use skill", onClick: () => setCatalog("skills") },

@@ -1,5 +1,5 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { ChatStatusLine } from "@/shared/ui/chat/chat-status-line";
 import { ChevronRight } from "@/shared/ui/icons";
 import type { CotPhase } from "@/entities/session/cot-view";
@@ -61,6 +61,22 @@ function useTickingElapsed(startedAtMs: number | undefined, enabled: boolean) {
  * status line while the run is in flight, folding into a "Worked for Ns"
  * header exactly once, when the run settles (ADR-0030 §3/§5).
  */
+type ChatChainOfThoughtOwnProps = {
+  children?: ReactNode;
+  defaultExpanded?: boolean;
+  elapsedMs?: number;
+  hasSteps?: boolean;
+  phase: CotPhase;
+  outcome?: "failed";
+  startedAtMs?: number;
+};
+
+export type ChatChainOfThoughtProps = Omit<
+  ComponentProps<"div">,
+  keyof ChatChainOfThoughtOwnProps
+> &
+  ChatChainOfThoughtOwnProps;
+
 export function ChatChainOfThought({
   children,
   className = "",
@@ -72,16 +88,8 @@ export function ChatChainOfThought({
   phase,
   outcome,
   startedAtMs,
-}: {
-  children?: ReactNode;
-  className?: string;
-  defaultExpanded?: boolean;
-  elapsedMs?: number;
-  hasSteps?: boolean;
-  phase: CotPhase;
-  outcome?: "failed";
-  startedAtMs?: number;
-}) {
+  ...rest
+}: ChatChainOfThoughtProps) {
   const [userOpen, setUserOpen] = useState(defaultExpanded);
   const live = phase === "thinking" || phase === "acting";
   const tickingMs = useTickingElapsed(startedAtMs, live && elapsedMs === undefined);
@@ -99,6 +107,7 @@ export function ChatChainOfThought({
       className={`chain-of-thought ${className}`.trim()}
       data-phase={phase}
       data-slot="chain-of-thought"
+      {...rest}
     >
       <Collapsible.Root
         // Flat until the run settles; the fold happens once, at run(end).
@@ -136,12 +145,14 @@ export function ChatChainOfThought({
 function ChatChainOfThoughtSteps({
   children,
   className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  ...rest
+}: ComponentProps<"ol">) {
   return (
-    <ol className={`chain-of-thought__steps ${className}`.trim()} data-slot="chain-of-thought-steps">
+    <ol
+      className={`chain-of-thought__steps ${className}`.trim()}
+      data-slot="chain-of-thought-steps"
+      {...rest}
+    >
       {children}
     </ol>
   );
@@ -150,14 +161,13 @@ function ChatChainOfThoughtSteps({
 function ChatChainOfThoughtStep({
   children,
   className = "",
-}: {
-  children?: ReactNode;
-  className?: string;
-}) {
+  ...rest
+}: ComponentProps<"li">) {
   return (
     <li
       className={`chain-of-thought__step ${className}`.trim()}
       data-slot="chain-of-thought-step"
+      {...rest}
     >
       {children}
     </li>

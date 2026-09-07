@@ -1,35 +1,34 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import {
   ChatMessage as AstryxChatMessage,
   ChatMessageBubble as AstryxChatMessageBubble,
 } from "@astryxdesign/core/Chat";
 import { Copy, ThumbsDown, ThumbsUp } from "@/shared/ui/icons";
 
-type MessageSectionProps = {
-  children: ReactNode;
-  className?: string;
-};
+type MessageSectionProps = ComponentProps<"div">;
 
 /* Sender wrappers delegate alignment and density to Astryx ChatMessage;
    the data-slot contract stays on the Astryx root (rest props pass through). */
-function ChatMessageUser({ children, className = "" }: MessageSectionProps) {
+function ChatMessageUser({ children, className = "", ...rest }: MessageSectionProps) {
   return (
     <AstryxChatMessage
       className={`chat-message ${className}`.trim()}
       data-slot="chat-message-user"
       sender="user"
+      {...rest}
     >
       {children}
     </AstryxChatMessage>
   );
 }
 
-function ChatMessageAssistant({ children, className = "" }: MessageSectionProps) {
+function ChatMessageAssistant({ children, className = "", ...rest }: MessageSectionProps) {
   return (
     <AstryxChatMessage
       className={`chat-message ${className}`.trim()}
       data-slot="chat-message-assistant"
       sender="assistant"
+      {...rest}
     >
       {children}
     </AstryxChatMessage>
@@ -37,43 +36,54 @@ function ChatMessageAssistant({ children, className = "" }: MessageSectionProps)
 }
 
 /* Filled bubble; the sender-colored background comes from ChatMessage context. */
-function ChatMessageBubble({ children, className = "" }: MessageSectionProps) {
+function ChatMessageBubble({ children, className = "", ...rest }: MessageSectionProps) {
   return (
     <AstryxChatMessageBubble
       className={className || undefined}
       data-slot="chat-message-bubble"
+      {...rest}
     >
       {children}
     </AstryxChatMessageBubble>
   );
 }
 
-function ChatMessageBody({ children, className = "" }: MessageSectionProps) {
-  return (
-    <div className={`chat-message__body ${className}`.trim()} data-slot="chat-message-body">
-      {children}
-    </div>
-  );
-}
-
-function ChatMessageContent({ children, className = "" }: MessageSectionProps) {
+function ChatMessageBody({ children, className = "", ...rest }: MessageSectionProps) {
   return (
     <div
-      className={`chat-message__content ${className}`.trim()}
-      data-slot="chat-message-content"
+      className={`chat-message__body ${className}`.trim()}
+      data-slot="chat-message-body"
+      {...rest}
     >
       {children}
     </div>
   );
 }
 
-type ChatMessageActionProps = {
+function ChatMessageContent({ children, className = "", ...rest }: MessageSectionProps) {
+  return (
+    <div
+      className={`chat-message__content ${className}`.trim()}
+      data-slot="chat-message-content"
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+type ChatMessageActionOwnProps = {
   "aria-label": string;
   tooltip?: string;
   onPress?: () => void;
   children?: ReactNode;
-  className?: string;
 };
+
+type ChatMessageActionProps = Omit<
+  ComponentProps<"button">,
+  keyof ChatMessageActionOwnProps | "onClick" | "type"
+> &
+  ChatMessageActionOwnProps;
 
 function ChatMessageAction({
   "aria-label": ariaLabel,
@@ -81,6 +91,7 @@ function ChatMessageAction({
   onPress,
   children,
   className = "",
+  ...rest
 }: ChatMessageActionProps) {
   return (
     <button
@@ -90,17 +101,19 @@ function ChatMessageAction({
       title={tooltip}
       type="button"
       onClick={onPress}
+      {...rest}
     >
       {children}
     </button>
   );
 }
 
-export function ChatMessageActions({ children, className = "" }: MessageSectionProps) {
+export function ChatMessageActions({ children, className = "", ...rest }: MessageSectionProps) {
   return (
     <div
       className={`chat-message__actions ${className}`.trim()}
       data-slot="chat-message-actions"
+      {...rest}
     >
       {children}
     </div>

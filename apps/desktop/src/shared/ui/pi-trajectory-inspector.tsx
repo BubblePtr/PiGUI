@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { formatToolDuration } from "@/shared/ui/chat/chat-tool";
 import type { RuntimeToolSchema } from "@pigui/core";
 import type { TrajectoryStep, TrajectoryTurn } from "@/entities/session/trajectory-model";
@@ -69,14 +70,7 @@ function CodeBlock({ value }: { value?: string }) {
   );
 }
 
-export function PiTrajectoryInspector({
-  step,
-  turn,
-  tab,
-  onTabChange,
-  onClose,
-  schema,
-}: {
+type PiTrajectoryInspectorOwnProps = {
   step: TrajectoryStep;
   turn: TrajectoryTurn;
   tab: TrajectoryInspectorTab;
@@ -84,11 +78,32 @@ export function PiTrajectoryInspector({
   onClose: () => void;
   /** Tool definition resolved by name (a Runtime Gateway capability). */
   schema?: TrajectoryToolSchema;
-}) {
+};
+
+export type PiTrajectoryInspectorProps = Omit<
+  ComponentProps<"div">,
+  keyof PiTrajectoryInspectorOwnProps | "children"
+> &
+  PiTrajectoryInspectorOwnProps;
+
+export function PiTrajectoryInspector({
+  step,
+  turn,
+  tab,
+  onTabChange,
+  onClose,
+  schema,
+  className,
+  ...rest
+}: PiTrajectoryInspectorProps) {
   const status = trajectoryStepStatus(step);
 
   return (
-    <div className="flex h-full min-h-0 flex-col" data-slot="trajectory-inspector">
+    <div
+      className={`flex h-full min-h-0 flex-col ${className ?? ""}`.trim()}
+      data-slot="trajectory-inspector"
+      {...rest}
+    >
       <header className="shrink-0 border-b border-border px-4 pb-0 pt-3">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate font-mono text-xs text-muted">
@@ -160,13 +175,13 @@ export function PiTrajectoryInspector({
         {tab === "Result" ? <CodeBlock value={step.output ?? step.text} /> : null}
         {tab === "Schema" ? (
           step.kind !== "tool" ? (
-            <p className="py-6 text-center text-xs text-muted">这不是工具步骤。</p>
+            <p className="py-6 text-center text-xs text-muted">This is not a tool step.</p>
           ) : schema ? (
             <div>
               <p className="font-mono text-sm font-semibold text-foreground">{step.name}</p>
               <p className="mt-1 text-xs leading-5 text-muted">{schema.description}</p>
               <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                参数
+                Parameters
               </p>
               <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-surface-muted px-3 py-2 font-mono text-xs leading-5 text-foreground">
                 {JSON.stringify(schema.parameters, null, 2)}
@@ -174,9 +189,9 @@ export function PiTrajectoryInspector({
             </div>
           ) : (
             <p className="py-6 text-center text-xs leading-5 text-muted">
-              查不到这个工具现在的定义。
+              This tool's current definition is unavailable.
               <br />
-              可能已经卸掉了，也可能后来改过。
+              It may have been uninstalled, or it may have changed.
             </p>
           )
         ) : null}

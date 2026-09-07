@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 const TOKEN = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
 
@@ -33,17 +33,31 @@ function renderInline(text: string): ReactNode[] {
 }
 
 /** Lightweight inline markdown for thinking. Streaming-safe: unclosed ** is hidden. */
+type ChatThoughtMarkdownOwnProps = {
+  text: string;
+  unwrapLines?: boolean;
+};
+
+export type ChatThoughtMarkdownProps = Omit<
+  ComponentProps<"span">,
+  keyof ChatThoughtMarkdownOwnProps | "children"
+> &
+  ChatThoughtMarkdownOwnProps;
+
 export function ChatThoughtMarkdown({
   text,
   unwrapLines = false,
-}: {
-  text: string;
-  unwrapLines?: boolean;
-}) {
+  className,
+  ...rest
+}: ChatThoughtMarkdownProps) {
   let source = dropUnclosedMarkers(text);
   if (unwrapLines) {
     source = unwrapWholeLineEmphasis(source);
   }
 
-  return <span className="chat-thought-md">{renderInline(source)}</span>;
+  return (
+    <span className={`chat-thought-md ${className ?? ""}`.trim()} {...rest}>
+      {renderInline(source)}
+    </span>
+  );
 }

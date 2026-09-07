@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import type { ChatToolItem } from "@/shared/ui/chat/chat-tool";
 import { FileIcon, Globe, Pencil, Search, SquareTerminal, Wrench } from "@/shared/ui/icons";
 
@@ -62,13 +63,15 @@ const KIND_ICONS = {
   tool: Wrench,
 } as const;
 
+export type ChatToolKindIconProps = Omit<ComponentProps<"span">, "children"> & {
+  kind: ToolKind;
+};
+
 export function ChatToolKindIcon({
   className = "",
   kind,
-}: {
-  className?: string;
-  kind: ToolKind;
-}) {
+  ...rest
+}: ChatToolKindIconProps) {
   const Icon = KIND_ICONS[kind];
 
   return (
@@ -77,6 +80,7 @@ export function ChatToolKindIcon({
       className={`chat-tool-kind ${className}`.trim()}
       data-kind={kind}
       data-slot="chat-tool-kind"
+      {...rest}
     >
       <Icon />
     </span>

@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { ChatComposerDrawer } from "@astryxdesign/core/Chat";
 import { Carousel } from "@astryxdesign/core/Carousel";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
@@ -10,13 +11,23 @@ export type ComposerAttachmentView = Pick<
   "id" | "kind" | "name" | "src"
 >;
 
+type ComposerAttachmentDrawerOwnProps = {
+  items: ComposerAttachmentView[];
+  onRemove: (id: string) => void;
+};
+
+export type ComposerAttachmentDrawerProps = Omit<
+  ComponentProps<typeof ChatComposerDrawer>,
+  keyof ComposerAttachmentDrawerOwnProps | "children" | "count" | "label"
+> &
+  ComposerAttachmentDrawerOwnProps;
+
 export function ComposerAttachmentDrawer({
   items,
   onRemove,
-}: {
-  items: ComposerAttachmentView[];
-  onRemove: (id: string) => void;
-}) {
+  className,
+  ...rest
+}: ComposerAttachmentDrawerProps) {
   if (items.length === 0) {
     return null;
   }
@@ -25,7 +36,7 @@ export function ComposerAttachmentDrawer({
   const files = items.filter((item) => item.kind === "text");
 
   return (
-    <ChatComposerDrawer count={items.length} label="Attachments">
+    <ChatComposerDrawer className={className} count={items.length} label="Attachments" {...rest}>
       <VStack gap={1} width="100%">
         {images.length ? (
           <Carousel aria-label="Image attachments" gap={1}>

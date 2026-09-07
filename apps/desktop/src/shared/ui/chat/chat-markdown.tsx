@@ -1,5 +1,6 @@
 import { Code } from "@astryxdesign/core/Code";
 import { Markdown } from "@astryxdesign/core/Markdown";
+import type { ComponentProps } from "react";
 
 /**
  * Chat sits under the page h1 (Sessions / Trajectory / …). Markdown `#` must
@@ -28,18 +29,24 @@ const chatMarkdownComponents = { inlineCode: ChatInlineCode };
  * official ai-chat template). Fenced code uses the Astryx built-in code
  * block; ChatCodeBlock stays only for non-markdown surfaces.
  */
+type ChatMarkdownOwnProps = {
+  children: string;
+};
+
+export type ChatMarkdownProps = Omit<ComponentProps<"div">, keyof ChatMarkdownOwnProps> &
+  ChatMarkdownOwnProps;
+
 export function ChatMarkdown({
   children,
   className = "",
-}: {
-  children: string;
-  className?: string;
-}) {
+  ...rest
+}: ChatMarkdownProps) {
   return (
     <div
       className={`chat-markdown ${className}`.trim()}
       data-slot="chat-markdown"
       data-testid="markdown-renderer"
+      {...rest}
     >
       <Markdown
         components={chatMarkdownComponents}
@@ -57,21 +64,30 @@ export function ChatMarkdown({
  * fade-in on new chunks — that animation is the in-progress affordance, so
  * there is no separate caret.
  */
+type ChatStreamMarkdownOwnProps = {
+  children: string;
+  isStreaming?: boolean;
+};
+
+export type ChatStreamMarkdownProps = Omit<
+  ComponentProps<"div">,
+  keyof ChatStreamMarkdownOwnProps
+> &
+  ChatStreamMarkdownOwnProps;
+
 export function ChatStreamMarkdown({
   children,
   isStreaming = false,
   className = "",
-}: {
-  children: string;
-  isStreaming?: boolean;
-  className?: string;
-}) {
+  ...rest
+}: ChatStreamMarkdownProps) {
   return (
     <div
       className={`chat-markdown chat-markdown--stream ${className}`.trim()}
       data-is-streaming={String(Boolean(isStreaming))}
       data-slot="chat-stream-markdown"
       data-testid="stream-markdown-renderer"
+      {...rest}
     >
       <Markdown
         components={chatMarkdownComponents}

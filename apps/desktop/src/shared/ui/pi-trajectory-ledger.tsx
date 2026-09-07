@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { formatToolDuration } from "@/shared/ui/chat/chat-tool";
 import type { TrajectoryRole, TrajectoryRun, TrajectoryStep } from "@/entities/session/trajectory-model";
 
@@ -50,15 +50,20 @@ export function trajectoryStepStatus(step: TrajectoryStep): {
   return { glyph: "✓", className: "text-success", label: "Completed" };
 }
 
-export function TrajectoryStepBadge({ type }: { type: TrajectoryStepType }) {
+export type TrajectoryStepBadgeProps = Omit<ComponentProps<"span">, "children"> & {
+  type: TrajectoryStepType;
+};
+
+export function TrajectoryStepBadge({ type, className, ...rest }: TrajectoryStepBadgeProps) {
   return (
     <span
-      className="inline-flex rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider"
+      className={`inline-flex rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider ${className ?? ""}`.trim()}
       data-slot="trajectory-step-badge"
       style={{
         background: `color-mix(in oklch, ${type.color} 16%, transparent)`,
         color: `color-mix(in oklch, ${type.color} 72%, var(--foreground))`,
       }}
+      {...rest}
     >
       {type.label}
     </span>
@@ -198,7 +203,7 @@ function LedgerRow({
   );
 }
 
-export type PiTrajectoryLedgerRunProps = {
+type PiTrajectoryLedgerRunOwnProps = {
   run: TrajectoryRun;
   selectedStepId?: string;
   onSelectStep?: (stepId: string) => void;
@@ -212,6 +217,12 @@ export type PiTrajectoryLedgerRunProps = {
   registerTurnRef?: (turnIndex: number, element: HTMLDivElement | null) => void;
 };
 
+export type PiTrajectoryLedgerRunProps = Omit<
+  ComponentProps<"section">,
+  keyof PiTrajectoryLedgerRunOwnProps | "children"
+> &
+  PiTrajectoryLedgerRunOwnProps;
+
 function Run({
   run,
   selectedStepId,
@@ -221,6 +232,8 @@ function Run({
   stepFilter,
   registerStepRef,
   registerTurnRef,
+  className,
+  ...rest
 }: PiTrajectoryLedgerRunProps) {
   const visibleTurns = run.turns
     .map((turn) => ({
@@ -235,9 +248,10 @@ function Run({
 
   return (
     <section
-      className={`transition-opacity ${isDimmed ? "opacity-30" : ""}`.trim()}
+      className={`transition-opacity ${isDimmed ? "opacity-30" : ""} ${className ?? ""}`.trim()}
       data-focus-dimmed={isDimmed ? "" : undefined}
       data-slot="trajectory-ledger-run"
+      {...rest}
     >
       <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-t border-border bg-surface-muted/80 px-3 py-1 backdrop-blur">
         <span className="flex min-w-0 items-baseline gap-2">
@@ -288,27 +302,54 @@ function Run({
   );
 }
 
+type PiTrajectoryLedgerOwnProps = {
+  runs?: TrajectoryRun[];
+  emptyLabel?: string;
+  /** Alternative to `runs`: render PiTrajectoryLedger.Run rows yourself (virtualization). */
+  children?: ReactNode;
+} & Omit<PiTrajectoryLedgerRunOwnProps, "run">;
+
+export type PiTrajectoryLedgerProps = Omit<
+  ComponentProps<"div">,
+  keyof PiTrajectoryLedgerOwnProps
+> &
+  PiTrajectoryLedgerOwnProps;
+
 export function PiTrajectoryLedger({
   runs,
   emptyLabel = "No entries.",
   className = "",
   children,
-  ...runProps
-}: {
-  runs?: TrajectoryRun[];
-  emptyLabel?: string;
-  className?: string;
-  /** Alternative to `runs`: render PiTrajectoryLedger.Run rows yourself (virtualization). */
-  children?: ReactNode;
-} & Omit<PiTrajectoryLedgerRunProps, "run">) {
+  selectedStepId,
+  onSelectStep,
+  isDimmed,
+  isStepDimmed,
+  stepFilter,
+  registerStepRef,
+  registerTurnRef,
+  ...rest
+}: PiTrajectoryLedgerProps) {
   const isEmpty = !children && (runs?.length ?? 0) === 0;
 
   return (
-    <div className={`font-mono text-xs ${className}`.trim()} data-slot="trajectory-ledger">
+    <div className={`font-mono text-xs ${className}`.trim()} data-slot="trajectory-ledger" {...rest}>
       {isEmpty ? (
         <p className="px-3 py-8 text-center text-muted">{emptyLabel}</p>
       ) : (
-        (children ?? runs?.map((run) => <Run key={run.index} run={run} {...runProps} />))
+        (children ??
+          runs?.map((run) => (
+            <Run
+              key={run.index}
+              isDimmed={isDimmed}
+              isStepDimmed={isStepDimmed}
+              registerStepRef={registerStepRef}
+              registerTurnRef={registerTurnRef}
+              run={run}
+              selectedStepId={selectedStepId}
+              stepFilter={stepFilter}
+              onSelectStep={onSelectStep}
+            />
+          )))
       )}
     </div>
   );

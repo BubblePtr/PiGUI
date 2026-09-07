@@ -7,7 +7,7 @@
 
 PiGUI 是 Astryx（Meta 开源，`@astryxdesign/core` 0.3.x，155 个组件）之上的一层薄壳。Astryx 提供全部一级 token 与通用组件，`apps/desktop/src/app/styles.css` 把它们拼成 15 个语义桥 token 并暴露给 Tailwind 类名，`apps/desktop/src/shared/ui/` 只在 Astryx 没有对应物的地方自建（聊天流、思维链、轨迹台账、图表、终端、浏览器宿主）。主题是 `theme-neutral` + Montserrat 字体，明暗跟随操作系统，**没有应用内主题开关**。整个系统只有一种视觉密度：14px 正文、4px 间距基数、8px 元素圆角。
 
-## 六条硬规则
+## 七条硬规则
 
 1. **先找再写。** 写任何 UI 之前 `bunx astryx build "<idea>"`，再 `bunx astryx component <Name>` 看 props。Astryx 没有、`shared/ui/` 也没有，才自建；自建件必须进 `shared/ui/`、同 PR 登记 `/design` 页并在 `self-built-ui.md` 加一行。
 2. **只写 token，不写字面量。** 颜色用语义桥（`var(--foreground)` / `text-foreground`）或 Astryx 一级 token（`var(--color-text-secondary)`）；间距、圆角、字号、时长同理。禁止 hex、`px`、`rem`、`ms` 字面量，禁止 Tailwind 调色板类（`text-gray-500`）。规则细节见 [tokens.md](tokens.md)。
@@ -15,6 +15,7 @@ PiGUI 是 Astryx（Meta 开源，`@astryxdesign/core` 0.3.x，155 个组件）�
 4. **状态用 Token，不用 Badge / StatusDot。** 这两个 Astryx 组件在仓库里零调用，不要成为第一个；图形分类色只用 `--pigui-data-*`，文字状态色只用 `--success/--warning/--danger`，两族不互借。
 5. **每个动画都要有 `prefers-reduced-motion` 分支**，静止态不写 `transform` / `will-change`。见 [typography-motion.md](typography-motion.md)。
 6. **图标只从 `shared/ui/icons.tsx` 导入。** 它把 Hugeicons 钉在 `strokeWidth 1.5`；页面里直接 `import ... from "@hugeicons/..."` 或 lucide 都是错的。
+7. **shared/ui 最低契约。** 每个组件接 `className` 并合并到根元素；剩余 props（`...rest`）透传到根 DOM（根是 Astryx 组件时透传到该组件）。React 19 下 `ref` 作为普通 prop 随 rest 到达根元素，不要 `forwardRef`（`TerminalView` 的 `useImperativeHandle` 除外）。指向内部元素的 ref 用具名 prop（`inputRef`、`viewportRef`）。已有内部 `data-testid` 保留，调用方传入的 `data-testid` 必须能覆盖根元素（rest 在内部属性之后展开）。不识别的 prop 不得转发给子组件。由 `apps/desktop/src/shared/ui/contract.test.tsx` 守住。
 
 ## 我需要一个 UI 件，从哪拿
 

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { ComponentProps, CSSProperties } from "react";
 
 /**
  * Nine-cell pixel heartbeat. The only heartbeat in a Chain of Thought block,
@@ -19,13 +19,16 @@ const DRIVE_DELAYS = Array.from({ length: 9 }, (_, index) => {
   return (column + Math.abs(row - 1)) * 90;
 });
 
+export type ChatPixelLoaderProps = Omit<ComponentProps<"span">, "children"> & {
+  periodMs?: number;
+};
+
 export function ChatPixelLoader({
   className = "",
   periodMs = DEFAULT_PERIOD_MS,
-}: {
-  className?: string;
-  periodMs?: number;
-}) {
+  style,
+  ...rest
+}: ChatPixelLoaderProps) {
   return (
     <span
       aria-hidden="true"
@@ -33,7 +36,8 @@ export function ChatPixelLoader({
       data-slot="chat-pixel-loader"
       // The period is a prop, not a stylesheet constant, so a caller can slow
       // or speed the beat without a rule that would shadow it.
-      style={{ "--chat-pixel-period": `${periodMs}ms` } as CSSProperties}
+      style={{ "--chat-pixel-period": `${periodMs}ms`, ...style } as CSSProperties}
+      {...rest}
     >
       {DRIVE_DELAYS.map((delay, index) => (
         <span
