@@ -1,4 +1,4 @@
-import browserSessionSummaries from "@/fixtures/browser-session-summaries.json";
+import { browserSessionSummaries } from "@/fixtures/browser-session-summaries";
 import type { BackendRpcEvent } from "@pigui/backend";
 import type { BrowserEvent } from "@/shared/browser-protocol";
 import type { NavigateRequest } from "@/shared/navigate-protocol";
@@ -30,7 +30,7 @@ const emptyConfigInventory = {
   skills: [],
   promptTemplates: [],
 };
-const browserSessionSummaryFixture = browserSessionSummaries as SessionSummary[];
+const browserSessionSummaryFixture: SessionSummary[] = browserSessionSummaries;
 
 export function isElectronRuntime() {
   return typeof window !== "undefined" && window.pigui !== undefined;
