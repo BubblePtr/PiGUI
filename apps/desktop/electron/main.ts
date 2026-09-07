@@ -14,6 +14,7 @@ import {
   utilityProcess,
 } from "electron";
 import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { autoUpdater } from "electron-updater";
@@ -349,11 +350,17 @@ async function selectProjectDirectory() {
   return result.filePaths[0] ?? null;
 }
 
-function revealProjectInFinder(args?: Record<string, unknown>) {
+async function revealProjectInFinder(args?: Record<string, unknown>) {
   const path = typeof args?.path === "string" ? args.path : "";
 
   if (!path) {
     throw new Error("Project path is required.");
+  }
+
+  // Chats "Open folder" passes ensure so we mkdir only on that click, not
+  // when Settings merely looks up the path.
+  if (args?.ensure === true) {
+    await mkdir(path, { recursive: true });
   }
 
   shell.showItemInFolder(path);

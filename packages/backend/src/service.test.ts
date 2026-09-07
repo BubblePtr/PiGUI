@@ -1560,6 +1560,6 @@ describe("backend service", () => {
       id: "req-chat-root",
       result: { path: join(dataDir, "chats") },
     });
-    expect((await stat(join(dataDir, "chats"))).isDirectory()).toBe(true);
+    await expect(stat(join(dataDir, "chats"))).rejects.toThrow();
   });
 });

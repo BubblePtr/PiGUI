@@ -60,7 +60,7 @@ import {
   resolveAgentDir,
   type SessionIndexCache,
 } from "./workspace/sessions";
-import { ensureChatWorkspaceRoot } from "./workspace/chat-workspace";
+import { resolveChatWorkspaceRoot } from "./workspace/chat-workspace";
 
 export type BackendRpcRequest = {
   id: string;
@@ -292,7 +292,7 @@ async function dispatchRequest(input: {
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
     case "get_chat_workspace_root":
-      return { path: await ensureChatWorkspaceRoot(input.dataDir) };
+      return { path: resolveChatWorkspaceRoot(input.dataDir) };
     case "run_environment_preflight":
       return input.environmentPreflight.run();
     case "get_environment_preflight_status":

@@ -307,8 +307,14 @@ export function selectProjectDirectory() {
   return invoke<string | null>("select_project_directory");
 }
 
-export function revealProjectInFinder(path: string) {
-  return invoke<void>("reveal_project_in_finder", { path });
+export function revealProjectInFinder(
+  path: string,
+  options?: { ensure?: boolean },
+) {
+  return invoke<void>(
+    "reveal_project_in_finder",
+    options?.ensure ? { path, ensure: true } : { path },
+  );
 }
 
 export async function onWindowFocusChanged(refetch: () => unknown) {

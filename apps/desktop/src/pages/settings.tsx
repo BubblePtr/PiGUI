@@ -483,10 +483,11 @@ function AboutUpdatesSection() {
   );
 }
 
-function ChatsSettingsSection() {
+function ChatsSettingsSection({ enabled }: { enabled: boolean }) {
   const rootQuery = useQuery({
     queryKey: ["chat-workspace-root"],
     queryFn: () => invoke<{ path: string }>("get_chat_workspace_root"),
+    enabled,
   });
   const path = rootQuery.data?.path ?? "";
 
@@ -515,7 +516,7 @@ function ChatsSettingsSection() {
             label="Open folder"
             isDisabled={!path}
             onClick={() => {
-              void revealProjectInFinder(path);
+              void revealProjectInFinder(path, { ensure: true });
             }}
           />
         </VStack>
@@ -760,7 +761,7 @@ function SettingsContent({
           <VStack
             style={{ display: section === "chats" ? undefined : "none" }}
           >
-            <ChatsSettingsSection />
+            <ChatsSettingsSection enabled={section === "chats"} />
           </VStack>
           <VStack style={{ display: section === "about" ? undefined : "none" }}>
             <AboutUpdatesSection />

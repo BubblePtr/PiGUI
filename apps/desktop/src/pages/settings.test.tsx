@@ -296,6 +296,20 @@ describe("Settings — visible models", () => {
 });
 
 describe("Settings — chats", () => {
+  it("does not query the chat workspace root until the Chats section is open", async () => {
+    const user = userEvent.setup();
+    const { countCalls } = renderSettings();
+
+    await findModelsSection();
+    expect(countCalls("get_chat_workspace_root")).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: "Chats" }));
+
+    await waitFor(() => {
+      expect(countCalls("get_chat_workspace_root")).toBe(1);
+    });
+  });
+
   it("shows the chat workspace root and opens the folder", async () => {
     const user = userEvent.setup();
     const { countCalls } = renderSettings("/usage?settings=chats");
@@ -308,6 +322,10 @@ describe("Settings — chats", () => {
     await user.click(within(section).getByRole("button", { name: "Open folder" }));
 
     expect(countCalls("reveal_project_in_finder")).toBe(1);
+    expect(window.pigui!.invoke).toHaveBeenCalledWith("reveal_project_in_finder", {
+      path: "/tmp/pigui-dev/chats",
+      ensure: true,
+    });
   });
 });
 
