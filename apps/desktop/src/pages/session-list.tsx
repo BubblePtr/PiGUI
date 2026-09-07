@@ -3,11 +3,12 @@ import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
+import { Selector } from "@astryxdesign/core/Selector";
 import { Token } from "@astryxdesign/core/Token";
 import { Tokenizer } from "@astryxdesign/core/Tokenizer";
 import { createStaticSource, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useMemo, useState } from "react";
-import { Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
+import { Archive, Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import {
   formatCost,
@@ -15,6 +16,7 @@ import {
   formatTokens,
   listSessions,
   relativeTime,
+  type SessionPresence,
   type SessionSummary,
   type Title,
 } from "@/entities/session/sessions";
@@ -59,6 +61,29 @@ export function projectTokenColor(project: string): (typeof projectTokenColors)[
     hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
   }
   return projectTokenColors[hash % projectTokenColors.length];
+}
+
+// Archived Sessions stay listed (archive is a visibility change, not a
+// deletion — see CONTEXT.md "Archived Session"); presence is a facet the
+// user can narrow by, defaulting to everything.
+export type SessionPresenceFilter = "all" | SessionPresence;
+
+const sessionPresenceOptions: { value: SessionPresenceFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
+  { value: "external", label: "External" },
+];
+
+function isSessionPresenceFilter(value: unknown): value is SessionPresenceFilter {
+  return sessionPresenceOptions.some((option) => option.value === value);
+}
+
+export function filterByPresence<T extends { presence: SessionPresence }>(
+  sessions: T[],
+  presence: SessionPresenceFilter,
+): T[] {
+  return presence === "all" ? sessions : sessions.filter((s) => s.presence === presence);
 }
 
 // Flat recency view: the newest session wins no matter which project it
@@ -184,6 +209,19 @@ function SessionRow({
                   size="sm"
                 />
               ) : null}
+              {session.presence === "archived" ? (
+                // Icon-only: a labelled chip does not fit beside the project
+                // chip and the timestamp in the 320px finder.
+                <span
+                  aria-label="Archived"
+                  className="inline-flex shrink-0 text-muted"
+                  data-testid="session-row-archived"
+                  role="img"
+                  title="Archived"
+                >
+                  <Archive aria-hidden="true" className="size-3.5" />
+                </span>
+              ) : null}
               <time
                 className="block truncate text-xs text-muted"
                 dateTime={session.timestamp}
@@ -252,6 +290,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   const allSessions = sessions.data ?? [];
   const [selectedProjects, setSelectedProjects] = useState<SearchableItem[]>([]);
   const [order, setOrder] = useState<SessionListOrder>(readSessionListOrder);
+  const [presence, setPresence] = useState<SessionPresenceFilter>("all");
   const projects = useMemo(() => distinctProjects(allSessions), [allSessions]);
   const projectSource = useMemo(
     () => createStaticSource(projects.map((project) => ({ id: project, label: project }))),
@@ -259,11 +298,14 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   );
   const sessionRows = useMemo(
     () =>
-      filterByProjects(
-        allSessions,
-        selectedProjects.map((item) => item.label),
+      filterByPresence(
+        filterByProjects(
+          allSessions,
+          selectedProjects.map((item) => item.label),
+        ),
+        presence,
       ),
-    [allSessions, selectedProjects],
+    [allSessions, selectedProjects, presence],
   );
 
   useRefreshOnWindowFocus(refetch);
@@ -317,7 +359,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
         />
         {/* View switcher sits under the filter: Recent is one chronological
             stream across projects, Project is the grouped ledger. */}
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-2">
           <SegmentedControl
             label="Session list order"
             layout="fill"
@@ -335,6 +377,19 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
               <SegmentedControlItem key={option.id} label={option.label} value={option.id} />
             ))}
           </SegmentedControl>
+          <Selector
+            isLabelHidden
+            label="Presence"
+            options={sessionPresenceOptions}
+            size="sm"
+            value={presence}
+            variant="ghost"
+            onChange={(value) => {
+              if (isSessionPresenceFilter(value)) {
+                setPresence(value);
+              }
+            }}
+          />
         </div>
       </div>
 

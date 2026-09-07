@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import {
   SessionListPanel,
   distinctProjects,
+  filterByPresence,
   filterByProjects,
   groupByProject,
   projectTokenColor,
@@ -257,5 +259,41 @@ describe("SessionListPanel ordering", () => {
     ]);
     expect(screen.queryByTestId("session-recent-list")).not.toBeInTheDocument();
     expect(window.localStorage.getItem(sessionListOrderStorageKey)).toBe("project");
+  });
+});
+
+describe("filterByPresence", () => {
+  const sessions = [
+    makeSummary({ id: "a", presence: "active" }),
+    makeSummary({ id: "b", presence: "archived" }),
+    makeSummary({ id: "c", presence: "external" }),
+  ];
+
+  it("returns every session for all and only the matching presence otherwise", () => {
+    expect(filterByPresence(sessions, "all").map((session) => session.id)).toEqual(["a", "b", "c"]);
+    expect(filterByPresence(sessions, "archived").map((session) => session.id)).toEqual(["b"]);
+  });
+});
+
+describe("SessionListPanel presence", () => {
+  it("marks archived rows and filters by presence from the selector", async () => {
+    invokeMock.mockResolvedValue([
+      makeSummary({ id: "a", presence: "active", timestamp: "2026-08-09T00:00:00.000Z" }),
+      makeSummary({ id: "b", presence: "archived", timestamp: "2026-08-08T00:00:00.000Z" }),
+      makeSummary({ id: "c", presence: "external", timestamp: "2026-08-07T00:00:00.000Z" }),
+    ]);
+
+    renderWithQueryClient(<SessionListPanel />);
+
+    const list = await screen.findByTestId("session-recent-list");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(list).getAllByTestId("session-row-archived")).toHaveLength(1);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Presence" }));
+    await user.click(await screen.findByRole("option", { name: "Archived" }));
+
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByTestId("session-row-archived")).toBeInTheDocument();
   });
 });

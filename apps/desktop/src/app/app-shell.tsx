@@ -513,15 +513,19 @@ function ProjectActionsMenu({
 
 function SessionActionsMenu({
   session,
+  onOpenTrajectory,
   onRenameSession,
   onArchiveSession,
   onDeleteSession,
 }: {
   session: SessionProjectionListItem;
+  onOpenTrajectory: (piSessionId: string) => void;
   onRenameSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
 }) {
+  const piSessionId = session.projection.piSessionId;
+
   return (
     // DropdownMenu instead of MoreMenu: MoreMenu hard-wires its label into a
     // trigger tooltip, and the hover-revealed row button should carry none.
@@ -535,6 +539,17 @@ function SessionActionsMenu({
         variant: "ghost",
       }}
       items={[
+        // Trajectory replays the Pi session file, so the entry only exists
+        // once the Session has one (a draft or still-creating Session has none).
+        ...(piSessionId
+          ? [
+              {
+                label: "Open Trajectory",
+                icon: <ListTree aria-hidden="true" size={16} />,
+                onClick: () => onOpenTrajectory(piSessionId),
+              },
+            ]
+          : []),
         {
           label: "Rename Session",
           icon: <Pencil aria-hidden="true" size={16} />,
@@ -577,6 +592,7 @@ function ProjectNavigation({
   onRenameProject,
   onRevealProject,
   onRemoveProject,
+  onOpenTrajectory,
   onRenameSession,
   onArchiveSession,
   onDeleteSession,
@@ -595,6 +611,7 @@ function ProjectNavigation({
   onRenameProject: (projectId: string) => void;
   onRevealProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
+  onOpenTrajectory: (piSessionId: string) => void;
   onRenameSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -694,6 +711,7 @@ function ProjectNavigation({
                   >
                     <SessionActionsMenu
                       session={session}
+                      onOpenTrajectory={onOpenTrajectory}
                       onRenameSession={onRenameSession}
                       onArchiveSession={onArchiveSession}
                       onDeleteSession={onDeleteSession}
@@ -1424,6 +1442,12 @@ export function AppFrame({
             onRenameProject={handleRenameProject}
             onRevealProject={handleRevealProject}
             onRemoveProject={handleRemoveProject}
+            onOpenTrajectory={(piSessionId) =>
+              void router.navigate({
+                to: "/sessions/$sessionId",
+                params: { sessionId: piSessionId },
+              })
+            }
             onRenameSession={(sessionId) => void handleRenameSession(sessionId)}
             onArchiveSession={(sessionId) => void handleArchiveSession(sessionId)}
             onDeleteSession={(sessionId) => void handleDeleteSession(sessionId)}

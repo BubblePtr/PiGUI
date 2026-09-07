@@ -133,7 +133,7 @@ function renderAppFrame(
     ]),
   });
 
-  return render(<RouterProvider router={router} />);
+  return { ...render(<RouterProvider router={router} />), router };
 }
 
 function isSideNavRow(candidate: HTMLElement) {
@@ -744,6 +744,33 @@ describe("AppFrame", () => {
       title: "Boundary follow-up",
     });
     expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("opens a Session's Trajectory from the row action menu", async () => {
+    const user = userEvent.setup();
+    window.pigui = {
+      invoke: vi.fn(async () => null) as unknown as PiGUIRendererApi["invoke"],
+      onBackendEvent: () => () => {},
+      onBrowserEvent: () => () => {},
+      onUpdateEvent: () => () => {},
+      onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
+    };
+
+    const { router } = renderAppFrame("/projects/pig/sessions");
+    const projectGroup = await screen.findByTestId("sidebar-projects");
+
+    // Only Sessions that already have a Pi session file can be replayed.
+    await user.click(
+      within(projectGroup).getByRole("button", {
+        name: "Session actions for Agent Workspace shell",
+      }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Open Trajectory" }));
+
+    expect(router.state.location.pathname).toBe(
+      "/sessions/session-control-plane-shell-pi-session",
+    );
   });
 
   it("archives a Session from the row action menu", async () => {
