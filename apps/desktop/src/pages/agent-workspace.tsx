@@ -133,6 +133,7 @@ import {
 import { subscribeComposerInjections } from "@/entities/session/composer-injections";
 import {
   clearSessionDraft,
+  ensureSessionDraft,
   getSessionDraft,
   saveSessionDraft,
   setSessionDraftCheckoutMode,
@@ -301,28 +302,6 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     totalTokens: 18_420,
   },
 };
-
-function workspaceFromChat(): AgentWorkspaceFixture {
-  return {
-    id: CHAT_PROJECT_ID,
-    name: CHAT_WORKSPACE_DISPLAY_NAME,
-    projectRoot: CHAT_PROJECT_ID,
-    repoRoot: CHAT_PROJECT_ID,
-    selectedSessionId: null,
-    liveMessages: [],
-    runTimeline: [],
-    checkout: {
-      mode: "Foreground local checkout",
-      root: CHAT_PROJECT_ID,
-      runtimeCwd: CHAT_PROJECT_ID,
-    },
-    summary: {
-      model: "Unknown",
-      totalCostUsd: 0,
-      totalTokens: 0,
-    },
-  };
-}
 
 function workspaceFromProject(project: ProjectRegistryEntry): AgentWorkspaceFixture {
   return {
@@ -3684,16 +3663,17 @@ export function AgentWorkspaceSessionsPage() {
   const project = isChatProjectId(projectId)
     ? chatWorkspaceListEntry()
     : registryProjects.find((candidate) => candidate.id === projectId) ?? null;
-  const workspace = isChatProjectId(projectId)
-    ? workspaceFromChat()
-    : project
-      ? workspaceFromProject(project)
-      : null;
+  const workspace = project ? workspaceFromProject(project) : null;
   const selectedSessionProjection =
     sessionProjections.find(
       (projection) =>
         projection.id === selectedSessionId && projection.projectId === projectId,
     ) ?? null;
+  const emptyChatDraft =
+    registryProjects.length === 0 &&
+    isChatProjectId(projectId) &&
+    showDraft &&
+    !sessionProjections.some((projection) => isChatProjectId(projection.projectId));
   // One read for the composer git-branch chip, the Changes panel, and the
   // rail badge. The docked rail carries the Changes count whatever surface
   // is showing, so it needs the diff even on Terminal. The composer footer
@@ -3716,6 +3696,21 @@ export function AgentWorkspaceSessionsPage() {
     setTerminalInstanceCount(0);
     setBrowserInstanceCount(0);
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (registryProjects.length > 0 || isChatProjectId(projectId)) {
+      return;
+    }
+
+    ensureSessionDraft(CHAT_PROJECT_ID);
+    void navigate({
+      to: "/projects/$projectId/sessions",
+      params: { projectId: CHAT_PROJECT_ID },
+      search: { view: "draft" } as never,
+      replace: true,
+      resetScroll: false,
+    });
+  }, [navigate, projectId, registryProjects.length]);
 
   // After hydrate (or when project sessions appear), select the first valid session.
   useEffect(() => {
@@ -3790,15 +3785,17 @@ export function AgentWorkspaceSessionsPage() {
         selectedSessionId={null}
         onSelectedSessionIdChange={setSelectedSessionId}
       >
-        <section
-          className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center px-6 text-center"
-          data-testid="project-not-found-state"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Project not found</h2>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-            Choose an existing Project from the sidebar.
-          </p>
-        </section>
+        {registryProjects.length === 0 ? null : (
+          <section
+            className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center px-6 text-center"
+            data-testid="project-not-found-state"
+          >
+            <h2 className="text-lg font-semibold text-foreground">Project not found</h2>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
+              Choose an existing Project from the sidebar.
+            </p>
+          </section>
+        )}
       </AppFrame>
     );
   }
@@ -3818,7 +3815,7 @@ export function AgentWorkspaceSessionsPage() {
     >
       <div
         className="flex h-full min-h-0 min-w-0 flex-col"
-        data-testid={registryProjects.length === 0 ? "empty-workspace-state" : undefined}
+        data-testid={emptyChatDraft ? "empty-workspace-state" : undefined}
       >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}

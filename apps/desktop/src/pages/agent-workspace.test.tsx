@@ -740,6 +740,54 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("Chat · no project");
   });
 
+  it("redirects an empty registry off a missing Project route to the Chat draft", async () => {
+    const { router } = renderProjectSessions("/projects/gone/sessions?view=draft", {
+      seedProjects: false,
+    });
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/projects/chat/sessions");
+      expect(router.state.location.search).toMatchObject({ view: "draft" });
+    });
+    expect(screen.queryByTestId("project-not-found-state")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("empty-workspace-state")).toBeInTheDocument();
+  });
+
+  it("does not mark a populated Chat workspace as the empty workspace state", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "session-chat-1",
+            runtimeId: "pi-sdk:session-chat-1",
+            piSessionId: "pi-session-chat-1",
+            projectId: "chat",
+            initialPrompt: "What is a monad?",
+            cwd: "/tmp/pigui-chats/session-chat-1",
+            status: "completed",
+            updatedAt: "2026-09-07T12:00:00.000Z",
+          },
+        ];
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions("/projects/chat/sessions", { seedProjects: false });
+
+    expect(await screen.findByRole("button", { name: "Session dock" })).toBeInTheDocument();
+    expect(screen.queryByTestId("empty-workspace-state")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("project-not-found-state")).not.toBeInTheDocument();
+  });
+
   it("renders an Electron Project with zero Sessions without fixture data", async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === "list_session_projections") {
