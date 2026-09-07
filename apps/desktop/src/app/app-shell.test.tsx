@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -18,7 +18,9 @@ import {
 import { addProjectToRegistry, getProjectRegistry } from "@/entities/project/project-registry";
 import { saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
+import { resetUpdateStatusStore } from "@/entities/update/use-update-status";
 import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { UpdateStatus } from "@/shared/update-protocol";
 
 const pigProjectPath = "/Users/void/code/opensource/Pig";
 
@@ -26,6 +28,39 @@ function seedPigProject() {
   addProjectToRegistry(pigProjectPath, {
     now: () => "2026-06-30T08:00:00.000Z",
   });
+}
+
+function mockUpdateBridge(initial: UpdateStatus) {
+  const listeners = new Set<(status: UpdateStatus) => void>();
+  const invoke = vi.fn(async (command: string) => {
+    if (command === "update:status") {
+      return initial;
+    }
+
+    return null;
+  });
+
+  window.pigui = {
+    invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+    onBackendEvent: () => () => {},
+    onBrowserEvent: () => () => {},
+    onUpdateEvent: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    onWindowFocusChanged: () => () => {},
+    onNavigateRequest: () => () => {},
+  };
+
+  return {
+    emit(status: UpdateStatus) {
+      for (const listener of listeners) {
+        listener(status);
+      }
+    },
+  };
 }
 
 function renderAppFrame(
@@ -179,6 +214,7 @@ describe("AppFrame", () => {
   beforeEach(() => {
     window.localStorage.clear();
     delete window.pigui;
+    resetUpdateStatusStore();
   });
 
   it("renders Empty Workspace State when the Project Registry is empty", async () => {
@@ -225,6 +261,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions", { seedProjects: false });
@@ -661,6 +698,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -687,6 +725,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -726,6 +765,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -755,6 +795,7 @@ describe("AppFrame", () => {
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
       onWindowFocusChanged: () => () => {},
+      onNavigateRequest: () => () => {},
     };
 
     renderAppFrame("/projects/pig/sessions");
@@ -1511,5 +1552,78 @@ describe("AppFrame", () => {
     expect(styles).toContain("-webkit-app-region: no-drag;");
     expect(source).not.toContain("startWindowDrag");
     expect(source).not.toContain("toggleWindowMaximize");
+  });
+
+  it("shows the Settings update badge only when an update is ready", async () => {
+    mockUpdateBridge({
+      state: "ready",
+      currentVersion: "0.0.1",
+      availableVersion: "0.0.2",
+    });
+
+    renderAppFrame("/");
+
+    const settingsRow = await screen.findByRole("button", { name: /Settings/ });
+    const badge = within(settingsRow).getByLabelText("Update ready");
+
+    expect(badge).toHaveAttribute("role", "img");
+    expect(badge).toHaveClass("size-2", "rounded-full", "bg-primary");
+  });
+
+  it.each(["idle", "available", "disabled"] as const)(
+    "does not show the Settings update badge when status is %s",
+    async (state) => {
+      mockUpdateBridge({ state, currentVersion: "0.0.1" });
+
+      renderAppFrame("/");
+
+      const settingsRow = await screen.findByRole("button", { name: /Settings/ });
+      await waitFor(() => {
+        expect(window.pigui!.invoke).toHaveBeenCalledWith("update:status", undefined);
+      });
+      expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
+    },
+  );
+
+  it("toggles the Settings update badge when onUpdateEvent pushes a new status", async () => {
+    const bridge = mockUpdateBridge({ state: "idle", currentVersion: "0.0.1" });
+
+    renderAppFrame("/");
+
+    const settingsRow = await screen.findByRole("button", { name: /Settings/ });
+    await waitFor(() => {
+      expect(window.pigui!.invoke).toHaveBeenCalledWith("update:status", undefined);
+    });
+    expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
+
+    act(() => {
+      bridge.emit({
+        state: "ready",
+        currentVersion: "0.0.1",
+        availableVersion: "0.0.2",
+      });
+    });
+
+    expect(within(settingsRow).getByLabelText("Update ready")).toBeInTheDocument();
+
+    act(() => {
+      bridge.emit({ state: "idle", currentVersion: "0.0.2" });
+    });
+
+    expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
+  });
+
+  it("keeps the Settings update badge while the Settings route is open", async () => {
+    mockUpdateBridge({
+      state: "ready",
+      currentVersion: "0.0.1",
+      availableVersion: "0.0.2",
+    });
+
+    renderAppFrame("/settings");
+
+    const settingsRow = await screen.findByRole("button", { name: /Settings/ });
+
+    expect(within(settingsRow).getByLabelText("Update ready")).toBeInTheDocument();
   });
 });

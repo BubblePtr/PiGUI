@@ -59,6 +59,7 @@ describe("default Pi runtime bridge factory", () => {
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
       onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
     };
 
     const bridge = createDefaultPiRuntimeBridge();

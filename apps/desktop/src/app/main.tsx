@@ -21,7 +21,7 @@ import { TraceIndexPage, TraceSessionPage } from "@/pages/trace";
 import { UsagePage } from "@/pages/usage";
 import type { EnvironmentPreflightStatus } from "@pigui/core";
 import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
-import { invoke, isElectronRuntime } from "@/shared/runtime";
+import { invoke, isElectronRuntime, onNavigateRequest } from "@/shared/runtime";
 import { Theme } from "@astryxdesign/core";
 import { neutralTheme } from "@astryxdesign/theme-neutral/built";
 // Astryx CSS is @imported inside styles.css (after tailwindcss) so its
@@ -246,6 +246,16 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
+
+onNavigateRequest(({ to, search }) => {
+  void router.navigate({
+    to,
+    search: ((previous: Record<string, unknown>) => ({ ...previous, ...search })) as never,
+    hash: true,
+    replace: true,
+    resetScroll: false,
+  } as never);
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

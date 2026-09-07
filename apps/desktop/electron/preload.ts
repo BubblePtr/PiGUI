@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { BackendRpcEvent } from "@pigui/backend";
 import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
+import { navigateRequestChannel, type NavigateRequest } from "@/shared/navigate-protocol";
 import { updateEventChannel, type UpdateStatus } from "@/shared/update-protocol";
 
 const api: PiGUIRendererApi = {
@@ -50,6 +51,17 @@ const api: PiGUIRendererApi = {
     ipcRenderer.on("pigui:window-focus", handler);
     return () => {
       ipcRenderer.removeListener("pigui:window-focus", handler);
+    };
+  },
+
+  onNavigateRequest(listener: (request: NavigateRequest) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, request: NavigateRequest) => {
+      listener(request);
+    };
+
+    ipcRenderer.on(navigateRequestChannel, handler);
+    return () => {
+      ipcRenderer.removeListener(navigateRequestChannel, handler);
     };
   },
 };

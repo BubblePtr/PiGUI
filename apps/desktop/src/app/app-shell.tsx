@@ -68,6 +68,7 @@ import {
   sessionProjectionFromPersistedProjection,
   useSessionProjectionsOptional,
 } from "@/entities/session/use-session-projections";
+import { useUpdateStatus } from "@/entities/update/use-update-status";
 import {
   browserDevelopmentProjectId,
   getProjectRegistryWithBrowserDevelopmentFallback,
@@ -307,6 +308,16 @@ function getActiveTab(pathname: string) {
   return "Settings";
 }
 
+function SidebarNavDot({ label }: { label: string }) {
+  return (
+    <span
+      aria-label={label}
+      className="size-2 rounded-full bg-primary"
+      role="img"
+    />
+  );
+}
+
 function SidebarSessionGlyph({
   active,
   unread,
@@ -321,13 +332,7 @@ function SidebarSessionGlyph({
   }
 
   if (unread) {
-    return (
-      <span
-        aria-label="Unread result"
-        className="size-2 rounded-full bg-primary"
-        role="img"
-      />
-    );
+    return <SidebarNavDot label="Unread result" />;
   }
 
   return null;
@@ -770,6 +775,9 @@ function SystemNavigation({
   pathname: string;
   onNavigate: (to: string) => void;
 }) {
+  const updateStatus = useUpdateStatus();
+  const updateReady = updateStatus?.state === "ready";
+
   return (
     <SideNavSection data-testid="sidebar-system" isHeaderHidden title="System navigation">
       {systemNavigationItems.map((item) => {
@@ -782,6 +790,11 @@ function SystemNavigation({
             icon={<Icon aria-hidden="true" className="size-4" />}
             isSelected={active}
             label={item.label}
+            endContent={
+              item.to === "/settings" && updateReady ? (
+                <SidebarNavDot label="Update ready" />
+              ) : undefined
+            }
             onClick={() => onNavigate(item.to)}
           />
         );

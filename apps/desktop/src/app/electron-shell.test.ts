@@ -138,4 +138,13 @@ describe("Electron shell", () => {
     expect(main).toContain('process.env.PIGUI_E2E !== "1"');
     expect(main).toContain("killBackendForEndToEndTest");
   });
+
+  it("navigates the renderer through pigui:navigate instead of executeJavaScript", () => {
+    const main = readProjectFile("apps/desktop/electron/main.ts");
+    const navigation = readProjectFile("apps/desktop/electron/app-navigation.ts");
+    const protocol = readProjectFile("apps/desktop/src/shared/navigate-protocol.ts");
+
+    expect(main).not.toContain("executeJavaScript");
+    expect(`${main}\n${navigation}\n${protocol}`).toContain("pigui:navigate");
+  });
 });

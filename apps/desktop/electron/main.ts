@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   MessageChannelMain,
   nativeImage,
   nativeTheme,
@@ -36,6 +37,8 @@ import {
   isBrowserCommand,
   type BrowserHost,
 } from "./browser-host";
+import { installAppMenu } from "./app-menu";
+import { navigateAppWindow } from "./app-navigation";
 import { createAppUpdater, type AppUpdater, type AutoUpdaterLike } from "./updater";
 
 type PendingRequest = {
@@ -162,6 +165,20 @@ function createMainWindow() {
   } else {
     void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
+
+  return mainWindow;
+}
+
+function navigateToSettings() {
+  navigateAppWindow(
+    {
+      getWindow: () => mainWindow,
+      createWindow: createMainWindow,
+    },
+    // Settings is a dialog over the current route (#201); "." keeps the
+    // workspace mounted and the search param opens the About panel.
+    { to: ".", search: { settings: "about" } },
+  );
 }
 
 function createBackendBridge() {
@@ -706,6 +723,11 @@ app.whenReady().then(() => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(updateEventChannel, status);
     }
+  });
+  installAppMenu({
+    updater: appUpdater,
+    menu: Menu,
+    navigateToSettings,
   });
   createMainWindow();
   appUpdater.start();
