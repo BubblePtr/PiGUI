@@ -4,7 +4,7 @@ Status: ready-for-agent
 Feature: projectless-chat
 Created: 2026-09-07
 
-> 本 PRD 推翻 [ADR-0019](../../docs/adr/0019-project-registry-and-draft-model.md) 与 CONTEXT.md **Empty Workspace State** 中"不提供无 Project 归属的 prompt 输入"这一条。决策以新的 ADR-0033 记录（由实现 PR 落地）。
+> 本 PRD 推翻 [ADR-0019](../../docs/adr/0019-project-registry-and-draft-model.md) 与 CONTEXT.md **Empty Workspace State** 中"不提供无 Project 归属的 prompt 输入"这一条。决策以新的 ADR-0034 记录（由实现 PR 落地）。
 
 ## Problem Statement
 
@@ -32,7 +32,7 @@ Pi 本身永远需要一个 cwd（`createAgentSession({ cwd })`，`pi-sdk-runtim
    - Landing：registry 为空且无 draft 目标时 → `/projects/chat/sessions?view=draft`，不再落 `/trajectory`。
    - Live Session 页头对 Chat Session 显示 "Chat" 而非目录名；Git-only 动作（Changes diff、branch、worktree）沿用非 Git Project 的禁用/隐藏态。Terminal surface 的 cwd 为会话目录。
 9. **Settings。** 新增 `chats` section（`settings.tsx:727-731` 的 sections 数组 + `shared/settings-navigation.ts` 类型），内容只有两项：Chat Workspace 根目录的只读路径 + "Reveal in Finder / Open folder" 按钮（走现有 shell 打开能力，若无则新增 `reveal_path` IPC）。不做自定义根目录设置：目录跟随 `PIGUI_DATA_DIR`，dev 与正式 app 天然隔离，自定义路径留作未来需求。不做自动清理设置。
-10. **词汇。** CONTEXT.md 新增 **Chat Workspace**、**Chat Session** 两条；改写 **Empty Workspace State**（保留 heading，`regions.test.ts` 断言 heading 存在）、**Project Selector**、**Session Draft**、**Session** 中与"必须有 Project"相冲突的句子。新增 ADR-0033 记录本决策并注明部分推翻 ADR-0019 与 ADR-0004 的"Project 是唯一顶层组织单元"。
+10. **词汇。** CONTEXT.md 新增 **Chat Workspace**、**Chat Session** 两条；改写 **Empty Workspace State**（保留 heading，`regions.test.ts` 断言 heading 存在）、**Project Selector**、**Session Draft**、**Session** 中与"必须有 Project"相冲突的句子。新增 ADR-0034 记录本决策并注明部分推翻 ADR-0019 与 ADR-0004 的"Project 是唯一顶层组织单元"。
 
 ### 不变的部分
 
@@ -59,7 +59,7 @@ Pi 本身永远需要一个 cwd（`createAgentSession({ cwd })`，`pi-sdk-runtim
 - [ ] Chat Session 的 resume（冷恢复）与 fork 正常；目录被删后 resume 自动重建目录。
 - [ ] Trajectory 列表与 Usage 页对 chat session 显示 "Chat"。
 - [ ] Settings 出现 Chats section，显示根目录并能打开。
-- [ ] CONTEXT.md / ADR-0033 / README "Where things live" 更新；`regions.test.ts` 通过。
+- [ ] CONTEXT.md / ADR-0034 / README "Where things live" 更新；`regions.test.ts` 通过。
 - [ ] `bun run typecheck` 与 `bun run test` 全绿；UI 改动附 dev-server 截图。
 
 ## Slices
@@ -68,7 +68,7 @@ Pi 本身永远需要一个 cwd（`createAgentSession({ cwd })`，`pi-sdk-runtim
 | --- | --- | --- | --- |
 | 1 | #208 | 后端：Chat Workspace 目录解析 + `prepare_chat_workspace` RPC + resume 重建 + Trajectory 标签 | — |
 | 2 | #209 | 渲染层：Chat 目标的创建路径、Sidebar Chats 分组、Landing、Picker、页头、Settings section | Blocked by #1 |
-| 3 | #210 | 词汇与文档：CONTEXT.md、ADR-0033、README、self-built-ui ledger（如有新组件） | Blocked by #2 |
+| 3 | #210 | 词汇与文档：CONTEXT.md、ADR-0034、README、self-built-ui ledger（如有新组件） | Blocked by #2 |
 
 ## Out of Scope
 
