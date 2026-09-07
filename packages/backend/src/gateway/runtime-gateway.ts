@@ -595,6 +595,10 @@ function createRuntimeEventProjectionWriter(store?: SessionProjectionStore) {
 function projectionPatchFromRuntimeEvent(event: RuntimeGatewayEventEnvelope) {
   const payload = event.payload;
 
+  if (payload.type === "session_info_changed" && typeof payload.name === "string") {
+    return { sessionName: payload.name.trim() };
+  }
+
   if (payload.type === "run") {
     if (payload.phase === "start") {
       return { status: "running" as const };
@@ -655,7 +659,7 @@ function projectionAfterRuntimeEvent(
             patch.summary.totalCostUsd ?? current.summary?.totalCostUsd ?? 0,
         }
       : current.summary,
-    updatedAt: event.ts,
+    updatedAt: event.payload.type === "session_info_changed" ? current.updatedAt : event.ts,
   });
 }
 

@@ -354,6 +354,7 @@ function stateFromSnapshot(snapshot: RuntimeGatewaySnapshot): PiSessionState {
   const replay: SessionReplayEntry[] = [];
 
   for (const envelope of snapshot.events) {
+    if (envelope.payload.type === "session_info_changed") continue;
     if (isAgentRuntimeEventPayload(envelope.payload)) {
       replay.push({
         kind: "agent",
@@ -382,6 +383,7 @@ function stateFromSnapshot(snapshot: RuntimeGatewaySnapshot): PiSessionState {
 
   const state: PiSessionState = {
     piSessionId: snapshot.piSessionId,
+    sessionName: snapshot.sessionName,
     runtimeId: snapshot.runtimeId,
     projectId: snapshot.projectId,
     cwd: snapshot.cwd,
@@ -599,6 +601,15 @@ export function createRuntimeGatewayClient(
 
     unsubscribeBackendEvent = onBackendEvent((event) => {
       if (event.type !== "event") {
+        return;
+      }
+
+      // Session metadata is consumed by the list provider, not the run timeline.
+      if (event.event.payload.type === "session_info_changed") {
+        const state = states.get(event.event.piSessionId);
+        if (state && typeof event.event.payload.name === "string") {
+          state.sessionName = event.event.payload.name;
+        }
         return;
       }
 

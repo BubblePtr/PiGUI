@@ -62,6 +62,7 @@ export function sessionProjectionFromPersistedProjection(
   return {
     ...projection,
     title: record.title ?? null,
+    sessionName: record.sessionName,
     cwd: record.cwd,
     status: sessionStatusFromPersistedProjection(record.status),
     creationStage: "accepted",
@@ -125,6 +126,13 @@ export function SessionProjectionsProvider({ children }: { children: ReactNode }
   useEffect(
     () =>
       onBackendEvent((event) => {
+        const payload = event.event.payload;
+        if (payload.type === "session_info_changed" && typeof payload.name === "string") {
+          const sessionName = payload.name.trim();
+          setSessionProjections(current => current.map(session =>
+            session.id === event.event.sessionId ? { ...session, sessionName } : session,
+          ));
+        }
         if (
           event.event.sessionId === "__backend__" &&
           event.event.payload.lifecycle === "connected"

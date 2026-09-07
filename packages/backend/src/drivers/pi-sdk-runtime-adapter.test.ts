@@ -6,6 +6,26 @@ import {
 } from "./pi-sdk-runtime-adapter";
 
 describe("Pi SDK public runtime adapter", () => {
+  it("forwards plugin naming events and exposes the persisted Pi name", async () => {
+    let emit: (event: unknown) => void = () => {};
+    const session = {
+      sessionId: "pi-named", sessionName: "Existing name", isStreaming: false, messages: [],
+      prompt: vi.fn(async () => {}), abort: vi.fn(async () => {}), dispose: vi.fn(),
+      subscribe(listener: (event: unknown) => void) { emit = listener; return vi.fn(); },
+    };
+    const runtime = await createPublicPiSdkRuntimeFactory({ sdk: { createAgentSession: async () => ({ session }) } })({ sessionId: "app-named", projectId: "p", cwd: "/repo" });
+    expect(runtime).toMatchObject({ sessionName: "Existing name" });
+    const events: unknown[] = [];
+    runtime.onEvent?.(event => events.push(event));
+    session.sessionName = "Plugin title";
+    emit({ type: "session_info_changed", name: "Plugin title" });
+    expect(events).toContainEqual(expect.objectContaining({ type: "session_info_changed", payload: expect.objectContaining({ name: "Plugin title" }) }));
+    await expect(runtime.getSnapshot?.()).resolves.toMatchObject({ sessionName: "Plugin title" });
+    emit({ type: "session_info_changed", name: undefined });
+    expect(events).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ name: "" }) }));
+    runtime.dispose?.();
+  });
+
   it("adapts a public SDK AgentSession to the PiRuntimeDriver runtime contract", async () => {
     const listeners: Array<(event: unknown) => void> = [];
     const prompt = vi.fn(async () => {});
