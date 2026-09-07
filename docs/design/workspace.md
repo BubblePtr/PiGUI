@@ -19,7 +19,7 @@
 <SessionSurfaceBar>
   <SessionSurfaceTabs activeId={activeTerminalId} addLabel="New terminal" icon={Terminal}
     items={instances.map((i, n) => ({ id: i.terminalId, label: `Terminal ${n + 1}`, hint: i.cwd, isExited: i.status === "exited" }))}
-    label="Terminal instances" onActivate={setActiveTerminalId} onAdd={create} onClose={close} />
+    aria-label="Terminal instances" onActiveChange={setActiveTerminalId} onAdd={create} onClose={close} />
 </SessionSurfaceBar>
 
 // 错误 — 自己拼一条标题带，高度与基线对不上 Chat 标题

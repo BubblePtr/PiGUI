@@ -19,7 +19,7 @@ function renderTabs({
   items?: SessionSurfaceTabItem[];
 } = {}) {
   const handlers = {
-    onActivate: vi.fn(),
+    onActiveChange: vi.fn(),
     onAdd: vi.fn(),
     onClose: vi.fn(),
   };
@@ -31,7 +31,7 @@ function renderTabs({
         addLabel="New terminal"
         icon={Terminal}
         items={items}
-        label="Terminal instances"
+        aria-label="Terminal instances"
         {...handlers}
       />
     </SessionSurfaceBar>,
@@ -77,7 +77,7 @@ describe("SessionSurfaceBar", () => {
 describe("SessionSurfaceTabs", () => {
   it("marks the active instance and switches to another", async () => {
     const user = userEvent.setup();
-    const { onActivate, strip } = renderTabs();
+    const { onActiveChange, strip } = renderTabs();
 
     expect(within(strip).getByRole("tab", { name: "Terminal 1" })).toHaveAttribute(
       "aria-selected",
@@ -90,7 +90,7 @@ describe("SessionSurfaceTabs", () => {
 
     await user.click(within(strip).getByRole("tab", { name: "Terminal 2" }));
 
-    expect(onActivate).toHaveBeenCalledWith("b");
+    expect(onActiveChange).toHaveBeenCalledWith("b");
   });
 
   it("closes one instance from its own tab", async () => {
@@ -150,7 +150,7 @@ describe("SessionSurfaceTabs", () => {
 
   it("enters a tab added after mount and holds a closed tab until the exit ends", () => {
     const handlers = {
-      onActivate: vi.fn(),
+      onActiveChange: vi.fn(),
       onAdd: vi.fn(),
       onClose: vi.fn(),
     };
@@ -166,7 +166,7 @@ describe("SessionSurfaceTabs", () => {
           addLabel="New terminal"
           icon={Terminal}
           items={two}
-          label="Terminal instances"
+          aria-label="Terminal instances"
           {...handlers}
         />
       </SessionSurfaceBar>,
@@ -179,7 +179,7 @@ describe("SessionSurfaceTabs", () => {
           addLabel="New terminal"
           icon={Terminal}
           items={[...two, { id: "c", label: "Terminal 3" }]}
-          label="Terminal instances"
+          aria-label="Terminal instances"
           {...handlers}
         />
       </SessionSurfaceBar>,
@@ -197,7 +197,7 @@ describe("SessionSurfaceTabs", () => {
           addLabel="New terminal"
           icon={Terminal}
           items={two}
-          label="Terminal instances"
+          aria-label="Terminal instances"
           {...handlers}
         />
       </SessionSurfaceBar>,

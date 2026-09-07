@@ -372,7 +372,7 @@ function ModelOptionsFlyout({
  */
 type ModelSelectorControlOwnProps = {
   controls: RuntimeModelControls;
-  isLocked: boolean;
+  isDisabled: boolean;
   /** Settings-managed allowlist; empty lists the whole catalog (issue #102). */
   visibleModels?: ModelRef[];
   onChange: (selection: RuntimeModelSelection) => Promise<void> | void;
@@ -387,7 +387,7 @@ export type ModelSelectorControlProps = Omit<
 
 export function ModelSelectorControl({
   controls,
-  isLocked,
+  isDisabled,
   visibleModels = [],
   onChange,
   onManageModels,
@@ -449,10 +449,10 @@ export function ModelSelectorControl({
       )
     : flyoutTop;
 
-  const isDisabled = isLocked || isPending;
+  const isControlDisabled = isDisabled || isPending;
 
   const submitSelection = async (selection: RuntimeModelSelection) => {
-    if (isDisabled) {
+    if (isControlDisabled) {
       return;
     }
 
@@ -546,12 +546,12 @@ export function ModelSelectorControl({
                           ? undefined
                           : "Hidden in Settings"
                       }
-                      isDisabled={isDisabled}
+                      isDisabled={isControlDisabled}
                       isSelected={modelKey(model) === activeKey}
                       key={modelKey(model)}
                       label={model.name}
                       onClick={(event: React.MouseEvent) => {
-                        if (!isDisabled && !isSelected) {
+                        if (!isControlDisabled && !isSelected) {
                           void submitSelection({
                             provider: model.provider,
                             modelId: model.modelId,
@@ -594,7 +594,7 @@ export function ModelSelectorControl({
                 style={{ left: "calc(100% + 28px)", top: clampedFlyoutTop }}
               >
                 <ModelOptionsFlyout
-                  isDisabled={isDisabled}
+                  isDisabled={isControlDisabled}
                   model={flyoutModel}
                   models={catalog}
                   selected={selected}
@@ -614,7 +614,7 @@ export function ModelSelectorControl({
               />
             </List>
           </div>
-          {isLocked ? (
+          {isDisabled ? (
             <span className="px-2 pb-0.5 text-xs text-muted">
               Locked while running
             </span>

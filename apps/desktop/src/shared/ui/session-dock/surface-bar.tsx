@@ -82,8 +82,8 @@ type SessionSurfaceTabsOwnProps = {
   icon: ComponentType<{ className?: string }>;
   items: readonly SessionSurfaceTabItem[];
   /** Accessible name of the strip, e.g. "Terminal instances". */
-  label: string;
-  onActivate: (id: string) => void;
+  "aria-label": string;
+  onActiveChange: (id: string) => void;
   onAdd: () => void;
   onClose: (id: string) => void;
 };
@@ -99,8 +99,8 @@ export function SessionSurfaceTabs({
   addLabel,
   icon: TabIcon,
   items,
-  label,
-  onActivate,
+  "aria-label": ariaLabel,
+  onActiveChange,
   onAdd,
   onClose,
   className,
@@ -114,7 +114,7 @@ export function SessionSurfaceTabs({
 
   return (
     <div
-      aria-label={label}
+      aria-label={ariaLabel}
       className={`flex min-w-0 flex-1 items-center gap-1 overflow-x-auto ${className ?? ""}`.trim()}
       role="tablist"
       {...rest}
@@ -148,7 +148,7 @@ export function SessionSurfaceTabs({
               role="tab"
               title={item.hint}
               type="button"
-              onClick={() => onActivate(item.id)}
+              onClick={() => onActiveChange(item.id)}
             >
               <TabIcon className="size-3.5" />
               <span className={item.isExited ? "text-muted" : undefined}>

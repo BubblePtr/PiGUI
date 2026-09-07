@@ -390,7 +390,7 @@ export function SessionDetailView({
         {/* Full-bleed strip band: edge-to-edge, bounded by full-width rules. */}
         <div className="-mx-5 mt-3 border-t border-border bg-surface-muted/25 px-5 py-2">
           <PiTrajectoryStrip
-            activeStepId={selectedStepId}
+            selectedStepId={selectedStepId}
             selectedRange={focusRange}
             turns={turns}
             widthMode={stripWidthMode}
@@ -545,7 +545,7 @@ export function SessionDetailView({
                         run={run}
                         selectedStepId={selectedStepId}
                         stepFilter={stepFilter}
-                        onSelectStep={setSelectedStepId}
+                        onSelectedStepChange={setSelectedStepId}
                       />
                     </li>
                   );

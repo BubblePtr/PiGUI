@@ -855,7 +855,7 @@ function FullChatComposer({
             {projection?.modelControls && onModelConfigChange ? (
               <ModelSelectorControl
                 controls={projection.modelControls}
-                isLocked={queueMode}
+                isDisabled={queueMode}
                 visibleModels={visibleModels}
                 onChange={onModelConfigChange}
                 onManageModels={onManageModels}
@@ -1985,7 +1985,7 @@ function SessionDraftComposer({
                 {draftModelControls?.selected ? (
                   <ModelSelectorControl
                     controls={draftModelControls}
-                    isLocked={false}
+                    isDisabled={false}
                     visibleModels={visibleModels}
                     onManageModels={onManageModels}
                     onChange={(selection) => {
@@ -3385,7 +3385,7 @@ function LiveSessionColumn({
                       onOpenProviderSettings={onOpenProviderSettings}
                       onRetry={message.id === latestFailure?.id && canRetryRequest ? retryFailedRequest : undefined}
                       modelControl={message.id === latestFailure?.id && canRetryRequest && liveProjection?.modelControls ? (
-                        <ModelSelectorControl controls={liveProjection.modelControls} isLocked={queueMode}
+                        <ModelSelectorControl controls={liveProjection.modelControls} isDisabled={queueMode}
                           visibleModels={getVisibleModels()} onManageModels={onManageModels} onChange={handleModelConfigChange} />
                       ) : undefined} />
                   ) : undefined}
@@ -3886,7 +3886,7 @@ export function AgentWorkspaceSessionsPage() {
                 browser: browserInstanceCount > 0 ? String(browserInstanceCount) : undefined,
               }}
               mountMotion
-              open={dockOpen}
+              isOpen={dockOpen}
               onActiveSurfaceChange={setActiveSurfaceId}
             >
               <SessionSurfaceContent

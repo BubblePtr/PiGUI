@@ -68,9 +68,9 @@ const sessionTurns: SessionTurn[] = [
 
 function renderLedger() {
   const runs = buildTrajectoryRuns(buildTrajectoryTurns(sessionTurns));
-  const onSelectStep = vi.fn();
-  const utils = render(<PiTrajectoryLedger runs={runs} onSelectStep={onSelectStep} />);
-  return { runs, onSelectStep, ...utils };
+  const onSelectedStepChange = vi.fn();
+  const utils = render(<PiTrajectoryLedger runs={runs} onSelectedStepChange={onSelectedStepChange} />);
+  return { runs, onSelectedStepChange, ...utils };
 }
 
 describe("PiTrajectoryLedger", () => {
@@ -117,13 +117,13 @@ describe("PiTrajectoryLedger", () => {
 
   it("never expands inline: clicking a row selects it for the Inspector", async () => {
     const user = userEvent.setup();
-    const { onSelectStep, container } = renderLedger();
+    const { onSelectedStepChange, container } = renderLedger();
 
     const row = screen.getByRole("button", { name: /git diff --stat/ });
     expect(row).not.toHaveAttribute("aria-expanded");
 
     await user.click(row);
-    expect(onSelectStep).toHaveBeenCalledWith("t1-s1");
+    expect(onSelectedStepChange).toHaveBeenCalledWith("t1-s1");
     // Full output stays out of the ledger DOM regardless of selection.
     expect(container.textContent).not.toContain("aria-expanded");
   });

@@ -268,7 +268,7 @@ export function stripSegmentsFromTurns(turns: TrajectoryTurn[]): StripSegment[] 
 type PiTrajectoryStripOwnProps = {
   turns: TrajectoryTurn[];
   /** The Playhead step; the segment containing it carries the position marker. */
-  activeStepId?: string;
+  selectedStepId?: string;
   /** Called with the segment's turn index and its first step id. */
   onSelect: (turnIndex: number, stepId?: string) => void;
   selectedRange?: SegmentRange;
@@ -285,7 +285,7 @@ export type PiTrajectoryStripProps = Omit<
 
 export function PiTrajectoryStrip({
   turns,
-  activeStepId,
+  selectedStepId,
   onSelect,
   selectedRange,
   onBrush,
@@ -451,7 +451,7 @@ export function PiTrajectoryStrip({
         onPointerUp={handlePointerUp}
       >
         {segments.map((segment, index) => {
-          const isActive = activeStepId !== undefined && segment.stepIds.includes(activeStepId);
+          const isActive = selectedStepId !== undefined && segment.stepIds.includes(selectedStepId);
           const dimmed = isDimmed(index);
           const fill = segment.hasError
             ? "var(--danger)"

@@ -15,7 +15,7 @@ PiGUI 是 Astryx（Meta 开源，`@astryxdesign/core` 0.3.x，155 个组件）�
 4. **状态用 Token，不用 Badge / StatusDot。** 这两个 Astryx 组件在仓库里零调用，不要成为第一个；图形分类色只用 `--pigui-data-*`，文字状态色只用 `--success/--warning/--danger`，两族不互借。
 5. **每个动画都要有 `prefers-reduced-motion` 分支**，静止态不写 `transform` / `will-change`。见 [typography-motion.md](typography-motion.md)。
 6. **图标只从 `shared/ui/icons.tsx` 导入。** 它把 Hugeicons 钉在 `strokeWidth 1.5`；页面里直接 `import ... from "@hugeicons/..."` 或 lucide 都是错的。
-7. **shared/ui 最低契约。** 每个组件接 `className` 并合并到根元素；剩余 props（`...rest`）透传到根 DOM（根是 Astryx 组件时透传到该组件）。React 19 下 `ref` 作为普通 prop 随 rest 到达根元素，不要 `forwardRef`（`TerminalView` 的 `useImperativeHandle` 除外）。指向内部元素的 ref 用具名 prop（`inputRef`、`viewportRef`）。已有内部 `data-testid` 保留，调用方传入的 `data-testid` 必须能覆盖根元素（rest 在内部属性之后展开）。不识别的 prop 不得转发给子组件。由 `apps/desktop/src/shared/ui/contract.test.tsx` 守住。
+7. **shared/ui 最低契约。** 每个组件接 `className` 并合并到根元素；剩余 props（`...rest`）透传到根 DOM（根是 Astryx 组件时透传到该组件）。React 19 下 `ref` 作为普通 prop 随 rest 到达根元素，不要 `forwardRef`（`TerminalView` 的 `useImperativeHandle` 除外）。指向内部元素的 ref 用具名 prop（`inputRef`、`viewportRef`）。已有内部 `data-testid` 保留，调用方传入的 `data-testid` 必须能覆盖根元素（rest 在内部属性之后展开）。不识别的 prop 不得转发给子组件。由 `apps/desktop/src/shared/ui/contract.test.tsx` 守住。命名跟 Astryx（React Aria 惯例）：布尔 `isX`/`hasX`/`canX`；受控状态对 `x` + `onXChange`；命令回调 `onVerb`；点击 `onPress`；非受控初值 `defaultX`；直接透传给 Astryx 的 prop 保持其原名（`isDisabled`，不再叫 `isLocked`）。禁止裸 `open`、`designMode` 这种名词布尔。
 
 ## 我需要一个 UI 件，从哪拿
 

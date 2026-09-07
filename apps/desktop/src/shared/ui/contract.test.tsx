@@ -150,7 +150,7 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
       <BrowserSurface
         tabs={[{ id: "a", label: "Browser 1" }]}
         activeTabId="a"
-        onActivateTab={noop}
+        onActiveTabChange={noop}
         onAddTab={noop}
         onCloseTab={noop}
         address=""
@@ -158,7 +158,7 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
         canGoBack={false}
         canGoForward={false}
         annotationCount={0}
-        designMode={false}
+        isDesignMode={false}
         onAddressChange={noop}
         onAddressSubmit={noop}
         onBack={noop}
@@ -195,8 +195,8 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
         addLabel="New tab"
         icon={Activity}
         items={[{ id: "a", label: "Tab 1" }]}
-        label="Instances"
-        onActivate={noop}
+        aria-label="Instances"
+        onActiveChange={noop}
         onAdd={noop}
         onClose={noop}
       />
@@ -205,7 +205,7 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
   {
     name: "ModelSelectorControl",
     ui: (
-      <ModelSelectorControl controls={modelControls} isLocked={false} onChange={noop} />
+      <ModelSelectorControl controls={modelControls} isDisabled={false} onChange={noop} />
     ),
   },
   {

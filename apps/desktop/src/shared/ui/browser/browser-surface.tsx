@@ -38,9 +38,9 @@ export type BrowserSurfaceState =
   | { kind: "error"; message: string };
 
 type BrowserSurfaceOwnProps = {
-  tabs: SessionSurfaceTabItem[];
+  tabs: readonly SessionSurfaceTabItem[];
   activeTabId: string | null;
-  onActivateTab: (id: string) => void;
+  onActiveTabChange: (id: string) => void;
   onAddTab: () => void;
   onCloseTab: (id: string) => void;
   isOpening?: boolean;
@@ -52,7 +52,7 @@ type BrowserSurfaceOwnProps = {
   canGoForward: boolean;
   /** Elements marked in the page; the marks themselves live in the page. */
   annotationCount: number;
-  designMode: boolean;
+  isDesignMode: boolean;
   /** A send is in flight; the page is settling its overlay for the shot. */
   isSending?: boolean;
   /**
@@ -73,7 +73,7 @@ type BrowserSurfaceOwnProps = {
   onReload: () => void;
   onOpenExternal: () => void;
   onClearAnnotations: () => void;
-  onDesignModeChange: (designMode: boolean) => void;
+  onDesignModeChange: (isDesignMode: boolean) => void;
   /** Drops the marks and a screenshot of them into this Session's composer. */
   onSendToComposer: () => void;
 };
@@ -87,7 +87,7 @@ export type BrowserSurfaceProps = Omit<
 export function BrowserSurface({
   tabs,
   activeTabId,
-  onActivateTab,
+  onActiveTabChange,
   onAddTab,
   onCloseTab,
   isOpening,
@@ -98,7 +98,7 @@ export function BrowserSurface({
   canGoBack,
   canGoForward,
   annotationCount,
-  designMode,
+  isDesignMode,
   isSending,
   notice,
   snapshot,
@@ -142,8 +142,8 @@ export function BrowserSurface({
             addLabel="New browser tab"
             icon={Globe}
             items={tabs}
-            label="Browser instances"
-            onActivate={onActivateTab}
+            aria-label="Browser instances"
+            onActiveChange={onActiveTabChange}
             onAdd={onAddTab}
             onClose={onCloseTab}
           />
@@ -164,7 +164,7 @@ export function BrowserSurface({
                 // Nothing can be marked where no page is live, so the toggle
                 // never reads as pressed there — a pressed, disabled control
                 // claims a state the user cannot leave.
-                isPressed={isLive && designMode}
+                isPressed={isLive && isDesignMode}
                 label="Design"
                 size="sm"
                 onPressedChange={onDesignModeChange}

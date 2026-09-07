@@ -12,7 +12,7 @@ function surfaceProps(
       { id: "b", label: "Browser 2" },
     ],
     activeTabId: "a",
-    onActivateTab: vi.fn(),
+    onActiveTabChange: vi.fn(),
     onAddTab: vi.fn(),
     onCloseTab: vi.fn(),
     address: "",
@@ -20,7 +20,7 @@ function surfaceProps(
     canGoBack: false,
     canGoForward: false,
     annotationCount: 0,
-    designMode: false,
+    isDesignMode: false,
     onAddressChange: vi.fn(),
     onAddressSubmit: vi.fn(),
     onBack: vi.fn(),
@@ -58,7 +58,7 @@ describe("BrowserSurface", () => {
     ).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole("tab", { name: "Browser 2" }));
-    expect(props.onActivateTab).toHaveBeenCalledWith("b");
+    expect(props.onActiveTabChange).toHaveBeenCalledWith("b");
     await user.click(screen.getByRole("button", { name: "Close Browser 1" }));
     expect(props.onCloseTab).toHaveBeenCalledWith("a");
     await user.click(screen.getByRole("button", { name: "New browser tab" }));
@@ -176,7 +176,7 @@ describe("BrowserSurface", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear marks" })).toBeDisabled();
 
-    view.rerender(<BrowserSurface {...props} annotationCount={2} designMode />);
+    view.rerender(<BrowserSurface {...props} annotationCount={2} isDesignMode />);
 
     expect(screen.getByTestId("browser-annotation-count")).toHaveTextContent(
       "2",
@@ -206,7 +206,7 @@ describe("BrowserSurface", () => {
     renderSurface({
       state: { kind: "empty" },
       annotationCount: 2,
-      designMode: true,
+      isDesignMode: true,
     });
 
     const design = screen.getByRole("button", { name: "Design" });

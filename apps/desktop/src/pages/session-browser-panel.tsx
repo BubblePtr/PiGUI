@@ -373,7 +373,7 @@ function BrowserSessionContent({
         hint: tab.title ? `${tab.title} — ${tab.url}` : tab.url,
       }))}
       activeTabId={tabId}
-      onActivateTab={(tabId) =>
+      onActiveTabChange={(tabId) =>
         void changeTabs(() => activateBrowserTab({ sessionId, tabId }))
       }
       onAddTab={() => void openNewTab()}
@@ -386,7 +386,7 @@ function BrowserSessionContent({
       annotationCount={active?.annotations.length ?? 0}
       canGoBack={active?.canGoBack ?? false}
       canGoForward={active?.canGoForward ?? false}
-      designMode={active?.designMode ?? false}
+      isDesignMode={active?.designMode ?? false}
       isLoading={active?.loading ?? false}
       isSending={sendingTabId === tabId && tabId !== null}
       notice={actionError ?? notices[addressKey]}

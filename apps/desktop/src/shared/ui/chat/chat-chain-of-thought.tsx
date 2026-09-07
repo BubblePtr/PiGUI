@@ -63,7 +63,7 @@ function useTickingElapsed(startedAtMs: number | undefined, enabled: boolean) {
  */
 type ChatChainOfThoughtOwnProps = {
   children?: ReactNode;
-  defaultExpanded?: boolean;
+  defaultOpen?: boolean;
   elapsedMs?: number;
   hasSteps?: boolean;
   phase: CotPhase;
@@ -80,7 +80,7 @@ export type ChatChainOfThoughtProps = Omit<
 export function ChatChainOfThought({
   children,
   className = "",
-  defaultExpanded = false,
+  defaultOpen = false,
   elapsedMs,
   // Children are opaque to this component, so whether the run left anything to
   // disclose has to be told, not counted.
@@ -90,7 +90,7 @@ export function ChatChainOfThought({
   startedAtMs,
   ...rest
 }: ChatChainOfThoughtProps) {
-  const [userOpen, setUserOpen] = useState(defaultExpanded);
+  const [userOpen, setUserOpen] = useState(defaultOpen);
   const live = phase === "thinking" || phase === "acting";
   const tickingMs = useTickingElapsed(startedAtMs, live && elapsedMs === undefined);
 

@@ -48,7 +48,7 @@ describe("ModelSelectorControl visibility", () => {
     render(
       <ModelSelectorControl
         controls={controls}
-        isLocked={false}
+        isDisabled={false}
         onChange={() => {}}
       />,
     );
@@ -62,7 +62,7 @@ describe("ModelSelectorControl visibility", () => {
     render(
       <ModelSelectorControl
         controls={controls}
-        isLocked={false}
+        isDisabled={false}
         visibleModels={[
           { provider: "anthropic", modelId: "claude-sonnet-4" },
           { provider: "xai", modelId: "grok-4" },
@@ -81,7 +81,7 @@ describe("ModelSelectorControl visibility", () => {
     render(
       <ModelSelectorControl
         controls={controls}
-        isLocked={false}
+        isDisabled={false}
         visibleModels={[{ provider: "anthropic", modelId: "claude-sonnet-4" }]}
         onChange={() => {}}
       />,
@@ -101,7 +101,7 @@ describe("ModelSelectorControl visibility", () => {
     render(
       <ModelSelectorControl
         controls={controls}
-        isLocked={false}
+        isDisabled={false}
         onChange={() => {}}
         onManageModels={onManageModels}
       />,

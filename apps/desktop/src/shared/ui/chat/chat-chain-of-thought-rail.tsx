@@ -142,7 +142,7 @@ type ChatChainOfThoughtRailOwnProps = {
   parts: ChainOfThoughtRailPart[];
   /** Settled trigger label, e.g. "Thought for 38s · 6 tool calls". */
   summary: string;
-  defaultExpanded?: boolean;
+  defaultOpen?: boolean;
   isStreaming?: boolean;
 };
 
@@ -156,7 +156,7 @@ export function ChatChainOfThoughtRail({
   parts,
   summary,
   className = "",
-  defaultExpanded = false,
+  defaultOpen = false,
   isStreaming = false,
   ...rest
 }: ChatChainOfThoughtRailProps) {
@@ -167,7 +167,7 @@ export function ChatChainOfThoughtRail({
       className={`chain-of-thought-rail ${className}`.trim()}
       data-slot="chain-of-thought-rail"
       data-streaming={String(isStreaming)}
-      defaultOpen={isStreaming || defaultExpanded}
+      defaultOpen={isStreaming || defaultOpen}
       {...rest}
     >
       <Collapsible.Trigger className="chain-of-thought-rail__trigger">

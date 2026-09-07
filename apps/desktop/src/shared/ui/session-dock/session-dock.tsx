@@ -221,7 +221,7 @@ type SessionDockOwnProps = {
    * so always-mounted hosts (the design gallery) do not animate on page load.
    */
   mountMotion?: boolean;
-  open?: boolean;
+  isOpen?: boolean;
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
 };
 
@@ -233,14 +233,14 @@ export function SessionDock({
   badges,
   children,
   mountMotion = false,
-  open = true,
+  isOpen = true,
   onActiveSurfaceChange,
   className,
   onTransitionEnd,
   ...rest
 }: SessionDockProps) {
   const surface = sessionSurfaces[activeSurfaceId];
-  const motion = useSessionDockMotionState(open, mountMotion);
+  const motion = useSessionDockMotionState(isOpen, mountMotion);
   // Pointer vs keyboard is cheaper to remember on the rail than to thread
   // through Astryx's ToggleButtonGroup, which only reports the next value.
   const pointerSurfaceChangeRef = useRef(false);
@@ -256,13 +256,13 @@ export function SessionDock({
 
   return (
     <aside
-      aria-hidden={open ? undefined : true}
+      aria-hidden={isOpen ? undefined : true}
       aria-label={surface.title}
       className={`pigui-session-dock flex h-full min-h-0 min-w-0 bg-surface ${className ?? ""}`.trim()}
       data-mount-motion={mountMotion ? "true" : undefined}
-      data-open={open ? "true" : "false"}
+      data-open={isOpen ? "true" : "false"}
       data-testid="session-dock"
-      inert={open ? undefined : true}
+      inert={isOpen ? undefined : true}
       {...rest}
       onTransitionEnd={(event) => {
         onTransitionEnd?.(event);

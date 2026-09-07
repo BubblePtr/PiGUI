@@ -235,8 +235,8 @@ function SessionSurfaceTabsSample({
       addLabel="New terminal"
       icon={Icons.Terminal}
       items={items}
-      label="Terminal instances"
-      onActivate={setActiveId}
+      aria-label="Terminal instances"
+      onActiveChange={setActiveId}
       onAdd={() => {}}
       onClose={() => {}}
     />
@@ -372,7 +372,7 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address={address}
@@ -380,7 +380,7 @@ function BrowserSurfaceGallery() {
               annotationCount={0}
               canGoBack
               canGoForward={false}
-              designMode={false}
+              isDesignMode={false}
               state={{ kind: "live" }}
               onAddressChange={setAddress}
               onAddressSubmit={() => {}}
@@ -399,14 +399,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={2}
               canGoBack={false}
               canGoForward={false}
-              designMode
+              isDesignMode
               state={{ kind: "live" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
@@ -425,14 +425,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={2}
               canGoBack={false}
               canGoForward={false}
-              designMode
+              isDesignMode
               isSending
               state={{ kind: "live" }}
               onAddressChange={() => {}}
@@ -452,14 +452,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={2}
               canGoBack={false}
               canGoForward={false}
-              designMode
+              isDesignMode
               notice="Sent without a screenshot — the page could not be photographed."
               state={{ kind: "live" }}
               onAddressChange={() => {}}
@@ -479,14 +479,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={0}
               canGoBack
               canGoForward={false}
-              designMode={false}
+              isDesignMode={false}
               snapshot={gallerySnapshot}
               state={{ kind: "live" }}
               onAddressChange={() => {}}
@@ -520,14 +520,14 @@ function BrowserSurfaceGallery() {
                 {...status}
                 tabs={hasTab ? [{ id: "blank", label: "Browser 1" }] : []}
                 activeTabId={hasTab ? "blank" : null}
-                onActivateTab={() => {}}
+                onActiveTabChange={() => {}}
                 onAddTab={() => {}}
                 onCloseTab={() => {}}
                 address=""
                 annotationCount={0}
                 canGoBack={false}
                 canGoForward={false}
-                designMode={false}
+                isDesignMode={false}
                 state={{ kind: "empty" }}
                 onAddressChange={() => {}}
                 onAddressSubmit={() => {}}
@@ -547,14 +547,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address="http://localhost:5173/"
               annotationCount={0}
               canGoBack={false}
               canGoForward={false}
-              designMode={false}
+              isDesignMode={false}
               state={{ kind: "error", message: "ERR_CONNECTION_REFUSED" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
@@ -573,14 +573,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address=""
               annotationCount={0}
               canGoBack={false}
               canGoForward={false}
-              designMode={false}
+              isDesignMode={false}
               state={{ kind: "narrow" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
@@ -599,14 +599,14 @@ function BrowserSurfaceGallery() {
             <BrowserSurface
               tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
               activeTabId="preview"
-              onActivateTab={() => {}}
+              onActiveTabChange={() => {}}
               onAddTab={() => {}}
               onCloseTab={() => {}}
               address=""
               annotationCount={0}
               canGoBack={false}
               canGoForward={false}
-              designMode={false}
+              isDesignMode={false}
               state={{ kind: "unsupported" }}
               onAddressChange={() => {}}
               onAddressSubmit={() => {}}
@@ -874,7 +874,7 @@ function PiTrajectoryLedgerGallery() {
             <PiTrajectoryLedger
               runs={trajectoryRuns}
               selectedStepId={selectedStepId}
-              onSelectStep={setSelectedStepId}
+              onSelectedStepChange={setSelectedStepId}
             />
           </div>
         </Variant>
@@ -987,7 +987,7 @@ function PiTrajectoryStripTimeVariant() {
 function PiTrajectoryStripGallery() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("steps");
   const [range, setRange] = useState<SegmentRange | undefined>(defaultGalleryFocus);
-  const [activeStepId, setActiveStepId] = useState<string | undefined>(
+  const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
     galleryStripSegments[defaultGalleryFocus[0]]?.stepIds[0],
   );
   const focusedStepIds = new Set(
@@ -1002,21 +1002,21 @@ function PiTrajectoryStripGallery() {
         <Variant caption="Input / Model / Tools swimlanes · hover = scrub cursor · click = one block · drag = contiguous blocks · columns outside the box dim">
           <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
             <PiTrajectoryStrip
-              activeStepId={activeStepId}
+              selectedStepId={selectedStepId}
               selectedRange={range}
               turns={trajectoryTurns}
               widthMode={widthMode}
               onBrush={setRange}
-              onSelect={(_, stepId) => setActiveStepId(stepId)}
+              onSelect={(_, stepId) => setSelectedStepId(stepId)}
               onWidthModeChange={setWidthMode}
             />
           </div>
           <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-separator">
             <PiTrajectoryLedger
               runs={trajectoryRuns}
-              selectedStepId={activeStepId}
+              selectedStepId={selectedStepId}
               isStepDimmed={range ? (step) => !focusedStepIds.has(step.id) : undefined}
-              onSelectStep={setActiveStepId}
+              onSelectedStepChange={setSelectedStepId}
             />
           </div>
         </Variant>
@@ -1425,7 +1425,7 @@ function ChatRunFailureGallery() {
       <Variant caption="authentication failure with recovery">
         <ChatRunFailure error={'401 {"error":{"message":"Invalid API key"}}'}
           onOpenProviderSettings={() => {}} onRetry={async () => {}}
-          modelControl={<ModelSelectorControl controls={modelSelectorControls} isLocked={false} onChange={() => {}} />} />
+          modelControl={<ModelSelectorControl controls={modelSelectorControls} isDisabled={false} onChange={() => {}} />} />
       </Variant>
       <Variant caption="historical failure (read only)">
         <ChatRunFailure error="The provider dropped the connection." />
@@ -1587,7 +1587,7 @@ function ChatChainOfThoughtGallery() {
           </ChatChainOfThought>
         </Variant>
         <Variant caption='phase="settled", expanded'>
-          <ChatChainOfThought defaultExpanded elapsedMs={16_400} phase="settled">
+          <ChatChainOfThought defaultOpen elapsedMs={16_400} phase="settled">
             <ChatChainOfThought.Steps>
               <ChatChainOfThought.Step>
                 <ChatThoughtStep step={settledThought} />
@@ -2002,7 +2002,7 @@ function ChatChainOfThoughtRailGallery() {
       <div className="flex max-w-xl flex-col gap-4">
         <Variant caption="expanded, settled — rounds with done/failed tools">
           <ChatChainOfThoughtRail
-            defaultExpanded
+            defaultOpen
             parts={railParts.slice(0, 4)}
             summary="Thought for 23s · 2 tool calls"
           />
@@ -2246,14 +2246,14 @@ function ModelSelectorControlGallery() {
         <Variant caption="default — open for search, flyout, Fast Mode">
           <ModelSelectorControl
             controls={modelSelectorControls}
-            isLocked={false}
+            isDisabled={false}
             onChange={() => {}}
           />
         </Variant>
         <Variant caption="locked while a run is active">
           <ModelSelectorControl
             controls={modelSelectorControls}
-            isLocked
+            isDisabled
             onChange={() => {}}
           />
         </Variant>
@@ -2267,14 +2267,14 @@ function ModelSelectorControlGallery() {
                 thinkingLevel: "medium",
               },
             }}
-            isLocked={false}
+            isDisabled={false}
             onChange={() => {}}
           />
         </Variant>
         <Variant caption="Settings visibility — hidden selection marked, Add Models live">
           <ModelSelectorControl
             controls={modelSelectorControls}
-            isLocked={false}
+            isDisabled={false}
             visibleModels={[{ provider: "moonshot", modelId: "kimi-k3" }]}
             onChange={() => {}}
             onManageModels={() => {}}

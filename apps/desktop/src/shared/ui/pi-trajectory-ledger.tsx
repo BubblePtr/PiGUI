@@ -206,7 +206,7 @@ function LedgerRow({
 type PiTrajectoryLedgerRunOwnProps = {
   run: TrajectoryRun;
   selectedStepId?: string;
-  onSelectStep?: (stepId: string) => void;
+  onSelectedStepChange?: (stepId: string) => void;
   /** Focus semantics (Strip brush): dimmed runs stay rendered, greyed out. */
   isDimmed?: boolean;
   /** Focus semantics: dim rows outside the selected swimlane block. */
@@ -226,7 +226,7 @@ export type PiTrajectoryLedgerRunProps = Omit<
 function Run({
   run,
   selectedStepId,
-  onSelectStep,
+  onSelectedStepChange,
   isDimmed = false,
   isStepDimmed,
   stepFilter,
@@ -293,7 +293,7 @@ function Run({
               role={turn.role}
               rowRef={registerStepRef}
               step={step}
-              onSelect={onSelectStep}
+              onSelect={onSelectedStepChange}
             />
           ))}
         </div>
@@ -321,7 +321,7 @@ export function PiTrajectoryLedger({
   className = "",
   children,
   selectedStepId,
-  onSelectStep,
+  onSelectedStepChange,
   isDimmed,
   isStepDimmed,
   stepFilter,
@@ -347,7 +347,7 @@ export function PiTrajectoryLedger({
               run={run}
               selectedStepId={selectedStepId}
               stepFilter={stepFilter}
-              onSelectStep={onSelectStep}
+              onSelectedStepChange={onSelectedStepChange}
             />
           )))
       )}
