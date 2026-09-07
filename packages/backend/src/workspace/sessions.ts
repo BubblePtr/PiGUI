@@ -11,7 +11,6 @@ import type {
   SessionSummary,
   Title,
 } from "@pigui/core";
-import { resolveDataDir } from "../persistence/session-event-journal";
 import { isChatWorkspaceCwd } from "./chat-workspace";
 
 const maxTextTitleChars = 96;
@@ -72,13 +71,14 @@ export function resolveAgentDir(env: NodeJS.ProcessEnv = process.env) {
   return join(homedir(), ".pi", "agent");
 }
 
-export async function buildSessionIndex(dir: string) {
-  return buildSessionIndexWithCache(dir, createSessionIndexCache());
+export async function buildSessionIndex(dir: string, dataDir: string) {
+  return buildSessionIndexWithCache(dir, createSessionIndexCache(), dataDir);
 }
 
 export async function buildSessionIndexWithCache(
   dir: string,
   cache: SessionIndexCache,
+  dataDir: string,
 ): Promise<SessionSummary[]> {
   const sessionsDir = join(dir, "sessions");
 
@@ -93,7 +93,7 @@ export async function buildSessionIndexWithCache(
   for (const path of await findJsonlFiles(sessionsDir)) {
     seenPaths.add(path);
 
-    const session = await readSessionSummaryCached(path, cache);
+    const session = await readSessionSummaryCached(path, cache, dataDir);
     if (session) {
       sessions.push(session);
     }
@@ -141,18 +141,22 @@ export function annotateSessionPresence(
   }));
 }
 
-export async function loadSessionDetail(dir: string, id: string): Promise<SessionDetail> {
-  const path = await findSessionFile(dir, id);
+export async function loadSessionDetail(
+  dir: string,
+  id: string,
+  dataDir: string,
+): Promise<SessionDetail> {
+  const path = await findSessionFile(dir, id, dataDir);
 
   if (!path) {
     throw new Error(`session ${id} was not found`);
   }
 
-  return parseSession(await readFile(path, "utf8"));
+  return parseSession(await readFile(path, "utf8"), dataDir);
 }
 
-export function parseSession(jsonl: string): SessionDetail {
-  const parser = new SessionParser();
+export function parseSession(jsonl: string, dataDir: string): SessionDetail {
+  const parser = new SessionParser(dataDir);
 
   jsonl.split(/\r?\n/).forEach((line, index) => {
     try {
@@ -174,6 +178,8 @@ export class SessionParser {
   private detail?: SessionDetail;
   private metrics = createMetrics();
 
+  constructor(private readonly dataDir: string) {}
+
   feedLine(line: string): SessionStateUpdate {
     if (!line.trim()) {
       return { kind: "ignored" };
@@ -194,7 +200,7 @@ export class SessionParser {
       this.detail = {
         id: stringValue(record.id) ?? "",
         timestamp: isoTimestamp(record.timestamp) ?? "",
-        project: deriveProjectName(stringValue(record.cwd) ?? ""),
+        project: deriveProjectName(stringValue(record.cwd) ?? "", this.dataDir),
         totalCostUsd: 0,
         totalTokens: 0,
         primaryModel: undefined,
@@ -395,14 +401,14 @@ async function findJsonlFiles(dir: string): Promise<string[]> {
   return paths.flat();
 }
 
-async function findSessionFile(dir: string, id: string) {
+async function findSessionFile(dir: string, id: string, dataDir: string) {
   const sessionsDir = join(dir, "sessions");
   if (!(await pathExists(sessionsDir))) {
     return undefined;
   }
 
   for (const path of await findJsonlFiles(sessionsDir)) {
-    const summary = await readSessionSummary(path);
+    const summary = await readSessionSummary(path, dataDir);
     if (summary?.summary.id === id) {
       return path;
     }
@@ -411,7 +417,11 @@ async function findSessionFile(dir: string, id: string) {
   return undefined;
 }
 
-async function readSessionSummaryCached(path: string, cache: SessionIndexCache) {
+async function readSessionSummaryCached(
+  path: string,
+  cache: SessionIndexCache,
+  dataDir: string,
+) {
   const metadata = await stat(path);
   const modifiedAtMs = metadata.mtimeMs;
   const cached = cache.entries.get(path);
@@ -422,7 +432,7 @@ async function readSessionSummaryCached(path: string, cache: SessionIndexCache) 
   }
 
   cache.misses += 1;
-  const session = await readSessionSummary(path);
+  const session = await readSessionSummary(path, dataDir);
   if (session) {
     cache.entries.set(path, {
       modifiedAtMs,
@@ -435,7 +445,10 @@ async function readSessionSummaryCached(path: string, cache: SessionIndexCache) 
   return session;
 }
 
-async function readSessionSummary(path: string): Promise<IndexedSession | undefined> {
+async function readSessionSummary(
+  path: string,
+  dataDir: string,
+): Promise<IndexedSession | undefined> {
   const jsonl = await readFile(path, "utf8");
   let sessionRecord:
     | {
@@ -511,7 +524,7 @@ async function readSessionSummary(path: string): Promise<IndexedSession | undefi
     summary: {
       id: sessionRecord.id,
       timestamp: sessionRecord.timestamp,
-      project: deriveProjectName(sessionRecord.cwd),
+      project: deriveProjectName(sessionRecord.cwd, dataDir),
       title: classifyTitle(firstUserMessage ?? ""),
       totalCostUsd: metrics.totalCostUsd,
       totalTokens: metrics.totalTokens,
@@ -929,7 +942,7 @@ function sortedNamedCounts(counts: Map<string, number>): NamedCount[] {
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
 }
 
-export function deriveProjectName(cwd: string, dataDir = resolveDataDir()) {
+export function deriveProjectName(cwd: string, dataDir: string) {
   if (isChatWorkspaceCwd(dataDir, cwd)) {
     return "Chat";
   }

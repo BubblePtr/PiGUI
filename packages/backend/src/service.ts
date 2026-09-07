@@ -258,14 +258,18 @@ async function dispatchRequest(input: {
   switch (input.request.method) {
     case "list_sessions": {
       const [summaries, projections] = await Promise.all([
-        buildSessionIndexWithCache(input.agentDir, input.sessionCache),
+        buildSessionIndexWithCache(input.agentDir, input.sessionCache, input.dataDir),
         input.sessionProjectionStore.list(),
       ]);
 
       return annotateSessionPresence(summaries, projections);
     }
     case "get_session_detail":
-      return loadSessionDetail(input.agentDir, requiredString(params.id, "id"));
+      return loadSessionDetail(
+        input.agentDir,
+        requiredString(params.id, "id"),
+        input.dataDir,
+      );
     case "list_session_projections":
       return listSessionProjections({
         store: input.sessionProjectionStore,
