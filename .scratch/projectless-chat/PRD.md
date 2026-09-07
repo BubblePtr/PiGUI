@@ -59,7 +59,7 @@ Pi 本身永远需要一个 cwd（`createAgentSession({ cwd })`，`pi-sdk-runtim
 - [ ] Chat Session 的 resume（冷恢复）与 fork 正常；目录被删后 resume 自动重建目录。
 - [ ] Trajectory 列表与 Usage 页对 chat session 显示 "Chat"。
 - [ ] Settings 出现 Chats section，显示根目录并能打开。
-- [ ] CONTEXT.md / ADR-0033 / README "Where things live" 更新；`regions.test.ts` 通过。
+- [ ] CONTEXT.md / ADR-0034 / README "Where things live" 更新；`regions.test.ts` 通过。
 - [ ] `bun run typecheck` 与 `bun run test` 全绿；UI 改动附 dev-server 截图。
 
 ## Slices
@@ -68,7 +68,7 @@ Pi 本身永远需要一个 cwd（`createAgentSession({ cwd })`，`pi-sdk-runtim
 | --- | --- | --- | --- |
 | 1 | #208 | 后端：Chat Workspace 目录解析 + `prepare_chat_workspace` RPC + resume 重建 + Trajectory 标签 | — |
 | 2 | #209 | 渲染层：Chat 目标的创建路径、Sidebar Chats 分组、Landing、Picker、页头、Settings section | Blocked by #1 |
-| 3 | #210 | 词汇与文档：CONTEXT.md、ADR-0033、README、self-built-ui ledger（如有新组件） | Blocked by #2 |
+| 3 | #210 | 词汇与文档：CONTEXT.md、ADR-0034、README、self-built-ui ledger（如有新组件） | Blocked by #2 |
 
 ## Out of Scope
 

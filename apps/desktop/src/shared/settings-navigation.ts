@@ -1,9 +1,13 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
 
-export type SettingsSection = "providers" | "models" | "chats" | "about";
+export type SettingsSection = "providers" | "models" | "chats" | "changelog" | "about";
 
 export function parseSettingsSection(value: unknown): SettingsSection | null {
-  return value === "providers" || value === "models" || value === "chats" || value === "about"
+  return value === "providers" ||
+    value === "models" ||
+    value === "chats" ||
+    value === "changelog" ||
+    value === "about"
     ? value
     : null;
 }
