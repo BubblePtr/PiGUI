@@ -18,7 +18,8 @@ import {
   useSettingsDialog,
   type SettingsSection,
 } from "@/shared/settings-navigation";
-import { Bot, Globe, RefreshCw } from "@/shared/ui/icons";
+import { Bot, Globe, RefreshCw, Sparkles } from "@/shared/ui/icons";
+import { ChangelogSection } from "@/pages/settings-changelog";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import {
   getVisibleModels,
@@ -564,7 +565,12 @@ function SettingsContent({
               hasDivider
             >
               {settingsSections.map((item) => (
-                <Tab key={item.id} value={item.id} label={item.label} />
+                <Tab
+                  key={item.id}
+                  value={item.id}
+                  label={item.id === "about" ? "About" : item.label}
+                  style={{ paddingInline: "var(--spacing-2)" }}
+                />
               ))}
             </TabList>
           ) : null}
@@ -716,6 +722,9 @@ function SettingsContent({
               providerLabels={providerLabels}
             />
           </VStack>
+          <VStack style={{ display: section === "changelog" ? undefined : "none" }}>
+            <ChangelogSection />
+          </VStack>
           <VStack style={{ display: section === "about" ? undefined : "none" }}>
             <AboutUpdatesSection />
           </VStack>
@@ -728,6 +737,7 @@ function SettingsContent({
 const settingsSections = [
   { id: "providers", label: "Providers", icon: Globe },
   { id: "models", label: "Models", icon: Bot },
+  { id: "changelog", label: "Changelog", icon: Sparkles },
   { id: "about", label: "About & Updates", icon: RefreshCw },
 ] as const;
 

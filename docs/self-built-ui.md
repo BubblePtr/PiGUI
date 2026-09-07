@@ -83,6 +83,8 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 
 Settings 参考 Astryx `settings-dialog` 模板，使用原生 `Dialog`、`Layout`、`SideNav` 与 `DialogHeader` 组合，内容仍位于 `pages/settings.tsx`，没有新增自建 UI 原语。桌面显示左侧 Providers / Models / About & Updates 导航，导航项通过 `VStack gap={1}` 保持 4px 间距；窄屏使用全屏弹窗和顶部分类标签。标题栏固定，内容区独立滚动。Models 行使用透明背景，仅由复选框表示可见状态，避免整行强调色与分类导航选中态混淆。现有 API key、订阅登录、可见模型与应用更新功能保持原有保存通道。
 
+Changelog 位于 Models 与 About & Updates 之间，页面组合在 `pages/settings-changelog.tsx`。版本按发布日期倒序，以 Astryx Stack、Divider、Text、Token 和 Link 组成时间轴，圆点复用现有 Circle 图标；没有新增共享原语，无需新增 Design 组件条目。窄屏将 About & Updates 简写为 About，给四个分类留出空间。发布内容随应用打包，来源及维护流程见 [更新日志维护](changelog.md)。
+
 `shared/settings-navigation.ts` 通过当前路由的 `settings` 查询参数打开分类，保留 pathname、其他查询参数和 hash，关闭后清除该参数。工作区持续挂载，当前 Session、输入草稿和 Dock 不因打开设置而重建。旧 `/settings` 与 `/settings#models` 链接兼容到弹窗入口。分类切换保留尚未保存的密钥输入，关闭则清空这类临时输入；弹窗使用 `purpose="form"`，点击背景不关闭，支持 Esc 和关闭按钮，并恢复打开入口的焦点。
 
 Browser 的弹层检测同时观察 Astryx 原生 `dialog[open]`；设置打开时显示快照并隐藏 `WebContentsView`，关闭后恢复原页面。Electron E2E 覆盖设置入口、草稿与焦点恢复、旧链接、首次配置以及原生浏览器让位。
