@@ -47,6 +47,7 @@ import { ChatCodeBlock } from "@/shared/ui/chat/chat-code-block";
 import { ChatConversation } from "@/shared/ui/chat/chat-conversation";
 import { ChatMarkdown, ChatStreamMarkdown } from "@/shared/ui/chat/chat-markdown";
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
+import { ChatRunFailure } from "@/shared/ui/chat/chat-run-failure";
 import { ChatPromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatPromptSuggestion } from "@/shared/ui/chat/chat-prompt-suggestion";
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
@@ -1402,11 +1403,49 @@ function PromptInputDemo({
   );
 }
 
+function SuggestionFocusDemo() {
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [value, setValue] = useState("");
+  return (
+    <Variant caption="suggestion restores input focus">
+      <VStack gap={2}>
+        <ChatPromptInput inputRef={inputRef} value={value} onValueChange={setValue} onSubmit={() => {}} />
+        <Button label="Summarize meeting notes" size="sm" variant="secondary" onClick={() => {
+          setValue("Summarize meeting notes");
+          inputRef.current?.focus();
+        }} />
+      </VStack>
+    </Variant>
+  );
+}
+
+function ChatRunFailureGallery() {
+  return <GallerySection title="ChatRunFailure">
+    <VStack gap={4}>
+      <Variant caption="authentication failure with recovery">
+        <ChatRunFailure error={'401 {"error":{"message":"Invalid API key"}}'}
+          onOpenProviderSettings={() => {}} onRetry={async () => {}}
+          modelControl={<ModelSelectorControl controls={modelSelectorControls} isLocked={false} onChange={() => {}} />} />
+      </Variant>
+      <Variant caption="historical failure (read only)">
+        <ChatRunFailure error="The provider dropped the connection." />
+      </Variant>
+      <Variant caption="retry failure (click Retry request)">
+        <ChatRunFailure error="429 rate limit exceeded" onRetry={async () => { throw new Error("Runtime disconnected"); }} />
+      </Variant>
+      <Variant caption="retry in progress (click Retry request)">
+        <ChatRunFailure error="503 service unavailable" onRetry={() => new Promise(() => {})} />
+      </Variant>
+    </VStack>
+  </GallerySection>;
+}
+
 function ChatPromptInputGallery() {
   return (
     <GallerySection title="ChatPromptInput">
       <VariantRow>
         <PromptInputDemo caption="status=ready (empty)" />
+        <SuggestionFocusDemo />
         <PromptInputDemo
           caption="status=ready (with text)"
           initialValue="Summarize the last run"
@@ -1730,6 +1769,9 @@ function ChatPixelLoaderGallery() {
   return (
     <GallerySection title="ChatPixelLoader">
       <VariantRow>
+        <Variant caption="settled — failed run">
+          <ChatChainOfThought elapsedMs={1_400} hasSteps={false} phase="settled" outcome="failed" />
+        </Variant>
         <Variant caption="periodMs=860 (default)">
           <span className="text-lg text-muted">
             <ChatPixelLoader />
@@ -2071,8 +2113,8 @@ function ComposerInsertMenuGallery() {
         </Variant>
         <Variant caption="with skills and plugins">
           <ComposerInsertMenu
-            plugins={[{ name: "browser" }]}
-            skills={[{ name: "review-pr" }]}
+            plugins={[{ name: "../../.pi/extensions/browser-tools/index.ts" }]}
+            skills={[{ name: "review-pr", description: "Review a pull request for bugs and missing tests." }, { name: "write-docs", description: "Write project documentation." }]}
             onAttach={() => {}}
             onInsert={() => {}}
           />
@@ -2246,6 +2288,7 @@ function ModelSelectorControlGallery() {
 export const componentExamples: ComponentExample[] = [
   { name: "PiKpi", category: "Data & metrics", description: "At-a-glance metrics, totals, deltas, and missing values.", Preview: PiKpiGallery },
   { name: "PiBarChart", category: "Data & metrics", description: "Compare usage across time with single or stacked series.", Preview: PiBarChartGallery },
+  { name: "ChatRunFailure", category: "Conversation", description: "Readable failures, provider settings, model changes, and request retries.", Preview: ChatRunFailureGallery },
   { name: "ChatMessage", category: "Conversation", description: "User and assistant messages with attachments and actions.", Preview: ChatMessageGallery },
   { name: "ChatConversation", category: "Conversation", description: "Scrollable conversation history with automatic bottom pinning.", Preview: ChatConversationGallery },
   { name: "ChatMarkdown", category: "Conversation", description: "Rich message content, heading hierarchy, and streaming Markdown.", Preview: ChatMarkdownGallery },

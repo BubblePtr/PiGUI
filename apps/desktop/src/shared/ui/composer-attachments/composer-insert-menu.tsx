@@ -1,19 +1,25 @@
+import { useMemo, useState } from "react";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
-import {
-  Command,
-  ImageIcon,
-  Plus,
-  Puzzle,
-  Sparkles,
-} from "@/shared/ui/icons";
+import { CommandPalette, CommandPaletteInput } from "@astryxdesign/core/CommandPalette";
+import { createStaticSource } from "@astryxdesign/core/Typeahead";
+import { VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
+import { Command, ImageIcon, Plus, Puzzle, Sparkles } from "@/shared/ui/icons";
 
 export const DEFAULT_COMPOSER_COMMANDS = [
   { label: "/compact", insert: "/compact " },
   { label: "/clear", insert: "/clear " },
 ] as const;
 
-function menuIcon(Icon: typeof ImageIcon) {
-  return <Icon aria-hidden="true" size={16} />;
+type CatalogEntry = { name: string; description?: string };
+
+function pluginLabel(name: string) {
+  const parts = name.replace(/\\/g, "/").split("/").filter(Boolean);
+  const file = parts.pop() ?? name;
+  const stem = file.replace(/\.(?:[cm]?[jt]sx?)$/, "");
+  const label = (/^(?:index|main|extension)$/.test(stem) ? parts.pop() ?? stem : stem)
+    .replace(/[-_]+/g, " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function ComposerInsertMenu({
@@ -24,73 +30,60 @@ export function ComposerInsertMenu({
   onInsert,
 }: {
   commands?: readonly { label: string; insert: string }[];
-  skills?: readonly { name: string }[];
-  plugins?: readonly { name: string }[];
+  skills?: readonly CatalogEntry[];
+  plugins?: readonly CatalogEntry[];
   onAttach: () => void;
   onInsert: (text: string) => void;
 }) {
+  const [catalog, setCatalog] = useState<"skills" | "plugins" | null>(null);
+  const source = useMemo(() => createStaticSource(
+    (catalog === "skills" ? skills : plugins).map((entry) => ({
+      id: entry.name,
+      label: catalog === "skills" ? entry.name : pluginLabel(entry.name),
+      auxiliaryData: { description: entry.description, identifier: entry.name },
+    })),
+    { keywords: (item) => [item.auxiliaryData.description ?? "", item.auxiliaryData.identifier] },
+  ), [catalog, skills, plugins]);
+
   return (
-    <DropdownMenu
-      alignment="start"
-      hasChevron={false}
-      menuWidth={260}
-      placement="above"
-      button={{
-        icon: <Plus aria-hidden="true" />,
-        isIconOnly: true,
-        label: "Add to prompt",
-        size: "sm",
-        tooltip: "Add to prompt",
-        variant: "ghost",
-      }}
-      items={[
-        {
-          type: "section",
-          title: "Files",
-          items: [
-            {
-              icon: menuIcon(ImageIcon),
-              label: "Images or text files",
-              onClick: onAttach,
-            },
-          ],
-        },
-        {
-          type: "section",
-          title: "Commands",
-          items: commands.map((command) => ({
-            icon: menuIcon(Command),
-            label: command.label,
-            onClick: () => onInsert(command.insert),
-          })),
-        },
-        ...(skills.length
-          ? [
-              {
-                type: "section" as const,
-                title: "Skills",
-                items: skills.map((skill) => ({
-                  icon: menuIcon(Sparkles),
-                  label: skill.name,
-                  onClick: () => onInsert(`/${skill.name} `),
-                })),
-              },
-            ]
-          : []),
-        ...(plugins.length
-          ? [
-              {
-                type: "section" as const,
-                title: "Plugins",
-                items: plugins.map((plugin) => ({
-                  icon: menuIcon(Puzzle),
-                  label: plugin.name,
-                  onClick: () => onInsert(`@${plugin.name} `),
-                })),
-              },
-            ]
-          : []),
-      ]}
-    />
+    <>
+      <DropdownMenu
+        alignment="start"
+        hasChevron={false}
+        placement="above"
+        button={{ icon: <Plus aria-hidden="true" />, isIconOnly: true,
+          label: "Add to prompt", size: "sm", tooltip: "Add to prompt", variant: "ghost" }}
+        items={[
+          { icon: <ImageIcon />, label: "Add files", onClick: onAttach },
+          { icon: <Sparkles />, label: "Use skill", onClick: () => setCatalog("skills") },
+          { icon: <Command />, label: "Chat commands", items: commands.map((command) => ({
+            label: command.label, onClick: () => onInsert(command.insert),
+          })) },
+          ...(plugins.length ? [{ icon: <Puzzle />, label: "Use plugin", onClick: () => setCatalog("plugins") }] : []),
+        ]}
+      />
+      {catalog ? (
+        <CommandPalette
+          isOpen
+          label={catalog === "skills" ? "Use skill" : "Use plugin"}
+          input={<CommandPaletteInput label={`Search ${catalog}`} placeholder={`Search ${catalog}…`} />}
+          searchSource={source}
+          emptySearchText={`No matching ${catalog}`}
+          emptyBootstrapText={`No ${catalog} available`}
+          renderItem={(item) => (
+            <VStack gap={0.5}>
+              <Text>{item.label}</Text>
+              {item.auxiliaryData.description ? (
+                <Text color="secondary" type="body" size="sm" maxLines={2}>
+                  {item.auxiliaryData.description}
+                </Text>
+              ) : null}
+            </VStack>
+          )}
+          onOpenChange={(open) => { if (!open) setCatalog(null); }}
+          onValueChange={(name) => onInsert(`${catalog === "skills" ? "/" : "@"}${name} `)}
+        />
+      ) : null}
+    </>
   );
 }

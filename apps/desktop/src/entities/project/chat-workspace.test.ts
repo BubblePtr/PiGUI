@@ -19,7 +19,7 @@ describe("Chat Workspace descriptor", () => {
     expect(isChatProjectId("chat")).toBe(true);
     expect(isChatProjectId("/Users/void/code/opensource/Pig")).toBe(false);
     expect(isChatProjectId(null)).toBe(false);
-    expect(CHAT_PICKER_LABEL).toBe("Chat · no project");
+    expect(CHAT_PICKER_LABEL).toBe("No project");
 
     addProjectToRegistry("/Users/void/code/opensource/Pig", {
       now: () => "2026-09-07T00:00:00.000Z",

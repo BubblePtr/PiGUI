@@ -3,6 +3,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
   useEffect,
   useRef,
   useState,
@@ -22,15 +23,18 @@ export type PromptInputStatus = "ready" | "submitted" | "streaming" | "error";
  */
 function PromptTextArea({
   disabled = false,
+  inputRef,
   onFiles,
   onSubmitRequest,
 }: {
   disabled?: boolean;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
   onFiles?: (files: File[]) => void;
   onSubmitRequest: () => void;
 }) {
   const context = useChatComposerContext();
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const localRef = useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = inputRef ?? localRef;
 
   useEffect(() => {
     const control = context?.inputControlRef;
@@ -43,7 +47,7 @@ function PromptTextArea({
     return () => {
       control.current = null;
     };
-  }, [context?.inputControlRef]);
+  }, [context?.inputControlRef, textareaRef]);
 
   if (!context) {
     return null;
@@ -120,6 +124,7 @@ export function ChatPromptInput({
   status = "ready",
   className = "",
   placeholder,
+  inputRef,
   allowSubmitWhileRunning = false,
   lockInputOnRun = false,
   startActions,
@@ -137,6 +142,7 @@ export function ChatPromptInput({
   status?: PromptInputStatus;
   className?: string;
   placeholder?: string;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
   allowSubmitWhileRunning?: boolean;
   lockInputOnRun?: boolean;
   startActions?: ReactNode;
@@ -228,6 +234,7 @@ export function ChatPromptInput({
         input={
           <PromptTextArea
             disabled={lockInputOnRun && isRunning}
+            inputRef={inputRef}
             onFiles={onFiles}
             onSubmitRequest={handleSubmit}
           />

@@ -20,6 +20,7 @@ export type ExtensionInfo = {
 
 export type SkillInfo = {
   name: string;
+  description?: string;
   source: string;
 };
 

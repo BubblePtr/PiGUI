@@ -70,6 +70,7 @@ export function ChatChainOfThought({
   // disclose has to be told, not counted.
   hasSteps = true,
   phase,
+  outcome,
   startedAtMs,
 }: {
   children?: ReactNode;
@@ -78,6 +79,7 @@ export function ChatChainOfThought({
   elapsedMs?: number;
   hasSteps?: boolean;
   phase: CotPhase;
+  outcome?: "failed";
   startedAtMs?: number;
 }) {
   const [userOpen, setUserOpen] = useState(defaultExpanded);
@@ -89,7 +91,8 @@ export function ChatChainOfThought({
   }
 
   const settled = phase === "settled";
-  const header = formatWorkedFor(elapsedMs);
+  const duration = formatWorkedFor(elapsedMs);
+  const header = outcome === "failed" ? duration.replace("Worked for", "Failed after").replace("Worked", "Failed") : duration;
 
   return (
     <div

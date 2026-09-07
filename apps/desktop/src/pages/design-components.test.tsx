@@ -13,6 +13,18 @@ function DesignComponentsLayer() {
 const repoRoot = process.cwd();
 
 describe("Design components layer", () => {
+  it("demonstrates failure recovery and suggestion focus", async () => {
+    const user = userEvent.setup();
+    render(<DesignComponentsLayer />);
+    const failures = screen.getByRole("region", { name: "ChatRunFailure" });
+    expect(within(failures).getByText("Provider authentication failed")).toBeInTheDocument();
+    expect(within(failures).getAllByRole("button", { name: "Retry request" })).toHaveLength(3);
+    expect(screen.getByText("Failed after 1s")).toBeInTheDocument();
+    const input = screen.getByRole("group", { name: "suggestion restores input focus" });
+    await user.click(within(input).getByRole("button", { name: "Summarize meeting notes" }));
+    expect(within(input).getByRole("textbox")).toHaveFocus();
+  });
+
   it("registers a region for every shared/ui component", () => {
     render(<DesignComponentsLayer />);
 
@@ -31,6 +43,7 @@ describe("Design components layer", () => {
       "ChatCodeBlock",
       "ChatTool",
       "ChatPromptInput",
+      "ChatRunFailure",
       "ChatPromptSuggestion",
       "ChatChainOfThought",
       "ChatPixelLoader",

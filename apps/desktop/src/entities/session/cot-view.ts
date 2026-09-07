@@ -35,6 +35,7 @@ export type CotStep =
 
 export type CotView = {
   phase: CotPhase;
+  outcome?: "failed";
   /**
    * The Run's single clock anchor: its first surviving model call, as an epoch
    * stamp. Handed to the component so it can walk the clock itself instead of
@@ -263,6 +264,7 @@ export function deriveCotView(
 
   return {
     phase,
+    ...(model.runs.get(runId)?.outcome === "failed" ? { outcome: "failed" as const } : {}),
     ...(anchorMs !== undefined ? { anchorMs } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
     steps,
