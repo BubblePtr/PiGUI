@@ -8,7 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
-import { TraceIndexPage, TraceWorkspace } from "@/pages/trace";
+import { TrajectoryIndexPage, TrajectoryWorkspace } from "@/pages/trajectory";
 
 vi.mock("./session-list", () => ({
   SessionListPanel: ({ selectedSessionId }: { selectedSessionId?: string }) => (
@@ -16,12 +16,12 @@ vi.mock("./session-list", () => ({
   ),
 }));
 
-function renderTraceWorkspace() {
+function renderTrajectoryWorkspace() {
   const rootRoute = createRootRoute({
     component: () => (
-      <TraceWorkspace selectedSessionId="session-a">
-        <div data-testid="mock-trace-detail">Trace detail</div>
-      </TraceWorkspace>
+      <TrajectoryWorkspace selectedSessionId="session-a">
+        <div data-testid="mock-trajectory-detail">Trajectory detail</div>
+      </TrajectoryWorkspace>
     ),
   });
   const indexRoute = createRoute({
@@ -52,14 +52,14 @@ function renderTraceWorkspace() {
   return render(<RouterProvider router={router} />);
 }
 
-function renderTraceIndexPage() {
+function renderTrajectoryIndexPage() {
   const rootRoute = createRootRoute({
     component: () => <Outlet />,
   });
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    component: TraceIndexPage,
+    component: TrajectoryIndexPage,
   });
   const sessionRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -95,42 +95,42 @@ function renderTraceIndexPage() {
   return render(<RouterProvider router={router} />);
 }
 
-describe("TraceWorkspace", () => {
-  it("lays the trace out as a fixed-width sidebar finder and a fluid reading pane", async () => {
-    const { container } = renderTraceWorkspace();
+describe("TrajectoryWorkspace", () => {
+  it("lays the trajectory out as a fixed-width sidebar finder and a fluid reading pane", async () => {
+    const { container } = renderTrajectoryWorkspace();
 
-    expect(await screen.findByTestId("mock-trace-detail")).toBeInTheDocument();
+    expect(await screen.findByTestId("mock-trajectory-detail")).toBeInTheDocument();
     expect(screen.getByTestId("mock-session-list")).toHaveAttribute(
       "data-selected-session-id",
       "session-a",
     );
-    const traceWorkspace = screen.getByTestId("trace-workspace");
+    const trajectoryWorkspace = screen.getByTestId("trajectory-workspace");
 
-    expect(traceWorkspace).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+    expect(trajectoryWorkspace).toHaveClass("h-full", "min-h-0", "overflow-hidden");
 
-    const frame = screen.getByTestId("trace-split-view");
+    const frame = screen.getByTestId("trajectory-split-view");
     expect(frame).toHaveClass("h-full", "min-h-0", "flex");
     // No resizer, no percentage split: the finder has a fixed budget.
     expect(frame.querySelector('[data-slot="resizable-handle"]')).not.toBeInTheDocument();
 
-    const listPane = screen.getByTestId("trace-list-pane");
+    const listPane = screen.getByTestId("trajectory-list-pane");
     expect(listPane).toHaveClass("w-80", "shrink-0", "border-r");
-    const detailPane = screen.getByTestId("trace-detail-pane");
+    const detailPane = screen.getByTestId("trajectory-detail-pane");
     expect(detailPane).toHaveClass("flex-1", "min-w-0", "min-h-0", "overflow-hidden");
     expect(container.querySelector('[role="main"]')).toBeInTheDocument();
   });
 
-  it("frames trace replay as a first-level Trace surface", async () => {
-    renderTraceIndexPage();
+  it("frames trajectory replay as a first-level Trajectory surface", async () => {
+    renderTrajectoryIndexPage();
 
-    const detailPane = await screen.findByTestId("trace-detail-pane");
+    const detailPane = await screen.findByTestId("trajectory-detail-pane");
 
     expect(
-      await within(detailPane).findByText("Trace"),
+      await within(detailPane).findByText("Trajectory"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Analyze / Trace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Analyze / Trajectory")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Select a Pi session trace" }),
+      screen.getByRole("heading", { name: "Select a Pi session trajectory" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("mock-session-list")).toBeInTheDocument();
   });

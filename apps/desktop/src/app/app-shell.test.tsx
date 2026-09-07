@@ -100,9 +100,9 @@ function renderAppFrame(
     path: "/usage",
     component: () => null,
   });
-  const traceRoute = createRoute({
+  const trajectoryRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/trace",
+    path: "/trajectory",
     component: () => null,
   });
   const projectSessionsRoute = createRoute({
@@ -126,7 +126,7 @@ function renderAppFrame(
       indexRoute,
       sessionRoute,
       usageRoute,
-      traceRoute,
+      trajectoryRoute,
       projectSessionsRoute,
       setupRoute,
       settingsRoute,
@@ -229,7 +229,7 @@ describe("AppFrame", () => {
       within(projectGroup).queryByRole("button", { name: "New Session for Pig" }),
     ).not.toBeInTheDocument();
     expect(
-      within(screen.getByRole("group", { name: "Trace and usage navigation" })).queryByRole(
+      within(screen.getByRole("group", { name: "Trajectory and usage navigation" })).queryByRole(
         "button",
         { name: "New Session" },
       ),
@@ -307,11 +307,11 @@ describe("AppFrame", () => {
     expect(activeTime.closest("button")).toBe(activeSessionRow);
     // Must not use naive UTC HH:mm from ISO.
     expect(within(activeSessionRow).queryByText("08:06")).toBeNull();
-    const traceUsageNavigation = screen.getByRole("group", {
-      name: "Trace and usage navigation",
+    const trajectoryUsageNavigation = screen.getByRole("group", {
+      name: "Trajectory and usage navigation",
     });
-    const topRows = within(traceUsageNavigation).getAllByRole("button");
-    const globalNewSessionRow = within(traceUsageNavigation).getByRole("button", {
+    const topRows = within(trajectoryUsageNavigation).getAllByRole("button");
+    const globalNewSessionRow = within(trajectoryUsageNavigation).getByRole("button", {
       name: "New Session",
     });
     const projectActionsButton = within(projectGroup).getByRole("button", {
@@ -323,7 +323,7 @@ describe("AppFrame", () => {
 
     expect(topRows.map((row) => row.textContent)).toEqual([
       "New Session",
-      "Trace",
+      "Trajectory",
       "Usage",
     ]);
     expect(globalNewSessionRow).not.toHaveAttribute("aria-current", "page");
@@ -534,10 +534,10 @@ describe("AppFrame", () => {
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const projectGroup = screen.getByTestId("sidebar-projects");
     const projectNavigation = getProjectSessionsGroup(projectGroup, "Pig");
-    const traceUsageNavigation = screen.getByRole("group", {
-      name: "Trace and usage navigation",
+    const trajectoryUsageNavigation = screen.getByRole("group", {
+      name: "Trajectory and usage navigation",
     });
-    const globalNewSessionRow = within(traceUsageNavigation).getByRole("button", {
+    const globalNewSessionRow = within(trajectoryUsageNavigation).getByRole("button", {
       name: "New Session",
     });
 
@@ -557,7 +557,7 @@ describe("AppFrame", () => {
       prompt: "Existing Project draft",
     });
     expect(
-      within(traceUsageNavigation).getByRole("button", { name: "New Session" }),
+      within(trajectoryUsageNavigation).getByRole("button", { name: "New Session" }),
     ).toHaveAttribute("aria-current", "page");
   });
 
@@ -663,7 +663,7 @@ describe("AppFrame", () => {
       prompt: "Prompt from the global draft",
     });
     expect(
-      within(screen.getByRole("group", { name: "Trace and usage navigation" })).getByRole(
+      within(screen.getByRole("group", { name: "Trajectory and usage navigation" })).getByRole(
         "button",
         { name: "New Session" },
       ),
@@ -836,44 +836,44 @@ describe("AppFrame", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders Trace and Usage as first-level side nav items", async () => {
-    renderAppFrame("/trace");
+  it("renders Trajectory and Usage as first-level side nav items", async () => {
+    renderAppFrame("/trajectory");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const traceUsageNavigation = screen.getByRole("group", {
-      name: "Trace and usage navigation",
+    const trajectoryUsageNavigation = screen.getByRole("group", {
+      name: "Trajectory and usage navigation",
     });
-    const traceItem = within(traceUsageNavigation).getByRole("button", { name: "Trace" });
-    const usageItem = within(traceUsageNavigation).getByRole("button", { name: "Usage" });
+    const trajectoryItem = within(trajectoryUsageNavigation).getByRole("button", { name: "Trajectory" });
+    const usageItem = within(trajectoryUsageNavigation).getByRole("button", { name: "Usage" });
 
-    expect(within(traceUsageNavigation).queryByText("Analyze")).not.toBeInTheDocument();
-    expect(traceItem).toHaveAttribute("aria-current", "page");
+    expect(within(trajectoryUsageNavigation).queryByText("Analyze")).not.toBeInTheDocument();
+    expect(trajectoryItem).toHaveAttribute("aria-current", "page");
     expect(usageItem).not.toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("heading", { level: 1, name: "Trace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Trajectory" })).toBeInTheDocument();
   });
 
-  it("orders Trace and Usage above Projects and pins Settings to the sidenav footer", async () => {
+  it("orders Trajectory and Usage above Projects and pins Settings to the sidenav footer", async () => {
     const { container } = renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const sidebar = container.querySelector('[data-testid="app-layout-sidebar"]');
-    const traceUsageNavigation = screen.getByRole("group", {
-      name: "Trace and usage navigation",
+    const trajectoryUsageNavigation = screen.getByRole("group", {
+      name: "Trajectory and usage navigation",
     });
     const projectGroup = screen.getByTestId("sidebar-projects");
     const systemGroup = screen.getByTestId("sidebar-system");
 
     expect(sidebar).toBeInTheDocument();
-    expect(sidebar).toContainElement(traceUsageNavigation);
+    expect(sidebar).toContainElement(trajectoryUsageNavigation);
     expect(sidebar).toContainElement(projectGroup);
     expect(sidebar).toContainElement(systemGroup);
     expect(within(projectGroup).getByText("Projects")).toBeInTheDocument();
     expect(within(projectGroup).getByRole("button", { name: "Add Project" })).toBeInTheDocument();
     expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-workspace")).not.toBeInTheDocument();
-    // Document order: trace/usage → projects → system footer.
+    // Document order: trajectory/usage → projects → system footer.
     expect(
-      traceUsageNavigation.compareDocumentPosition(projectGroup) &
+      trajectoryUsageNavigation.compareDocumentPosition(projectGroup) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
@@ -881,7 +881,7 @@ describe("AppFrame", () => {
     ).toBeTruthy();
     expect(systemGroup).toHaveTextContent("Settings");
     expect(systemGroup).not.toHaveTextContent("Analyze");
-    expect(traceUsageNavigation).not.toHaveTextContent("Settings");
+    expect(trajectoryUsageNavigation).not.toHaveTextContent("Settings");
     expect(projectGroup).not.toHaveTextContent("Settings");
   });
 
@@ -940,7 +940,7 @@ describe("AppFrame", () => {
   });
 
   it("keeps titlebar controls on the native traffic-light center line", async () => {
-    const { container } = renderAppFrame("/trace");
+    const { container } = renderAppFrame("/trajectory");
     const mainSource = readFileSync(join(process.cwd(), "apps/desktop/electron/main.ts"), "utf8");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
@@ -949,7 +949,7 @@ describe("AppFrame", () => {
     const titleTrack = screen.getByTestId("header-chrome-title-track");
     const title = screen.getByTestId("header-chrome-title");
     const trigger = screen.getByRole("button", { name: "Collapse sidebar" });
-    const heading = screen.getByRole("heading", { level: 1, name: "Trace" });
+    const heading = screen.getByRole("heading", { level: 1, name: "Trajectory" });
 
     expect(container.querySelector('[data-slot="navbar"]')).not.toBeInTheDocument();
     const headerHeight = Number.parseInt(
@@ -1002,11 +1002,11 @@ describe("AppFrame", () => {
   });
 
   it("uses only blank titlebar space as window drag regions", async () => {
-    const { container } = renderAppFrame("/trace");
+    const { container } = renderAppFrame("/trajectory");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: "Collapse sidebar" });
-    const heading = screen.getByRole("heading", { level: 1, name: "Trace" });
+    const heading = screen.getByRole("heading", { level: 1, name: "Trajectory" });
     const title = screen.getByTestId("header-chrome-title");
     const navbarSpacer = container.querySelector('[data-slot="navbar-spacer"]');
     const macTrafficSpace = within(screen.getByTestId("header-chrome")).getByTestId(
@@ -1394,7 +1394,7 @@ describe("AppFrame", () => {
     renderAppFrame("/sessions/session-a");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Trace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Trajectory" })).toBeInTheDocument();
   });
 
   it("gives routed pages a fixed-height content slot", async () => {

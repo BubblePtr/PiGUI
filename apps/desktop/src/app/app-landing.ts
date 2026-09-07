@@ -1,7 +1,7 @@
 import type { ProjectRegistryEntry } from "@/entities/project/project-registry";
 
 export type AppLanding =
-  | { to: "/trace" }
+  | { to: "/trajectory" }
   | {
       to: "/projects/$projectId/sessions";
       params: { projectId: string };
@@ -16,7 +16,7 @@ export function resolveAppLanding(input: {
   const firstProjectId = input.projects[0]?.id;
 
   if (!firstProjectId) {
-    return { to: "/trace" };
+    return { to: "/trajectory" };
   }
 
   const requestedDraftProjectId = input.draft?.projectId ?? null;

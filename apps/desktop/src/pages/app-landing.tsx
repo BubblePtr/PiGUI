@@ -14,8 +14,8 @@ export function AppLandingPage() {
       draft: getSessionDraft(),
     });
 
-    if (landing.to === "/trace") {
-      void navigate({ to: "/trace", replace: true });
+    if (landing.to === "/trajectory") {
+      void navigate({ to: "/trajectory", replace: true });
       return;
     }
 

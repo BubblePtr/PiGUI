@@ -221,13 +221,13 @@ export const defaultSidebarProjectSessionProjections: SessionProjection[] = [
   }),
 ];
 
-const traceUsageNavigationItems = [
+const trajectoryUsageNavigationItems = [
   {
-    label: "Trace",
-    to: "/trace",
+    label: "Trajectory",
+    to: "/trajectory",
     icon: ListTree,
     isActive: (pathname: string) =>
-      pathname === "/trace" || pathname.startsWith("/sessions/"),
+      pathname === "/trajectory" || pathname.startsWith("/sessions/"),
   },
   {
     label: "Usage",
@@ -289,8 +289,8 @@ function getActiveTab(pathname: string) {
     return "Sessions";
   }
 
-  if (pathname === "/trace" || pathname.startsWith("/sessions/")) {
-    return "Trace";
+  if (pathname === "/trajectory" || pathname.startsWith("/sessions/")) {
+    return "Trajectory";
   }
 
   if (pathname === "/usage") {
@@ -727,7 +727,7 @@ function ProjectNavigation({
   );
 }
 
-function TraceUsageNavigation({
+function TrajectoryUsageNavigation({
   draftViewActive,
   hasProjects,
   pathname,
@@ -741,7 +741,7 @@ function TraceUsageNavigation({
   onNewSession: () => void;
 }) {
   return (
-    <SideNavSection isHeaderHidden title="Trace and usage navigation">
+    <SideNavSection isHeaderHidden title="Trajectory and usage navigation">
       {hasProjects ? (
         <SideNavItem
           icon={<ChatAdd aria-hidden="true" className="size-4" />}
@@ -750,7 +750,7 @@ function TraceUsageNavigation({
           onClick={onNewSession}
         />
       ) : null}
-      {traceUsageNavigationItems.map((item) => {
+      {trajectoryUsageNavigationItems.map((item) => {
         const Icon = item.icon;
         const active = item.isActive(pathname);
 
@@ -946,7 +946,7 @@ export function AppFrame({
   const [expandedProjects, setExpandedProjects] = useState(() =>
     readProjectExpansionState(),
   );
-  // Prefer explicit page props; otherwise use app-wide hydrated store (Trace/Usage/Setup).
+  // Prefer explicit page props; otherwise use app-wide hydrated store (Trajectory/Usage/Setup).
   const effectiveSessionProjections =
     sessionProjections ??
     sessionProjectionsStore?.sessionProjections ??
@@ -1402,7 +1402,7 @@ export function AppFrame({
           }
           footer={<SystemNavigation pathname={pathname} onNavigate={handleNavigate} />}
         >
-          <TraceUsageNavigation
+          <TrajectoryUsageNavigation
             draftViewActive={draftViewActive}
             hasProjects={projects.length > 0}
             pathname={pathname}

@@ -9,13 +9,13 @@ describe("resolveAppLanding", () => {
     window.localStorage.clear();
   });
 
-  it("opens Trace when the Project Registry is empty", () => {
+  it("opens Trajectory when the Project Registry is empty", () => {
     expect(
       resolveAppLanding({
         projects: [],
         draft: null,
       }),
-    ).toEqual({ to: "/trace" });
+    ).toEqual({ to: "/trajectory" });
   });
 
   it("opens the New Session draft on the first registered Project when none is targeted", () => {

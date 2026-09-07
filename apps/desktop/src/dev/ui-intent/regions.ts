@@ -16,7 +16,7 @@ export type UiRegion = {
   /** Exact `**Term**:` heading text from CONTEXT.md. */
   term: string;
   match: {
-    /** Fiber display names, e.g. "PiTraceLedger". */
+    /** Fiber display names, e.g. "PiTrajectoryLedger". */
     components?: string[];
     /** `data-testid` values on the target element or its DOM ancestors. */
     testIds?: string[];
@@ -36,19 +36,19 @@ export const uiRegions: UiRegion[] = [
   },
   {
     term: "Strip",
-    match: { components: ["PiTraceStrip"] },
+    match: { components: ["PiTrajectoryStrip"] },
   },
   {
     term: "Tally",
-    match: { selectors: ['[data-slot="trace-tally"]'] },
+    match: { selectors: ['[data-slot="trajectory-tally"]'] },
   },
   {
     term: "Ledger",
-    match: { components: ["PiTraceLedger"] },
+    match: { components: ["PiTrajectoryLedger"] },
   },
   {
     term: "Inspector",
-    match: { components: ["PiTraceInspector"] },
+    match: { components: ["PiTrajectoryInspector"] },
   },
   {
     term: "Dock",
@@ -71,7 +71,7 @@ export const uiRegions: UiRegion[] = [
   },
   {
     term: "Analyze",
-    match: { components: ["UsagePage", "TraceIndexPage"] },
+    match: { components: ["UsagePage", "TrajectoryIndexPage"] },
   },
   {
     term: "Project Selector",
@@ -102,7 +102,7 @@ export const uiRegions: UiRegion[] = [
     match: { components: ["SidebarSessionGlyph"], selectors: ['[aria-label="Unread result"]'] },
   },
   { term: "Model", match: { components: ["ModelSelectorControl", "ModelOptionsFlyout"] } },
-  { term: "Chain of Thought", match: { components: ["AssistantRunTrace", "ChatChainOfThought", "ChatChainOfThoughtSteps", "ChatChainOfThoughtStep", "ChatChainOfThoughtRail"] } },
+  { term: "Chain of Thought", match: { components: ["AssistantRunTrajectory", "ChatChainOfThought", "ChatChainOfThoughtSteps", "ChatChainOfThoughtStep", "ChatChainOfThoughtRail"] } },
   { term: "Thinking", match: { components: ["ChatThoughtStep", "ChatThoughtMarkdown"] } },
   { term: "Tool Call", match: { components: ["ChatTool", "ChatToolGroup", "ChatToolStep", "RailToolNode"] } },
   { term: "Assistant Message", match: { components: ["AssistantMessageContent", "ChatMessageAssistant"] } },

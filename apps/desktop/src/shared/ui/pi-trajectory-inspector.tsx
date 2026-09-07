@@ -1,20 +1,20 @@
 import { formatToolDuration } from "@/shared/ui/chat/chat-tool";
 import type { RuntimeToolSchema } from "@pigui/core";
-import type { TraceStep, TraceTurn } from "@/entities/session/trace-model";
-import { TraceStepBadge, traceStepStatus, traceStepType } from "@/shared/ui/pi-trace-ledger";
+import type { TrajectoryStep, TrajectoryTurn } from "@/entities/session/trajectory-model";
+import { TrajectoryStepBadge, trajectoryStepStatus, trajectoryStepType } from "@/shared/ui/pi-trajectory-ledger";
 
 /**
- * The Inspector (Trace Cockpit detail pane): Summary / Payload / Result /
+ * The Inspector (Trajectory Cockpit detail pane): Summary / Payload / Result /
  * Schema / Timing tabs for the Playhead step. Large payloads mount only
  * here, never in the Ledger. Schema shows the tool's declared definition —
- * resolved by the Runtime Gateway by tool name, not stored in the trace —
+ * resolved by the Runtime Gateway by tool name, not stored in the trajectory —
  * and degrades to an unavailable notice when the tool is no longer
  * registered or its definition drifted.
  */
-export const traceInspectorTabs = ["Summary", "Payload", "Result", "Schema", "Timing"] as const;
-export type TraceInspectorTab = (typeof traceInspectorTabs)[number];
+export const trajectoryInspectorTabs = ["Summary", "Payload", "Result", "Schema", "Timing"] as const;
+export type TrajectoryInspectorTab = (typeof trajectoryInspectorTabs)[number];
 
-export type TraceToolSchema = RuntimeToolSchema;
+export type TrajectoryToolSchema = RuntimeToolSchema;
 
 function formatCost(value?: number) {
   if (value === undefined) {
@@ -69,7 +69,7 @@ function CodeBlock({ value }: { value?: string }) {
   );
 }
 
-export function PiTraceInspector({
+export function PiTrajectoryInspector({
   step,
   turn,
   tab,
@@ -77,18 +77,18 @@ export function PiTraceInspector({
   onClose,
   schema,
 }: {
-  step: TraceStep;
-  turn: TraceTurn;
-  tab: TraceInspectorTab;
-  onTabChange: (tab: TraceInspectorTab) => void;
+  step: TrajectoryStep;
+  turn: TrajectoryTurn;
+  tab: TrajectoryInspectorTab;
+  onTabChange: (tab: TrajectoryInspectorTab) => void;
   onClose: () => void;
   /** Tool definition resolved by name (a Runtime Gateway capability). */
-  schema?: TraceToolSchema;
+  schema?: TrajectoryToolSchema;
 }) {
-  const status = traceStepStatus(step);
+  const status = trajectoryStepStatus(step);
 
   return (
-    <div className="flex h-full min-h-0 flex-col" data-slot="trace-inspector">
+    <div className="flex h-full min-h-0 flex-col" data-slot="trajectory-inspector">
       <header className="shrink-0 border-b border-border px-4 pb-0 pt-3">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate font-mono text-xs text-muted">
@@ -112,7 +112,7 @@ export function PiTraceInspector({
           </span>
         </h2>
         <div aria-label="Step detail" className="mt-2 flex gap-1" role="tablist">
-          {traceInspectorTabs.map((name) => (
+          {trajectoryInspectorTabs.map((name) => (
             <button
               aria-selected={tab === name}
               className={`cursor-pointer rounded-t px-2.5 pb-2 pt-1 text-xs transition-colors ${
@@ -140,7 +140,7 @@ export function PiTraceInspector({
               <span className="break-all font-mono">{step.target}</span>
             </Field>
             <Field label="Type">
-              <TraceStepBadge type={traceStepType(step, turn.role)} />
+              <TrajectoryStepBadge type={trajectoryStepType(step, turn.role)} />
             </Field>
             <Field label="Model">{turn.model}</Field>
             <Field label="Turn cost">{formatCost(turn.costUsd)}</Field>

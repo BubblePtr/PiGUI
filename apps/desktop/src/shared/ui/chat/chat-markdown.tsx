@@ -2,7 +2,7 @@ import { Code } from "@astryxdesign/core/Code";
 import { Markdown } from "@astryxdesign/core/Markdown";
 
 /**
- * Chat sits under the page h1 (Sessions / Trace / …). Markdown `#` must
+ * Chat sits under the page h1 (Sessions / Trajectory / …). Markdown `#` must
  * not mint another top-level heading in the document outline.
  */
 const chatHeadingLevelStart = 3;

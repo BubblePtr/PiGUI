@@ -21,9 +21,9 @@ describe("Design components layer", () => {
       "PiBarChart",
       "TerminalView",
       "BrowserSurface",
-      "PiTraceLedger",
-      "PiTraceStrip",
-      "PiTraceInspector",
+      "PiTrajectoryLedger",
+      "PiTrajectoryStrip",
+      "PiTrajectoryInspector",
       "DotMatrix",
       "Icons",
       "ChatMessage",
@@ -63,15 +63,15 @@ describe("Design components layer", () => {
   it("shows the Cockpit ledger: run headers, row states, focus dim, and empty variant", () => {
     render(<DesignComponentsLayer />);
 
-    const section = screen.getByRole("region", { name: "PiTraceLedger" });
+    const section = screen.getByRole("region", { name: "PiTrajectoryLedger" });
 
     expect(within(section).getAllByText(/Run #/).length).toBeGreaterThan(0);
-    expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="ok"]')).toBeInTheDocument();
-    expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="error"]')).toBeInTheDocument();
-    expect(section.querySelector('[data-slot="trace-ledger-row"][data-status="running"]')).toBeInTheDocument();
-    expect(section.querySelector('[data-slot="trace-turn-boundary"]')).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trajectory-ledger-row"][data-status="ok"]')).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trajectory-ledger-row"][data-status="error"]')).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trajectory-ledger-row"][data-status="running"]')).toBeInTheDocument();
+    expect(section.querySelector('[data-slot="trajectory-turn-boundary"]')).toBeInTheDocument();
     expect(section.querySelector("[data-focus-dimmed]")).toBeInTheDocument();
-    expect(within(section).getByText("No trace entries.")).toBeInTheDocument();
+    expect(within(section).getByText("No trajectory entries.")).toBeInTheDocument();
     // Rows never expand inline — result previews render, full payloads don't.
     expect(within(section).getAllByText("3 files changed").length).toBeGreaterThan(0);
   });
@@ -79,15 +79,15 @@ describe("Design components layer", () => {
   it("shows the Strip swimlanes and the Inspector states", () => {
     render(<DesignComponentsLayer />);
 
-    const strip = screen.getByRole("region", { name: "PiTraceStrip" });
-    expect(strip.querySelector('[data-slot="trace-strip"]')).toBeInTheDocument();
+    const strip = screen.getByRole("region", { name: "PiTrajectoryStrip" });
+    expect(strip.querySelector('[data-slot="trajectory-strip"]')).toBeInTheDocument();
     expect(within(strip).getAllByRole("button", { name: "Steps" }).length).toBe(2);
     expect(within(strip).getAllByRole("button", { name: "Time" }).length).toBe(2);
     expect(strip.querySelectorAll("[data-strip-col][data-focus-dimmed]").length).toBeGreaterThan(2);
     // The Time-mode variant must show both truths: measured and estimated spans.
     expect(strip.querySelector("[data-strip-col][data-estimated-width]")).toBeInTheDocument();
 
-    const inspector = screen.getByRole("region", { name: "PiTraceInspector" });
+    const inspector = screen.getByRole("region", { name: "PiTrajectoryInspector" });
     expect(within(inspector).getAllByRole("tab", { name: "Schema" }).length).toBeGreaterThan(0);
     expect(within(inspector).getByText(/Run a shell command/)).toBeInTheDocument();
   });

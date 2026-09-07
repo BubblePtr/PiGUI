@@ -5,7 +5,7 @@ import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-
 import { buildIntentTarget, UiIntentPicker } from "./ui-intent-picker";
 
 // Named exactly like the real Ledger component so the region registry matches.
-function PiTraceLedger() {
+function PiTrajectoryLedger() {
   return (
     <div data-testid="ledger">
       <button type="button">row</button>
@@ -16,7 +16,7 @@ function PiTraceLedger() {
 function Fixture() {
   return (
     <div>
-      <PiTraceLedger />
+      <PiTrajectoryLedger />
       <UiIntentPicker />
     </div>
   );
@@ -54,12 +54,12 @@ function armAndClick(target: Element) {
 
 describe("buildIntentTarget", () => {
   it("resolves region, component definition site, and nearest testid", () => {
-    render(<PiTraceLedger />);
+    render(<PiTrajectoryLedger />);
 
     const target = buildIntentTarget(screen.getByRole("button", { name: "row" }));
 
     expect(target.region?.region.term).toBe("Ledger");
-    expect(target.component?.name).toBe("PiTraceLedger");
+    expect(target.component?.name).toBe("PiTrajectoryLedger");
     expect(target.component?.definition.file).toContain("ui-intent-picker.test");
     expect(target.testId).toBe("ledger");
   });
@@ -97,7 +97,7 @@ describe("UiIntentPicker", () => {
 
     const panel = screen.getByTestId("ui-intent-picker-panel");
     expect(panel).toHaveTextContent("Ledger");
-    expect(panel).toHaveTextContent("PiTraceLedger");
+    expect(panel).toHaveTextContent("PiTrajectoryLedger");
     expect(panel).toHaveTextContent("ledger");
   });
 
@@ -118,7 +118,7 @@ describe("UiIntentPicker", () => {
 
     const block = writeText.mock.calls[0][0] as string;
     expect(block).toContain("- Region: `Ledger` — CONTEXT.md term \"**Ledger**:\"");
-    expect(block).toContain("`PiTraceLedger`");
+    expect(block).toContain("`PiTrajectoryLedger`");
     expect(block).toContain("- Nearest data-testid: `ledger`");
     expect(block).toContain("Change I want:");
   });
@@ -202,7 +202,7 @@ describe("named component selection", () => {
     const glass = arm();
     fromPoint.mockReturnValue(screen.getByRole("button", { name: "row" }));
     fireEvent.pointerMove(glass, { clientX: 10, clientY: 10 });
-    expect(screen.getByText("PiTraceLedger · Ledger")).toBeInTheDocument();
+    expect(screen.getByText("PiTrajectoryLedger · Ledger")).toBeInTheDocument();
   });
 });
 
@@ -218,7 +218,7 @@ describe("component identity", () => {
 describe("expandable component tree", () => {
   function Descendant() { return <em>nested</em>; }
   function SiblingBranch() { return <article><Descendant /></article>; }
-  function TreeFixture() { return <><PiTraceLedger /><SiblingBranch /><UiIntentPicker /></>; }
+  function TreeFixture() { return <><PiTrajectoryLedger /><SiblingBranch /><UiIntentPicker /></>; }
 
   it("opens the picked path and lets users expand and copy a sibling descendant", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -236,7 +236,7 @@ describe("expandable component tree", () => {
     const block = writeText.mock.calls[0][0] as string;
     expect(block).toContain('- Component: `Descendant`');
     expect(block).toContain('`SiblingBranch`');
-    expect(block).not.toContain('`PiTraceLedger`');
+    expect(block).not.toContain('`PiTrajectoryLedger`');
     expect(block).toContain('Clicked element: `<button>`');
     expect(screen.queryByRole("button", { name: "UiIntentPicker" })).toBeNull();
   });
