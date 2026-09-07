@@ -50,6 +50,8 @@ PiGUI 自己需要的只有一个数据字段：Surface 的来源，称 **provid
 
 这些都是跨包契约或已持久化的标识，一次性改动会撕开整条管线；产品词汇先行，标识符待 Trajectory 一词在文档与 UI 中稳定后再评估是否值得迁移。
 
+**2026-09-07 更新（PR #203）**：渲染层标识符已迁移——`Trajectory*` 类型/组件、`pi-trajectory-*` 文件、`/trajectory` 路由（保留 `/trace` 重定向）、`trajectory-*` slot/testid。盘点发现 backend/core 并无 `session-trace` 模块，唯一跨包契约是事件 `surface` 戳的 `trace` 值，它已落盘在 JSONL journal 中，继续保留为 wire contract。
+
 ## 后果
 
 - `SessionInspector` 及其导出、testid、可见文案整体改名为 `SessionDock`；`PiTraceInspector` 不动。`regions.ts` 拆成 **Inspector**（Trace 侧）与 **Dock**（宿主）两个术语，**Structured Action Surface** 区域改绑到 **Surface**。
