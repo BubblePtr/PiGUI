@@ -53,6 +53,7 @@ import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
 import { saveVisibleModels } from "@/entities/model/visible-models";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
+import * as sessionsApi from "@/entities/session/sessions";
 
 // The app shell renders the sidebar with Astryx SideNav: rows are buttons,
 // project sessions live in the aria-controls group owned by the project
@@ -1158,6 +1159,50 @@ describe("AgentWorkspaceSessionsPage", () => {
       within(liveChat).queryByText("Pi stopped the active run."),
     ).not.toBeInTheDocument();
   });
+
+  it.each([pigProjectPath, studyProjectPath])(
+    "shows the branch selector after creating a draft Session in %s without selecting its sidebar row",
+    async (targetProjectId) => {
+      const user = userEvent.setup();
+      addProjectToRegistry(targetProjectId);
+      saveSessionDraft(targetProjectId, "Show the branch after creation");
+      const loadChanges = vi.spyOn(sessionsApi, "getSessionChanges").mockImplementation(
+        async (sessionId) => ({
+          sessionId,
+          state: "ready",
+          checkoutRoot: targetProjectId,
+          repositoryRoot: targetProjectId,
+          generatedAt: "2026-09-07T08:00:00.000Z",
+          head: { oid: "abc1234", branch: "main", detached: false },
+          branches: ["main"],
+          files: [],
+          totals: { files: 0, additions: 0, deletions: 0, binaryFiles: 0, conflictedFiles: 0 },
+          truncated: false,
+          omittedFileCount: 0,
+        }),
+      );
+
+      try {
+        const { router } = renderProjectSessions("/projects/pig/sessions?view=draft&settings=models");
+        await screen.findByTestId("session-draft-composer");
+        expect(loadChanges).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole("button", { name: "Send" }));
+
+        expect(await screen.findByTestId("git-branch-status-trigger")).toHaveTextContent("main");
+        expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent("Show the branch after creation");
+        expect(screen.queryByTestId("session-draft-composer")).not.toBeInTheDocument();
+        expect(getSessionDraft()).toBeNull();
+        expect(router.state.location.search).toEqual({ settings: "models" });
+        expect(router.state.location.pathname).toBe(`/projects/${encodeURIComponent(targetProjectId)}/sessions`);
+        expect(loadChanges).toHaveBeenCalledTimes(1);
+        const sessionRow = await findSidebarSessionRow("Show the branch after creation");
+        expect(sessionRow).toHaveAttribute("aria-current", "page");
+      } finally {
+        loadChanges.mockRestore();
+      }
+    },
+  );
 
   it("stops a draft-created Session without appending a runtime status message", async () => {
     const user = userEvent.setup();
@@ -4299,12 +4344,14 @@ describe("AgentWorkspaceSessionsPage", () => {
   it("keeps draft text visible and shows failure detail when Session Creation fails", async () => {
     const user = userEvent.setup();
     const projections = createInMemorySessionProjectionStore();
+    const onSessionCreated = vi.fn();
 
     saveSessionDraft("pig-docs", "Summarize the docs ADR");
     render(
       <AgentWorkspaceSessionsView
         projectId="pig-docs"
         showDraft
+        onSessionCreated={onSessionCreated}
         workspace={{
           id: "pig-docs",
           name: "Pig Docs",
@@ -4348,6 +4395,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.getByPlaceholderText("Do anything with Pi")).toHaveValue(
       "Summarize the docs ADR",
     );
+    expect(onSessionCreated).not.toHaveBeenCalled();
   });
 
   it("renders Live Chat and trace from the structured runtime model when run events own the session", () => {

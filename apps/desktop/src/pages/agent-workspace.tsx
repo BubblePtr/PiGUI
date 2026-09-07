@@ -2471,6 +2471,7 @@ function LiveSessionColumn({
   projectId,
   showDraft,
   onDraftSubmit,
+  onSessionCreated,
   sessionCreator,
   checkoutManager,
   getRuntimeBridge,
@@ -2487,6 +2488,7 @@ function LiveSessionColumn({
   projectId: string;
   showDraft: boolean;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
+  onSessionCreated?: (projection: SessionProjection) => void;
   sessionCreator: SessionCreator;
   checkoutManager: ExecutionCheckoutManager;
   getRuntimeBridge: () => PiRuntimeBridge;
@@ -2754,6 +2756,7 @@ function LiveSessionColumn({
     if (result.clearDraft) {
       clearSessionDraft(draft.projectId);
       setSessionDraft(null);
+      onSessionCreated?.(result.projection);
     }
   };
   const commitInteractionProjection = (nextProjection: SessionProjection) => {
@@ -3329,6 +3332,7 @@ export function AgentWorkspaceSessionsView({
   aside,
   asideOpen = true,
   onDraftSubmit = () => {},
+  onSessionCreated,
   sessionCreator,
   checkoutManager,
   runtimeBridge,
@@ -3347,6 +3351,7 @@ export function AgentWorkspaceSessionsView({
   /** False while the dock plays its exit; the pane closes on the same clock. */
   asideOpen?: boolean;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
+  onSessionCreated?: (projection: SessionProjection) => void;
   sessionCreator?: SessionCreator;
   checkoutManager?: ExecutionCheckoutManager;
   runtimeBridge?: PiRuntimeBridge;
@@ -3393,6 +3398,7 @@ export function AgentWorkspaceSessionsView({
       showDraft={showDraft}
       workspace={workspace}
       onDraftSubmit={onDraftSubmit}
+      onSessionCreated={onSessionCreated}
       sessionCreator={sessionCreator ?? defaultSessionCreator}
       checkoutManager={activeCheckoutManager}
       getRuntimeBridge={getActiveRuntimeBridge}
@@ -3660,6 +3666,21 @@ export function AgentWorkspaceSessionsPage() {
       ),
     );
   };
+  const handleSessionCreated = (projection: SessionProjection) => {
+    // Live-session reads and subscriptions follow the route's draft flag.
+    // Clear it only once creation succeeds, including a retargeted draft.
+    void navigate({
+      to: "/projects/$projectId/sessions",
+      params: { projectId: projection.projectId },
+      search: ((previous: Record<string, unknown>) => {
+        const { view: _view, ...search } = previous;
+        return search;
+      }) as never,
+      hash: true,
+      replace: true,
+      resetScroll: false,
+    });
+  };
   const handleTerminalInstancesChange = (instances: TerminalInstanceInfo[]) => {
     setTerminalInstanceCount(instances.length);
   };
@@ -3754,6 +3775,7 @@ export function AgentWorkspaceSessionsPage() {
         runtimeGeneration={backendGeneration}
         sessionProjection={selectedSessionProjection}
         onProjectionChange={handleProjectionChange}
+        onSessionCreated={handleSessionCreated}
         onLatestMessageRendered={handleLatestMessageRendered}
         onManageModels={() => openSettings("models")}
       />
