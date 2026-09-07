@@ -12,7 +12,7 @@ export type ComponentCategory =
   | "Conversation"
   | "Composer"
   | "Reasoning & tools"
-  | "Workspace & trace"
+  | "Workspace & trajectory"
   | "Visual primitives";
 
 export interface ComponentExample {
@@ -24,7 +24,7 @@ export interface ComponentExample {
 
 const categories: ComponentCategory[] = [
   "Data & metrics", "Conversation", "Composer", "Reasoning & tools",
-  "Workspace & trace", "Visual primitives",
+  "Workspace & trajectory", "Visual primitives",
 ];
 
 export function DesignComponentBrowser({ entries }: { entries: ComponentExample[] }) {

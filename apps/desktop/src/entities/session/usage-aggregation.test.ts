@@ -32,6 +32,7 @@ function session(
     modelBreakdown: options.modelBreakdown ?? [],
     toolCounts: options.toolCounts ?? [],
     skillCounts: options.skillCounts ?? [],
+    presence: "external",
   };
 }
 

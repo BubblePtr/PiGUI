@@ -1,4 +1,4 @@
-// The Strip (Trace Cockpit overview band): Input / Model / Tools swimlanes
+// The Strip (Trajectory Cockpit overview band): Input / Model / Tools swimlanes
 // where every column is a segment — a user input, a stretch of model output,
 // or a stretch of consecutive tool calls — so the lanes never overlap on one
 // column. Click selects that block and jumps the Playhead; drag brushes a
@@ -11,9 +11,9 @@
 // hatched so the guess never reads as truth. Hatching means "this total is a
 // guess", nothing else: a turn whose one measured call spans several model
 // segments splits it evenly and stays solid, disclosing the split in its
-// tooltip. Validated in the trace-cockpit prototype round (2026-08-18).
+// tooltip. Validated in the trajectory-cockpit prototype round (2026-08-18).
 import { useLayoutEffect, useRef, useState } from "react";
-import type { TraceTurn } from "@/entities/session/trace-model";
+import type { TrajectoryTurn } from "@/entities/session/trajectory-model";
 
 /** Inclusive strip-column range (one column = one swimlane block). */
 export type SegmentRange = [number, number];
@@ -101,7 +101,7 @@ const nominalInputSeconds = 1;
  * the call ends, so the start is that minus the measured latency; an
  * unbracketed call has no start to give.
  */
-function modelCallStartMs(turn: TraceTurn) {
+function modelCallStartMs(turn: TrajectoryTurn) {
   const durationMs = turn.modelDurationMs ?? NaN;
   if (turn.role !== "assistant" || !Number.isFinite(durationMs) || durationMs <= 0) {
     return undefined;
@@ -111,7 +111,7 @@ function modelCallStartMs(turn: TraceTurn) {
 }
 
 /** The turn that answers an input: annotations record config, they never run. */
-function runTurnAfter(turns: TraceTurn[], index: number) {
+function runTurnAfter(turns: TrajectoryTurn[], index: number) {
   for (let i = index + 1; i < turns.length; i += 1) {
     if (turns[i].role !== "annotation") {
       return turns[i];
@@ -126,7 +126,7 @@ function runTurnAfter(turns: TraceTurn[], index: number) {
  * belongs to the model and tools lanes, so charging the input lane the full gap
  * to the next turn would paint one span of wall clock twice.
  */
-function inputDurationSeconds(turns: TraceTurn[], index: number) {
+function inputDurationSeconds(turns: TrajectoryTurn[], index: number) {
   const turn = turns[index];
   const submittedMs = turn.role === "user" && turn.timestamp ? Date.parse(turn.timestamp) : NaN;
 
@@ -143,7 +143,7 @@ function inputDurationSeconds(turns: TraceTurn[], index: number) {
 }
 
 /** Gap to the next turn's timestamp, clamped to [1s, 300s]. */
-function turnDurationsSeconds(turns: TraceTurn[]): number[] {
+function turnDurationsSeconds(turns: TrajectoryTurn[]): number[] {
   return turns.map((turn, index) => {
     const startMs = turn.timestamp ? Date.parse(turn.timestamp) : NaN;
     const nextTimestamp = turns[index + 1]?.timestamp;
@@ -157,7 +157,7 @@ function turnDurationsSeconds(turns: TraceTurn[]): number[] {
   });
 }
 
-export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
+export function stripSegmentsFromTurns(turns: TrajectoryTurn[]): StripSegment[] {
   const turnDurations = turnDurationsSeconds(turns);
   const segments: StripSegment[] = [];
 
@@ -265,7 +265,7 @@ export function stripSegmentsFromTurns(turns: TraceTurn[]): StripSegment[] {
   return segments;
 }
 
-export function PiTraceStrip({
+export function PiTrajectoryStrip({
   turns,
   activeStepId,
   onSelect,
@@ -274,7 +274,7 @@ export function PiTraceStrip({
   widthMode,
   onWidthModeChange,
 }: {
-  turns: TraceTurn[];
+  turns: TrajectoryTurn[];
   /** The Playhead step; the segment containing it carries the position marker. */
   activeStepId?: string;
   /** Called with the segment's turn index and its first step id. */
@@ -416,7 +416,7 @@ export function PiTraceStrip({
   const laneOf: Record<StripLane, number> = { input: 0, model: 1, tools: 2 };
 
   return (
-    <div className="flex items-stretch gap-2" data-slot="trace-strip">
+    <div className="flex items-stretch gap-2" data-slot="trajectory-strip">
       <div
         aria-hidden="true"
         className="flex shrink-0 flex-col justify-between py-px text-right font-mono text-[9px] uppercase leading-none tracking-wider text-muted"
@@ -525,7 +525,7 @@ export function PiTraceStrip({
           <span
             aria-hidden="true"
             className="pointer-events-none absolute -inset-y-[3px] z-10 rounded-[3px]"
-            data-slot="trace-strip-selection"
+            data-slot="trajectory-strip-selection"
             style={{
               left: boxRect.left - 2,
               width: boxRect.width + 4,
@@ -538,7 +538,7 @@ export function PiTraceStrip({
           <span
             aria-hidden="true"
             className="pointer-events-none absolute -inset-y-[3px] z-20"
-            data-slot="trace-strip-cursor"
+            data-slot="trajectory-strip-cursor"
             style={{ left: cursor.x }}
           >
             <span

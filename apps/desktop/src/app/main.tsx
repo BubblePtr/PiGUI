@@ -17,7 +17,7 @@ import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
 import { PreflightPage, preflightStatusQueryKey } from "@/pages/preflight";
 import { SettingsDialog } from "@/pages/settings";
 import { SetupPage } from "@/pages/setup";
-import { TraceIndexPage, TraceSessionPage } from "@/pages/trace";
+import { TrajectoryIndexPage, TrajectorySessionPage } from "@/pages/trajectory";
 import { UsagePage } from "@/pages/usage";
 import type { EnvironmentPreflightStatus } from "@pigui/core";
 import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
@@ -123,16 +123,25 @@ const indexRoute = createRoute({
   component: AppLandingPage,
 });
 
-const traceIndexRoute = createRoute({
+const trajectoryIndexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/trajectory",
+  component: TrajectoryIndexPage,
+});
+
+const legacyTraceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/trace",
-  component: TraceIndexPage,
+  beforeLoad: () => {
+    // Existing bookmarks survive the Trace → Trajectory rename (ADR-0032 §3).
+    throw redirect({ to: "/trajectory", replace: true });
+  },
 });
 
 const sessionDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sessions/$sessionId",
-  component: TraceSessionPage,
+  component: TrajectorySessionPage,
 });
 
 const usageRoute = createRoute({
@@ -159,7 +168,7 @@ const settingsRoute = createRoute({
   beforeLoad: ({ location }) => {
     // Existing bookmarks still open the matching settings panel.
     throw redirect({
-      to: "/trace",
+      to: "/trajectory",
       search: {
         settings: location.hash === "models" ? "models" : "providers",
       } as never,
@@ -230,7 +239,8 @@ const router = createRouter({
     : {}),
   routeTree: rootRoute.addChildren([
     indexRoute,
-    traceIndexRoute,
+    trajectoryIndexRoute,
+    legacyTraceRoute,
     sessionDetailRoute,
     usageRoute,
     projectSessionsRoute,

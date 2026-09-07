@@ -1,17 +1,17 @@
 import type { ReactNode } from "react";
 import { formatToolDuration } from "@/shared/ui/chat/chat-tool";
-import type { TraceRole, TraceRun, TraceStep } from "@/entities/session/trace-model";
+import type { TrajectoryRole, TrajectoryRun, TrajectoryStep } from "@/entities/session/trajectory-model";
 
 /**
- * The Ledger (Trace Cockpit step list): one row per step, grouped two
+ * The Ledger (Trajectory Cockpit step list): one row per step, grouped two
  * levels deep — a sticky Run header per Active Run, a gutter dot at each
  * Turn boundary (one assistant message = one model call + its tools).
  * Rows carry a type badge and read `name {request} → result`; they never
  * expand inline — full payloads belong to the Inspector. Validated in the
- * trace-cockpit prototype round (2026-08-18).
+ * trajectory-cockpit prototype round (2026-08-18).
  */
 
-export type TraceStepType = { label: string; color: string };
+export type TrajectoryStepType = { label: string; color: string };
 
 /**
  * Four badges only — think/image/text collapse into ASSISTANT (all model
@@ -20,7 +20,7 @@ export type TraceStepType = { label: string; color: string };
  * steps: the parser keeps them inside the toolResult payload, so they belong
  * to the TOOL row and surface in the Inspector.
  */
-export function traceStepType(step: TraceStep, role: TraceRole): TraceStepType {
+export function trajectoryStepType(step: TrajectoryStep, role: TrajectoryRole): TrajectoryStepType {
   if (role === "annotation" || step.kind === "config") {
     return { label: "context", color: "var(--pigui-data-green)" };
   }
@@ -33,7 +33,7 @@ export function traceStepType(step: TraceStep, role: TraceRole): TraceStepType {
   return { label: "assistant", color: "var(--pigui-data-slate)" };
 }
 
-export function traceStepStatus(step: TraceStep): {
+export function trajectoryStepStatus(step: TrajectoryStep): {
   glyph: string;
   className: string;
   label: string;
@@ -50,11 +50,11 @@ export function traceStepStatus(step: TraceStep): {
   return { glyph: "✓", className: "text-success", label: "Completed" };
 }
 
-export function TraceStepBadge({ type }: { type: TraceStepType }) {
+export function TrajectoryStepBadge({ type }: { type: TrajectoryStepType }) {
   return (
     <span
       className="inline-flex rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider"
-      data-slot="trace-step-badge"
+      data-slot="trajectory-step-badge"
       style={{
         background: `color-mix(in oklch, ${type.color} 16%, transparent)`,
         color: `color-mix(in oklch, ${type.color} 72%, var(--foreground))`,
@@ -120,14 +120,14 @@ function LedgerRow({
   onSelect,
   rowRef,
 }: {
-  step: TraceStep;
-  role: TraceRole;
+  step: TrajectoryStep;
+  role: TrajectoryRole;
   isSelected: boolean;
   isDimmed?: boolean;
   onSelect?: (stepId: string) => void;
   rowRef?: (stepId: string, element: HTMLButtonElement | null) => void;
 }) {
-  const type = traceStepType(step, role);
+  const type = trajectoryStepType(step, role);
   const request =
     step.kind === "tool"
       ? compactJson(step.argsText)
@@ -144,7 +144,7 @@ function LedgerRow({
   return (
     <button
       aria-pressed={isSelected}
-      data-slot="trace-ledger-row"
+      data-slot="trajectory-ledger-row"
       data-kind={step.kind}
       data-status={step.kind === "tool" ? (step.isRunning ? "running" : step.isError ? "error" : "ok") : undefined}
       data-playhead={isSelected ? "" : undefined}
@@ -157,7 +157,7 @@ function LedgerRow({
       onClick={() => onSelect?.(step.id)}
     >
       <span className="flex justify-end">
-        <TraceStepBadge type={type} />
+        <TrajectoryStepBadge type={type} />
       </span>
       <span className="flex min-w-0 items-baseline gap-1.5">
         {step.kind === "tool" ? (
@@ -198,16 +198,16 @@ function LedgerRow({
   );
 }
 
-export type PiTraceLedgerRunProps = {
-  run: TraceRun;
+export type PiTrajectoryLedgerRunProps = {
+  run: TrajectoryRun;
   selectedStepId?: string;
   onSelectStep?: (stepId: string) => void;
   /** Focus semantics (Strip brush): dimmed runs stay rendered, greyed out. */
   isDimmed?: boolean;
   /** Focus semantics: dim rows outside the selected swimlane block. */
-  isStepDimmed?: (step: TraceStep) => boolean;
+  isStepDimmed?: (step: TrajectoryStep) => boolean;
   /** True filter: steps not passing it drop out of the ledger. */
-  stepFilter?: (step: TraceStep) => boolean;
+  stepFilter?: (step: TrajectoryStep) => boolean;
   registerStepRef?: (stepId: string, element: HTMLButtonElement | null) => void;
   registerTurnRef?: (turnIndex: number, element: HTMLDivElement | null) => void;
 };
@@ -221,7 +221,7 @@ function Run({
   stepFilter,
   registerStepRef,
   registerTurnRef,
-}: PiTraceLedgerRunProps) {
+}: PiTrajectoryLedgerRunProps) {
   const visibleTurns = run.turns
     .map((turn) => ({
       turn,
@@ -237,7 +237,7 @@ function Run({
     <section
       className={`transition-opacity ${isDimmed ? "opacity-30" : ""}`.trim()}
       data-focus-dimmed={isDimmed ? "" : undefined}
-      data-slot="trace-ledger-run"
+      data-slot="trajectory-ledger-run"
     >
       <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-t border-border bg-surface-muted/80 px-3 py-1 backdrop-blur">
         <span className="flex min-w-0 items-baseline gap-2">
@@ -265,7 +265,7 @@ function Run({
             <div
               aria-hidden="true"
               className="flex h-3 items-center"
-              data-slot="trace-turn-boundary"
+              data-slot="trajectory-turn-boundary"
               title="Turn boundary — model called"
             >
               <span className="ml-[2.875rem] h-[5px] w-[5px] rounded-full bg-default/50" />
@@ -288,23 +288,23 @@ function Run({
   );
 }
 
-export function PiTraceLedger({
+export function PiTrajectoryLedger({
   runs,
   emptyLabel = "No entries.",
   className = "",
   children,
   ...runProps
 }: {
-  runs?: TraceRun[];
+  runs?: TrajectoryRun[];
   emptyLabel?: string;
   className?: string;
-  /** Alternative to `runs`: render PiTraceLedger.Run rows yourself (virtualization). */
+  /** Alternative to `runs`: render PiTrajectoryLedger.Run rows yourself (virtualization). */
   children?: ReactNode;
-} & Omit<PiTraceLedgerRunProps, "run">) {
+} & Omit<PiTrajectoryLedgerRunProps, "run">) {
   const isEmpty = !children && (runs?.length ?? 0) === 0;
 
   return (
-    <div className={`font-mono text-xs ${className}`.trim()} data-slot="trace-ledger">
+    <div className={`font-mono text-xs ${className}`.trim()} data-slot="trajectory-ledger">
       {isEmpty ? (
         <p className="px-3 py-8 text-center text-muted">{emptyLabel}</p>
       ) : (
@@ -314,4 +314,4 @@ export function PiTraceLedger({
   );
 }
 
-PiTraceLedger.Run = Run;
+PiTrajectoryLedger.Run = Run;

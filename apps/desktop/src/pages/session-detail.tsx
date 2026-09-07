@@ -5,27 +5,27 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@/shared/runtime";
 import {
-  buildTraceRuns,
-  buildTraceTurns,
-  emptyTraceFilter,
-  isTraceFilterActive,
-  traceStepMatches,
-  type TraceFilter,
-  type TraceStep,
-} from "@/entities/session/trace-model";
-import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
+  buildTrajectoryRuns,
+  buildTrajectoryTurns,
+  emptyTrajectoryFilter,
+  isTrajectoryFilterActive,
+  trajectoryStepMatches,
+  type TrajectoryFilter,
+  type TrajectoryStep,
+} from "@/entities/session/trajectory-model";
+import { PiTrajectoryLedger } from "@/shared/ui/pi-trajectory-ledger";
 import {
-  PiTraceInspector,
-  type TraceInspectorTab,
-  type TraceToolSchema,
-} from "@/shared/ui/pi-trace-inspector";
+  PiTrajectoryInspector,
+  type TrajectoryInspectorTab,
+  type TrajectoryToolSchema,
+} from "@/shared/ui/pi-trajectory-inspector";
 import {
-  PiTraceStrip,
+  PiTrajectoryStrip,
   stripSegmentsFromTurns,
   type SegmentRange,
   type StripSegment,
   type StripWidthMode,
-} from "@/shared/ui/pi-trace-strip";
+} from "@/shared/ui/pi-trajectory-strip";
 import type { RuntimeToolSchemas, SessionDetail, SessionTurn } from "@pigui/core";
 
 export type {
@@ -130,7 +130,7 @@ function FilterChip({
 }
 
 /**
- * The Trace Cockpit: Strip (overview band) + filter bar + Ledger (left,
+ * The Trajectory Cockpit: Strip (overview band) + filter bar + Ledger (left,
  * virtualized by Active Run) + Inspector (right, resizable). Interaction
  * semantics: Strip brush = focus (dims, never filters); the filter bar =
  * true filter (rows drop out); the Playhead (selected step, ↑/↓) walks the
@@ -147,19 +147,19 @@ export function SessionDetailView({
   sessionId: string;
   isLoading?: boolean;
   isError?: boolean;
-  toolSchemas?: Record<string, TraceToolSchema>;
+  toolSchemas?: Record<string, TrajectoryToolSchema>;
 }) {
-  const turns = useMemo(() => buildTraceTurns(session?.turns ?? []), [session?.turns]);
-  const runs = useMemo(() => buildTraceRuns(turns), [turns]);
+  const turns = useMemo(() => buildTrajectoryTurns(session?.turns ?? []), [session?.turns]);
+  const runs = useMemo(() => buildTrajectoryRuns(turns), [turns]);
   const segments = useMemo(() => stripSegmentsFromTurns(turns), [turns]);
 
-  const [filter, setFilter] = useState<TraceFilter>(emptyTraceFilter);
+  const [filter, setFilter] = useState<TrajectoryFilter>(emptyTrajectoryFilter);
   // Video-editing semantics: the brushed segment range focuses (dims the
   // rest); it does not filter rows out. Kept separate from the true filters.
   const [focusRange, setFocusRange] = useState<SegmentRange | undefined>(undefined);
   const [stripWidthMode, setStripWidthMode] = useState<StripWidthMode>("steps");
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>(undefined);
-  const [tab, setTab] = useState<TraceInspectorTab>("Summary");
+  const [tab, setTab] = useState<TrajectoryInspectorTab>("Summary");
   const [inspectorWidth, setInspectorWidth] = useState(384);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
@@ -175,12 +175,12 @@ export function SessionDetailView({
 
   const allSteps = useMemo(() => turns.flatMap((turn) => turn.steps), [turns]);
   const visibleSteps = useMemo(
-    () => allSteps.filter((step) => traceStepMatches(step, filter)),
+    () => allSteps.filter((step) => trajectoryStepMatches(step, filter)),
     [allSteps, filter],
   );
   const visibleIds = useMemo(() => new Set(visibleSteps.map((step) => step.id)), [visibleSteps]);
   const stepFilter = useMemo(
-    () => (step: TraceStep) => visibleIds.has(step.id),
+    () => (step: TrajectoryStep) => visibleIds.has(step.id),
     [visibleIds],
   );
   // The Playhead walks the steps inside the focused segment range.
@@ -382,14 +382,14 @@ export function SessionDetailView({
             <h1 className="truncate text-base font-semibold">{session.project}</h1>
             <span className="truncate font-mono text-xs text-muted">{sessionId}</span>
           </div>
-          <p className="shrink-0 text-xs tabular-nums text-muted" data-slot="trace-tally">
+          <p className="shrink-0 text-xs tabular-nums text-muted" data-slot="trajectory-tally">
             {formatCost(session.totalCostUsd)} · {formatTokens(session.totalTokens)} tokens ·{" "}
             {runs.length} runs
           </p>
         </div>
         {/* Full-bleed strip band: edge-to-edge, bounded by full-width rules. */}
         <div className="-mx-5 mt-3 border-t border-border bg-surface-muted/25 px-5 py-2">
-          <PiTraceStrip
+          <PiTrajectoryStrip
             activeStepId={selectedStepId}
             selectedRange={focusRange}
             turns={turns}
@@ -434,7 +434,7 @@ export function SessionDetailView({
 
       <div
         className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-5 py-2"
-        data-slot="trace-filter-bar"
+        data-slot="trajectory-filter-bar"
       >
         <input
           className="h-6 w-48 rounded border border-border bg-surface px-2 font-mono text-xs text-foreground outline-none placeholder:text-muted focus-visible:border-primary"
@@ -477,12 +477,12 @@ export function SessionDetailView({
             onToggle={() => setFocusRange(undefined)}
           />
         ) : null}
-        {isTraceFilterActive(filter) || focusRange ? (
+        {isTrajectoryFilterActive(filter) || focusRange ? (
           <button
             className="cursor-pointer font-mono text-[11px] text-muted underline-offset-2 transition-colors hover:text-foreground hover:underline"
             type="button"
             onClick={() => {
-              setFilter(emptyTraceFilter);
+              setFilter(emptyTrajectoryFilter);
               setFocusRange(undefined);
             }}
           >
@@ -505,7 +505,7 @@ export function SessionDetailView({
               No steps match the current filters.
             </p>
           ) : (
-            <PiTraceLedger>
+            <PiTrajectoryLedger>
               <ol
                 className="relative"
                 data-testid="timeline-viewport"
@@ -521,7 +521,7 @@ export function SessionDetailView({
                       ref={rowVirtualizer.measureElement}
                       style={{ transform: `translateY(${virtualRow.start}px)` }}
                     >
-                      <PiTraceLedger.Run
+                      <PiTrajectoryLedger.Run
                         isDimmed={isRunDimmed(run.index)}
                         isStepDimmed={
                           focusedStepIds && !isRunDimmed(run.index)
@@ -551,14 +551,14 @@ export function SessionDetailView({
                   );
                 })}
               </ol>
-            </PiTraceLedger>
+            </PiTrajectoryLedger>
           )}
         </div>
 
         <div
           aria-label="Resize inspector"
           className="w-1 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-primary"
-          data-slot="trace-inspector-handle"
+          data-slot="trajectory-inspector-handle"
           role="separator"
           title="Drag to resize · double-click to collapse"
           onDoubleClick={() => setIsInspectorCollapsed((value) => !value)}
@@ -570,7 +570,7 @@ export function SessionDetailView({
         {isInspectorCollapsed ? null : (
           <aside className="shrink-0 bg-surface" style={{ width: inspectorWidth }}>
             {selectedStep && selectedTurn ? (
-              <PiTraceInspector
+              <PiTrajectoryInspector
                 schema={selectedStep.name ? toolSchemas?.[selectedStep.name] : undefined}
                 step={selectedStep}
                 tab={tab}
@@ -583,7 +583,7 @@ export function SessionDetailView({
                 <p className="text-center text-xs leading-5 text-muted">
                   Select a step to inspect it.
                   <br />
-                  Use ↑ / ↓ to walk the trace.
+                  Use ↑ / ↓ to walk the trajectory.
                 </p>
               </div>
             )}

@@ -25,6 +25,7 @@ function session(overrides: Partial<SessionSummary> = {}): SessionSummary {
     modelBreakdown: [],
     toolCounts: [],
     skillCounts: [],
+    presence: "external",
     ...overrides,
   };
 }

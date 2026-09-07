@@ -261,7 +261,7 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     {
       id: "message-assistant",
       role: "assistant",
-      body: "Project Sessions keep live Pi work separate from Trace and Usage evidence.",
+      body: "Project Sessions keep live Pi work separate from Trajectory and Usage evidence.",
     },
   ],
   runTimeline: [
@@ -278,7 +278,7 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     {
       id: "timeline-analyze",
       title: "Evidence preserved",
-      meta: "Trace and Usage stay as historical evidence views",
+      meta: "Trajectory and Usage stay as historical evidence views",
     },
   ],
   checkout: {
@@ -397,7 +397,7 @@ function LiveChatMessage({
           </p>
         ) : null}
         {!message.controlLabel && message.cotView ? (
-          <AssistantRunTrace view={message.cotView} />
+          <AssistantRunTrajectory view={message.cotView} />
         ) : null}
         {message.body ? (
           <ChatMessage.Content>
@@ -433,7 +433,7 @@ function LiveChatMessage({
  * list all come from `deriveCotView`; this only lays them out, so there is no
  * second opinion about what stage the run is in (ADR-0030 §1).
  */
-function AssistantRunTrace({ view }: { view: CotView }) {
+function AssistantRunTrajectory({ view }: { view: CotView }) {
   if (view.phase === "hidden") {
     return null;
   }

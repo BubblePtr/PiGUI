@@ -18,18 +18,18 @@ import {
   sessionSurfaces,
   type SessionSurfaceId,
 } from "@/shared/ui/session-dock/surface-registry";
-import { PiTraceLedger } from "@/shared/ui/pi-trace-ledger";
+import { PiTrajectoryLedger } from "@/shared/ui/pi-trajectory-ledger";
 import {
-  PiTraceInspector,
-  type TraceInspectorTab,
-} from "@/shared/ui/pi-trace-inspector";
+  PiTrajectoryInspector,
+  type TrajectoryInspectorTab,
+} from "@/shared/ui/pi-trajectory-inspector";
 import {
-  PiTraceStrip,
+  PiTrajectoryStrip,
   stripSegmentsFromTurns,
   type SegmentRange,
   type StripWidthMode,
-} from "@/shared/ui/pi-trace-strip";
-import { buildTraceRuns, buildTraceTurns } from "@/entities/session/trace-model";
+} from "@/shared/ui/pi-trajectory-strip";
+import { buildTrajectoryRuns, buildTrajectoryTurns } from "@/entities/session/trajectory-model";
 import type { SessionTurn } from "@pigui/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
@@ -673,12 +673,12 @@ function galleryCost(totalUsd: number) {
   };
 }
 
-// Shared trace fixture for the Cockpit trio (Strip / Ledger / Inspector):
+// Shared trajectory fixture for the Cockpit trio (Strip / Ledger / Inspector):
 // four Active Runs plus an annotation — enough columns that focusing one
 // swimlane block makes the outside dimming obvious. The first assistant turn
 // deliberately carries no measured model duration, so the Strip has both a
 // an estimated model span to show in Time mode.
-const traceSessionTurns: SessionTurn[] = [
+const trajectorySessionTurns: SessionTurn[] = [
   {
     kind: "message",
     role: "user",
@@ -859,19 +859,19 @@ const traceSessionTurns: SessionTurn[] = [
   },
 ];
 
-const traceTurns = buildTraceTurns(traceSessionTurns);
-const traceRuns = buildTraceRuns(traceTurns);
+const trajectoryTurns = buildTrajectoryTurns(trajectorySessionTurns);
+const trajectoryRuns = buildTrajectoryRuns(trajectoryTurns);
 
-function PiTraceLedgerGallery() {
+function PiTrajectoryLedgerGallery() {
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>("t1-s1");
 
   return (
-    <GallerySection title="PiTraceLedger">
+    <GallerySection title="PiTrajectoryLedger">
       <div className="flex max-w-3xl flex-col gap-4">
         <Variant caption="Run headers + Turn boundary dots + badge rows (request → result); click moves the Playhead, rows never expand">
           <div className="rounded-md border border-separator">
-            <PiTraceLedger
-              runs={traceRuns}
+            <PiTrajectoryLedger
+              runs={trajectoryRuns}
               selectedStepId={selectedStepId}
               onSelectStep={setSelectedStepId}
             />
@@ -879,15 +879,15 @@ function PiTraceLedgerGallery() {
         </Variant>
         <Variant caption="focus-dimmed rows outside a tools block (same Run stays, other steps grey)">
           <div className="rounded-md border border-separator">
-            <PiTraceLedger
-              runs={traceRuns}
+            <PiTrajectoryLedger
+              runs={trajectoryRuns}
               isStepDimmed={(step) => step.kind !== "tool"}
             />
           </div>
         </Variant>
         <Variant caption="empty">
           <div className="rounded-md border border-separator">
-            <PiTraceLedger emptyLabel="No trace entries." runs={[]} />
+            <PiTrajectoryLedger emptyLabel="No trajectory entries." runs={[]} />
           </div>
         </Variant>
       </div>
@@ -895,7 +895,7 @@ function PiTraceLedgerGallery() {
   );
 }
 
-const galleryStripSegments = stripSegmentsFromTurns(traceTurns);
+const galleryStripSegments = stripSegmentsFromTurns(trajectoryTurns);
 const defaultGalleryFocus: SegmentRange = (() => {
   const midTools = galleryStripSegments.findIndex(
     (segment, index) => segment.lane === "tools" && index > 3,
@@ -964,16 +964,16 @@ const stripTimingTurns: SessionTurn[] = [
   },
 ];
 
-const stripTimingTraceTurns = buildTraceTurns(stripTimingTurns);
+const stripTimingTrajectoryTurns = buildTrajectoryTurns(stripTimingTurns);
 
-function PiTraceStripTimeVariant() {
+function PiTrajectoryStripTimeVariant() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("duration");
 
   return (
     <Variant caption="Time mode · mixed truth: solid = span Pi recorded — Run 1's model call, and the input wait up to it opening; hatched = estimated (Run 2: older session, unbracketed call, so neither its model span nor the wait before it can be measured)">
       <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
-        <PiTraceStrip
-          turns={stripTimingTraceTurns}
+        <PiTrajectoryStrip
+          turns={stripTimingTrajectoryTurns}
           widthMode={widthMode}
           onSelect={() => {}}
           onWidthModeChange={setWidthMode}
@@ -983,7 +983,7 @@ function PiTraceStripTimeVariant() {
   );
 }
 
-function PiTraceStripGallery() {
+function PiTrajectoryStripGallery() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("steps");
   const [range, setRange] = useState<SegmentRange | undefined>(defaultGalleryFocus);
   const [activeStepId, setActiveStepId] = useState<string | undefined>(
@@ -996,14 +996,14 @@ function PiTraceStripGallery() {
   );
 
   return (
-    <GallerySection title="PiTraceStrip">
+    <GallerySection title="PiTrajectoryStrip">
       <div className="flex max-w-3xl flex-col gap-4">
         <Variant caption="Input / Model / Tools swimlanes · hover = scrub cursor · click = one block · drag = contiguous blocks · columns outside the box dim">
           <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
-            <PiTraceStrip
+            <PiTrajectoryStrip
               activeStepId={activeStepId}
               selectedRange={range}
-              turns={traceTurns}
+              turns={trajectoryTurns}
               widthMode={widthMode}
               onBrush={setRange}
               onSelect={(_, stepId) => setActiveStepId(stepId)}
@@ -1011,34 +1011,34 @@ function PiTraceStripGallery() {
             />
           </div>
           <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-separator">
-            <PiTraceLedger
-              runs={traceRuns}
+            <PiTrajectoryLedger
+              runs={trajectoryRuns}
               selectedStepId={activeStepId}
               isStepDimmed={range ? (step) => !focusedStepIds.has(step.id) : undefined}
               onSelectStep={setActiveStepId}
             />
           </div>
         </Variant>
-        <PiTraceStripTimeVariant />
+        <PiTrajectoryStripTimeVariant />
       </div>
     </GallerySection>
   );
 }
 
-function PiTraceInspectorGallery() {
-  const errorStep = traceTurns[1].steps.find((step) => step.isError);
-  const [tab, setTab] = useState<TraceInspectorTab>("Summary");
+function PiTrajectoryInspectorGallery() {
+  const errorStep = trajectoryTurns[1].steps.find((step) => step.isError);
+  const [tab, setTab] = useState<TrajectoryInspectorTab>("Summary");
 
   return (
-    <GallerySection title="PiTraceInspector">
+    <GallerySection title="PiTrajectoryInspector">
       <VariantRow>
         <Variant caption="error tool step — Summary/Payload/Result tabs; Schema shows the honest unavailable state">
           <div className="h-96 w-96 overflow-hidden rounded-md border border-separator">
             {errorStep ? (
-              <PiTraceInspector
+              <PiTrajectoryInspector
                 step={errorStep}
                 tab={tab}
-                turn={traceTurns[1]}
+                turn={trajectoryTurns[1]}
                 onClose={() => {}}
                 onTabChange={setTab}
               />
@@ -1047,7 +1047,7 @@ function PiTraceInspectorGallery() {
         </Variant>
         <Variant caption="tool step with a resolved Schema (Gateway capability)">
           <div className="h-96 w-96 overflow-hidden rounded-md border border-separator">
-            <PiTraceInspector
+            <PiTrajectoryInspector
               schema={{
                 description: "Run a shell command inside the execution checkout.",
                 parameters: {
@@ -1056,9 +1056,9 @@ function PiTraceInspectorGallery() {
                   required: ["command"],
                 },
               }}
-              step={traceTurns[1].steps[1]}
+              step={trajectoryTurns[1].steps[1]}
               tab="Schema"
-              turn={traceTurns[1]}
+              turn={trajectoryTurns[1]}
               onClose={() => {}}
               onTabChange={() => {}}
             />
@@ -1127,7 +1127,7 @@ function ChatMessageGallery() {
       <div className="flex max-w-xl flex-col gap-4">
         <Variant caption="User bubble">
           <ChatMessage.User>
-            <ChatMessage.Bubble>Explain this trace, please.</ChatMessage.Bubble>
+            <ChatMessage.Bubble>Explain this trajectory, please.</ChatMessage.Bubble>
           </ChatMessage.User>
         </Variant>
         <Variant caption="streaming, no action bar">
@@ -2264,13 +2264,13 @@ export const componentExamples: ComponentExample[] = [
   { name: "ChatTool", category: "Reasoning & tools", description: "A tool call from input streaming through success or error.", Preview: ChatToolGallery },
   { name: "ChatToolGroup", category: "Reasoning & tools", description: "Single and grouped tool calls with compact summaries.", Preview: ChatToolGroupGallery },
   { name: "ChatStatusLine", category: "Reasoning & tools", description: "Current thinking or acting phase with elapsed time.", Preview: ChatStatusLineGallery },
-  { name: "SessionDock", category: "Workspace & trace", description: "Switch between changes, terminal, and browser surfaces.", Preview: SessionDockGallery },
-  { name: "BrowserSurface", category: "Workspace & trace", description: "Browser chrome, annotations, snapshots, and unavailable states.", Preview: BrowserSurfaceGallery },
-  { name: "TerminalView", category: "Workspace & trace", description: "Interactive terminal display with sample shell output.", Preview: TerminalViewGallery },
-  { name: "PiTraceLedger", category: "Workspace & trace", description: "Run and turn records with execution status and focus.", Preview: PiTraceLedgerGallery },
-  { name: "PiTraceStrip", category: "Workspace & trace", description: "Trace swimlanes with step and duration-based layouts.", Preview: PiTraceStripGallery },
-  { name: "PiTraceInspector", category: "Workspace & trace", description: "Inspect trace summaries, payloads, results, schema, and timing.", Preview: PiTraceInspectorGallery },
-  { name: "ContextUsageMeter", category: "Workspace & trace", description: "Context token budget, warning thresholds, and compaction.", Preview: ContextUsageMeterGallery },
+  { name: "SessionDock", category: "Workspace & trajectory", description: "Switch between changes, terminal, and browser surfaces.", Preview: SessionDockGallery },
+  { name: "BrowserSurface", category: "Workspace & trajectory", description: "Browser chrome, annotations, snapshots, and unavailable states.", Preview: BrowserSurfaceGallery },
+  { name: "TerminalView", category: "Workspace & trajectory", description: "Interactive terminal display with sample shell output.", Preview: TerminalViewGallery },
+  { name: "PiTrajectoryLedger", category: "Workspace & trajectory", description: "Run and turn records with execution status and focus.", Preview: PiTrajectoryLedgerGallery },
+  { name: "PiTrajectoryStrip", category: "Workspace & trajectory", description: "Trajectory swimlanes with step and duration-based layouts.", Preview: PiTrajectoryStripGallery },
+  { name: "PiTrajectoryInspector", category: "Workspace & trajectory", description: "Inspect trajectory summaries, payloads, results, schema, and timing.", Preview: PiTrajectoryInspectorGallery },
+  { name: "ContextUsageMeter", category: "Workspace & trajectory", description: "Context token budget, warning thresholds, and compaction.", Preview: ContextUsageMeterGallery },
   { name: "DotMatrix", category: "Visual primitives", description: "Pixel patterns for compact visual indicators.", Preview: DotMatrixGallery },
   { name: "Icons", category: "Visual primitives", description: "The complete icon set, labeled by its exported name.", Preview: IconsGallery },
   { name: "ChatToolKindIcon", category: "Visual primitives", description: "Visual identifiers for shell, search, web, file, and edit tools.", Preview: ChatToolKindIconGallery },

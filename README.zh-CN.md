@@ -4,13 +4,13 @@
 
 > [Pi Agent](https://pi.dev) 缺失的那块 GUI。
 
-Pi 有一个像 VS Code 一样的扩展体系，却没有一块屏幕。PiGUI 就是那块屏幕：一个桌面应用，把 Pi 运行时和插件生态产出的一切——会话、trace、成本、工具调用，未来还有插件面板和动态工作流——变成可视、可操作的界面，并叠加终端永远给不了的能力。
+Pi 有一个像 VS Code 一样的扩展体系，却没有一块屏幕。PiGUI 就是那块屏幕：一个桌面应用，把 Pi 运行时和插件生态产出的一切——会话、trajectory、成本、工具调用，未来还有插件面板和动态工作流——变成可视、可操作的界面，并叠加终端永远给不了的能力。
 
 ## 愿景
 
 PiGUI 由三层构成：
 
-1. **可视化（Visualize）**——给 Pi 生态里的每种能力一张脸。带成本与 token 真相的会话 trace 时间线只是第一种可视化类型，不是产品本体；插件提供的面板和动态工作流视图是下一步。
+1. **可视化（Visualize）**——给 Pi 生态里的每种能力一张脸。带成本与 token 真相的会话 trajectory 时间线只是第一种可视化类型，不是产品本体；插件提供的面板和动态工作流视图是下一步。
 2. **操作（Operate）**——底层的 agent 工作空间控制平面：跨 Project 和 git worktree 创建、驱动、steer、fork 和恢复 Pi 会话。Pi 始终是唯一运行时并拥有会话真相；PiGUI 通过稳定的 Runtime Gateway API 观察和驾驭它。
 3. **增强（Augment）**——终端承载不了的 GUI 原生能力，与 Codex 桌面应用同一思路：带 DOM 批注模式的内嵌浏览器、替代终端模拟器的结构化操作面。
 
@@ -65,7 +65,7 @@ flowchart LR
 
 - **Pi session jsonl**（`~/.pi`）是*上下文真相*：冷恢复时 Pi 自己从中重建 LLM 上下文——PiGUI 永不自行拼装 LLM 上下文。
 - **Session Event Journal**（`~/.pigui`）是*呈现真相*：UI 时间线、run/turn identity 和控制事件只来自对它的回放。
-- 每个事件都带 `surface` 标记（`chat | trace | status | composer | hidden`），路由到它所属的可视化面——今天是封闭集合，明天就是插件声明自有面板的预留扩展点。
+- 每个事件都带 `surface` 标记（`chat | trace | status | composer | hidden`），路由到它所属的可视化面——今天是封闭集合，明天就是插件声明自有面板的预留扩展点（`trace` 这个取值早于 Trajectory 改名，作为 wire contract 保持不变）。
 
 ### 代码在哪里
 
@@ -93,7 +93,7 @@ flowchart LR
 5. SDK driver 驱动 Pi 的 `AgentSession`；Pi 执行 agent loop——`packages/backend/src/drivers/pi-sdk-driver.ts`。
 6. Pi 原始事件被归一化为 `AgentRuntimeEvent`（phase、surface、确定性的 run/turn/message id）——`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`。
 7. Gateway 把每个事件盖进带序号的 envelope，将生命周期边界写入 journal，并更新 session projection——`packages/backend/src/persistence/`。
-8. 事件沿同一 transport 流回；渲染进程的 projection 按 `surface` 把它们路由进 Live Chat 气泡、trace 面板或隐藏状态——`apps/desktop/src/entities/runtime/`。
+8. 事件沿同一 transport 流回；渲染进程的 projection 按 `surface` 把它们路由进 Live Chat 气泡、trajectory 面板或隐藏状态——`apps/desktop/src/entities/runtime/`。
 
 理解（以及参与贡献）这个系统的最佳入口是 normalizer 的 fixture 契约测试——它们是事件协议的可执行规范。添加一条新的 fixture 事件流是一个很好的 first PR。
 

@@ -91,18 +91,18 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-describe("SessionDetailView (Trace Cockpit)", () => {
+describe("SessionDetailView (Trajectory Cockpit)", () => {
   it("renders the Cockpit panels: Strip, Tally, filter bar, Ledger, Inspector", () => {
     const session = makeLargeSessionDetail(12);
     const { container } = render(<SessionDetailView session={session} sessionId={session.id} />);
 
-    expect(container.querySelector('[data-slot="trace-strip"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="trace-tally"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="trace-filter-bar"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="trace-ledger"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="trajectory-strip"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="trajectory-tally"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="trajectory-filter-bar"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="trajectory-ledger"]')).toBeInTheDocument();
     expect(screen.getByText(/Select a step to inspect it/)).toBeInTheDocument();
     // Tally counts Active Runs, not messages.
-    expect(container.querySelector('[data-slot="trace-tally"]')?.textContent).toContain("runs");
+    expect(container.querySelector('[data-slot="trajectory-tally"]')?.textContent).toContain("runs");
   });
 
   it("virtualizes the ledger by Active Run and keeps heavy payloads unmounted", () => {
@@ -185,7 +185,7 @@ describe("SessionDetailView (Trace Cockpit)", () => {
     const { container } = render(<SessionDetailView session={session} sessionId={session.id} />);
 
     const tally = () =>
-      container.querySelector('[data-slot="trace-filter-bar"] .ml-auto')?.textContent;
+      container.querySelector('[data-slot="trajectory-filter-bar"] .ml-auto')?.textContent;
     const before = tally();
 
     await user.click(screen.getByRole("button", { name: "errors" }));
@@ -218,7 +218,7 @@ describe("SessionDetailView (Trace Cockpit)", () => {
       "flex-1",
       "overflow-y-auto",
     );
-    expect(screen.queryByRole("link", { name: /Trace/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Trajectory/ })).not.toBeInTheDocument();
   });
 
   it("renders empty, loading, and error states", () => {
@@ -267,12 +267,12 @@ describe("SessionDetailView (Trace Cockpit)", () => {
     await user.click(screen.getAllByRole("option", { name: "Run 1 tools" })[0]);
 
     expect(screen.getByRole("button", { name: /focus #1 tools/ })).toBeInTheDocument();
-    const ledger = container.querySelector('[data-slot="trace-ledger"]');
+    const ledger = container.querySelector('[data-slot="trajectory-ledger"]');
     expect(
-      ledger?.querySelectorAll('[data-slot="trace-ledger-row"][data-focus-dimmed]').length,
+      ledger?.querySelectorAll('[data-slot="trajectory-ledger-row"][data-focus-dimmed]').length,
     ).toBeGreaterThan(0);
     expect(
-      ledger?.querySelectorAll('[data-slot="trace-ledger-row"]:not([data-focus-dimmed])').length,
+      ledger?.querySelectorAll('[data-slot="trajectory-ledger-row"]:not([data-focus-dimmed])').length,
     ).toBeGreaterThan(0);
   });
 
@@ -285,7 +285,7 @@ describe("SessionDetailView (Trace Cockpit)", () => {
     await user.click(screen.getAllByRole("option", { name: "Run 1 tools" })[0]);
 
     expect(screen.getByRole("button", { name: /focus #1 tools/ })).toBeInTheDocument();
-    const inspector = document.querySelector('[data-slot="trace-inspector"]');
+    const inspector = document.querySelector('[data-slot="trajectory-inspector"]');
     expect(inspector).not.toBeNull();
     expect(within(inspector as HTMLElement).getByRole("heading", { name: "read_file" })).toBeInTheDocument();
   });
@@ -314,9 +314,9 @@ describe("SessionDetailView (Trace Cockpit)", () => {
     await user.click(screen.getByRole("option", { name: "Run 1 model" }));
 
     expect(screen.getByRole("button", { name: /focus #1 model/ })).toBeInTheDocument();
-    const ledger = document.querySelector('[data-slot="trace-ledger"]');
+    const ledger = document.querySelector('[data-slot="trajectory-ledger"]');
     expect(
-      ledger?.querySelectorAll('[data-slot="trace-ledger-row"]:not([data-focus-dimmed])').length,
+      ledger?.querySelectorAll('[data-slot="trajectory-ledger-row"]:not([data-focus-dimmed])').length,
     ).toBeGreaterThan(0);
 
     const down = new KeyboardEvent("keydown", { key: "ArrowDown", cancelable: true });

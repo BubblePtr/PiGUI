@@ -2,12 +2,15 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { SessionSummary } from "@pigui/core";
 import {
+  annotateSessionPresence,
   buildSessionIndex,
   buildSessionIndexWithCache,
   classifyTitle,
   createSessionIndexCache,
   parseSession,
+  type SessionPresenceProjection,
 } from "./sessions";
 
 function fixtureAgentDir() {
@@ -260,5 +263,60 @@ describe("backend session parser", () => {
       kind: "text",
       sentence: `${"🙂".repeat(96)}...`,
     });
+  });
+});
+
+describe("annotateSessionPresence", () => {
+  function summary(id: string): SessionSummary {
+    return {
+      id,
+      timestamp: "2026-08-27T10:00:00.000Z",
+      project: "alpha",
+      title: { kind: "raw", text: id },
+      totalCostUsd: 0,
+      totalTokens: 0,
+      modelBreakdown: [],
+      toolCounts: [],
+      skillCounts: [],
+      presence: "external",
+    };
+  }
+
+  function projection(
+    piSessionId: string,
+    overrides: Partial<SessionPresenceProjection> = {},
+  ): SessionPresenceProjection {
+    return { piSessionId, status: "completed", ...overrides };
+  }
+
+  it("marks sessions active, archived, or external against the projections", () => {
+    const annotated = annotateSessionPresence(
+      [summary("live"), summary("archived-status"), summary("archived-at"), summary("cli-only")],
+      [
+        projection("live"),
+        projection("archived-status", { status: "archived" }),
+        projection("archived-at", { archivedAt: "2026-08-27T09:00:00.000Z" }),
+      ],
+    );
+
+    expect(annotated.map((session) => [session.id, session.presence])).toEqual([
+      ["live", "active"],
+      ["archived-status", "archived"],
+      ["archived-at", "archived"],
+      ["cli-only", "external"],
+    ]);
+  });
+
+  it("keeps a session active when any projection of it is unarchived", () => {
+    const annotated = annotateSessionPresence(
+      [summary("shared")],
+      [
+        projection("shared", { status: "archived" }),
+        projection("shared"),
+        projection("shared", { archivedAt: "2026-08-27T09:00:00.000Z" }),
+      ],
+    );
+
+    expect(annotated[0].presence).toBe("active");
   });
 });

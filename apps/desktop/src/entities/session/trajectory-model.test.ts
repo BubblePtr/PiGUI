@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionTurn } from "@pigui/core";
-import { buildTraceRuns, buildTraceTurns } from "./trace-model";
+import { buildTrajectoryRuns, buildTrajectoryTurns } from "./trajectory-model";
 
 function userTurn(text: string, timestamp = "2026-08-17T14:00:00.000Z"): SessionTurn {
   return { kind: "message", role: "user", timestamp, parts: [{ partType: "text", text, payload: {} }] };
@@ -24,9 +24,9 @@ function assistantTurn(parts: SessionTurn["parts"], timestamp = "2026-08-17T14:0
   };
 }
 
-describe("buildTraceTurns", () => {
+describe("buildTrajectoryTurns", () => {
   it("assigns run indices: a run starts at each user message, preamble joins run 0", () => {
-    const turns = buildTraceTurns([
+    const turns = buildTrajectoryTurns([
       assistantTurn([{ partType: "text", text: "resumed preamble", payload: {} }]),
       userTurn("first input"),
       assistantTurn([{ partType: "text", text: "reply", payload: {} }]),
@@ -38,7 +38,7 @@ describe("buildTraceTurns", () => {
   });
 
   it("pairs toolCall with its toolResult by toolCallId into one step", () => {
-    const [turn] = buildTraceTurns([
+    const [turn] = buildTrajectoryTurns([
       assistantTurn([
         {
           partType: "toolCall",
@@ -68,7 +68,7 @@ describe("buildTraceTurns", () => {
   });
 
   it("keeps an unmatched toolCall in the running state", () => {
-    const [turn] = buildTraceTurns([
+    const [turn] = buildTrajectoryTurns([
       assistantTurn([
         { partType: "toolCall", name: "bash", payload: { id: "call_x", arguments: {} } },
       ]),
@@ -78,7 +78,7 @@ describe("buildTraceTurns", () => {
   });
 
   it("surfaces an orphan toolResult as its own step", () => {
-    const [turn] = buildTraceTurns([
+    const [turn] = buildTrajectoryTurns([
       assistantTurn([
         {
           partType: "toolResult",
@@ -96,7 +96,7 @@ describe("buildTraceTurns", () => {
   });
 
   it("derives image steps from url or data+mimeType payloads", () => {
-    const [turn] = buildTraceTurns([
+    const [turn] = buildTrajectoryTurns([
       assistantTurn([
         { partType: "image", payload: { url: "https://example.com/a.png", alt: "A" } },
         { partType: "image", payload: { data: "abc", mimeType: "image/png", name: "shot.png" } },
@@ -109,7 +109,7 @@ describe("buildTraceTurns", () => {
   });
 
   it("maps annotation turns to config steps that stay inside the current run", () => {
-    const turns = buildTraceTurns([
+    const turns = buildTrajectoryTurns([
       userTurn("input"),
       {
         kind: "annotation",
@@ -127,7 +127,7 @@ describe("buildTraceTurns", () => {
   });
 
   it("gives every step a unique id", () => {
-    const turns = buildTraceTurns([
+    const turns = buildTrajectoryTurns([
       userTurn("input"),
       assistantTurn([
         { partType: "thinking", text: "plan", payload: {} },
@@ -140,10 +140,10 @@ describe("buildTraceTurns", () => {
   });
 });
 
-describe("buildTraceRuns", () => {
+describe("buildTrajectoryRuns", () => {
   it("aggregates cost, tokens, and error state per run", () => {
-    const runs = buildTraceRuns(
-      buildTraceTurns([
+    const runs = buildTrajectoryRuns(
+      buildTrajectoryTurns([
         userTurn("first"),
         assistantTurn([
           { partType: "toolCall", name: "bash", payload: { id: "c1", arguments: {} } },

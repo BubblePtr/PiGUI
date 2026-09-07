@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionTurn } from "@pigui/core";
-import { buildTraceTurns } from "@/entities/session/trace-model";
-import { PiTraceStrip, stripSegmentsFromTurns } from "@/shared/ui/pi-trace-strip";
+import { buildTrajectoryTurns } from "@/entities/session/trajectory-model";
+import { PiTrajectoryStrip, stripSegmentsFromTurns } from "@/shared/ui/pi-trajectory-strip";
 
 const sessionTurns: SessionTurn[] = [
   {
@@ -76,8 +76,8 @@ function renderStrip() {
   const onSelect = vi.fn();
   const onBrush = vi.fn();
   const utils = render(
-    <PiTraceStrip
-      turns={buildTraceTurns(sessionTurns)}
+    <PiTrajectoryStrip
+      turns={buildTrajectoryTurns(sessionTurns)}
       widthMode="steps"
       onBrush={onBrush}
       onSelect={onSelect}
@@ -87,7 +87,7 @@ function renderStrip() {
   return { onSelect, onBrush, ...utils };
 }
 
-describe("PiTraceStrip", () => {
+describe("PiTrajectoryStrip", () => {
   it("selects the clicked swimlane block, not the whole run", async () => {
     const user = userEvent.setup();
     const { onSelect, onBrush } = renderStrip();
@@ -100,9 +100,9 @@ describe("PiTraceStrip", () => {
 
   it("dims columns outside the selected swimlane block", () => {
     render(
-      <PiTraceStrip
+      <PiTrajectoryStrip
         selectedRange={[1, 1]}
-        turns={buildTraceTurns(sessionTurns)}
+        turns={buildTrajectoryTurns(sessionTurns)}
         widthMode="steps"
         onBrush={() => {}}
         onSelect={() => {}}
@@ -120,7 +120,7 @@ describe("PiTraceStrip", () => {
   });
 
   it("widths the model segment by the recorded model call, falling back to the estimate", () => {
-    const segments = stripSegmentsFromTurns(buildTraceTurns(mixedTimingTurns));
+    const segments = stripSegmentsFromTurns(buildTrajectoryTurns(mixedTimingTurns));
     const model = segments.filter((segment) => segment.lane === "model");
     const tools = segments.filter((segment) => segment.lane === "tools");
 
@@ -148,7 +148,7 @@ describe("PiTraceStrip", () => {
       },
     ];
 
-    const segments = stripSegmentsFromTurns(buildTraceTurns(turns));
+    const segments = stripSegmentsFromTurns(buildTrajectoryTurns(turns));
     const input = segments.find((segment) => segment.lane === "input");
 
     // 12s of queueing, not the 20s the model segment already paints.
@@ -220,7 +220,7 @@ describe("PiTraceStrip", () => {
       },
     ];
 
-    const inputs = stripSegmentsFromTurns(buildTraceTurns(turns)).filter(
+    const inputs = stripSegmentsFromTurns(buildTrajectoryTurns(turns)).filter(
       (segment) => segment.lane === "input",
     );
 
@@ -262,8 +262,8 @@ describe("PiTraceStrip", () => {
       },
     ];
     render(
-      <PiTraceStrip
-        turns={buildTraceTurns(turns)}
+      <PiTrajectoryStrip
+        turns={buildTrajectoryTurns(turns)}
         widthMode="duration"
         onSelect={() => {}}
         onWidthModeChange={() => {}}
@@ -307,8 +307,8 @@ describe("PiTraceStrip", () => {
       },
     ];
     render(
-      <PiTraceStrip
-        turns={buildTraceTurns(turns)}
+      <PiTrajectoryStrip
+        turns={buildTrajectoryTurns(turns)}
         widthMode="duration"
         onSelect={() => {}}
         onWidthModeChange={() => {}}
@@ -334,12 +334,12 @@ describe("PiTraceStrip", () => {
     }
 
     const props = {
-      turns: buildTraceTurns(mixedTimingTurns),
+      turns: buildTrajectoryTurns(mixedTimingTurns),
       onBrush: () => {},
       onSelect: () => {},
       onWidthModeChange: () => {},
     };
-    const { rerender } = render(<PiTraceStrip {...props} widthMode="duration" />);
+    const { rerender } = render(<PiTrajectoryStrip {...props} widthMode="duration" />);
 
     // Run 2's call is unbracketed, so neither its model span nor the wait
     // before it started can be measured.
@@ -349,7 +349,7 @@ describe("PiTraceStrip", () => {
     ]);
     expect(estimatedColumns()[0].getAttribute("title")).toContain("estimated");
 
-    rerender(<PiTraceStrip {...props} widthMode="steps" />);
+    rerender(<PiTrajectoryStrip {...props} widthMode="steps" />);
 
     expect(estimatedColumns()).toHaveLength(0);
   });

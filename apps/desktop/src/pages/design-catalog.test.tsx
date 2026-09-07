@@ -10,7 +10,7 @@ describe("Component catalog navigation", () => {
     const catalog = screen.getByRole("navigation", { name: "Component catalog" });
     expect(within(catalog).getAllByRole("button")).toHaveLength(33);
     expect(within(catalog).queryByRole("button", { name: "PiSheet" })).not.toBeInTheDocument();
-    for (const category of ["Data & metrics", "Conversation", "Composer", "Reasoning & tools", "Workspace & trace", "Visual primitives"]) {
+    for (const category of ["Data & metrics", "Conversation", "Composer", "Reasoning & tools", "Workspace & trajectory", "Visual primitives"]) {
       expect(within(catalog).getByText(category)).toBeInTheDocument();
     }
     expect(screen.getByRole("region", { name: "PiKpi" })).toBeInTheDocument();

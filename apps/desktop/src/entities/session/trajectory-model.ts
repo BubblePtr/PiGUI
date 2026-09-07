@@ -1,13 +1,13 @@
-// Trace Cockpit read model. Hierarchy per CONTEXT.md: Run (Active Run,
+// Trajectory Cockpit read model. Hierarchy per CONTEXT.md: Run (Active Run,
 // bounded by user inputs) > Turn (one assistant message = one model call +
 // its tools) > Step (one ledger row). Pure mapping from @pigui/core session
 // turns — no rendering concerns here.
 import type { SessionContentPart, SessionTurn } from "@pigui/core";
 import { toolTargetFromArgs } from "@/shared/ui/chat/chat-tool";
 
-export type TraceRole = "user" | "assistant" | "toolResult" | "annotation" | "unknown";
+export type TrajectoryRole = "user" | "assistant" | "toolResult" | "annotation" | "unknown";
 
-export type TraceStep = {
+export type TrajectoryStep = {
   id: string;
   turnIndex: number;
   stepIndex: number;
@@ -24,11 +24,11 @@ export type TraceStep = {
   durationMs?: number;
 };
 
-export type TraceTurn = {
+export type TrajectoryTurn = {
   index: number;
   /** Active-Run ordinal: a run starts at each user input message. */
   runIndex: number;
-  role: TraceRole;
+  role: TrajectoryRole;
   label: string;
   timestamp?: string;
   /** assistant only: measured model-call latency, already validated upstream. */
@@ -38,20 +38,20 @@ export type TraceTurn = {
   totalTokens?: number;
   hasError: boolean;
   toolCount: number;
-  steps: TraceStep[];
+  steps: TrajectoryStep[];
 };
 
 /** One Active Run: the user input plus every message until the next input. */
-export type TraceRun = {
+export type TrajectoryRun = {
   index: number;
-  turns: TraceTurn[];
+  turns: TrajectoryTurn[];
   timestamp?: string;
   costUsd: number;
   totalTokens: number;
   hasError: boolean;
 };
 
-const roleLabels: Record<TraceRole, string> = {
+const roleLabels: Record<TrajectoryRole, string> = {
   user: "User",
   assistant: "Assistant",
   toolResult: "Tool result",
@@ -90,18 +90,18 @@ function firstLine(value: string, max = 140) {
   return compact.length > max ? `${compact.slice(0, max - 1).trimEnd()}…` : compact;
 }
 
-export function buildTraceTurns(turns: SessionTurn[]): TraceTurn[] {
+export function buildTrajectoryTurns(turns: SessionTurn[]): TrajectoryTurn[] {
   let runIndex = -1;
 
   return turns.map((turn, turnIndex) => {
-    const role: TraceRole = turn.kind === "annotation" ? "annotation" : (turn.role ?? "unknown");
+    const role: TrajectoryRole = turn.kind === "annotation" ? "annotation" : (turn.role ?? "unknown");
     if (role === "user") {
       runIndex += 1;
     }
     const assignedRunIndex = Math.max(runIndex, 0);
 
-    const steps: TraceStep[] = [];
-    const openTools: Array<TraceStep & { callId?: string }> = [];
+    const steps: TrajectoryStep[] = [];
+    const openTools: Array<TrajectoryStep & { callId?: string }> = [];
     let stepIndex = 0;
 
     for (const part of turn.parts) {
@@ -111,7 +111,7 @@ export function buildTraceTurns(turns: SessionTurn[]): TraceTurn[] {
         const payload = payloadRecord(part);
         const argsValue = payload?.arguments ?? payload?.input;
         const argsText = argsValue === undefined ? undefined : formatValue(argsValue);
-        const step: TraceStep & { callId?: string } = {
+        const step: TrajectoryStep & { callId?: string } = {
           id,
           turnIndex,
           stepIndex,
@@ -136,7 +136,7 @@ export function buildTraceTurns(turns: SessionTurn[]): TraceTurn[] {
         const step =
           match ??
           (() => {
-            const orphan: TraceStep = { id, turnIndex, stepIndex, kind: "tool", name: part.name };
+            const orphan: TrajectoryStep = { id, turnIndex, stepIndex, kind: "tool", name: part.name };
             steps.push(orphan);
             stepIndex += 1;
             return orphan;
@@ -211,8 +211,8 @@ export function buildTraceTurns(turns: SessionTurn[]): TraceTurn[] {
   });
 }
 
-export function buildTraceRuns(turns: TraceTurn[]): TraceRun[] {
-  const runs: TraceRun[] = [];
+export function buildTrajectoryRuns(turns: TrajectoryTurn[]): TrajectoryRun[] {
+  const runs: TrajectoryRun[] = [];
   for (const turn of turns) {
     let run = runs[runs.length - 1];
     if (!run || run.index !== turn.runIndex) {
@@ -234,24 +234,24 @@ export function buildTraceRuns(turns: TraceTurn[]): TraceRun[] {
   return runs;
 }
 
-/** Trace filter: query/kind/errors are true filters (rows drop out). */
-export type TraceFilter = {
+/** Trajectory filter: query/kind/errors are true filters (rows drop out). */
+export type TrajectoryFilter = {
   query: string;
   kinds: ReadonlySet<string>;
   errorsOnly: boolean;
 };
 
-export const emptyTraceFilter: TraceFilter = {
+export const emptyTrajectoryFilter: TrajectoryFilter = {
   query: "",
   kinds: new Set<string>(),
   errorsOnly: false,
 };
 
-export function isTraceFilterActive(filter: TraceFilter) {
+export function isTrajectoryFilterActive(filter: TrajectoryFilter) {
   return filter.query.trim() !== "" || filter.kinds.size > 0 || filter.errorsOnly;
 }
 
-export function traceStepMatches(step: TraceStep, filter: TraceFilter) {
+export function trajectoryStepMatches(step: TrajectoryStep, filter: TrajectoryFilter) {
   if (filter.errorsOnly && !step.isError) {
     return false;
   }

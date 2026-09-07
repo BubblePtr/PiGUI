@@ -54,7 +54,7 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
         parts: [
           {
             partType: "text",
-            text: `Inspect ${summary.project} trace usage and layout behavior.`,
+            text: `Inspect ${summary.project} trajectory usage and layout behavior.`,
             payload: {},
           },
         ],
@@ -84,7 +84,7 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
             text: [
               "Read the current workspace state.",
               "Compare the rendered layout with the target fixed-pane behavior.",
-              "Keep trace output scoped to the detail panel.",
+              "Keep trajectory output scoped to the detail panel.",
             ].join("\n"),
             payload: {},
           },
@@ -100,7 +100,7 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
           {
             partType: "toolResult",
             name: "read_file",
-            text: "Trace workspace uses a fixed split layout with independent scroll panes.",
+            text: "Trajectory workspace uses a fixed split layout with independent scroll panes.",
             payload: {},
           },
         ],
@@ -112,7 +112,7 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
         parts: [
           {
             partType: "text",
-            text: "This trace detail is generated from browser-session-summaries.json for web-only debugging outside Electron.",
+            text: "This trajectory detail is generated from browser-session-summaries.json for web-only debugging outside Electron.",
             payload: {},
           },
         ],

@@ -221,13 +221,13 @@ export const defaultSidebarProjectSessionProjections: SessionProjection[] = [
   }),
 ];
 
-const traceUsageNavigationItems = [
+const trajectoryUsageNavigationItems = [
   {
-    label: "Trace",
-    to: "/trace",
+    label: "Trajectory",
+    to: "/trajectory",
     icon: ListTree,
     isActive: (pathname: string) =>
-      pathname === "/trace" || pathname.startsWith("/sessions/"),
+      pathname === "/trajectory" || pathname.startsWith("/sessions/"),
   },
   {
     label: "Usage",
@@ -289,8 +289,8 @@ function getActiveTab(pathname: string) {
     return "Sessions";
   }
 
-  if (pathname === "/trace" || pathname.startsWith("/sessions/")) {
-    return "Trace";
+  if (pathname === "/trajectory" || pathname.startsWith("/sessions/")) {
+    return "Trajectory";
   }
 
   if (pathname === "/usage") {
@@ -513,15 +513,19 @@ function ProjectActionsMenu({
 
 function SessionActionsMenu({
   session,
+  onOpenTrajectory,
   onRenameSession,
   onArchiveSession,
   onDeleteSession,
 }: {
   session: SessionProjectionListItem;
+  onOpenTrajectory: (piSessionId: string) => void;
   onRenameSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
 }) {
+  const piSessionId = session.projection.piSessionId;
+
   return (
     // DropdownMenu instead of MoreMenu: MoreMenu hard-wires its label into a
     // trigger tooltip, and the hover-revealed row button should carry none.
@@ -535,6 +539,17 @@ function SessionActionsMenu({
         variant: "ghost",
       }}
       items={[
+        // Trajectory replays the Pi session file, so the entry only exists
+        // once the Session has one (a draft or still-creating Session has none).
+        ...(piSessionId
+          ? [
+              {
+                label: "Open Trajectory",
+                icon: <ListTree aria-hidden="true" size={16} />,
+                onClick: () => onOpenTrajectory(piSessionId),
+              },
+            ]
+          : []),
         {
           label: "Rename Session",
           icon: <Pencil aria-hidden="true" size={16} />,
@@ -577,6 +592,7 @@ function ProjectNavigation({
   onRenameProject,
   onRevealProject,
   onRemoveProject,
+  onOpenTrajectory,
   onRenameSession,
   onArchiveSession,
   onDeleteSession,
@@ -595,6 +611,7 @@ function ProjectNavigation({
   onRenameProject: (projectId: string) => void;
   onRevealProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
+  onOpenTrajectory: (piSessionId: string) => void;
   onRenameSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -694,6 +711,7 @@ function ProjectNavigation({
                   >
                     <SessionActionsMenu
                       session={session}
+                      onOpenTrajectory={onOpenTrajectory}
                       onRenameSession={onRenameSession}
                       onArchiveSession={onArchiveSession}
                       onDeleteSession={onDeleteSession}
@@ -727,7 +745,7 @@ function ProjectNavigation({
   );
 }
 
-function TraceUsageNavigation({
+function TrajectoryUsageNavigation({
   draftViewActive,
   hasProjects,
   pathname,
@@ -741,7 +759,7 @@ function TraceUsageNavigation({
   onNewSession: () => void;
 }) {
   return (
-    <SideNavSection isHeaderHidden title="Trace and usage navigation">
+    <SideNavSection isHeaderHidden title="Trajectory and usage navigation">
       {hasProjects ? (
         <SideNavItem
           icon={<ChatAdd aria-hidden="true" className="size-4" />}
@@ -750,7 +768,7 @@ function TraceUsageNavigation({
           onClick={onNewSession}
         />
       ) : null}
-      {traceUsageNavigationItems.map((item) => {
+      {trajectoryUsageNavigationItems.map((item) => {
         const Icon = item.icon;
         const active = item.isActive(pathname);
 
@@ -946,7 +964,7 @@ export function AppFrame({
   const [expandedProjects, setExpandedProjects] = useState(() =>
     readProjectExpansionState(),
   );
-  // Prefer explicit page props; otherwise use app-wide hydrated store (Trace/Usage/Setup).
+  // Prefer explicit page props; otherwise use app-wide hydrated store (Trajectory/Usage/Setup).
   const effectiveSessionProjections =
     sessionProjections ??
     sessionProjectionsStore?.sessionProjections ??
@@ -1402,7 +1420,7 @@ export function AppFrame({
           }
           footer={<SystemNavigation pathname={pathname} onNavigate={handleNavigate} />}
         >
-          <TraceUsageNavigation
+          <TrajectoryUsageNavigation
             draftViewActive={draftViewActive}
             hasProjects={projects.length > 0}
             pathname={pathname}
@@ -1424,6 +1442,12 @@ export function AppFrame({
             onRenameProject={handleRenameProject}
             onRevealProject={handleRevealProject}
             onRemoveProject={handleRemoveProject}
+            onOpenTrajectory={(piSessionId) =>
+              void router.navigate({
+                to: "/sessions/$sessionId",
+                params: { sessionId: piSessionId },
+              })
+            }
             onRenameSession={(sessionId) => void handleRenameSession(sessionId)}
             onArchiveSession={(sessionId) => void handleArchiveSession(sessionId)}
             onDeleteSession={(sessionId) => void handleDeleteSession(sessionId)}

@@ -290,7 +290,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const source = readFileSync(join(process.cwd(), "apps/desktop/src/pages/agent-workspace.tsx"), "utf8");
 
     expect(source).toContain(
-      "Project Sessions keep live Pi work separate from Trace and Usage evidence.",
+      "Project Sessions keep live Pi work separate from Trajectory and Usage evidence.",
     );
     expect(source).not.toContain("Analyze evidence");
     expect(within(liveColumn).queryByText("Evidence preserved")).not.toBeInTheDocument();
@@ -327,10 +327,10 @@ describe("AgentWorkspaceSessionsPage", () => {
     const liveComposerInput = within(liveColumn).getByPlaceholderText(
       "Queue the next task…",
     );
-    const traceSidebarLabel = within(screen.getByRole("button", { name: "Trace" }))
-      .getByText("Trace");
+    const trajectorySidebarLabel = within(screen.getByRole("button", { name: "Trajectory" }))
+      .getByText("Trajectory");
     const newSessionSidebarLabel = within(
-      screen.getByRole("group", { name: "Trace and usage navigation" }),
+      screen.getByRole("group", { name: "Trajectory and usage navigation" }),
     ).getByText("New Session");
 
     expect(sessionDockButton).toHaveAttribute("aria-pressed", "false");
@@ -344,7 +344,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     const conversationLog = chatConversation?.querySelector('[role="log"]');
     expect(conversationLog).toBeInTheDocument();
     expect(conversationLog).toHaveClass("astryx-chat-message-list");
-    expect(traceSidebarLabel).not.toHaveClass("font-medium");
+    expect(trajectorySidebarLabel).not.toHaveClass("font-medium");
     expect(newSessionSidebarLabel).not.toHaveClass("font-medium");
     expect(liveComposerInput).not.toHaveClass("font-medium");
     expect(
@@ -3187,12 +3187,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     renderProjectSessions();
 
     const projectNavigation = await findProjectSessionsGroupByName("Pig");
-    const traceUsageNavigation = screen.getByRole("group", {
-      name: "Trace and usage navigation",
+    const trajectoryUsageNavigation = screen.getByRole("group", {
+      name: "Trajectory and usage navigation",
     });
     const initialRows = getSidebarSessionRows(projectNavigation);
 
-    await user.click(within(traceUsageNavigation).getByRole("button", { name: "New Session" }));
+    await user.click(within(trajectoryUsageNavigation).getByRole("button", { name: "New Session" }));
 
     const draftComposer = await screen.findByTestId("session-draft-composer");
     const emptyState = within(draftComposer).getByTestId("session-draft-empty-state");

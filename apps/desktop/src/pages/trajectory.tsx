@@ -12,13 +12,13 @@ import { SessionListPanel } from "@/pages/session-list";
  * resizable split — the finder's width is set by its content density, and
  * extra viewport space belongs to the reading pane.
  */
-function TraceEmptyState() {
+function TrajectoryEmptyState() {
   return (
     <div className="flex h-full min-h-0 items-center justify-center px-6">
       <Card className="w-full max-w-xl">
-        <div className="text-sm font-semibold uppercase text-muted">Trace</div>
+        <div className="text-sm font-semibold uppercase text-muted">Trajectory</div>
         <h2 className="mt-3 text-2xl font-semibold tracking-normal text-foreground">
-          Select a Pi session trace
+          Select a Pi session trajectory
         </h2>
         <p className="mt-4 text-sm leading-6 text-muted">
           Choose a historical session from the left list to replay its timeline, cost, tokens,
@@ -29,7 +29,7 @@ function TraceEmptyState() {
   );
 }
 
-export function TraceWorkspace({
+export function TrajectoryWorkspace({
   selectedSessionId,
   children,
 }: {
@@ -40,18 +40,18 @@ export function TraceWorkspace({
     <AppFrame>
       <article
         className="h-full min-h-0 overflow-hidden"
-        data-testid="trace-workspace"
+        data-testid="trajectory-workspace"
       >
-        <div className="flex h-full min-h-0 w-full" data-testid="trace-split-view">
+        <div className="flex h-full min-h-0 w-full" data-testid="trajectory-split-view">
           <div
             className="h-full w-80 min-h-0 shrink-0 border-r border-separator"
-            data-testid="trace-list-pane"
+            data-testid="trajectory-list-pane"
           >
             <SessionListPanel selectedSessionId={selectedSessionId} />
           </div>
           <div
             className="min-h-0 min-w-0 flex-1 overflow-hidden"
-            data-testid="trace-detail-pane"
+            data-testid="trajectory-detail-pane"
           >
             {children}
           </div>
@@ -61,26 +61,26 @@ export function TraceWorkspace({
   );
 }
 
-export function TraceIndexPage() {
+export function TrajectoryIndexPage() {
   const { loading, configured } = useProviderAuthStatus();
 
   return (
-    <TraceWorkspace>
+    <TrajectoryWorkspace>
       {!loading && !configured ? (
-        <NoProvidersEmptyState testId="trace-no-providers-empty-state" />
+        <NoProvidersEmptyState testId="trajectory-no-providers-empty-state" />
       ) : (
-        <TraceEmptyState />
+        <TrajectoryEmptyState />
       )}
-    </TraceWorkspace>
+    </TrajectoryWorkspace>
   );
 }
 
-export function TraceSessionPage() {
+export function TrajectorySessionPage() {
   const { sessionId } = useParams({ from: "/sessions/$sessionId" });
 
   return (
-    <TraceWorkspace selectedSessionId={sessionId}>
+    <TrajectoryWorkspace selectedSessionId={sessionId}>
       <SessionDetailPage />
-    </TraceWorkspace>
+    </TrajectoryWorkspace>
   );
 }

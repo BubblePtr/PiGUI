@@ -37,17 +37,17 @@ describe("uiRegions registry", () => {
 
 describe("matchRegion", () => {
   it("matches a component on the fiber stack, innermost first", () => {
-    const stack = [componentEntry("PiTraceLedger"), componentEntry("SessionDetailView")];
+    const stack = [componentEntry("PiTrajectoryLedger"), componentEntry("SessionDetailView")];
     expect(matchRegion(stack, null)?.region.term).toBe("Ledger");
   });
 
   it("treats earlier stack entries as more specific", () => {
-    const stack = [componentEntry("SessionDetailView"), componentEntry("PiTraceLedger")];
+    const stack = [componentEntry("SessionDetailView"), componentEntry("PiTrajectoryLedger")];
     expect(matchRegion(stack, null)?.region.term).toBe("Trajectory Cockpit");
   });
 
   it("prefers the clicked element's own attributes over the stack", () => {
-    document.body.innerHTML = `<div data-testid="session-detail-view"><p data-slot="trace-tally" id="t">x</p></div>`;
+    document.body.innerHTML = `<div data-testid="session-detail-view"><p data-slot="trajectory-tally" id="t">x</p></div>`;
     const element = document.getElementById("t");
 
     expect(
@@ -82,11 +82,11 @@ describe("additional named regions", () => {
   });
 
   it("prefers a named DOM subregion over a broad component ancestor", () => {
-    document.body.innerHTML = '<div data-slot="trace-tally"><span id="value">12</span></div>';
+    document.body.innerHTML = '<div data-slot="trajectory-tally"><span id="value">12</span></div>';
     const host: ComponentStackEntry = {
       name: "div", kind: "element", file: null, line: null, library: false,
       fiber: { type: "div", child: null, sibling: null, return: null,
-        stateNode: document.querySelector('[data-slot="trace-tally"]') },
+        stateNode: document.querySelector('[data-slot="trajectory-tally"]') },
     };
     expect(matchRegion([host, componentEntry("SessionDetailView")], document.getElementById("value"))?.region.term).toBe("Tally");
   });
