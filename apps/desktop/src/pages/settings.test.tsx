@@ -366,6 +366,59 @@ describe("Settings — about and updates", () => {
   });
 });
 
+describe("Settings — changelog", () => {
+  it("uses compact navigation labels and keeps every section accessible on narrow screens", async () => {
+    const originalMatchMedia = window.matchMedia;
+    const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+      ...originalMatchMedia(query),
+      matches: query === "(max-width: 640px)",
+    }));
+    try {
+      renderSettings("/usage?settings=changelog");
+      const navigation = await screen.findByRole("navigation", { name: "Settings sections" });
+      await userEvent.click(within(navigation).getByRole("button", { name: "About" }));
+      expect(await screen.findByRole("region", { name: "About & Updates" })).toBeVisible();
+      await userEvent.click(within(navigation).getByRole("button", { name: "Changelog" }));
+      expect(await screen.findByRole("region", { name: "Changelog" })).toBeVisible();
+    } finally {
+      matchMedia.mockRestore();
+    }
+  });
+
+  it("opens the release timeline directly from the settings query", async () => {
+    renderSettings("/usage?settings=changelog");
+
+    const section = await screen.findByRole("region", { name: "Changelog" });
+    expect(within(section).getByRole("heading", { name: "v0.0.1" })).toBeVisible();
+    expect(within(section).getByText("September 6, 2026")).toBeVisible();
+    expect(within(section).getByText("Projects and sessions")).toBeVisible();
+    expect(within(section).getByText("Chat and trajectory")).toBeVisible();
+    expect(within(section).getByText("Browser and terminal")).toBeVisible();
+    expect(within(section).getByText("Providers and models")).toBeVisible();
+    expect(within(section).getByRole("link", { name: /View release on GitHub/ }))
+      .toHaveAttribute("href", "https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.1");
+  });
+
+  it("switches to the changelog without losing the route or an unsaved settings draft", async () => {
+    const user = userEvent.setup();
+    const { router } = renderSettings("/usage?range=week&settings=providers#totals");
+    await user.click(await screen.findByRole("button", { name: "API Key" }));
+    const input = within(await screen.findByTestId("provider-api-key-anthropic"))
+      .getByPlaceholderText("Paste API key");
+    await user.type(input, "sk-unsaved");
+    await user.click(screen.getByRole("button", { name: "Changelog" }));
+
+    expect(await screen.findByRole("region", { name: "Changelog" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/usage");
+    expect(router.state.location.search).toMatchObject({ range: "week", settings: "changelog" });
+    expect(router.state.location.hash).toBe("totals");
+    await user.click(screen.getByRole("button", { name: "Providers" }));
+    expect(input).toHaveValue("sk-unsaved");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(router.state.location.href).toBe("/usage?range=week#totals"));
+  });
+});
+
 describe("Settings dialog navigation", () => {
   it("opens over the current page and restores its route, draft and trigger on close", async () => {
     const user = userEvent.setup();
