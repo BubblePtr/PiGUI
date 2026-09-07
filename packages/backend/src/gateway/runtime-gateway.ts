@@ -310,7 +310,7 @@ async function dispatchRuntimeGatewayRequest(input: {
       const sessionId = requiredString(params.sessionId, "sessionId");
       const piSessionId = requiredString(params.piSessionId, "piSessionId");
       const projectId = requiredString(params.projectId, "projectId");
-      const cwd = await resolveChatRuntimeCwd({
+      const { cwd, rebuilt } = await resolveChatRuntimeCwd({
         dataDir: input.dataDir,
         projectId,
         sessionId,
@@ -327,7 +327,9 @@ async function dispatchRuntimeGatewayRequest(input: {
         piSessionId,
         sessionFile: requiredString(params.sessionFile, "sessionFile"),
         cwd,
-        checkout: params.checkout,
+        checkout: rebuilt
+          ? rewriteRebuiltCheckoutPaths(params.checkout, cwd)
+          : params.checkout,
         modelSelection: persistedProjection?.modelSelection,
       });
       const snapshotWithEvents = journaled.length
@@ -355,7 +357,7 @@ async function dispatchRuntimeGatewayRequest(input: {
         sourcePiSessionId,
         piEntryId,
       });
-      const cwd = await resolveChatRuntimeCwd({
+      const { cwd, rebuilt } = await resolveChatRuntimeCwd({
         dataDir: input.dataDir,
         projectId,
         sessionId,
@@ -371,7 +373,9 @@ async function dispatchRuntimeGatewayRequest(input: {
         ),
         piEntryId,
         cwd,
-        checkout: params.checkout,
+        checkout: rebuilt
+          ? rewriteRebuiltCheckoutPaths(params.checkout, cwd)
+          : params.checkout,
       });
       const journaled = await copyJournalForFork({
         appendJournalEvent: input.appendJournalEvent,
@@ -915,6 +919,32 @@ function paramsRecord(params: unknown) {
   return isRecord(params) ? params : {};
 }
 
+const checkoutPathKeys = [
+  "root",
+  "runtimeCwd",
+  "diffRoot",
+  "repoRoot",
+  "projectRoot",
+  "executionCheckoutRoot",
+] as const;
+
+// Terminal and Changes persist checkout.root / diffRoot, so a rebuilt chat cwd
+// has to heal those fields or they keep pointing at the deleted directory.
+function rewriteRebuiltCheckoutPaths(checkout: unknown, cwd: string) {
+  if (!isRecord(checkout)) {
+    return checkout;
+  }
+
+  const next: Record<string, unknown> = { ...checkout };
+  for (const key of checkoutPathKeys) {
+    if (typeof next[key] === "string") {
+      next[key] = cwd;
+    }
+  }
+
+  return next;
+}
+
 async function resolveChatRuntimeCwd(input: {
   dataDir: string;
   projectId: string;
@@ -922,14 +952,17 @@ async function resolveChatRuntimeCwd(input: {
   cwd: string;
 }) {
   if (input.projectId !== CHAT_PROJECT_ID) {
-    return input.cwd;
+    return { cwd: input.cwd, rebuilt: false };
   }
 
   try {
     await access(input.cwd);
-    return input.cwd;
+    return { cwd: input.cwd, rebuilt: false };
   } catch {
-    return ensureChatWorkspace(input.dataDir, input.sessionId);
+    return {
+      cwd: await ensureChatWorkspace(input.dataDir, input.sessionId),
+      rebuilt: true,
+    };
   }
 }
 
