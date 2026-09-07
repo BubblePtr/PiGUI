@@ -10,6 +10,7 @@ describe("Runtime Gateway client", () => {
   it("resumes persisted runtime state through the Gateway", async () => {
     const invocations: Array<{ command: string; args?: Record<string, unknown> }> = [];
     const snapshot: RuntimeGatewaySnapshot = {
+      sessionName: "Recovered Pi name",
       sessionId: "session-resumed",
       runtimeId: "pi-sdk:session-resumed",
       piSessionId: "pi-session-resumed",
@@ -82,6 +83,7 @@ describe("Runtime Gateway client", () => {
       },
     ]);
     expect(state).toMatchObject({
+      sessionName: "Recovered Pi name",
       piSessionId: "pi-session-resumed",
       runtimeId: "pi-sdk:session-resumed",
       events: [
@@ -1093,6 +1095,23 @@ describe("Runtime Gateway client", () => {
         timestamp: "2026-06-29T12:00:11.000Z",
       },
     ]);
+  });
+
+  it("keeps session metadata out of agent and chat timelines", async () => {
+    let receive: ((event: BackendRpcEvent) => void) | undefined;
+    const snapshot: RuntimeGatewaySnapshot = { sessionId: "session-1", runtimeId: "runtime-1", piSessionId: "pi-session-1", projectId: "p", cwd: "/repo", status: "idle", events: [], updatedAt: "2026-09-07T00:00:00Z" };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>() => snapshot as T,
+      onBackendEvent: handler => { receive = handler; return vi.fn(); },
+    });
+    const observed: unknown[] = [];
+    client.subscribeToAgentEvents?.("pi-session-1", event => observed.push(event));
+    client.subscribeToEvents("pi-session-1", event => observed.push(event));
+    receive?.({ type: "event", event: {
+      id: "name", seq: 1, sessionId: "session-1", piSessionId: "pi-session-1", type: "session_info_changed", ts: snapshot.updatedAt,
+      payload: { type: "session_info_changed", name: "Auto title", surface: "hidden", origin: "sdk" },
+    } });
+    expect(observed).toEqual([]);
   });
 
   it("keeps extension diagnostics visible without turning an idle session into a failed run", async () => {

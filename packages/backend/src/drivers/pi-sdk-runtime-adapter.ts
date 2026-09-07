@@ -55,6 +55,7 @@ export type PublicPiSdkModelRuntime = {
 };
 
 export type PublicPiSdkAgentSession = {
+  sessionName?: string;
   sessionId: string;
   isStreaming: boolean;
   messages: readonly unknown[];
@@ -720,6 +721,23 @@ async function createPublicPiSdkRuntime(context: {
       }
     };
     const unsubscribe = session.subscribe((event) => {
+      if (
+        isRecord(event) &&
+        event.type === "session_info_changed" &&
+        (event.name === undefined || typeof event.name === "string")
+      ) {
+        emit({
+          piSessionId: session.sessionId,
+          type: "session_info_changed",
+          payload: {
+            type: "session_info_changed",
+            name: event.name ?? "",
+            surface: "hidden",
+            origin: "sdk",
+          },
+        });
+        return;
+      }
       if (isUserMessageEndEvent(event)) {
         void waitForSessionManagerAppend().then(() => {
           const piEntryId = userEntryIdFromSessionManager(session.sessionManager);
@@ -744,6 +762,7 @@ async function createPublicPiSdkRuntime(context: {
     const runtime: PiSdkSessionRuntime = {
       piSessionId: session.sessionId,
       runtimeId: `pi-sdk:${context.input.sessionId}`,
+      sessionName: session.sessionName ?? "",
       cwd: session.sessionManager?.getCwd?.() ?? context.input.cwd,
       status: session.isStreaming ? "running" : "idle",
       sessionFile: session.sessionManager?.getSessionFile?.(),
@@ -782,6 +801,7 @@ async function createPublicPiSdkRuntime(context: {
       },
       async getSnapshot() {
         return {
+          sessionName: session.sessionName ?? "",
           status: statusFromSession({ session, promptCompleted, stopped }),
           summary: summaryFromSession(session),
           modelControls: modelControlsFromSession(session),

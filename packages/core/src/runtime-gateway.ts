@@ -103,6 +103,7 @@ export type RuntimeToolSchemas = {
 };
 
 export type RuntimeGatewaySnapshot = {
+  sessionName?: string;
   sessionId: string;
   runtimeId: string;
   piSessionId: string;

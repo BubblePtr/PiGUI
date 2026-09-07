@@ -132,6 +132,7 @@ export type SessionReplayEntry =
   | { kind: "chat"; seq: number; event: PiRuntimeEvent };
 
 export type PiSessionState = {
+  sessionName?: string;
   piSessionId: string;
   runtimeId: string;
   projectId: string;

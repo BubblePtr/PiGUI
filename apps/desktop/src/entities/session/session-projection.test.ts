@@ -1303,3 +1303,12 @@ describe("Session Projection state", () => {
     ).toBeUndefined();
   });
 });
+
+it("restores Pi names from a runtime snapshot", () => {
+  const projection = createSessionProjection({ id: "named", projectId: "p", initialPrompt: "Original request", createdAt: "2026-09-07T00:00:00Z" });
+  const restored = applySessionProjectionEvent(projection, { type: "runtime-state-resynced", state: {
+    piSessionId: "pi-named", runtimeId: "runtime-named", projectId: "p", cwd: "/repo", sessionName: "Recovered name",
+    status: "idle", events: [], updatedAt: "2026-09-07T01:00:00Z",
+  } });
+  expect(getSessionProjectionListItems([restored])[0]?.title).toBe("Recovered name");
+});

@@ -12,8 +12,9 @@ export type PersistedSessionProjection = {
   piSessionId: string;
   projectId: string;
   initialPrompt?: string;
-  // Custom Session name; absent until renamed, so lists fall back to the prompt.
+  // Manual title overrides the Pi session name and initial prompt.
   title?: string;
+  sessionName?: string;
   cwd: string;
   status: RuntimeGatewaySnapshot["status"] | "archived";
   sessionFile?: string;
@@ -85,6 +86,7 @@ export function projectionFromRuntimeSnapshot(
 ): PersistedSessionProjection {
   return {
     sessionId: snapshot.sessionId,
+    sessionName: snapshot.sessionName,
     runtimeId: snapshot.runtimeId,
     piSessionId: snapshot.piSessionId,
     projectId: snapshot.projectId,
@@ -123,6 +125,7 @@ export function mergeSessionProjection(
     ...next,
     initialPrompt: next.initialPrompt ?? current.initialPrompt,
     title: next.title ?? current.title,
+    sessionName: next.sessionName ?? current.sessionName,
     status:
       current.status === "archived"
         ? "archived"

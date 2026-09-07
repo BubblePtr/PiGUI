@@ -1838,3 +1838,15 @@ describe("Runtime Gateway service", () => {
     await expect(stat(join(dataDir, "chats", "session-project"))).rejects.toThrow();
   });
 });
+
+it("persists plugin names without replacing manual titles or changing activity time", async () => {
+  const driver = createFakeRuntimeDriver();
+  const projections = createInMemorySessionProjectionStore();
+  const gateway = createRuntimeGatewayService({ driver, projections });
+  await gateway.handleRequest({ id: "create", method: "create_session", params: { sessionId: "named", projectId: "p", cwd: "/repo" } });
+  const before = (await projections.get("named"))!;
+  await projections.save({ ...before, title: "Manual title" });
+  driver.emitDriverEvent({ piSessionId: "pi-session-1", type: "session_info_changed", payload: { type: "session_info_changed", name: "Auto title", surface: "hidden" } });
+  await gateway.handleRequest({ id: "flush", method: "list_session_projections", params: {} });
+  expect(await projections.get("named")).toMatchObject({ title: "Manual title", sessionName: "Auto title", updatedAt: before.updatedAt });
+});

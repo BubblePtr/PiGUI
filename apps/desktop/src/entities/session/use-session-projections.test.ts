@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PersistedSessionProjection } from "@pigui/backend";
+import { getSessionProjectionListItems } from "@/entities/session/session-projection";
 import { sessionProjectionFromPersistedProjection } from "@/entities/session/use-session-projections";
 
 const record: PersistedSessionProjection = {
@@ -24,4 +25,10 @@ describe("session projection hydration", () => {
     ).toBe("Sidebar actions");
     expect(sessionProjectionFromPersistedProjection(record).title).toBeNull();
   });
+});
+
+it("uses Pi names below manual titles and above initial prompts", () => {
+  const named = sessionProjectionFromPersistedProjection({ ...record, sessionName: "Auto title" } as PersistedSessionProjection);
+  expect(getSessionProjectionListItems([named])[0]?.title).toBe("Auto title");
+  expect(getSessionProjectionListItems([{ ...named, title: "Manual title" }])[0]?.title).toBe("Manual title");
 });

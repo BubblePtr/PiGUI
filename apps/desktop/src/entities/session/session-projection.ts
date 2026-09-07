@@ -39,8 +39,9 @@ export type SessionProjection = {
   id: string;
   projectId: string;
   initialPrompt: string;
-  // Custom Session name; null until renamed, so lists fall back to the prompt.
+  // Manual title overrides the Pi session name and initial prompt.
   title: string | null;
+  sessionName?: string;
   cwd: string | null;
   status: SessionStatus;
   creationStage: SessionCreationStage;
@@ -295,7 +296,7 @@ export function getSessionProjectionListItems(
     )
     .map((projection) => ({
       id: projection.id,
-      title: projection.title ?? projection.initialPrompt,
+      title: projection.title ?? (projection.sessionName?.trim() || projection.initialPrompt),
       active: isSessionProjectionActive(projection),
       unread: projection.unreadResult,
       archived: isSessionProjectionArchived(projection),
@@ -714,6 +715,7 @@ export function applySessionProjectionEvent(
         piSessionId: event.state.piSessionId,
         cwd: event.state.cwd,
         sessionFile: event.state.sessionFile ?? projection.sessionFile,
+        sessionName: event.state.sessionName ?? projection.sessionName,
         runtimeEvents,
         runtimeModel,
         summary: event.state.summary ? { ...event.state.summary } : projection.summary,

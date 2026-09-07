@@ -29,11 +29,12 @@ export type PiSdkUserMessageBoundary = {
 export type PiSdkSnapshotPatch = Partial<
   Pick<
     RuntimeGatewaySnapshot,
-    "status" | "events" | "summary" | "modelControls" | "contextUsage" | "updatedAt"
+    "sessionName" | "status" | "events" | "summary" | "modelControls" | "contextUsage" | "updatedAt"
   >
 >;
 
 export type PiSdkSessionRuntime = {
+  sessionName?: string;
   piSessionId: string;
   runtimeId?: string;
   cwd?: string;
@@ -156,6 +157,7 @@ function snapshotFromRuntime(input: {
     ("sessionFile" in input.appSession ? input.appSession.sessionFile : undefined);
   const snapshot: RuntimeGatewaySnapshot = {
     sessionId: input.appSession.sessionId,
+    sessionName: input.runtime.sessionName,
     runtimeId: input.runtime.runtimeId ?? `pi-sdk:${input.appSession.sessionId}`,
     piSessionId: input.runtime.piSessionId,
     projectId: input.appSession.projectId,
@@ -188,6 +190,8 @@ function mergeSnapshotPatch(
   patch: PiSdkSnapshotPatch,
 ): RuntimeGatewaySnapshot {
   const merged = cloneSnapshot(snapshot);
+
+  if (patch.sessionName !== undefined) merged.sessionName = patch.sessionName;
 
   if (patch.status) {
     merged.status = patch.status;
