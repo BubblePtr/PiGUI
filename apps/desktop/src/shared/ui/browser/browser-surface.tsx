@@ -1,4 +1,10 @@
-import type { ComponentProps, Ref } from "react";
+import {
+  createContext,
+  useContext,
+  type ComponentProps,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { StackItem } from "@astryxdesign/core/Stack";
 import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
@@ -33,39 +39,127 @@ import {
 export type BrowserSurfaceState =
   | { kind: "narrow" }
   | { kind: "unsupported" }
-  | { kind: "empty" }
+  | { kind: "empty"; phase?: "idle" | "initializing" | "opening" | "blank" }
   | { kind: "live" }
   | { kind: "error"; message: string };
 
+type BrowserSurfaceContextValue = {
+  state: BrowserSurfaceState;
+};
+
+const BrowserSurfaceContext = createContext<BrowserSurfaceContextValue | null>(null);
+
+function useBrowserSurfaceContext(component: string) {
+  const value = useContext(BrowserSurfaceContext);
+  if (!value) {
+    throw new Error(`${component} must be used within BrowserSurface`);
+  }
+  return value;
+}
+
+function showsBrowserChrome(state: BrowserSurfaceState) {
+  if (state.kind === "narrow" || state.kind === "unsupported") {
+    return false;
+  }
+  return state.kind !== "empty" || state.phase === "blank";
+}
+
 type BrowserSurfaceOwnProps = {
+  state: BrowserSurfaceState;
+  children?: ReactNode;
+};
+
+export type BrowserSurfaceProps = Omit<ComponentProps<"div">, keyof BrowserSurfaceOwnProps> &
+  BrowserSurfaceOwnProps;
+
+export function BrowserSurface({
+  state,
+  children,
+  className,
+  ...rest
+}: BrowserSurfaceProps) {
+  return (
+    <BrowserSurfaceContext.Provider value={{ state }}>
+      <div
+        className={`flex h-full min-h-0 flex-col ${className ?? ""}`.trim()}
+        data-slot="browser-surface"
+        {...rest}
+      >
+        {children}
+      </div>
+    </BrowserSurfaceContext.Provider>
+  );
+}
+
+type BrowserSurfaceTabsOwnProps = {
   tabs: readonly SessionSurfaceTabItem[];
   activeTabId: string | null;
   onActiveTabChange: (id: string) => void;
   onAddTab: () => void;
   onCloseTab: (id: string) => void;
-  isOpening?: boolean;
-  isInitializing?: boolean;
-  isLoading?: boolean;
+  annotationCount: number;
+};
+
+export type BrowserSurfaceTabsProps = Omit<
+  ComponentProps<"div">,
+  keyof BrowserSurfaceTabsOwnProps | "children"
+> &
+  BrowserSurfaceTabsOwnProps;
+
+function BrowserSurfaceTabs({
+  tabs,
+  activeTabId,
+  onActiveTabChange,
+  onAddTab,
+  onCloseTab,
+  annotationCount,
+  className,
+  ...rest
+}: BrowserSurfaceTabsProps) {
+  const { state } = useBrowserSurfaceContext("BrowserSurface.Tabs");
+  const isLive = state.kind === "live";
+
+  if (!showsBrowserChrome(state) || tabs.length === 0) {
+    return null;
+  }
+
+  return (
+    <SessionSurfaceBar
+      actions={
+        isLive && annotationCount > 0 ? (
+          <span
+            className="shrink-0 text-xs tabular-nums text-muted"
+            data-testid="browser-annotation-count"
+          >
+            {annotationCount} marked
+          </span>
+        ) : null
+      }
+      className={className}
+      {...rest}
+    >
+      <SessionSurfaceTabs
+        activeId={activeTabId}
+        addLabel="New browser tab"
+        icon={Globe}
+        items={tabs}
+        aria-label="Browser instances"
+        onActiveChange={onActiveTabChange}
+        onAdd={onAddTab}
+        onClose={onCloseTab}
+      />
+    </SessionSurfaceBar>
+  );
+}
+
+type BrowserSurfaceToolbarOwnProps = {
   address: string;
-  state: BrowserSurfaceState;
+  isLoading?: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
-  /** Elements marked in the page; the marks themselves live in the page. */
-  annotationCount: number;
   isDesignMode: boolean;
-  /** A send is in flight; the page is settling its overlay for the shot. */
   isSending?: boolean;
-  /**
-   * One line about the last send — no composer took it, or it went without its
-   * screenshot. Plain text: a layer here would swap the live page for a still.
-   */
-  notice?: string | null;
-  /**
-   * Still of the page, shown instead of the native view while a DOM overlay
-   * is open — the native view would otherwise cover it.
-   */
-  snapshot?: string | null;
-  viewportRef?: Ref<HTMLDivElement>;
+  annotationCount: number;
   onAddressChange: (address: string) => void;
   onAddressSubmit: (address: string) => void;
   onBack: () => void;
@@ -74,35 +168,23 @@ type BrowserSurfaceOwnProps = {
   onOpenExternal: () => void;
   onClearAnnotations: () => void;
   onDesignModeChange: (isDesignMode: boolean) => void;
-  /** Drops the marks and a screenshot of them into this Session's composer. */
   onSendToComposer: () => void;
 };
 
-export type BrowserSurfaceProps = Omit<
+export type BrowserSurfaceToolbarProps = Omit<
   ComponentProps<"div">,
-  keyof BrowserSurfaceOwnProps | "children"
+  keyof BrowserSurfaceToolbarOwnProps | "children"
 > &
-  BrowserSurfaceOwnProps;
+  BrowserSurfaceToolbarOwnProps;
 
-export function BrowserSurface({
-  tabs,
-  activeTabId,
-  onActiveTabChange,
-  onAddTab,
-  onCloseTab,
-  isOpening,
-  isInitializing,
-  isLoading,
+function BrowserSurfaceToolbar({
   address,
-  state,
+  isLoading,
   canGoBack,
   canGoForward,
-  annotationCount,
   isDesignMode,
   isSending,
-  notice,
-  snapshot,
-  viewportRef,
+  annotationCount,
   onAddressChange,
   onAddressSubmit,
   onBack,
@@ -114,136 +196,141 @@ export function BrowserSurface({
   onSendToComposer,
   className,
   ...rest
-}: BrowserSurfaceProps) {
-  const hasChrome = state.kind !== "narrow" && state.kind !== "unsupported";
+}: BrowserSurfaceToolbarProps) {
+  const { state } = useBrowserSurfaceContext("BrowserSurface.Toolbar");
   const isLive = state.kind === "live";
 
+  if (!showsBrowserChrome(state)) {
+    return null;
+  }
+
   return (
-    <div
-      className={`flex h-full min-h-0 flex-col ${className ?? ""}`.trim()}
-      data-slot="browser-surface"
+    <SessionSurfaceBar
+      actions={
+        <>
+          {/* Plain buttons only. Anything that opens a layer — Popover,
+              Tooltip, Select — would trip the overlay detection and freeze
+              the page into a still, leaving the user marking up a
+              screenshot. */}
+          <ToggleButton
+            isIconOnly
+            icon={<Crosshair className="size-4" />}
+            isDisabled={!isLive}
+            // Nothing can be marked where no page is live, so the toggle
+            // never reads as pressed there — a pressed, disabled control
+            // claims a state the user cannot leave.
+            isPressed={isLive && isDesignMode}
+            label="Design"
+            size="sm"
+            onPressedChange={onDesignModeChange}
+          />
+          <IconButton
+            icon={<Trash2 className="size-4" />}
+            isDisabled={!isLive || annotationCount === 0}
+            label="Clear marks"
+            size="sm"
+            variant="ghost"
+            onClick={onClearAnnotations}
+          />
+          {/* The action design mode exists for, so it is the one control
+              here that carries its own label. Nothing to send without a
+              mark: the prompt would be a URL and a screenshot with no
+              question on it. */}
+          <Button
+            // Disabled while one is in flight: the page has to settle its
+            // overlay before the shot, and a second click during that would
+            // paste the block into the draft twice. Astryx only dedupes
+            // `clickAction`, and that is a layer-free promise this button
+            // cannot use.
+            isDisabled={!isLive || annotationCount === 0 || isSending}
+            label="Send to composer"
+            size="sm"
+            onClick={onSendToComposer}
+          >
+            To composer
+          </Button>
+          <IconButton
+            icon={<LinkExternal className="size-4" />}
+            isDisabled={!isLive}
+            label="Open in default browser"
+            size="sm"
+            variant="ghost"
+            onClick={onOpenExternal}
+          />
+        </>
+      }
+      className={className}
       {...rest}
     >
-      {hasChrome && tabs.length > 0 ? (
-        <SessionSurfaceBar
-          actions={
-            isLive && annotationCount > 0 ? (
-              <span
-                className="shrink-0 text-xs tabular-nums text-muted"
-                data-testid="browser-annotation-count"
-              >
-                {annotationCount} marked
-              </span>
-            ) : null
-          }
-        >
-          <SessionSurfaceTabs
-            activeId={activeTabId}
-            addLabel="New browser tab"
-            icon={Globe}
-            items={tabs}
-            aria-label="Browser instances"
-            onActiveChange={onActiveTabChange}
-            onAdd={onAddTab}
-            onClose={onCloseTab}
-          />
-        </SessionSurfaceBar>
-      ) : null}
-      {hasChrome && tabs.length > 0 ? (
-        <SessionSurfaceBar
-          actions={
-            <>
-              {/* Plain buttons only. Anything that opens a layer — Popover,
-                  Tooltip, Select — would trip the overlay detection and freeze
-                  the page into a still, leaving the user marking up a
-                  screenshot. */}
-              <ToggleButton
-                isIconOnly
-                icon={<Crosshair className="size-4" />}
-                isDisabled={!isLive}
-                // Nothing can be marked where no page is live, so the toggle
-                // never reads as pressed there — a pressed, disabled control
-                // claims a state the user cannot leave.
-                isPressed={isLive && isDesignMode}
-                label="Design"
-                size="sm"
-                onPressedChange={onDesignModeChange}
-              />
-              <IconButton
-                icon={<Trash2 className="size-4" />}
-                isDisabled={!isLive || annotationCount === 0}
-                label="Clear marks"
-                size="sm"
-                variant="ghost"
-                onClick={onClearAnnotations}
-              />
-              {/* The action design mode exists for, so it is the one control
-                  here that carries its own label. Nothing to send without a
-                  mark: the prompt would be a URL and a screenshot with no
-                  question on it. */}
-              <Button
-                // Disabled while one is in flight: the page has to settle its
-                // overlay before the shot, and a second click during that would
-                // paste the block into the draft twice. Astryx only dedupes
-                // `clickAction`, and that is a layer-free promise this button
-                // cannot use.
-                isDisabled={!isLive || annotationCount === 0 || isSending}
-                label="Send to composer"
-                size="sm"
-                onClick={onSendToComposer}
-              >
-                To composer
-              </Button>
-              <IconButton
-                icon={<LinkExternal className="size-4" />}
-                isDisabled={!isLive}
-                label="Open in default browser"
-                size="sm"
-                variant="ghost"
-                onClick={onOpenExternal}
-              />
-            </>
-          }
-        >
-          <IconButton
-            icon={<ArrowLeft className="size-4" />}
-            isDisabled={!canGoBack}
-            label="Back"
-            size="sm"
-            variant="ghost"
-            onClick={onBack}
-          />
-          <IconButton
-            icon={<ArrowRight className="size-4" />}
-            isDisabled={!canGoForward}
-            label="Forward"
-            size="sm"
-            variant="ghost"
-            onClick={onForward}
-          />
-          <IconButton
-            icon={<RefreshCw className="size-4" />}
-            label="Reload"
-            size="sm"
-            variant="ghost"
-            onClick={onReload}
-          />
-          <StackItem size="fill">
-            <TextInput
-              isLabelHidden
-              isLoading={isLoading}
-              label="Address"
-              placeholder="localhost:5173"
-              size="sm"
-              value={address}
-              width="100%"
-              onChange={onAddressChange}
-              onEnter={() => onAddressSubmit(address)}
-            />
-          </StackItem>
-        </SessionSurfaceBar>
-      ) : null}
-      {hasChrome && notice ? (
+      <IconButton
+        icon={<ArrowLeft className="size-4" />}
+        isDisabled={!canGoBack}
+        label="Back"
+        size="sm"
+        variant="ghost"
+        onClick={onBack}
+      />
+      <IconButton
+        icon={<ArrowRight className="size-4" />}
+        isDisabled={!canGoForward}
+        label="Forward"
+        size="sm"
+        variant="ghost"
+        onClick={onForward}
+      />
+      <IconButton
+        icon={<RefreshCw className="size-4" />}
+        label="Reload"
+        size="sm"
+        variant="ghost"
+        onClick={onReload}
+      />
+      <StackItem size="fill">
+        <TextInput
+          isLabelHidden
+          isLoading={isLoading}
+          label="Address"
+          placeholder="localhost:5173"
+          size="sm"
+          value={address}
+          width="100%"
+          onChange={onAddressChange}
+          onEnter={() => onAddressSubmit(address)}
+        />
+      </StackItem>
+    </SessionSurfaceBar>
+  );
+}
+
+type BrowserSurfaceViewportOwnProps = {
+  viewportRef?: Ref<HTMLDivElement>;
+  snapshot?: string | null;
+  notice?: string | null;
+  onAddTab?: () => void;
+  onReload?: () => void;
+};
+
+export type BrowserSurfaceViewportProps = Omit<
+  ComponentProps<"div">,
+  keyof BrowserSurfaceViewportOwnProps | "children"
+> &
+  BrowserSurfaceViewportOwnProps;
+
+function BrowserSurfaceViewport({
+  viewportRef,
+  snapshot,
+  notice,
+  onAddTab,
+  onReload,
+  className,
+  ...rest
+}: BrowserSurfaceViewportProps) {
+  const { state } = useBrowserSurfaceContext("BrowserSurface.Viewport");
+  const showNotice = state.kind !== "narrow" && state.kind !== "unsupported" && notice;
+
+  return (
+    <div className={`flex min-h-0 flex-1 flex-col ${className ?? ""}`.trim()} {...rest}>
+      {showNotice ? (
         // Its own line rather than a layer or a toast: the native view covers
         // anything that floats, and this has to be readable next to the page
         // it is about.
@@ -255,41 +342,20 @@ export function BrowserSurface({
           {notice}
         </p>
       ) : null}
-      <div className="min-h-0 flex-1">
-        <BrowserSurfaceBody
-          hasTabs={tabs.length > 0}
-          isOpening={isOpening}
-          isInitializing={isInitializing}
-          onAddTab={onAddTab}
-          snapshot={snapshot}
-          state={state}
-          viewportRef={viewportRef}
-          onReload={onReload}
-        />
-      </div>
+      <div className="min-h-0 flex-1">{renderViewportBody(state, { viewportRef, snapshot, onAddTab, onReload })}</div>
     </div>
   );
 }
 
-function BrowserSurfaceBody({
-  state,
-  hasTabs,
-  isOpening,
-  isInitializing,
-  onAddTab,
-  snapshot,
-  viewportRef,
-  onReload,
-}: {
-  state: BrowserSurfaceState;
-  hasTabs: boolean;
-  isOpening?: boolean;
-  isInitializing?: boolean;
-  onAddTab: () => void;
-  snapshot?: string | null;
-  viewportRef?: Ref<HTMLDivElement>;
-  onReload: () => void;
-}) {
+function renderViewportBody(
+  state: BrowserSurfaceState,
+  {
+    viewportRef,
+    snapshot,
+    onAddTab,
+    onReload,
+  }: Pick<BrowserSurfaceViewportOwnProps, "viewportRef" | "snapshot" | "onAddTab" | "onReload">,
+) {
   switch (state.kind) {
     case "narrow":
       return (
@@ -311,36 +377,38 @@ function BrowserSurfaceBody({
         />
       );
     case "empty":
-      if (!hasTabs) {
+      if (state.phase === "blank") {
         return (
           <EmptyState
-            style={{
-              height: "100%",
-              justifyContent: "center",
-              paddingInline: "var(--spacing-4)",
-            }}
-            title={isInitializing ? "Loading browser…" : "No browser tabs open"}
-            description="Open the browser to preview a website. Saved project tabs will be restored."
+            className="h-full justify-center px-4"
+            description="Enter the address of a running dev server to preview it here."
             icon={<Globe className="size-5 text-muted" />}
             isCompact
-            actions={isInitializing ? undefined : (
-              <Button
-                label="Open browser"
-                size="sm"
-                isLoading={isOpening}
-                onClick={onAddTab}
-              />
-            )}
+            title="No page loaded"
           />
         );
       }
       return (
         <EmptyState
-          className="h-full justify-center px-4"
-          description="Enter the address of a running dev server to preview it here."
+          style={{
+            height: "100%",
+            justifyContent: "center",
+            paddingInline: "var(--spacing-4)",
+          }}
+          title={state.phase === "initializing" ? "Loading browser…" : "No browser tabs open"}
+          description="Open the browser to preview a website. Saved project tabs will be restored."
           icon={<Globe className="size-5 text-muted" />}
           isCompact
-          title="No page loaded"
+          actions={
+            state.phase === "initializing" ? undefined : (
+              <Button
+                label="Open browser"
+                size="sm"
+                isLoading={state.phase === "opening"}
+                onClick={onAddTab}
+              />
+            )
+          }
         />
       );
     case "error":
@@ -379,3 +447,7 @@ function BrowserSurfaceBody({
       );
   }
 }
+
+BrowserSurface.Tabs = BrowserSurfaceTabs;
+BrowserSurface.Toolbar = BrowserSurfaceToolbar;
+BrowserSurface.Viewport = BrowserSurfaceViewport;

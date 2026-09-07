@@ -184,6 +184,7 @@ function BrowserSessionContent({
     () => (tabId ? { sessionId, tabId } : null),
     [sessionId, tabId],
   );
+  const tabCount = group?.tabs.length ?? 0;
   const state: BrowserSurfaceState = !docked
     ? { kind: "narrow" }
     : !isElectronRuntime()
@@ -192,7 +193,13 @@ function BrowserSessionContent({
         ? { kind: "error", message: active.error }
         : active?.url
           ? { kind: "live" }
-          : { kind: "empty" };
+          : tabCount > 0
+            ? { kind: "empty", phase: "blank" }
+            : available && group === null && !actionError
+              ? { kind: "empty", phase: "initializing" }
+              : isOpening
+                ? { kind: "empty", phase: "opening" }
+                : { kind: "empty" };
   const pushBounds = useCallback(
     (rect: BrowserViewRect) => {
       const page = target();
@@ -365,79 +372,87 @@ function BrowserSessionContent({
   };
 
   const addressKey = tabId ?? "empty";
+  const tabs = (group?.tabs ?? []).map((tab, index) => ({
+    id: tab.tabId,
+    label: `Browser ${index + 1}`,
+    hint: tab.title ? `${tab.title} — ${tab.url}` : tab.url,
+  }));
+  const annotationCount = active?.annotations.length ?? 0;
+  const onAddTab = () => void openNewTab();
+  const onReload = () => {
+    if (active?.error) {
+      void submitAddress(active.url);
+      return;
+    }
+    if (active)
+      runPageCommand(() => reloadBrowser({ sessionId, tabId: active.tabId }));
+  };
   return (
-    <BrowserSurface
-      tabs={(group?.tabs ?? []).map((tab, index) => ({
-        id: tab.tabId,
-        label: `Browser ${index + 1}`,
-        hint: tab.title ? `${tab.title} — ${tab.url}` : tab.url,
-      }))}
-      activeTabId={tabId}
-      onActiveTabChange={(tabId) =>
-        void changeTabs(() => activateBrowserTab({ sessionId, tabId }))
-      }
-      onAddTab={() => void openNewTab()}
-      isOpening={isOpening}
-      isInitializing={available && group === null && !actionError}
-      onCloseTab={(tabId) =>
-        void changeTabs(() => closeBrowserTab({ sessionId, tabId }))
-      }
-      address={drafts[addressKey] ?? active?.url ?? ""}
-      annotationCount={active?.annotations.length ?? 0}
-      canGoBack={active?.canGoBack ?? false}
-      canGoForward={active?.canGoForward ?? false}
-      isDesignMode={active?.designMode ?? false}
-      isLoading={active?.loading ?? false}
-      isSending={sendingTabId === tabId && tabId !== null}
-      notice={actionError ?? notices[addressKey]}
-      snapshot={currentSnapshot}
-      state={state}
-      viewportRef={viewportRef}
-      onAddressChange={(address) =>
-        setDrafts((current) => ({ ...current, [addressKey]: address }))
-      }
-      onAddressSubmit={(url) => void submitAddress(url)}
-      onBack={() => {
-        if (active)
-          runPageCommand(() => browserBack({ sessionId, tabId: active.tabId }));
-      }}
-      onForward={() => {
-        if (active)
-          runPageCommand(() =>
-            browserForward({ sessionId, tabId: active.tabId }),
-          );
-      }}
-      onReload={() => {
-        if (active?.error) {
-          void submitAddress(active.url);
-          return;
+    <BrowserSurface state={state}>
+      <BrowserSurface.Tabs
+        tabs={tabs}
+        activeTabId={tabId}
+        annotationCount={annotationCount}
+        onActiveTabChange={(nextTabId) =>
+          void changeTabs(() => activateBrowserTab({ sessionId, tabId: nextTabId }))
         }
-        if (active)
-          runPageCommand(() =>
-            reloadBrowser({ sessionId, tabId: active.tabId }),
-          );
-      }}
-      onOpenExternal={() => {
-        if (active) runPageCommand(() => openBrowserUrlExternally(active.url));
-      }}
-      onClearAnnotations={() => {
-        if (active)
-          runPageCommand(() =>
-            clearBrowserAnnotations({ sessionId, tabId: active.tabId }),
-          );
-      }}
-      onDesignModeChange={(enabled) => {
-        if (active)
-          runPageCommand(() =>
-            setBrowserDesignMode({ sessionId, tabId: active.tabId }, enabled),
-          );
-      }}
-      onSendToComposer={() =>
-        void sendToComposer().catch((error) => {
-          if (alive.current) setActionError(errorMessage(error));
-        })
-      }
-    />
+        onAddTab={onAddTab}
+        onCloseTab={(nextTabId) =>
+          void changeTabs(() => closeBrowserTab({ sessionId, tabId: nextTabId }))
+        }
+      />
+      <BrowserSurface.Toolbar
+        address={drafts[addressKey] ?? active?.url ?? ""}
+        annotationCount={annotationCount}
+        canGoBack={active?.canGoBack ?? false}
+        canGoForward={active?.canGoForward ?? false}
+        isDesignMode={active?.designMode ?? false}
+        isLoading={active?.loading ?? false}
+        isSending={sendingTabId === tabId && tabId !== null}
+        onAddressChange={(address) =>
+          setDrafts((current) => ({ ...current, [addressKey]: address }))
+        }
+        onAddressSubmit={(url) => void submitAddress(url)}
+        onBack={() => {
+          if (active)
+            runPageCommand(() => browserBack({ sessionId, tabId: active.tabId }));
+        }}
+        onClearAnnotations={() => {
+          if (active)
+            runPageCommand(() =>
+              clearBrowserAnnotations({ sessionId, tabId: active.tabId }),
+            );
+        }}
+        onDesignModeChange={(enabled) => {
+          if (active)
+            runPageCommand(() =>
+              setBrowserDesignMode({ sessionId, tabId: active.tabId }, enabled),
+            );
+        }}
+        onForward={() => {
+          if (active)
+            runPageCommand(() =>
+              browserForward({ sessionId, tabId: active.tabId }),
+            );
+        }}
+        onOpenExternal={() => {
+          if (active) runPageCommand(() => openBrowserUrlExternally(active.url));
+        }}
+        onReload={onReload}
+        onSendToComposer={() =>
+          void sendToComposer().catch((error) => {
+            if (alive.current) setActionError(errorMessage(error));
+          })
+        }
+      />
+      <BrowserSurface.Viewport
+        notice={actionError ?? notices[addressKey]}
+        snapshot={currentSnapshot}
+        viewportRef={viewportRef}
+        onAddTab={onAddTab}
+        onReload={onReload}
+      />
+    </BrowserSurface>
   );
 }
 

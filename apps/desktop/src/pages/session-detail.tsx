@@ -505,7 +505,28 @@ export function SessionDetailView({
               No steps match the current filters.
             </p>
           ) : (
-            <PiTrajectoryLedger>
+            <PiTrajectoryLedger
+              isStepDimmed={
+                focusedStepIds ? (step) => !focusedStepIds.has(step.id) : undefined
+              }
+              registerStepRef={(stepId, element) => {
+                if (element) {
+                  stepRefs.current.set(stepId, element);
+                } else {
+                  stepRefs.current.delete(stepId);
+                }
+              }}
+              registerTurnRef={(turnIndex, element) => {
+                if (element) {
+                  turnRefs.current.set(turnIndex, element);
+                } else {
+                  turnRefs.current.delete(turnIndex);
+                }
+              }}
+              selectedStepId={selectedStepId}
+              stepFilter={stepFilter}
+              onSelectedStepChange={setSelectedStepId}
+            >
               <ol
                 className="relative"
                 data-testid="timeline-viewport"
@@ -523,29 +544,7 @@ export function SessionDetailView({
                     >
                       <PiTrajectoryLedger.Run
                         isDimmed={isRunDimmed(run.index)}
-                        isStepDimmed={
-                          focusedStepIds && !isRunDimmed(run.index)
-                            ? (step) => !focusedStepIds.has(step.id)
-                            : undefined
-                        }
-                        registerStepRef={(stepId, element) => {
-                          if (element) {
-                            stepRefs.current.set(stepId, element);
-                          } else {
-                            stepRefs.current.delete(stepId);
-                          }
-                        }}
-                        registerTurnRef={(turnIndex, element) => {
-                          if (element) {
-                            turnRefs.current.set(turnIndex, element);
-                          } else {
-                            turnRefs.current.delete(turnIndex);
-                          }
-                        }}
                         run={run}
-                        selectedStepId={selectedStepId}
-                        stepFilter={stepFilter}
-                        onSelectedStepChange={setSelectedStepId}
                       />
                     </li>
                   );

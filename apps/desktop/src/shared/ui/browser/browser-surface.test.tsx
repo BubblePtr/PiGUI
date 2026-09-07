@@ -1,11 +1,40 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
+import {
+  BrowserSurface,
+  type BrowserSurfaceState,
+} from "@/shared/ui/browser/browser-surface";
+import type { SessionSurfaceTabItem } from "@/shared/ui/session-dock/surface-bar";
 
-function surfaceProps(
-  overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {},
-) {
+type SurfaceHarness = {
+  tabs: readonly SessionSurfaceTabItem[];
+  activeTabId: string | null;
+  onActiveTabChange: (id: string) => void;
+  onAddTab: () => void;
+  onCloseTab: (id: string) => void;
+  address: string;
+  state: BrowserSurfaceState;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  annotationCount: number;
+  isDesignMode: boolean;
+  isLoading?: boolean;
+  isSending?: boolean;
+  notice?: string | null;
+  snapshot?: string | null;
+  onAddressChange: (address: string) => void;
+  onAddressSubmit: (address: string) => void;
+  onBack: () => void;
+  onForward: () => void;
+  onReload: () => void;
+  onOpenExternal: () => void;
+  onClearAnnotations: () => void;
+  onDesignModeChange: (isDesignMode: boolean) => void;
+  onSendToComposer: () => void;
+};
+
+function surfaceProps(overrides: Partial<SurfaceHarness> = {}): SurfaceHarness {
   return {
     tabs: [
       { id: "a", label: "Browser 1" },
@@ -16,7 +45,7 @@ function surfaceProps(
     onAddTab: vi.fn(),
     onCloseTab: vi.fn(),
     address: "",
-    state: { kind: "live" } as const,
+    state: { kind: "live" },
     canGoBack: false,
     canGoForward: false,
     annotationCount: 0,
@@ -34,12 +63,49 @@ function surfaceProps(
   };
 }
 
-function renderSurface(
-  overrides: Partial<Parameters<typeof BrowserSurface>[0]> = {},
-) {
+function ComposedBrowserSurface(props: SurfaceHarness) {
+  return (
+    <BrowserSurface state={props.state}>
+      <BrowserSurface.Tabs
+        tabs={props.tabs}
+        activeTabId={props.activeTabId}
+        annotationCount={props.annotationCount}
+        onActiveTabChange={props.onActiveTabChange}
+        onAddTab={props.onAddTab}
+        onCloseTab={props.onCloseTab}
+      />
+      <BrowserSurface.Toolbar
+        address={props.address}
+        annotationCount={props.annotationCount}
+        canGoBack={props.canGoBack}
+        canGoForward={props.canGoForward}
+        isDesignMode={props.isDesignMode}
+        isLoading={props.isLoading}
+        isSending={props.isSending}
+        onAddressChange={props.onAddressChange}
+        onAddressSubmit={props.onAddressSubmit}
+        onBack={props.onBack}
+        onClearAnnotations={props.onClearAnnotations}
+        onDesignModeChange={props.onDesignModeChange}
+        onForward={props.onForward}
+        onOpenExternal={props.onOpenExternal}
+        onReload={props.onReload}
+        onSendToComposer={props.onSendToComposer}
+      />
+      <BrowserSurface.Viewport
+        notice={props.notice}
+        snapshot={props.snapshot}
+        onAddTab={props.onAddTab}
+        onReload={props.onReload}
+      />
+    </BrowserSurface>
+  );
+}
+
+function renderSurface(overrides: Partial<SurfaceHarness> = {}) {
   const props = surfaceProps(overrides);
 
-  render(<BrowserSurface {...props} />);
+  render(<ComposedBrowserSurface {...props} />);
 
   return props;
 }
@@ -80,12 +146,14 @@ describe("BrowserSurface", () => {
 
   it("withholds creation during initialization and disables it while opening", async () => {
     const user = userEvent.setup();
-    const props = surfaceProps({ tabs: [], activeTabId: null, state: { kind: "empty" } });
-    const view = render(<BrowserSurface {...props} isInitializing />);
+    const props = surfaceProps({ tabs: [], activeTabId: null, state: { kind: "empty", phase: "initializing" } });
+    const view = render(<ComposedBrowserSurface {...props} />);
     expect(screen.getByText("Loading browser…")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
 
-    view.rerender(<BrowserSurface {...props} isOpening />);
+    view.rerender(
+      <ComposedBrowserSurface {...props} state={{ kind: "empty", phase: "opening" }} />,
+    );
     const open = screen.getByRole("button", { name: "Open browser" });
     expect(open).toBeDisabled();
     await user.click(open);
@@ -169,14 +237,14 @@ describe("BrowserSurface", () => {
   it("reports how many elements are marked and clears them only when there are", async () => {
     const user = userEvent.setup();
     const props = surfaceProps();
-    const view = render(<BrowserSurface {...props} />);
+    const view = render(<ComposedBrowserSurface {...props} />);
 
     expect(
       screen.queryByTestId("browser-annotation-count"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear marks" })).toBeDisabled();
 
-    view.rerender(<BrowserSurface {...props} annotationCount={2} isDesignMode />);
+    view.rerender(<ComposedBrowserSurface {...props} annotationCount={2} isDesignMode />);
 
     expect(screen.getByTestId("browser-annotation-count")).toHaveTextContent(
       "2",
@@ -189,14 +257,14 @@ describe("BrowserSurface", () => {
   it("sends the marks to the composer, but only once there are some", async () => {
     const user = userEvent.setup();
     const props = surfaceProps();
-    const view = render(<BrowserSurface {...props} />);
+    const view = render(<ComposedBrowserSurface {...props} />);
     const send = () => screen.getByRole("button", { name: "Send to composer" });
 
     // An unmarked page has nothing to say: the prompt would be a URL and a
     // screenshot with no question attached to it.
     expect(send()).toBeDisabled();
 
-    view.rerender(<BrowserSurface {...props} annotationCount={1} />);
+    view.rerender(<ComposedBrowserSurface {...props} annotationCount={1} />);
     await user.click(send());
 
     expect(props.onSendToComposer).toHaveBeenCalledTimes(1);
@@ -204,7 +272,7 @@ describe("BrowserSurface", () => {
 
   it("keeps the design controls out of reach until a page is live", () => {
     renderSurface({
-      state: { kind: "empty" },
+      state: { kind: "empty", phase: "blank" },
       annotationCount: 2,
       isDesignMode: true,
     });
@@ -221,11 +289,49 @@ describe("BrowserSurface", () => {
   });
 
   it("only offers Open in browser once there is a page to open", () => {
-    renderSurface({ state: { kind: "empty" } });
+    renderSurface({ state: { kind: "empty", phase: "blank" } });
     expect(
       screen.getByRole("button", { name: "Open in default browser" }),
     ).toBeDisabled();
 
     screen.getByRole("textbox", { name: "Address" });
+  });
+
+  it("renders the native viewport placeholder only while live", () => {
+    const { rerender } = render(
+      <BrowserSurface state={{ kind: "empty" }}>
+        <BrowserSurface.Viewport />
+      </BrowserSurface>,
+    );
+
+    expect(screen.queryByTestId("browser-viewport")).not.toBeInTheDocument();
+
+    rerender(
+      <BrowserSurface state={{ kind: "live" }}>
+        <BrowserSurface.Viewport />
+      </BrowserSurface>,
+    );
+
+    expect(screen.getByTestId("browser-viewport")).toBeInTheDocument();
+  });
+
+  it("takes initializing and opening from empty state instead of booleans", () => {
+    const onAddTab = vi.fn();
+    const { rerender } = render(
+      <BrowserSurface state={{ kind: "empty", phase: "initializing" }}>
+        <BrowserSurface.Viewport onAddTab={onAddTab} />
+      </BrowserSurface>,
+    );
+
+    expect(screen.getByText("Loading browser…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open browser" })).not.toBeInTheDocument();
+
+    rerender(
+      <BrowserSurface state={{ kind: "empty", phase: "opening" }}>
+        <BrowserSurface.Viewport onAddTab={onAddTab} />
+      </BrowserSurface>,
+    );
+
+    expect(screen.getByRole("button", { name: "Open browser" })).toBeDisabled();
   });
 });

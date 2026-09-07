@@ -28,7 +28,21 @@
 
 ## BrowserSurface
 
-`state: { kind: "narrow" } | { kind: "unsupported" } | { kind: "empty" } | { kind: "live" } | { kind: "error"; message }`。只有 `live` 渲染 viewport 占位（其 rect 驱动原生 `WebContentsView`）；`narrow` / `unsupported` 不画任何 chrome；零 tab 显示 Astryx `EmptyState`。22 个 prop 全部无默认值，页面（`session-browser-panel.tsx`）拥有全部状态。弹层出现时传 `snapshot`，组件显示静态快照并让原生视图让位。
+复合件：根只持 `state`，经 context 把状态交给子件。`state.kind` 为 `"narrow" | "unsupported" | "empty" | "live" | "error"`；`empty` 可用 `phase: "idle" | "initializing" | "opening" | "blank"`（无 phase 即 idle）。只有 `live` 渲染 viewport 占位（其 rect 驱动原生 `WebContentsView`）；`narrow` / `unsupported` 不画 chrome；零 tab 的 empty 显示 Astryx `EmptyState`。页面组合 `Tabs`（实例条）+ `Toolbar`（地址/导航/design mode）+ `Viewport`（占位、快照、notice、空态）。弹层出现时把 `snapshot` 传给 Viewport。
+
+```tsx
+<BrowserSurface state={state}>
+  <BrowserSurface.Tabs tabs={tabs} activeTabId={id} annotationCount={n}
+    onActiveTabChange={activate} onAddTab={add} onCloseTab={close} />
+  <BrowserSurface.Toolbar address={address} canGoBack={canGoBack} canGoForward={canGoForward}
+    isDesignMode={isDesignMode} annotationCount={n} onAddressChange={setAddress}
+    onAddressSubmit={submit} onBack={back} onForward={forward} onReload={reload}
+    onOpenExternal={open} onClearAnnotations={clear} onDesignModeChange={setDesign}
+    onSendToComposer={send} />
+  <BrowserSurface.Viewport viewportRef={viewportRef} snapshot={snapshot} notice={notice}
+    onAddTab={add} onReload={reload} />
+</BrowserSurface>
+```
 
 ## TerminalView
 
@@ -38,7 +52,7 @@ xterm.js 宿主，对外只有 `ref.write()` / `ref.focus()` 和 `onData` / `onR
 
 三件套读同一个模型 `entities/session/trajectory-model.ts`（Run > Turn > Step）：
 
-- `PiTrajectoryLedger` + `.Run`：台账，行永不内联展开；徽章四色（USER / ASSISTANT / TOOL / CONTEXT）全部来自 `trajectoryStepType()` 与 `--pigui-data-*`。
+- `PiTrajectoryLedger` + `.Run`：台账，行永不内联展开；徽章四色（USER / ASSISTANT / TOOL / CONTEXT）全部来自 `trajectoryStepType()` 与 `--pigui-data-*`。选中态、过滤、step/turn ref 放在根上经 context 下发；`.Run` 只传 `run`（外加可选 `isDimmed`）。`runs` 快捷路径行为不变。
 - `PiTrajectoryStrip`：概览带。`widthMode: "steps" | "duration"` 必填且由页面持有；`lane` 只有 `"input" | "model" | "tools"`。推不出真实区间的段用斜纹 + 弱化标出，估算不伪装成实测。
 - `PiTrajectoryInspector`：`tab` 取自 `trajectoryInspectorTabs = ["Summary","Payload","Result","Schema","Timing"]`，由页面持有；Schema 拿不到时显示 unavailable 诚实态。
 

@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react";
+import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { formatToolDuration } from "@/shared/ui/chat/chat-tool";
 import type { TrajectoryRole, TrajectoryRun, TrajectoryStep } from "@/entities/session/trajectory-model";
 
@@ -203,18 +203,31 @@ function LedgerRow({
   );
 }
 
-type PiTrajectoryLedgerRunOwnProps = {
-  run: TrajectoryRun;
+type PiTrajectoryLedgerContextValue = {
   selectedStepId?: string;
   onSelectedStepChange?: (stepId: string) => void;
-  /** Focus semantics (Strip brush): dimmed runs stay rendered, greyed out. */
-  isDimmed?: boolean;
-  /** Focus semantics: dim rows outside the selected swimlane block. */
   isStepDimmed?: (step: TrajectoryStep) => boolean;
-  /** True filter: steps not passing it drop out of the ledger. */
   stepFilter?: (step: TrajectoryStep) => boolean;
   registerStepRef?: (stepId: string, element: HTMLButtonElement | null) => void;
   registerTurnRef?: (turnIndex: number, element: HTMLDivElement | null) => void;
+};
+
+const PiTrajectoryLedgerContext = createContext<PiTrajectoryLedgerContextValue | null>(
+  null,
+);
+
+function usePiTrajectoryLedgerContext() {
+  const value = useContext(PiTrajectoryLedgerContext);
+  if (!value) {
+    throw new Error("PiTrajectoryLedger.Run must be used within PiTrajectoryLedger");
+  }
+  return value;
+}
+
+type PiTrajectoryLedgerRunOwnProps = {
+  run: TrajectoryRun;
+  /** Focus semantics (Strip brush): dimmed runs stay rendered, greyed out. */
+  isDimmed?: boolean;
 };
 
 export type PiTrajectoryLedgerRunProps = Omit<
@@ -225,16 +238,18 @@ export type PiTrajectoryLedgerRunProps = Omit<
 
 function Run({
   run,
-  selectedStepId,
-  onSelectedStepChange,
   isDimmed = false,
-  isStepDimmed,
-  stepFilter,
-  registerStepRef,
-  registerTurnRef,
   className,
   ...rest
 }: PiTrajectoryLedgerRunProps) {
+  const {
+    selectedStepId,
+    onSelectedStepChange,
+    isStepDimmed,
+    stepFilter,
+    registerStepRef,
+    registerTurnRef,
+  } = usePiTrajectoryLedgerContext();
   const visibleTurns = run.turns
     .map((turn) => ({
       turn,
@@ -287,7 +302,7 @@ function Run({
           ) : null}
           {steps.map((step) => (
             <LedgerRow
-              isDimmed={isStepDimmed?.(step) ?? false}
+              isDimmed={!isDimmed && (isStepDimmed?.(step) ?? false)}
               isSelected={step.id === selectedStepId}
               key={step.id}
               role={turn.role}
@@ -307,7 +322,17 @@ type PiTrajectoryLedgerOwnProps = {
   emptyLabel?: string;
   /** Alternative to `runs`: render PiTrajectoryLedger.Run rows yourself (virtualization). */
   children?: ReactNode;
-} & Omit<PiTrajectoryLedgerRunOwnProps, "run">;
+  selectedStepId?: string;
+  onSelectedStepChange?: (stepId: string) => void;
+  /** Focus semantics (Strip brush): dimmed runs stay rendered, greyed out. */
+  isDimmed?: boolean;
+  /** Focus semantics: dim rows outside the selected swimlane block. */
+  isStepDimmed?: (step: TrajectoryStep) => boolean;
+  /** True filter: steps not passing it drop out of the ledger. */
+  stepFilter?: (step: TrajectoryStep) => boolean;
+  registerStepRef?: (stepId: string, element: HTMLButtonElement | null) => void;
+  registerTurnRef?: (turnIndex: number, element: HTMLDivElement | null) => void;
+};
 
 export type PiTrajectoryLedgerProps = Omit<
   ComponentProps<"div">,
@@ -330,28 +355,26 @@ export function PiTrajectoryLedger({
   ...rest
 }: PiTrajectoryLedgerProps) {
   const isEmpty = !children && (runs?.length ?? 0) === 0;
+  const context: PiTrajectoryLedgerContextValue = {
+    selectedStepId,
+    onSelectedStepChange,
+    isStepDimmed,
+    stepFilter,
+    registerStepRef,
+    registerTurnRef,
+  };
 
   return (
-    <div className={`font-mono text-xs ${className}`.trim()} data-slot="trajectory-ledger" {...rest}>
-      {isEmpty ? (
-        <p className="px-3 py-8 text-center text-muted">{emptyLabel}</p>
-      ) : (
-        (children ??
-          runs?.map((run) => (
-            <Run
-              key={run.index}
-              isDimmed={isDimmed}
-              isStepDimmed={isStepDimmed}
-              registerStepRef={registerStepRef}
-              registerTurnRef={registerTurnRef}
-              run={run}
-              selectedStepId={selectedStepId}
-              stepFilter={stepFilter}
-              onSelectedStepChange={onSelectedStepChange}
-            />
-          )))
-      )}
-    </div>
+    <PiTrajectoryLedgerContext.Provider value={context}>
+      <div className={`font-mono text-xs ${className}`.trim()} data-slot="trajectory-ledger" {...rest}>
+        {isEmpty ? (
+          <p className="px-3 py-8 text-center text-muted">{emptyLabel}</p>
+        ) : (
+          (children ??
+            runs?.map((run) => <Run isDimmed={isDimmed} key={run.index} run={run} />))
+        )}
+      </div>
+    </PiTrajectoryLedgerContext.Provider>
   );
 }
 

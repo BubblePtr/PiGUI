@@ -43,13 +43,15 @@ const PROBE_TESTID = "contract-root";
 
 function noop() {}
 
-function renderProbed(element: ReactElement) {
-  return render(
-    cloneElement(element, {
-      className: PROBE_CLASS,
-      "data-testid": PROBE_TESTID,
-    } as never),
-  );
+function renderProbed(
+  element: ReactElement,
+  host?: (node: ReactElement) => ReactElement,
+) {
+  const probed = cloneElement(element, {
+    className: PROBE_CLASS,
+    "data-testid": PROBE_TESTID,
+  } as never);
+  return render(host ? host(probed) : probed);
 }
 
 const modelControls: RuntimeModelControls = {
@@ -106,7 +108,11 @@ const inspectorTurn: TrajectoryTurn = {
   steps: [],
 };
 
-const cases: Array<{ name: string; ui: ReactElement }> = [
+const cases: Array<{
+  name: string;
+  ui: ReactElement;
+  host?: (node: ReactElement) => ReactElement;
+}> = [
   { name: "Activity", ui: <Activity /> },
   { name: "DotMatrix", ui: <DotMatrix /> },
   { name: "PiKpi", ui: <PiKpi label="Cost" value={1} /> },
@@ -120,7 +126,11 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
     ui: <TrajectoryStepBadge type={{ label: "tool", color: "var(--pigui-data-orange)" }} />,
   },
   { name: "PiTrajectoryLedger", ui: <PiTrajectoryLedger runs={[]} /> },
-  { name: "PiTrajectoryLedger.Run", ui: <PiTrajectoryLedger.Run run={ledgerRun} /> },
+  {
+    name: "PiTrajectoryLedger.Run",
+    ui: <PiTrajectoryLedger.Run run={ledgerRun} />,
+    host: (node) => <PiTrajectoryLedger>{node}</PiTrajectoryLedger>,
+  },
   {
     name: "PiTrajectoryStrip",
     ui: (
@@ -147,28 +157,9 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
   {
     name: "BrowserSurface",
     ui: (
-      <BrowserSurface
-        tabs={[{ id: "a", label: "Browser 1" }]}
-        activeTabId="a"
-        onActiveTabChange={noop}
-        onAddTab={noop}
-        onCloseTab={noop}
-        address=""
-        state={{ kind: "live" }}
-        canGoBack={false}
-        canGoForward={false}
-        annotationCount={0}
-        isDesignMode={false}
-        onAddressChange={noop}
-        onAddressSubmit={noop}
-        onBack={noop}
-        onForward={noop}
-        onReload={noop}
-        onOpenExternal={noop}
-        onClearAnnotations={noop}
-        onDesignModeChange={noop}
-        onSendToComposer={noop}
-      />
+      <BrowserSurface state={{ kind: "live" }}>
+        <p>surface</p>
+      </BrowserSurface>
     ),
   },
   {
@@ -306,8 +297,8 @@ const cases: Array<{ name: string; ui: ReactElement }> = [
 ];
 
 describe("shared/ui contract", () => {
-  it.each(cases)("$name forwards className and data-testid to the root", ({ ui }) => {
-    renderProbed(ui);
+  it.each(cases)("$name forwards className and data-testid to the root", ({ ui, host }) => {
+    renderProbed(ui, host);
     const root = screen.getByTestId(PROBE_TESTID);
     expect(root).toHaveClass(PROBE_CLASS);
   });

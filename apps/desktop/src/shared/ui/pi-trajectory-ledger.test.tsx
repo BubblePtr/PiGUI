@@ -181,6 +181,27 @@ describe("PiTrajectoryLedger", () => {
     expect(container.querySelectorAll('[data-slot="trajectory-ledger-row"]')).toHaveLength(6);
   });
 
+  it("lets Run read the selected step from ledger context", () => {
+    const runs = buildTrajectoryRuns(buildTrajectoryTurns(sessionTurns));
+    const { container } = render(
+      <PiTrajectoryLedger selectedStepId="t1-s1">
+        <PiTrajectoryLedger.Run run={runs[0]} />
+      </PiTrajectoryLedger>,
+    );
+
+    const playhead = container.querySelector("[data-playhead]");
+    expect(playhead).not.toBeNull();
+    expect(playhead).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("throws when Run is rendered outside PiTrajectoryLedger", () => {
+    const runs = buildTrajectoryRuns(buildTrajectoryTurns(sessionTurns));
+
+    expect(() => render(<PiTrajectoryLedger.Run run={runs[0]} />)).toThrow(
+      /PiTrajectoryLedger/,
+    );
+  });
+
   it("renders an empty state label when there are no runs", () => {
     render(<PiTrajectoryLedger emptyLabel="No timeline entries found." runs={[]} />);
 
