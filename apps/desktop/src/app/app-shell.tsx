@@ -5,11 +5,12 @@ import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { HStack } from "@astryxdesign/core/Stack";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
 import {
   Archive,
   BarChart3,
   ChatAdd,
+  ChevronDown,
   ChevronRight,
   FolderClosed,
   FolderOpen,
@@ -26,6 +27,7 @@ import {
 } from "@/shared/ui/icons";
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -287,7 +289,7 @@ function getVisibleProjectRegistry() {
 
 function getActiveTab(pathname: string) {
   if (pathname === "/") {
-    return "New Session";
+    return "New Chat";
   }
 
   if (pathname.startsWith("/projects/chat/")) {
@@ -295,7 +297,7 @@ function getActiveTab(pathname: string) {
   }
 
   if (pathname.startsWith("/projects/")) {
-    return "Sessions";
+    return "Chat";
   }
 
   if (pathname === "/trajectory" || pathname.startsWith("/sessions/")) {
@@ -394,6 +396,91 @@ function ProjectExpansionIndicator({
   );
 }
 
+function SidebarSessionRows({
+  sessions,
+  sessionsHydrated,
+  selectedSessionId,
+  groupRouteActive,
+  draftViewActive,
+  sessionProjectId,
+  onOpenSession,
+  onOpenTrajectory,
+  onRenameSession,
+  onArchiveSession,
+  onDeleteSession,
+}: {
+  sessions: SessionProjectionListItem[];
+  sessionsHydrated: boolean;
+  selectedSessionId: string | null;
+  groupRouteActive: boolean;
+  draftViewActive: boolean;
+  sessionProjectId: string;
+  onOpenSession: (sessionId: string, projectId: string) => void;
+  onOpenTrajectory: (piSessionId: string) => void;
+  onRenameSession: (sessionId: string) => void;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+}) {
+  return (
+    <>
+      {sessions.length === 0 ? (
+        <SideNavItem
+          icon={<SessionGlyphSlot active={false} unread={false} />}
+          isDisabled
+          label={sessionsHydrated ? "No chats" : "Loading chats"}
+        />
+      ) : null}
+      {sessions.map((session) => {
+        const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
+
+        return (
+          // Same overlay-sibling pattern as the project row: the actions
+          // menu cannot live inside the SideNavItem <button>.
+          <div
+            key={session.id}
+            className="pigui-sidenav-row-with-actions pigui-sidenav-session-row"
+            data-testid="session-row-with-actions"
+          >
+            <SideNavItem
+              icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
+              isSelected={
+                !draftViewActive && groupRouteActive && session.id === selectedSessionId
+              }
+              label={session.title}
+              endContent={
+                <HStack
+                  className="pigui-sidenav-session-meta"
+                  gap={1}
+                  vAlign="center"
+                >
+                  {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+                  <span className="text-muted text-[10px] leading-none">
+                    {formatSessionListTime(session.updatedAt)}
+                  </span>
+                </HStack>
+              }
+              onClick={() => onOpenSession(session.id, sessionProjectId)}
+            />
+            <HStack
+              className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
+              gap={0.5}
+              vAlign="center"
+            >
+              <SessionActionsMenu
+                session={session}
+                onOpenTrajectory={onOpenTrajectory}
+                onRenameSession={onRenameSession}
+                onArchiveSession={onArchiveSession}
+                onDeleteSession={onDeleteSession}
+              />
+            </HStack>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function SidebarSessionGroupBody({
   rowTestId,
   expanded,
@@ -447,60 +534,19 @@ function SidebarSessionGroupBody({
         // so the label truncates before the overlay.
         endContent={<span aria-hidden="true" className="pigui-sidenav-actions-spacer" />}
       >
-        {sessions.length === 0 ? (
-          <SideNavItem
-            icon={<SessionGlyphSlot active={false} unread={false} />}
-            isDisabled
-            label={sessionsHydrated ? "No chats" : "Loading chats"}
-          />
-        ) : null}
-        {sessions.map((session) => {
-          const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
-
-          return (
-            // Same overlay-sibling pattern as the project row: the actions
-            // menu cannot live inside the SideNavItem <button>.
-            <div
-              key={session.id}
-              className="pigui-sidenav-row-with-actions pigui-sidenav-session-row"
-              data-testid="session-row-with-actions"
-            >
-              <SideNavItem
-                icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
-                isSelected={
-                  !draftViewActive && groupRouteActive && session.id === selectedSessionId
-                }
-                label={session.title}
-                endContent={
-                  <HStack
-                    className="pigui-sidenav-session-meta"
-                    gap={1}
-                    vAlign="center"
-                  >
-                    {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
-                    <span className="text-muted text-[10px] leading-none">
-                      {formatSessionListTime(session.updatedAt)}
-                    </span>
-                  </HStack>
-                }
-                onClick={() => onOpenSession(session.id, sessionProjectId)}
-              />
-              <HStack
-                className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
-                gap={0.5}
-                vAlign="center"
-              >
-                <SessionActionsMenu
-                  session={session}
-                  onOpenTrajectory={onOpenTrajectory}
-                  onRenameSession={onRenameSession}
-                  onArchiveSession={onArchiveSession}
-                  onDeleteSession={onDeleteSession}
-                />
-              </HStack>
-            </div>
-          );
-        })}
+        <SidebarSessionRows
+          sessions={sessions}
+          sessionsHydrated={sessionsHydrated}
+          selectedSessionId={selectedSessionId}
+          groupRouteActive={groupRouteActive}
+          draftViewActive={draftViewActive}
+          sessionProjectId={sessionProjectId}
+          onOpenSession={onOpenSession}
+          onOpenTrajectory={onOpenTrajectory}
+          onRenameSession={onRenameSession}
+          onArchiveSession={onArchiveSession}
+          onDeleteSession={onDeleteSession}
+        />
       </SideNavItem>
       <HStack className="pigui-sidenav-row-actions" gap={0.5} vAlign="center">
         {!expanded && hasUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
@@ -594,13 +640,14 @@ function AddProjectButton({
     }
   };
 
-  // SideNavItem (not Button) so the collapsed 48px rail collapses it to an
-  // icon like every other nav row instead of overflowing its label.
   return (
-    <SideNavItem
-      icon={<Plus aria-hidden="true" className="size-4" />}
+    <IconButton
+      icon={<Plus aria-hidden="true" />}
       isDisabled={choosing}
       label="Add Project"
+      tooltip="Add Project"
+      size="sm"
+      variant="ghost"
       onClick={() => void chooseProject()}
     />
   );
@@ -712,14 +759,27 @@ function SessionActionsMenu({
   );
 }
 
+function useSidebarSectionExpansion(section: "chats" | "projects") {
+  const storageKey = `pigui.sidebarSection.${section}.expanded.v1`;
+  const [expanded, setExpanded] = useState(() =>
+    typeof window === "undefined" || window.localStorage.getItem(storageKey) !== "false",
+  );
+  const contentId = useId();
+  const toggle = () => {
+    const next = !expanded;
+    window.localStorage.setItem(storageKey, String(next));
+    setExpanded(next);
+  };
+
+  return { expanded, contentId, toggle };
+}
+
 function ChatNavigation({
   draftViewActive,
   pathname,
   selectedSessionId,
   sessions,
   sessionsHydrated,
-  expanded,
-  onToggle,
   onOpenSession,
   onNewChat,
   onOpenTrajectory,
@@ -732,8 +792,6 @@ function ChatNavigation({
   selectedSessionId: string | null;
   sessions: SessionProjectionListItem[];
   sessionsHydrated: boolean;
-  expanded: boolean;
-  onToggle: () => void;
   onOpenSession: (sessionId: string, projectId: string) => void;
   onNewChat: () => void;
   onOpenTrajectory: (piSessionId: string) => void;
@@ -745,6 +803,7 @@ function ChatNavigation({
     isChatProjectId(session.projection.projectId),
   );
   const chatRouteActive = /^\/projects\/chat(?:\/|$)/.test(pathname);
+  const { expanded, contentId, toggle } = useSidebarSectionExpansion("chats");
   const [followUpDraftVersion, setFollowUpDraftVersion] = useState(0);
 
   useEffect(
@@ -756,38 +815,44 @@ function ChatNavigation({
   );
   void followUpDraftVersion;
 
-  const hasUnsentFollowUp = chatSessions.some((session) => hasFollowUpDraft(session.id));
-
   return (
-    <SideNavSection data-testid="sidebar-chats" title="Chats">
-      <SidebarSessionGroupBody
-        rowTestId="chats-row-with-actions"
-        expanded={expanded}
-        onToggle={onToggle}
-        icon={<ProjectExpansionIndicator expanded={expanded} icon={ChatAdd} />}
-        label={CHAT_WORKSPACE_DISPLAY_NAME}
-        sessions={chatSessions}
-        sessionsHydrated={sessionsHydrated}
-        selectedSessionId={selectedSessionId}
-        groupRouteActive={chatRouteActive}
-        draftViewActive={draftViewActive}
-        sessionProjectId={CHAT_PROJECT_ID}
-        onOpenSession={onOpenSession}
-        onOpenTrajectory={onOpenTrajectory}
-        onRenameSession={onRenameSession}
-        onArchiveSession={onArchiveSession}
-        onDeleteSession={onDeleteSession}
-        hasUnsentFollowUp={hasUnsentFollowUp}
-        trailingActions={
+    <SideNavSection
+      data-testid="sidebar-chats"
+      title="Chats"
+      endContent={
+        <HStack gap={0.5}>
           <IconButton
-            icon={<Plus aria-hidden="true" />}
-            label="New Chat"
+            icon={expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+            label={expanded ? "Collapse Chats" : "Expand Chats"}
+            tooltip={expanded ? "Collapse Chats" : "Expand Chats"}
+            aria-expanded={expanded}
+            aria-controls={contentId}
             size="sm"
             variant="ghost"
-            onClick={onNewChat}
+            onClick={toggle}
           />
-        }
-      />
+          <IconButton icon={<Plus aria-hidden="true" />} label="New Chat without a project"
+            tooltip="New Chat" size="sm" variant="ghost" onClick={onNewChat} />
+        </HStack>
+      }
+    >
+      <VStack id={contentId} gap={0.5}>
+        {expanded ? (
+          <SidebarSessionRows
+            sessions={chatSessions}
+            sessionsHydrated={sessionsHydrated}
+            selectedSessionId={selectedSessionId}
+            groupRouteActive={chatRouteActive}
+            draftViewActive={draftViewActive}
+            sessionProjectId={CHAT_PROJECT_ID}
+            onOpenSession={onOpenSession}
+            onOpenTrajectory={onOpenTrajectory}
+            onRenameSession={onRenameSession}
+            onArchiveSession={onArchiveSession}
+            onDeleteSession={onDeleteSession}
+          />
+        ) : null}
+      </VStack>
     </SideNavSection>
   );
 }
@@ -832,6 +897,7 @@ function ProjectNavigation({
   onDeleteSession: (sessionId: string) => void;
 }) {
   const projectActive = pathname.startsWith("/projects/");
+  const { expanded: sectionExpanded, contentId, toggle } = useSidebarSectionExpansion("projects");
   const [followUpDraftVersion, setFollowUpDraftVersion] = useState(0);
 
   useEffect(
@@ -842,68 +908,79 @@ function ProjectNavigation({
     [],
   );
 
-  if (projects.length === 0) {
-    return (
-      <SideNavSection data-testid="sidebar-projects" title="Projects">
-        <AddProjectButton onAddProject={onAddProject} />
-      </SideNavSection>
-    );
-  }
-
   return (
-    <SideNavSection data-testid="sidebar-projects" title="Projects">
-      {projects.map((project) => {
-        const projectSessions = sessions.filter(
-          (session) => session.projection.projectId === project.id,
-        );
-        const expanded = expandedProjects[project.id] ?? true;
-        const hasProjectUnsentFollowUp = projectSessions.some((session) =>
-          hasFollowUpDraft(session.id),
-        );
-
-        void followUpDraftVersion;
-
-        return (
-          <SidebarSessionGroupBody
-            key={project.id}
-            rowTestId="project-row-with-actions"
-            expanded={expanded}
-            onToggle={() => onToggleProject(project.id)}
-            icon={<ProjectExpansionIndicator expanded={expanded} />}
-            label={project.displayName}
-            sessions={projectSessions}
-            sessionsHydrated={sessionsHydrated}
-            selectedSessionId={selectedSessionId}
-            groupRouteActive={projectActive}
-            draftViewActive={draftViewActive}
-            sessionProjectId={project.id}
-            onOpenSession={onOpenSession}
-            onOpenTrajectory={onOpenTrajectory}
-            onRenameSession={onRenameSession}
-            onArchiveSession={onArchiveSession}
-            onDeleteSession={onDeleteSession}
-            hasUnsentFollowUp={hasProjectUnsentFollowUp}
-            trailingActions={
-              <>
-                <IconButton
-                  icon={<Plus aria-hidden="true" />}
-                  label={`New Session for ${project.displayName}`}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onNewProjectSession(project.id)}
-                />
-                <ProjectActionsMenu
-                  project={project}
-                  onRenameProject={onRenameProject}
-                  onRevealProject={onRevealProject}
-                  onRemoveProject={onRemoveProject}
-                />
-              </>
-            }
+    <SideNavSection
+      data-testid="sidebar-projects"
+      title="Projects"
+      endContent={
+        <HStack gap={0.5}>
+          <IconButton
+            icon={sectionExpanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
+            label={sectionExpanded ? "Collapse Projects" : "Expand Projects"}
+            tooltip={sectionExpanded ? "Collapse Projects" : "Expand Projects"}
+            aria-expanded={sectionExpanded}
+            aria-controls={contentId}
+            size="sm"
+            variant="ghost"
+            onClick={toggle}
           />
-        );
-      })}
-      <AddProjectButton onAddProject={onAddProject} />
+          <AddProjectButton onAddProject={onAddProject} />
+        </HStack>
+      }
+    >
+      <VStack id={contentId} gap={0.5}>
+        {sectionExpanded ? projects.map((project) => {
+          const projectSessions = sessions.filter(
+            (session) => session.projection.projectId === project.id,
+          );
+          const expanded = expandedProjects[project.id] ?? true;
+          const hasProjectUnsentFollowUp = projectSessions.some((session) =>
+            hasFollowUpDraft(session.id),
+          );
+
+          void followUpDraftVersion;
+
+          return (
+            <SidebarSessionGroupBody
+              key={project.id}
+              rowTestId="project-row-with-actions"
+              expanded={expanded}
+              onToggle={() => onToggleProject(project.id)}
+              icon={<ProjectExpansionIndicator expanded={expanded} />}
+              label={project.displayName}
+              sessions={projectSessions}
+              sessionsHydrated={sessionsHydrated}
+              selectedSessionId={selectedSessionId}
+              groupRouteActive={projectActive}
+              draftViewActive={draftViewActive}
+              sessionProjectId={project.id}
+              onOpenSession={onOpenSession}
+              onOpenTrajectory={onOpenTrajectory}
+              onRenameSession={onRenameSession}
+              onArchiveSession={onArchiveSession}
+              onDeleteSession={onDeleteSession}
+              hasUnsentFollowUp={hasProjectUnsentFollowUp}
+              trailingActions={
+                <>
+                  <IconButton
+                    icon={<Plus aria-hidden="true" />}
+                    label={`New Chat for ${project.displayName}`}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onNewProjectSession(project.id)}
+                  />
+                  <ProjectActionsMenu
+                    project={project}
+                    onRenameProject={onRenameProject}
+                    onRevealProject={onRevealProject}
+                    onRemoveProject={onRemoveProject}
+                  />
+                </>
+              }
+            />
+          );
+        }) : null}
+      </VStack>
     </SideNavSection>
   );
 }
@@ -924,7 +1001,7 @@ function TrajectoryUsageNavigation({
       <SideNavItem
         icon={<ChatAdd aria-hidden="true" className="size-4" />}
         isSelected={draftViewActive}
-        label="New Session"
+        label="New Chat"
         onClick={onNewSession}
       />
       {trajectoryUsageNavigationItems.map((item) => {
@@ -1302,21 +1379,8 @@ export function AppFrame({
     }
     void router.navigate({ to: to as never });
   };
-  const handleNewSession = () => {
-    if (projects.length === 0) {
-      openSessionDraft(CHAT_PROJECT_ID, CHAT_PROJECT_ID);
-      return;
-    }
-
-    openSessionDraft(null);
-  };
-  const handleNewChat = () => {
-    updateExpandedProjects((currentExpandedProjects) => ({
-      ...currentExpandedProjects,
-      [CHAT_PROJECT_ID]: true,
-    }));
-    openSessionDraft(CHAT_PROJECT_ID, CHAT_PROJECT_ID);
-  };
+  const handleNewSession = () => openSessionDraft(CHAT_PROJECT_ID, CHAT_PROJECT_ID);
+  const handleNewChat = handleNewSession;
   const handleNewProjectSession = (projectId: string) => {
     updateExpandedProjects((currentExpandedProjects) => ({
       ...currentExpandedProjects,
@@ -1542,7 +1606,7 @@ export function AppFrame({
         mainLeft={showSidebar ? headerMainLeft : "0px"}
         showSidebarToggle={showSidebar}
         sidebarOpen={showSidebar ? sidebarOpen : false}
-        title={draftViewActive ? "New Session" : activeTab}
+        title={draftViewActive ? "New Chat" : activeTab}
         toolbarActions={toolbarActions}
         onToggleSidebar={() => handleSidebarOpenChange(!sidebarOpen)}
       />
@@ -1606,8 +1670,6 @@ export function AppFrame({
             selectedSessionId={effectiveSelectedSessionId}
             sessions={sessions}
             sessionsHydrated={effectiveSessionsHydrated}
-            expanded={expandedProjects[CHAT_PROJECT_ID] ?? true}
-            onToggle={() => handleToggleProject(CHAT_PROJECT_ID)}
             onOpenSession={handleOpenSession}
             onNewChat={handleNewChat}
             onOpenTrajectory={(piSessionId) =>

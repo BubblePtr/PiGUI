@@ -13,15 +13,15 @@ PiGUI UI 中围绕一个用户手动选择的本地工作目录建立的组织�
 _Avoid_: Workspace, single session, Git branch, Git-only project, chat-as-project
 
 **Chat Workspace**:
-PiGUI 数据目录下的内置隐藏工作空间根 `<dataDir>/chats/`，不是 Project，不写入 Project Registry，不可 Remove，不经过 `normalizeProjectPath`。identity 用哨兵 `projectId = "chat"`（Registry 的 Project id 都是以 `/` 开头的绝对路径，不会冲突）。每个 Chat Session 在其中拥有独立目录 `<dataDir>/chats/<sessionId>/`，作为 Pi 的 cwd；目录由后端 `prepare_chat_workspace` 创建，渲染层不知道 dataDir。Sidebar 顶部固定 Chats 分组列出这些 Session，可折叠、自带 New Chat，无更多菜单。
+PiGUI 数据目录下的内置隐藏工作空间根 `<dataDir>/chats/`，不是 Project，不写入 Project Registry，不可 Remove，不经过 `normalizeProjectPath`。identity 用哨兵 `projectId = "chat"`（Registry 的 Project id 都是以 `/` 开头的绝对路径，不会冲突）。每个 Chat Session 在其中拥有独立目录 `<dataDir>/chats/<sessionId>/`，作为 Pi 的 cwd；目录由后端 `prepare_chat_workspace` 创建，渲染层不知道 dataDir。Sidebar 顶部固定 Chats 分组直接列出这些 Session，标题旁提供 New Chat，没有中间的 Chat 父级。
 _Avoid_: Project, registry project, auto-discovered folder, custom chat root, temporary project
 
 **Project Selector**:
-PiGUI 中选择 Session Draft 提交目标的入口。首项固定为 "Chat · no project"（Chat Workspace），其后是 Project Registry 里用户手动添加的 Project。空 Workspace 不必先 Add Project 也能选 Chat 并提交 prompt。用户可见文案对代码目录仍用 Project，对无项目对话用 Chat，而不是 Workspace。选择 Project 时是用户工作的根目录语义，不是临时覆盖某个 Session 的 cwd。首次添加 Project 后，该 Project 立即成为 Current Project。Session Draft composer 在 Registry 非空时默认使用 Current Project，Registry 为空时默认 Chat；允许随时切换，切换目标不清空 draft 文本。Project Selector 不承载 Project Removal。
+PiGUI 中选择 Session Draft 提交目标的入口。首项固定为 "No project"（Chat Workspace），其后是 Project Registry 里用户手动添加的 Project。空 Workspace 不必先 Add Project 也能选 Chat 并提交 prompt。用户可见文案对代码目录仍用 Project，对无项目对话用 Chat，而不是 Workspace。选择 Project 时是用户工作的根目录语义，不是临时覆盖某个 Session 的 cwd。首次添加 Project 后，该 Project 立即成为 Current Project。全局 New Chat 和没有历史草稿时的 landing 均默认 Chat，项目旁 New Chat 默认该 Project；允许随时切换，切换目标不清空 draft 文本。Project Selector 不承载 Project Removal。
 _Avoid_: Workspace selector, cwd switcher, session picker, auto-discovered project, composer-only project list
 
 **Project Sidebar**:
-PiGUI 左侧导航面：顶部固定 Chats 分组（Chat Session，不属于任何 Project），其下按添加时间倒序展示 Project Registry 中所有 Project。每个分组/Project 行可以独立展开或收起自己的 Session 列表；行点击只切换展开状态，不切换主内容。新添加的 Project 默认展开，展开状态作为 PiGUI 本地 UI state 跨 app 重启保留，但不等同于 Current Project。从外部入口打开某个 Session 时，Sidebar 自动展开该 Session 所属的分组。Project 行上的 New Session 入口会把该 Project 设为 Current Project，并打开全局唯一的 Session Draft；Chats 行上的 New Chat 把目标锁定为 Chat。Project Removal 只放在 Project 行的更多菜单里，Chats 分组没有 Remove。Sidebar 不为全局 Session Draft 显示 indicator；只有已有 Session 的 Follow-up Draft 需要在对应 Session 行显示轻量 indicator，并可在分组折叠时汇总到分组行。
+PiGUI 左侧导航面：顶部固定 Chats 分组（Chat Session，不属于任何 Project），其下按添加时间倒序展示 Project Registry 中所有 Project。Chats 下直接列出无项目对话。Chats 与 Projects 标题栏各有独立折叠按钮，整组折叠状态在本机保存；标题栏统一为折叠箭头与加号：Chats 的加号新建 Chat，Projects 的加号打开目录选择器添加 Project；不再显示独立的 Add Project 列表行。两组收起后仍保留加号入口，不改变当前会话。每个 Project 行还可以独立展开或收起自己的 Session 列表，行点击只切换展开状态，不切换主内容。新添加的 Project 默认展开，展开状态作为 PiGUI 本地 UI state 跨 app 重启保留，但不等同于 Current Project。从外部入口打开某个 Session 时，Sidebar 自动展开该 Session 所属的 Project（如有）。Project 行上的 New Chat 入口会把该 Project 设为 Current Project，并打开全局唯一的 Session Draft；Chats 标题旁的 New Chat 把当前目标设为 Chat，之后仍可通过 Project Selector 更改。Project Removal 只放在 Project 行的更多菜单里，Chats 分组没有 Remove。Sidebar 不为全局 Session Draft 显示 indicator；只有已有 Session 的 Follow-up Draft 需要在对应 Session 行显示轻量 indicator，并可在分组折叠时汇总到分组行。
 _Avoid_: Single-current-project-only sidebar, global session list, project tree auto-discovery, current-project state, session ownership, project detail navigation, global draft indicator
 
 **Project Registry**:
@@ -33,7 +33,7 @@ _Avoid_: Session-derived project list, recent cwd list, auto-discovery cache, di
 _Avoid_: Delete directory, delete sessions, global navigation reset, silent-fallback-to-chat
 
 **Empty Workspace State**:
-PiGUI 中 Project Registry 为空、没有 Current Project 的状态。此时 Sidebar 仍显示固定的 Chats 分组和 Add Project；全局 New Session 可用，landing 进入 Chat draft，用户可以直接提交 prompt 而不必先添加 Project。
+PiGUI 中 Project Registry 为空、没有 Current Project 的状态。此时 Sidebar 仍显示固定的 Chats 分组和 Add Project；全局 New Chat 可用，landing 进入 Chat draft，用户可以直接提交 prompt 而不必先添加 Project。
 _Avoid_: Default project, prompt-blocked-until-project
 
 **Current Project**:
@@ -77,7 +77,7 @@ _Avoid_: Task, workspace, trace-only session, draft prompt, nullable-projectId
 _Avoid_: untitled project, temporary project, projectless-null-session
 
 **Session Draft**:
-用户点击 New Session 或加号后进入的全局唯一未提交输入状态。它跨 app 重启保留一份 initial prompt、可选的当前提交目标（Project 或 Chat）和少量高级覆盖项，但尚未创建 PiGUI Session、Pi Session State、Agent Run 或 Execution Checkout，也不显示在 Session 列表中。切换目标不清空 Session Draft 文本。如果目标 Project 被移除，draft 文本保留但目标清空，并由 composer 要求重新选择，不自动回落到 Chat；app 启动恢复 draft 时，已不在 Project Registry 中的 Project 目标同样被清空，Chat 目标保持有效。Registry 为空时新 draft 默认目标为 Chat。提交 draft 后才进入 Session 创建流程；只有 Pi Runtime 接受 initial prompt 或发出首个 runtime event 后，draft 才清空。
+用户点击 New Chat 或加号后进入的全局唯一未提交输入状态。它跨 app 重启保留一份 initial prompt、可选的当前提交目标（Project 或 Chat）和少量高级覆盖项，但尚未创建 PiGUI Session、Pi Session State、Agent Run 或 Execution Checkout，也不显示在 Session 列表中。切换目标不清空 Session Draft 文本。如果目标 Project 被移除，draft 文本保留但目标清空，并由 composer 要求重新选择，不自动回落到 Chat；app 启动恢复 draft 时，已不在 Project Registry 中的 Project 目标同样被清空，Chat 目标保持有效。全局新 draft 默认目标为 Chat，与 Registry 是否为空无关。未确定目标时隐藏执行方式；选中 Project 后以 Project folder / Git worktree 说明对文件的影响。草稿不展示上一会话的 Session Dock。提交 draft 后才进入 Session 创建流程；只有 Pi Runtime 接受 initial prompt 或发出首个 runtime event 后，draft 才清空。
 _Avoid_: Per-project draft, Project-scoped draft, follow-up input, Session, Pi session, run, trace
 
 **Follow-up Draft**:

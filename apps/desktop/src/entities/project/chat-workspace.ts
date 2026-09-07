@@ -4,7 +4,7 @@ import type { ProjectRegistryEntry } from "@/entities/project/project-registry";
 export { CHAT_PROJECT_ID };
 
 export const CHAT_WORKSPACE_DISPLAY_NAME = "Chat";
-export const CHAT_PICKER_LABEL = "Chat · no project";
+export const CHAT_PICKER_LABEL = "No project";
 
 export type ChatWorkspaceDescriptor = {
   id: typeof CHAT_PROJECT_ID;

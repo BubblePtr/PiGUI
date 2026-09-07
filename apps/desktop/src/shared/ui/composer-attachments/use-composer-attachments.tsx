@@ -111,7 +111,7 @@ export function useFilePicker(onFiles: (files: File[]) => void) {
 }
 
 export function useComposerInsertCatalog() {
-  const [skills, setSkills] = useState<{ name: string }[]>([]);
+  const [skills, setSkills] = useState<{ name: string; description?: string }[]>([]);
   const [plugins, setPlugins] = useState<{ name: string }[]>([]);
 
   useEffect(() => {

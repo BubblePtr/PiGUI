@@ -27,12 +27,10 @@ export function resolveAppLanding(input: {
   draft: { projectId: string | null } | null;
 }): AppLanding {
   const firstProjectId = input.projects[0]?.id;
-  const requestedDraftProjectId = input.draft?.projectId ?? null;
+  const requestedDraftProjectId = input.draft ? input.draft.projectId : CHAT_PROJECT_ID;
   const draftProjectId = isSelectableDraftTarget(requestedDraftProjectId, input.projects)
     ? requestedDraftProjectId
-    : firstProjectId
-      ? null
-      : CHAT_PROJECT_ID;
+    : null;
   const routeProjectId = draftProjectId ?? firstProjectId ?? CHAT_PROJECT_ID;
 
   return {

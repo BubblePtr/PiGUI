@@ -230,18 +230,18 @@ describe("AppFrame", () => {
     const chatsGroup = screen.getByTestId("sidebar-chats");
     const projectGroup = screen.getByTestId("sidebar-projects");
 
-    expect(within(chatsGroup).getByRole("button", { name: "Chat" })).toBeInTheDocument();
-    expect(within(chatsGroup).getByRole("button", { name: "New Chat" })).toBeInTheDocument();
+    expect(within(chatsGroup).getByText("Chats")).toBeInTheDocument();
+    expect(within(chatsGroup).getByRole("button", { name: "New Chat without a project" })).toBeInTheDocument();
     expect(within(chatsGroup).queryByRole("button", { name: /Project actions/ })).not.toBeInTheDocument();
     expect(within(projectGroup).getByRole("button", { name: "Add Project" })).toBeInTheDocument();
     expect(within(projectGroup).queryByPlaceholderText("Absolute local path")).not.toBeInTheDocument();
     expect(
-      within(projectGroup).queryByRole("button", { name: "New Session for Pig" }),
+      within(projectGroup).queryByRole("button", { name: "New Chat for Pig" }),
     ).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("group", { name: "Trajectory and usage navigation" })).getByRole(
         "button",
-        { name: "New Session" },
+        { name: "New Chat" },
       ),
     ).toBeInTheDocument();
     expect(within(projectGroup).queryByText("Pig")).not.toBeInTheDocument();
@@ -275,12 +275,98 @@ describe("AppFrame", () => {
     expect(within(chatsGroup).queryByRole("button", { name: /Project actions/ })).toBeNull();
   });
 
-  it("renders Add Project as a rail-aware SideNavItem so the collapsed rail hides its label", async () => {
+  it("places the icon-only Add Project beside the section toggle without a duplicate list row", async () => {
+    const user = userEvent.setup();
     renderAppFrame("/projects/pig/sessions", { seedProjects: false });
 
     const addProject = await screen.findByRole("button", { name: "Add Project" });
+    const toggle = screen.getByRole("button", { name: "Collapse Projects" });
+    expect(toggle.parentElement).toContainElement(addProject);
+    expect(addProject.textContent).toBe("");
+    expect(screen.getAllByRole("button", { name: "Add Project" })).toHaveLength(1);
+    await user.click(toggle);
+    expect(addProject).toBeVisible();
+    expect(addProject).toBeEnabled();
+  });
 
-    expect(addProject).toHaveClass("astryx-side-nav-item");
+  it("opens New Chat without a project even when projects exist and preserves the draft", async () => {
+    const user = userEvent.setup();
+    saveSessionDraft(pigProjectPath, "Keep the idea while choosing where to work");
+    const { router } = renderAppFrame("/projects/pig/sessions");
+    const navigation = await screen.findByRole("group", { name: "Trajectory and usage navigation" });
+
+    await user.click(within(navigation).getByRole("button", { name: /^New (Chat|Session)$/ }));
+
+    expect(getSessionDraft()).toMatchObject({
+      projectId: "chat",
+      prompt: "Keep the idea while choosing where to work",
+    });
+    await waitFor(() => expect(router.state.location.pathname).toBe("/projects/chat/sessions"));
+    expect(screen.getByRole("heading", { level: 1, name: "New Chat" })).toBeInTheDocument();
+  });
+
+  it("lists Chats directly under their section with no synthetic Chat parent", async () => {
+    const chat = {
+      ...defaultSidebarProjectSessionProjections[0],
+      id: "session-flat-chat",
+      projectId: "chat",
+      title: "An everyday question",
+      initialPrompt: "An everyday question",
+    };
+    renderAppFrame("/projects/chat/sessions", { sessionProjections: [chat] });
+
+    const section = await screen.findByTestId("sidebar-chats");
+    expect(within(section).getByText("An everyday question")).toBeInTheDocument();
+    expect(within(section).queryByRole("button", { name: "Chat" })).not.toBeInTheDocument();
+    expect(section.querySelector('.astryx-side-nav-item[aria-expanded]:not([aria-haspopup])')).toBeNull();
+    expect(within(section).getByRole("button", { name: "New Chat without a project" })).toBeInTheDocument();
+    expect(section.querySelectorAll("button button")).toHaveLength(0);
+  });
+
+  it("collapses Chats and Projects independently while keeping creation actions available", async () => {
+    const user = userEvent.setup();
+    const chat = {
+      ...defaultSidebarProjectSessionProjections[0],
+      id: "collapsible-chat", projectId: "chat", title: "An everyday question",
+    };
+    const { router } = renderAppFrame("/projects/chat/sessions", {
+      sessionProjections: [...defaultSidebarProjectSessionProjections, chat],
+    });
+    const chats = await screen.findByTestId("sidebar-chats");
+    const projects = screen.getByTestId("sidebar-projects");
+    const collapseChats = within(chats).getByRole("button", { name: "Collapse Chats" });
+    expect(collapseChats).toHaveAttribute("aria-expanded", "true");
+    const chatList = document.getElementById(collapseChats.getAttribute("aria-controls")!)!;
+    await user.click(collapseChats);
+    expect(chatList).toBeEmptyDOMElement();
+    expect(within(chats).getByRole("button", { name: "New Chat without a project" })).toBeEnabled();
+    expect(getProjectHeaderButton(projects, "Pig")).toBeVisible();
+    await user.click(within(projects).getByRole("button", { name: "Collapse Projects" }));
+    expect(within(projects).queryByRole("button", { name: "Pig" })).not.toBeInTheDocument();
+    expect(within(projects).getByRole("button", { name: "Add Project" })).toBeEnabled();
+    expect(router.state.location.pathname).toBe("/projects/chat/sessions");
+
+    within(chats).getByRole("button", { name: "Expand Chats" }).focus();
+    await user.keyboard("{Enter}");
+    expect(within(chats).getByText("An everyday question")).toBeVisible();
+    expect(within(projects).getByRole("button", { name: "Expand Projects" })).toHaveAttribute("aria-expanded", "false");
+    await user.click(within(projects).getByRole("button", { name: "Expand Projects" }));
+    expect(getProjectHeaderButton(projects, "Pig")).toBeVisible();
+  });
+
+  it("restores collapsed sidebar sections after remount and can create a chat while collapsed", async () => {
+    const user = userEvent.setup();
+    const first = renderAppFrame("/projects/pig/sessions");
+    await user.click(await screen.findByRole("button", { name: "Collapse Chats" }));
+    await user.click(screen.getByRole("button", { name: "Collapse Projects" }));
+    first.unmount();
+    const { router } = renderAppFrame("/projects/pig/sessions");
+    expect(await screen.findByRole("button", { name: "Expand Chats" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "Expand Projects" })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: "New Chat without a project" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/projects/chat/sessions"));
+    expect(getSessionDraft()?.projectId).toBe("chat");
+    expect(screen.getByRole("button", { name: "Expand Chats" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("uses the native directory picker when adding a Project", async () => {
@@ -350,23 +436,23 @@ describe("AppFrame", () => {
     });
     const topRows = within(trajectoryUsageNavigation).getAllByRole("button");
     const globalNewSessionRow = within(trajectoryUsageNavigation).getByRole("button", {
-      name: "New Session",
+      name: "New Chat",
     });
     const projectActionsButton = within(projectGroup).getByRole("button", {
       name: "Project actions for Pig",
     });
     const projectNewSessionButton = within(projectGroup).getByRole("button", {
-      name: "New Session for Pig",
+      name: "New Chat for Pig",
     });
 
     expect(topRows.map((row) => row.textContent)).toEqual([
-      "New Session",
+      "New Chat",
       "Trajectory",
       "Usage",
     ]);
     expect(globalNewSessionRow).not.toHaveAttribute("aria-current", "page");
     expect(
-      within(projectNavigation).queryByRole("button", { name: "New Session" }),
+      within(projectNavigation).queryByRole("button", { name: "New Chat" }),
     ).not.toBeInTheDocument();
     expect(projectNewSessionButton).toHaveClass("astryx-button");
     expect(projectNewSessionButton).toHaveAttribute("data-size", "sm");
@@ -374,7 +460,7 @@ describe("AppFrame", () => {
     expect(projectActionsButton).toHaveClass("astryx-button");
     expect(projectActionsButton).toHaveAttribute("data-size", "sm");
     expect(projectActionsButton).toHaveAttribute("aria-haspopup", "menu");
-    expect(screen.getByRole("heading", { level: 1, name: "Sessions" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Chat" })).toBeInTheDocument();
   });
 
   it("renders Project headers as side nav rows with sibling row actions (no nested buttons)", async () => {
@@ -399,7 +485,7 @@ describe("AppFrame", () => {
     );
     expect(rowWrapper).not.toBeNull();
     const projectNewSessionButton = within(rowWrapper!).getByRole("button", {
-      name: "New Session for Pig",
+      name: "New Chat for Pig",
     });
     const projectActionsButton = within(rowWrapper!).getByRole("button", {
       name: "Project actions for Pig",
@@ -562,7 +648,7 @@ describe("AppFrame", () => {
     );
   });
 
-  it("opens the global New Session draft without adding Project draft rows", async () => {
+  it("opens the global New Chat draft without adding Project draft rows", async () => {
     const user = userEvent.setup();
 
     saveSessionDraft(pigProjectPath, "Existing Project draft");
@@ -576,14 +662,14 @@ describe("AppFrame", () => {
       name: "Trajectory and usage navigation",
     });
     const globalNewSessionRow = within(trajectoryUsageNavigation).getByRole("button", {
-      name: "New Session",
+      name: "New Chat",
     });
 
     expect(
-      within(projectGroup).getByRole("button", { name: "New Session for Pig" }),
+      within(projectGroup).getByRole("button", { name: "New Chat for Pig" }),
     ).toHaveClass("astryx-button");
     expect(
-      within(projectNavigation).queryByRole("button", { name: "New Session" }),
+      within(projectNavigation).queryByRole("button", { name: "New Chat" }),
     ).not.toBeInTheDocument();
     expect(within(projectGroup).queryByText("Draft")).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
@@ -591,11 +677,11 @@ describe("AppFrame", () => {
     await user.click(globalNewSessionRow);
 
     expect(getSessionDraft()).toMatchObject({
-      projectId: null,
+      projectId: "chat",
       prompt: "Existing Project draft",
     });
     expect(
-      within(trajectoryUsageNavigation).getByRole("button", { name: "New Session" }),
+      within(trajectoryUsageNavigation).getByRole("button", { name: "New Chat" }),
     ).toHaveAttribute("aria-current", "page");
   });
 
@@ -661,7 +747,7 @@ describe("AppFrame", () => {
 
     expect(projectActionsMenu).toHaveClass("astryx-dropdown-menu");
     expect(projectActionsMenu).toHaveClass("astryx-more-menu");
-    expect(within(projectActionsMenu).queryByRole("menuitem", { name: "New Session" })).toBeNull();
+    expect(within(projectActionsMenu).queryByRole("menuitem", { name: "New Chat" })).toBeNull();
     expect(renameProjectItem).toHaveClass("astryx-dropdown-menu-item");
     expect(revealProjectItem).toHaveClass("astryx-dropdown-menu-item");
     expect(removeProjectItem).toHaveClass("astryx-dropdown-menu-item");
@@ -686,7 +772,7 @@ describe("AppFrame", () => {
     });
   });
 
-  it("opens a Project-scoped New Session draft from the sidebar action button", async () => {
+  it("opens a Project-scoped New Chat draft from the sidebar action button", async () => {
     const user = userEvent.setup();
 
     saveSessionDraft(null, "Prompt from the global draft");
@@ -694,7 +780,7 @@ describe("AppFrame", () => {
     renderAppFrame("/projects/pig/sessions");
     const projectGroup = await screen.findByTestId("sidebar-projects");
 
-    await user.click(within(projectGroup).getByRole("button", { name: "New Session for Pig" }));
+    await user.click(within(projectGroup).getByRole("button", { name: "New Chat for Pig" }));
 
     expect(getSessionDraft()).toMatchObject({
       projectId: pigProjectPath,
@@ -703,7 +789,7 @@ describe("AppFrame", () => {
     expect(
       within(screen.getByRole("group", { name: "Trajectory and usage navigation" })).getByRole(
         "button",
-        { name: "New Session" },
+        { name: "New Chat" },
       ),
     ).toHaveAttribute("aria-current", "page");
   });

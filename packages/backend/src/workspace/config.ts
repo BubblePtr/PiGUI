@@ -38,6 +38,7 @@ export async function buildConfigInventory(dir: string): Promise<ConfigInventory
     })).sort((left, right) => left.name.localeCompare(right.name)),
     skills: skills.map(skill => ({
       name: skill.name,
+      description: skill.description,
       source: source(skillResources.find(resource => resource.path === skill.filePath)?.metadata ?? { scope: "user", source: "local" }),
     })).sort((left, right) => left.name.localeCompare(right.name)),
     promptTemplates: [],

@@ -11,6 +11,12 @@ import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import type { CotPhase } from "@/entities/session/cot-view";
 
 describe("formatWorkedFor", () => {
+  it("labels a failed run without implying completed work", () => {
+    render(<ChatChainOfThought phase="settled" elapsedMs={1_400} outcome="failed" />);
+    expect(screen.getByRole("button", { name: "Failed after 1s" })).toBeInTheDocument();
+    expect(screen.queryByText("Worked for 1s")).not.toBeInTheDocument();
+  });
+
   it("claims no number when the wait was never measured", () => {
     expect(formatWorkedFor(undefined)).toBe("Worked");
     expect(formatWorkedFor(Number.NaN)).toBe("Worked");

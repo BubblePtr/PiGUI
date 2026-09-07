@@ -52,7 +52,7 @@ import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-u
 import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
 import { saveVisibleModels } from "@/entities/model/visible-models";
-import { ensureSessionDraft, getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
+import { ensureSessionDraft, getSessionDraft, saveSessionDraft, setSessionDraftTarget } from "@/entities/session/session-drafts";
 import * as sessionsApi from "@/entities/session/sessions";
 
 // The app shell renders the sidebar with Astryx SideNav: rows are buttons,
@@ -270,6 +270,71 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__;
   });
 
+  it("retries only the latest failed request and preserves the unsent draft", async () => {
+    const user = userEvent.setup();
+    const bridge = createInMemoryPiRuntimeBridge();
+    const send = vi.spyOn(bridge, "sendInitialPrompt");
+    const onProviders = vi.fn();
+    let projection: SessionProjection = {
+      ...createSessionProjection({ id: "retry-chat", projectId: "pig-docs", initialPrompt: "Original task", createdAt: "2026-09-07T10:00:00.000Z" }),
+      creationStage: "accepted", piSessionId: "retry-pi", runtimeId: "retry-runtime",
+    };
+    for (const event of [
+      { id: "request", kind: "message", role: "user", body: "Original task" },
+      { id: "failure", kind: "error", title: "Run failed", body: '401 {"error":{"message":"Invalid API key"}}' },
+    ] as const) {
+      projection = applySessionProjectionEvent(projection, { type: "runtime-event-received",
+        event: { ...event, piSessionId: "retry-pi", timestamp: "2026-09-07T10:00:00.000Z" } });
+    }
+    saveFollowUpDraft(projection.id, "An unsent follow-up");
+    render(<AgentWorkspaceSessionsView projectId="pig-docs" sessionProjection={projection}
+      runtimeBridge={bridge} onOpenProviderSettings={onProviders} />);
+    await user.click(screen.getByRole("button", { name: "Provider settings" }));
+    expect(onProviders).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "Retry request" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith({ piSessionId: "retry-pi", prompt: "Original task" }));
+    expect(getFollowUpDraft(projection.id)?.message).toBe("An unsent follow-up");
+    expect(screen.queryByRole("button", { name: "Retry request" })).not.toBeInTheDocument();
+  });
+
+  it("waits for a model change before retrying a failed request", async () => {
+    const user = userEvent.setup();
+    const baseBridge = createInMemoryPiRuntimeBridge();
+    const send = vi.spyOn(baseBridge, "sendInitialPrompt");
+    const models = [
+      { provider: "openai", modelId: "first", name: "First model", thinkingLevels: ["off" as const] },
+      { provider: "openai", modelId: "second", name: "Second model", thinkingLevels: ["off" as const] },
+    ];
+    let finishChange!: () => void;
+    const pendingChange = new Promise<void>((resolve) => { finishChange = resolve; });
+    const configureModel = vi.fn(async () => {
+      await pendingChange;
+      return { models, selected: { provider: "openai", modelId: "second", thinkingLevel: "off" as const } };
+    });
+    let projection: SessionProjection = {
+      ...createSessionProjection({ id: "retry-model", projectId: "pig-docs", initialPrompt: "Original task", createdAt: "2026-09-07T10:00:00.000Z" }),
+      creationStage: "accepted", piSessionId: "retry-model-pi", runtimeId: "retry-model-runtime",
+      modelControls: { models, selected: { provider: "openai", modelId: "first", thinkingLevel: "off" } },
+    };
+    for (const event of [
+      { id: "request", kind: "message", role: "user", body: "Original task" },
+      { id: "failure", kind: "error", title: "Run failed", body: "401 Invalid API key" },
+    ] as const) {
+      projection = applySessionProjectionEvent(projection, { type: "runtime-event-received",
+        event: { ...event, piSessionId: "retry-model-pi", timestamp: "2026-09-07T10:00:00.000Z" } });
+    }
+    render(<AgentWorkspaceSessionsView projectId="pig-docs" sessionProjection={projection}
+      runtimeBridge={{ ...baseBridge, configureModel }} />);
+    await user.click(screen.getAllByTestId("model-thinking-trigger")[0]);
+    await user.click(within(screen.getByRole("dialog")).getByText("Second model"));
+    expect(configureModel).toHaveBeenCalledOnce();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Retry request" }));
+    expect(send).not.toHaveBeenCalled();
+    await act(async () => finishChange());
+    await waitFor(() => expect(send).toHaveBeenCalledWith({ piSessionId: "retry-model-pi", prompt: "Original task" }));
+  });
+
   it("renders a Project-scoped Sessions view with Live Chat and the action surface", async () => {
     const user = userEvent.setup();
 
@@ -331,7 +396,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       .getByText("Trajectory");
     const newSessionSidebarLabel = within(
       screen.getByRole("group", { name: "Trajectory and usage navigation" }),
-    ).getByText("New Session");
+    ).getByText("New Chat");
 
     expect(sessionDockButton).toHaveAttribute("aria-pressed", "false");
     expect(container.querySelector('[data-slot="navbar-spacer"]')).toHaveAttribute(
@@ -734,10 +799,10 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(await screen.findByTestId("empty-workspace-state")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Project" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New Session" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New Chat without a project" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "No Projects" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("Chat · no project");
+    expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("No project");
   });
 
   it("redirects an empty registry off a missing Project route to the Chat draft", async () => {
@@ -1300,7 +1365,7 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "New Session" }));
+    await user.click(await screen.findByRole("button", { name: "New Chat" }));
     await chooseProjectFromPicker(user, "Pig");
     fireEvent.change(await screen.findByPlaceholderText("Do anything with Pi"), {
       target: { value: "Create a draft-backed active Session" },
@@ -2968,7 +3033,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(await screen.findByPlaceholderText("What do you want to know?")).toHaveValue(
       "Resume from the saved composer",
     );
-    expect(screen.queryByLabelText("Target Project")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Project")).not.toBeInTheDocument();
   });
 
   it("takes an injected block into the draft it already has, screenshot and all", async () => {
@@ -3272,7 +3337,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens a global Session Draft from New Session without adding a Project row", async () => {
+  it("opens a global Session Draft from New Chat without adding a Project row", async () => {
     const user = userEvent.setup();
 
     renderProjectSessions();
@@ -3283,7 +3348,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     });
     const initialRows = getSidebarSessionRows(projectNavigation);
 
-    await user.click(within(trajectoryUsageNavigation).getByRole("button", { name: "New Session" }));
+    await user.click(within(trajectoryUsageNavigation).getByRole("button", { name: "New Chat" }));
 
     const draftComposer = await screen.findByTestId("session-draft-composer");
     const emptyState = within(draftComposer).getByTestId("session-draft-empty-state");
@@ -3364,10 +3429,10 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(projectPickerControl).toContainElement(projectPickerTrigger);
     expect(projectPickerIcon).toHaveAttribute("aria-hidden", "true");
     expect(projectPickerIcon).toHaveClass("text-muted");
-    expect(projectPickerTrigger).toHaveTextContent("Select Project");
+    expect(projectPickerTrigger).toHaveTextContent("No project");
     expect(
       within(projectPickerControl).getByRole("combobox", {
-        name: /Target Project/,
+        name: /Project/,
       }),
     ).toBeInTheDocument();
     expect(inlineProjectSelect).toBeInTheDocument();
@@ -3393,7 +3458,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(draftTitle).toHaveClass("text-center");
     // The Selector label is only exposed to assistive tech, never as a
     // visible caption above the picker.
-    expect(within(draftComposer).getByText("Target Project")).toHaveClass(
+    expect(within(draftComposer).getByText("Project")).toHaveClass(
       "astryx-field-label",
     );
     expect(
@@ -3405,7 +3470,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(draftPrompt).not.toHaveClass("font-medium");
     expect(projectPickerTrigger).not.toHaveClass("font-medium");
     expect(getSessionDraft()).toMatchObject({
-      projectId: null,
+      projectId: "chat",
       prompt: "",
     });
 
@@ -3413,14 +3478,14 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expect(draftPrompt).toHaveValue(suggestedPrompt);
     expect(getSessionDraft()).toMatchObject({
-      projectId: null,
+      projectId: "chat",
       prompt: suggestedPrompt,
     });
     expect(getSidebarSessionRows(projectNavigation)).toHaveLength(
       initialRows.length,
     );
     expect(
-      within(projectNavigation).queryByRole("button", { name: "New Session" }),
+      within(projectNavigation).queryByRole("button", { name: "New Chat" }),
     ).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText("Session Draft")).not.toBeInTheDocument();
 
@@ -3428,11 +3493,43 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     expectAdaptiveInlineSelectPopover(getOpenSelectorListbox());
     expectInlineSelectOptionIsAstryxOption(
-      await screen.findByRole("option", { name: "Select Project" }),
+      await screen.findByRole("option", { name: "No project" }),
     );
     expectInlineSelectOptionLabelMatchesCompactMenu(
-      await screen.findByRole("option", { name: "Select Project" }),
-      "Select Project",
+      await screen.findByRole("option", { name: "No project" }),
+      "No project",
+    );
+  });
+
+  it("focuses the draft after choosing a suggestion so typing continues at the end", async () => {
+    const user = userEvent.setup();
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+
+    await user.click(await screen.findByRole("button", { name: "Summarize meeting notes" }));
+
+    const prompt = screen.getByPlaceholderText("Do anything with Pi");
+    expect(prompt).toHaveFocus();
+    await user.keyboard(" for Friday");
+    expect(prompt).toHaveValue("Summarize meeting notes for Friday");
+  });
+
+  it("clears target validation when another control selects a valid chat target", async () => {
+    const user = userEvent.setup();
+    saveSessionDraft(null, "Keep this draft while choosing its target");
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+
+    await user.click(await screen.findByRole("button", { name: "Send" }));
+    const composer = screen.getByTestId("session-draft-composer");
+    expect(within(composer).getByText("Choose a project or select No project to continue.")).toBeInTheDocument();
+
+    act(() => { setSessionDraftTarget("chat"); });
+
+    await waitFor(() => {
+      expect(within(composer).queryByText("Choose a project or select No project to continue.")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("No project");
+    expect(screen.getByPlaceholderText("Do anything with Pi")).toHaveValue(
+      "Keep this draft while choosing its target",
     );
   });
 
@@ -3453,21 +3550,68 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("restores the same global draft after repeated New Session clicks and reload", async () => {
+  it("hides the previous session dock when opening a project chat draft", async () => {
+    const user = userEvent.setup();
+    renderProjectSessions();
+    await user.click(await screen.findByRole("button", { name: "Session dock" }));
+    expect(await screen.findByTestId("session-dock")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New Chat for Pig" }));
+    expect(await screen.findByTestId("session-draft-composer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Session dock" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
+  });
+
+  it("offers an optional project and hides execution choices for a new chat", async () => {
+    const user = userEvent.setup();
+    renderProjectSessions();
+    const navigation = await screen.findByRole("group", { name: "Trajectory and usage navigation" });
+    await user.click(within(navigation).getByRole("button", { name: /^New (Chat|Session)$/ }));
+
+    expect(screen.queryByRole("button", { name: "Session dock" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("No project");
+    expect(screen.queryByTestId("checkout-strategy-trigger")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("project-picker-trigger"));
+    expect(screen.getByRole("option", { name: /No project/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Select Project" })).not.toBeInTheDocument();
+  });
+
+  it("explains how the two project execution choices affect files", async () => {
+    const user = userEvent.setup();
+    saveSessionDraft(pigProjectPath, "");
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+    await user.click(await screen.findByTestId("checkout-strategy-trigger"));
+
+    expect(screen.getByText("Edit files directly in the selected project.")).toBeInTheDocument();
+    expect(screen.getByText("Create a separate Git worktree for this chat.")).toBeInTheDocument();
+  });
+
+  it("associates missing-target validation with the project control", async () => {
+    const user = userEvent.setup();
+    saveSessionDraft(null, "Keep my draft after its project is removed");
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+    await user.click(await screen.findByRole("button", { name: "Send" }));
+
+    const target = screen.getByRole("combobox", { name: /Project/ });
+    expect(target).toHaveAttribute("aria-invalid", "true");
+    expect(target).toHaveAccessibleDescription("Choose a project or select No project to continue.");
+    expect(screen.queryByTestId("checkout-strategy-trigger")).not.toBeInTheDocument();
+  });
+
+  it("restores the same global draft after repeated New Chat clicks and reload", async () => {
     const user = userEvent.setup();
     const firstRender = renderProjectSessions();
 
-    await user.click(await screen.findByRole("button", { name: "New Session" }));
+    await user.click(await screen.findByRole("button", { name: "New Chat" }));
     fireEvent.change(screen.getByPlaceholderText("Do anything with Pi"), {
       target: { value: "Keep this initial prompt" },
     });
 
     expect(getSessionDraft()).toMatchObject({
-      projectId: null,
+      projectId: "chat",
       prompt: "Keep this initial prompt",
     });
 
-    await user.click(screen.getByRole("button", { name: "New Session" }));
+    await user.click(screen.getByRole("button", { name: "New Chat" }));
 
     expect(screen.getByPlaceholderText("Do anything with Pi")).toHaveValue(
       "Keep this initial prompt",
@@ -3852,13 +3996,13 @@ describe("AgentWorkspaceSessionsPage", () => {
       "Keep text after target removal",
     );
     expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent(
-      "Select Project",
+      "Choose a project",
     );
 
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(onDraftSubmit).not.toHaveBeenCalled();
-    expect(screen.getByText("Select a Project before submitting.")).toBeInTheDocument();
+    expect(screen.getByText("Choose a project or select No project to continue.")).toBeInTheDocument();
     expect(getSessionDraft()).toMatchObject({
       projectId: null,
       prompt: "Keep text after target removal",
@@ -4001,12 +4145,12 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(screen.getByTestId("checkout-strategy-trigger")).toHaveTextContent(
-      "Local",
+      "Project folder",
     );
     await user.click(screen.getByTestId("checkout-strategy-trigger"));
-    const localCheckoutOption = await screen.findByRole("option", { name: "Local" });
+    const localCheckoutOption = await screen.findByRole("option", { name: /Project folder/ });
     const worktreeCheckoutOption = await screen.findByRole("option", {
-      name: "Worktree",
+      name: /Git worktree/,
     });
 
     expect(
@@ -4016,7 +4160,7 @@ describe("AgentWorkspaceSessionsPage", () => {
     expectInlineSelectOptionIsAstryxOption(worktreeCheckoutOption);
     expectInlineSelectOptionLabelMatchesCompactMenu(
       worktreeCheckoutOption,
-      "Worktree",
+      "Git worktree",
     );
     expectAdaptiveInlineSelectPopover(getOpenSelectorListbox());
     await user.click(worktreeCheckoutOption);
@@ -4117,15 +4261,15 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
 
     expect(screen.getByTestId("checkout-strategy-trigger")).toHaveTextContent(
-      "Local",
+      "Project folder",
     );
 
     await user.click(screen.getByTestId("checkout-strategy-trigger"));
-    await user.click(await screen.findByRole("option", { name: "Local" }));
+    await user.click(await screen.findByRole("option", { name: /Project folder/ }));
 
     const checkoutStrategyTrigger = screen.getByTestId("checkout-strategy-trigger");
 
-    expect(checkoutStrategyTrigger).toHaveTextContent("Local");
+    expect(checkoutStrategyTrigger).toHaveTextContent("Project folder");
     expect(
       within(checkoutStrategyTrigger).getByTestId("checkout-strategy-local-icon"),
     ).toBeInTheDocument();
@@ -7257,9 +7401,7 @@ describe("Session changes action surface", () => {
       panel(null, { error: "Git is temporarily unavailable", onRefresh }),
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Git is temporarily unavailable",
-    );
+    expect(screen.getByText("Git is temporarily unavailable").closest("[role=alert]")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRefresh).toHaveBeenCalledTimes(1);
 

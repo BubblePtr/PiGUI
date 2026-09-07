@@ -72,6 +72,7 @@ describe("backend native config inventory", () => {
     await put("local-package/skills/packaged/SKILL.md", "---\nname: packaged\ndescription: Test\n---\nPackaged.");
     const inventory = await buildConfigInventory(agentDir);
     expect(inventory.skills.map(skill => skill.name).sort()).toEqual(["enabled", "packaged"]);
+    expect(inventory.skills[0]).toMatchObject({ description: "Test" });
   });
 
   it("keeps missing packages visible without installing them", async () => {

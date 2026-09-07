@@ -37,7 +37,7 @@ describe("resolveAppLanding", () => {
     });
   });
 
-  it("opens the New Session draft on the first registered Project when none is targeted", () => {
+  it("opens a new Chat without a project even when Projects are registered", () => {
     expect(
       resolveAppLanding({
         projects: [{ id: pigProjectId }, { id: studyProjectId }],
@@ -45,10 +45,17 @@ describe("resolveAppLanding", () => {
       }),
     ).toEqual({
       to: "/projects/$projectId/sessions",
-      params: { projectId: pigProjectId },
+      params: { projectId: "chat" },
       search: { view: "draft" },
-      draftProjectId: null,
+      draftProjectId: "chat",
     });
+  });
+
+  it("keeps a missing draft target unresolved when the last Project was removed", () => {
+    expect(resolveAppLanding({ projects: [], draft: { projectId: studyProjectId } }))
+      .toMatchObject({ params: { projectId: "chat" }, draftProjectId: null });
+    expect(resolveAppLanding({ projects: [], draft: { projectId: null } }))
+      .toMatchObject({ params: { projectId: "chat" }, draftProjectId: null });
   });
 
   it("keeps an existing draft target when that Project is still registered", () => {

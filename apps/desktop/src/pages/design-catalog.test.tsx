@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import { DesignComponentsLayer } from "@/pages/design-components";
 
 describe("Component catalog navigation", () => {
-  it("groups all 33 entries by purpose and mounts only the selected preview", async () => {
+  it("groups all 34 entries by purpose and mounts only the selected preview", async () => {
     const user = userEvent.setup();
     render(<DesignComponentsLayer />);
     const catalog = screen.getByRole("navigation", { name: "Component catalog" });
-    expect(within(catalog).getAllByRole("button")).toHaveLength(33);
+    expect(within(catalog).getAllByRole("button")).toHaveLength(34);
     expect(within(catalog).queryByRole("button", { name: "PiSheet" })).not.toBeInTheDocument();
     for (const category of ["Data & metrics", "Conversation", "Composer", "Reasoning & tools", "Workspace & trajectory", "Visual primitives"]) {
       expect(within(catalog).getByText(category)).toBeInTheDocument();
@@ -36,7 +36,7 @@ describe("Component catalog navigation", () => {
     expect(screen.getByText("No components found")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "ContextUsageMeter" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(within(catalog).getAllByRole("button")).toHaveLength(33);
+    expect(within(catalog).getAllByRole("button")).toHaveLength(34);
   });
 
   it("labels each preview state before its sample and supports keyboard selection", async () => {

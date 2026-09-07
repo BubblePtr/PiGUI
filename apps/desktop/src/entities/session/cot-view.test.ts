@@ -196,6 +196,14 @@ function replay(
 }
 
 describe("CoT view derivation", () => {
+  it("preserves a failed run outcome for the settled header", () => {
+    let model = createSessionRuntimeModel();
+    for (const [index, beat] of [runStart(0), runEnd(1400, "failed")].entries()) {
+      model = applyAgentRuntimeEvent(model, { seq: index + 1, timestamp: at(beat.ms), event: beat.event });
+    }
+    expect(deriveCotView(model, runId, { streamingAllowed: false })).toMatchObject({ outcome: "failed" });
+  });
+
   it("runs a text-only turn hidden → thinking → answering → settled and freezes the clock at the first answer token", () => {
     const m1 = message(1);
     const answer = m1.part(0, "text");

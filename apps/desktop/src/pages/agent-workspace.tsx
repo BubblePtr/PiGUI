@@ -7,7 +7,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@astryxdesign/core/SegmentedControl";
-import { Selector } from "@astryxdesign/core/Selector";
+import { Selector, SelectorOption } from "@astryxdesign/core/Selector";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ChatChainOfThought as ChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
@@ -18,6 +18,7 @@ import {
   ChatMarkdown as Markdown,
   ChatStreamMarkdown as StreamMarkdown,
 } from "@/shared/ui/chat/chat-markdown";
+import { ChatRunFailure } from "@/shared/ui/chat/chat-run-failure";
 import { ChatMessage, ChatMessageActions } from "@/shared/ui/chat/chat-message";
 import { ChatPromptInput as PromptInput } from "@/shared/ui/chat/chat-prompt-input";
 import { ChatQueuedMessage } from "@/shared/ui/chat/chat-queued-message";
@@ -337,9 +338,11 @@ function getVisibleProjectRegistry() {
 function LiveChatMessage({
   message,
   onForkMessage,
+  recovery,
 }: {
   message: LiveMessage;
   onForkMessage?: (message: LiveMessage) => void;
+  recovery?: ReactNode;
 }) {
   if (message.role === "user") {
     const canFork = Boolean(message.piEntryId && onForkMessage);
@@ -395,6 +398,14 @@ function LiveChatMessage({
           ) : null}
         </div>
       </ChatMessage.User>
+    );
+  }
+
+  if (message.controlLabel === "Run failed") {
+    return (
+      <ChatMessage.Assistant>
+        <ChatMessage.Body>{recovery ?? <ChatRunFailure error={message.body} />}</ChatMessage.Body>
+      </ChatMessage.Assistant>
     );
   }
 
@@ -466,6 +477,7 @@ function AssistantRunTrajectory({ view }: { view: CotView }) {
         : { elapsedMs: view.elapsedMs })}
       hasSteps={view.steps.length > 0}
       phase={view.phase}
+      outcome={view.outcome}
     >
       <ChainOfThought.Steps>
         {view.steps.map((step) => (
@@ -1483,9 +1495,6 @@ const SESSION_DRAFT_SUGGESTED_PROMPTS = [
   },
 ] as const;
 
-const projectPickerPlaceholder = "Select Project";
-const projectPickerPlaceholderKey = "__project-picker-placeholder__";
-
 function createSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `session-${crypto.randomUUID()}`;
@@ -1494,27 +1503,21 @@ function createSessionId() {
   return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function projectPickerKeyToProjectId(key: string | null) {
-  if (key === null || key === projectPickerPlaceholderKey) {
-    return null;
-  }
-
-  return key;
-}
-
 function ProjectPicker({
   projects,
   selectedProjectId,
   onProjectChange,
+  error,
 }: {
   projects: ProjectRegistryEntry[];
   selectedProjectId: string | null;
   onProjectChange: (projectId: string | null) => void;
+  error?: boolean;
 }) {
   const selectedProject = isChatProjectId(selectedProjectId)
     ? chatWorkspaceListEntry()
     : projects.find((project) => project.id === selectedProjectId);
-  const selectedPickerKey = selectedProject?.id ?? projectPickerPlaceholderKey;
+  const selectedPickerKey = selectedProject?.id;
   const StartIcon = isChatProjectId(selectedProjectId) ? ChatAdd : FolderClosed;
 
   return (
@@ -1522,9 +1525,11 @@ function ProjectPicker({
       <Selector
         data-testid="project-picker-trigger"
         isLabelHidden
-        label="Target Project"
+        label="Project"
+        placeholder="Choose a project"
+        placement="below"
+        status={error ? { type: "error", message: "Choose a project or select No project to continue." } : undefined}
         options={[
-          { value: projectPickerPlaceholderKey, label: projectPickerPlaceholder },
           {
             value: CHAT_PROJECT_ID,
             label: CHAT_PICKER_LABEL,
@@ -1557,7 +1562,7 @@ function ProjectPicker({
         value={selectedPickerKey}
         variant="ghost"
         onChange={(value) => {
-          onProjectChange(projectPickerKeyToProjectId(value));
+          onProjectChange(value);
         }}
       />
     </div>
@@ -1742,8 +1747,8 @@ function GitBranchPicker({
 }
 
 const checkoutModeLabels: Record<SessionDraftCheckoutMode, string> = {
-  local: "Local",
-  worktree: "Worktree",
+  local: "Project folder",
+  worktree: "Git worktree",
 };
 
 function checkoutModeToExecutionMode(
@@ -1764,7 +1769,14 @@ function CheckoutStrategyPicker({
       <Selector
         data-testid="checkout-strategy-trigger"
         isLabelHidden
-        label="Checkout strategy"
+        label="Where to work"
+        placement="below"
+        renderOption={(option) => (
+          <SelectorOption label={option.label} icon={option.icon}
+            description={option.value === "local"
+              ? "Edit files directly in the selected project."
+              : "Create a separate Git worktree for this chat."} />
+        )}
         options={[
           {
             value: "local",
@@ -1831,7 +1843,9 @@ function SessionDraftComposer({
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
   onManageModels?: () => void;
 }) {
-  const [targetError, setTargetError] = useState(false);
+  const [targetValidationRequested, setTargetValidationRequested] = useState(false);
+  const targetError = targetValidationRequested && !draft.projectId;
+  const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [visibleModels] = useState(getVisibleModels);
   const selectedCheckoutMode = draft.checkoutMode ?? recommendedCheckoutMode;
   const { loading: providerAuthLoading, configured: providersConfigured } =
@@ -1880,8 +1894,9 @@ function SessionDraftComposer({
   }, [providerAuthLoading, providersConfigured, recentSessionModelKey]);
 
   const applySuggestedPrompt = (prompt: string) => {
-    setTargetError(false);
     onDraftChange(prompt);
+    draftInputRef.current?.focus();
+    draftInputRef.current?.setSelectionRange(prompt.length, prompt.length);
   };
   const submitDraft = async () => {
     if (!providerAuthLoading && !providersConfigured) {
@@ -1889,7 +1904,7 @@ function SessionDraftComposer({
     }
 
     if (!draft.projectId) {
-      setTargetError(true);
+      setTargetValidationRequested(true);
       return;
     }
 
@@ -1954,6 +1969,7 @@ function SessionDraftComposer({
             }
             error={attachments.error}
             hasAttachments={attachments.items.length > 0}
+            inputRef={draftInputRef}
             placeholder="Do anything with Pi"
             startActions={
               <>
@@ -1997,25 +2013,20 @@ function SessionDraftComposer({
             data-testid="session-draft-project-picker"
           >
             <ProjectPicker
+              error={targetError}
               projects={projects}
               selectedProjectId={draft.projectId}
               onProjectChange={(projectId) => {
-                setTargetError(false);
                 onDraftTargetChange(projectId);
               }}
             />
-            {isChatProjectId(draft.projectId) ? null : (
+            {!draft.projectId || isChatProjectId(draft.projectId) ? null : (
               <CheckoutStrategyPicker
                 selectedCheckoutMode={selectedCheckoutMode}
                 onCheckoutModeChange={onDraftCheckoutModeChange}
               />
             )}
           </div>
-          {targetError ? (
-            <p className="text-sm text-danger">
-              Select a Project before submitting.
-            </p>
-          ) : null}
           {creationProjection ? (
             <div
               aria-live="polite"
@@ -2511,6 +2522,7 @@ function LiveSessionColumn({
   onProjectionChange,
   onLatestMessageRendered,
   onManageModels,
+  onOpenProviderSettings,
   runtimeGeneration,
 }: {
   workspace: AgentWorkspaceFixture;
@@ -2528,6 +2540,7 @@ function LiveSessionColumn({
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
   onManageModels?: () => void;
+  onOpenProviderSettings?: () => void;
   runtimeGeneration: number;
 }) {
   const [registryProjects, setRegistryProjects] = useState(() =>
@@ -3022,6 +3035,28 @@ function LiveSessionColumn({
     liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
+  const modelChangeInFlight = useRef<Promise<void> | null>(null);
+  const lastMessage = liveMessages[liveMessages.length - 1];
+  const latestFailure = lastMessage?.controlLabel === "Run failed" ? lastMessage : undefined;
+  const failedRequest = latestFailure
+    ? [...liveMessages].reverse().find((message) => message.role === "user" && !message.controlLabel)
+    : undefined;
+  const retryImages = failedRequest?.images?.map((image) => {
+    const match = /^data:([^;]+);base64,(.+)$/s.exec(image.src);
+    return match ? { mimeType: match[1], data: match[2], ...(image.name ? { name: image.name } : {}) } : null;
+  });
+  const canRetryRequest = Boolean(
+    failedRequest && liveProjection?.piSessionId && !queueMode &&
+    !readOnlyProjection && !retryImages?.includes(null),
+  );
+  const retryFailedRequest = async () => {
+    // A retry must use the model the user just chose, even during its RPC.
+    await modelChangeInFlight.current;
+    const current = liveProjectionRef.current ?? liveProjection;
+    if (!canRetryRequest || !failedRequest || !current || isSessionProjectionActive(current)) return;
+    await handlePromptSubmit(failedRequest.body, retryImages as RuntimePromptImage[] | undefined);
+  };
+
   const handleModelConfigChange = async (
     selection: RuntimeModelSelection,
   ) => {
@@ -3035,23 +3070,28 @@ function LiveSessionColumn({
       throw new Error("Runtime model controls are unavailable.");
     }
 
-    const modelControls = await bridge.configureModel({
+    const change = bridge.configureModel({
       sessionId: liveProjection.id,
       piSessionId: liveProjection.piSessionId,
       ...selection,
-    });
-
-    if (modelControls.selected) {
-      saveLastModelSelection(modelControls.selected);
-    }
-
-    commitInteractionProjection(
-      applySessionProjectionEvent(liveProjection, {
+    }).then((modelControls) => {
+      if (modelControls.selected) {
+        saveLastModelSelection(modelControls.selected);
+      }
+      const next = applySessionProjectionEvent(latestProjectionFor(liveProjection), {
         type: "model-controls-changed",
         modelControls,
         occurredAt: new Date().toISOString(),
-      }),
-    );
+      });
+      liveProjectionRef.current = next;
+      commitInteractionProjection(next);
+    });
+    modelChangeInFlight.current = change;
+    try {
+      await change;
+    } finally {
+      if (modelChangeInFlight.current === change) modelChangeInFlight.current = null;
+    }
   };
   const handleWithdrawQueuedMessage = async (queuedMessageId: string) => {
     const projection = liveProjectionRef.current ?? liveProjection;
@@ -3340,6 +3380,15 @@ function LiveSessionColumn({
                 <LiveChatMessage
                   key={message.id}
                   message={withLegacyCotView(message)}
+                  recovery={message.controlLabel === "Run failed" ? (
+                    <ChatRunFailure error={message.body}
+                      onOpenProviderSettings={onOpenProviderSettings}
+                      onRetry={message.id === latestFailure?.id && canRetryRequest ? retryFailedRequest : undefined}
+                      modelControl={message.id === latestFailure?.id && canRetryRequest && liveProjection?.modelControls ? (
+                        <ModelSelectorControl controls={liveProjection.modelControls} isLocked={queueMode}
+                          visibleModels={getVisibleModels()} onManageModels={onManageModels} onChange={handleModelConfigChange} />
+                      ) : undefined} />
+                  ) : undefined}
                   onForkMessage={
                     liveProjection?.sessionFile &&
                     liveProjection.piSessionId &&
@@ -3412,6 +3461,7 @@ export function AgentWorkspaceSessionsView({
   onProjectionChange,
   onLatestMessageRendered,
   onManageModels,
+  onOpenProviderSettings,
   runtimeGeneration = 0,
 }: {
   projectId?: string;
@@ -3431,6 +3481,7 @@ export function AgentWorkspaceSessionsView({
   onProjectionChange?: (projection: SessionProjection) => void;
   onLatestMessageRendered?: (sessionId: string) => void;
   onManageModels?: () => void;
+  onOpenProviderSettings?: () => void;
   runtimeGeneration?: number;
 }) {
   const [getDefaultRuntimeBridge] = useState(() => {
@@ -3479,6 +3530,7 @@ export function AgentWorkspaceSessionsView({
       onProjectionChange={onProjectionChange}
       onLatestMessageRendered={onLatestMessageRendered}
       onManageModels={onManageModels}
+      onOpenProviderSettings={onOpenProviderSettings}
       runtimeGeneration={runtimeGeneration}
     />
   );
@@ -3705,7 +3757,7 @@ export function AgentWorkspaceSessionsPage() {
       return;
     }
 
-    ensureSessionDraft(CHAT_PROJECT_ID);
+    if (!getSessionDraft()) ensureSessionDraft(CHAT_PROJECT_ID);
     void navigate({
       to: "/projects/$projectId/sessions",
       params: { projectId: CHAT_PROJECT_ID },
@@ -3809,7 +3861,7 @@ export function AgentWorkspaceSessionsPage() {
       sessionsHydrated={sessionsHydrated}
       selectedSessionId={selectedSessionId}
       onSelectedSessionIdChange={setSelectedSessionId}
-      toolbarActions={selectedSessionProjection ? (
+      toolbarActions={!showDraft && selectedSessionProjection ? (
         <SessionToolbarActions
           dockOpen={dockOpen}
           onDockOpenChange={setDockOpen}
@@ -3822,9 +3874,9 @@ export function AgentWorkspaceSessionsPage() {
       >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
-        asideOpen={dockOpen}
+        asideOpen={!showDraft && dockOpen}
         aside={
-          dockMounted ? (
+          !showDraft && dockMounted ? (
             <SessionDock
               activeSurfaceId={activeSurfaceId}
               badges={{
@@ -3858,6 +3910,7 @@ export function AgentWorkspaceSessionsPage() {
         onSessionCreated={handleSessionCreated}
         onLatestMessageRendered={handleLatestMessageRendered}
         onManageModels={() => openSettings("models")}
+        onOpenProviderSettings={() => openSettings("providers")}
       />
       </div>
     </AppFrame>
