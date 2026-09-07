@@ -373,8 +373,14 @@ function UnsentFollowUpIndicator() {
   );
 }
 
-function ProjectExpansionIndicator({ expanded }: { expanded: boolean }) {
-  const StateIcon = expanded ? FolderOpenState : FolderClosed;
+function ProjectExpansionIndicator({
+  expanded,
+  icon,
+}: {
+  expanded: boolean;
+  icon?: typeof FolderClosed;
+}) {
+  const StateIcon = icon ?? (expanded ? FolderOpenState : FolderClosed);
 
   return (
     <span
@@ -385,6 +391,122 @@ function ProjectExpansionIndicator({ expanded }: { expanded: boolean }) {
       <StateIcon className="pigui-project-expansion-indicator__state" />
       <ChevronRight className="pigui-project-expansion-indicator__chevron" />
     </span>
+  );
+}
+
+function SidebarSessionGroupBody({
+  rowTestId,
+  expanded,
+  onToggle,
+  icon,
+  label,
+  sessions,
+  sessionsHydrated,
+  selectedSessionId,
+  groupRouteActive,
+  draftViewActive,
+  sessionProjectId,
+  onOpenSession,
+  onOpenTrajectory,
+  onRenameSession,
+  onArchiveSession,
+  onDeleteSession,
+  hasUnsentFollowUp,
+  trailingActions,
+}: {
+  rowTestId: string;
+  expanded: boolean;
+  onToggle: () => void;
+  icon: ReactNode;
+  label: string;
+  sessions: SessionProjectionListItem[];
+  sessionsHydrated: boolean;
+  selectedSessionId: string | null;
+  groupRouteActive: boolean;
+  draftViewActive: boolean;
+  sessionProjectId: string;
+  onOpenSession: (sessionId: string, projectId: string) => void;
+  onOpenTrajectory: (piSessionId: string) => void;
+  onRenameSession: (sessionId: string) => void;
+  onArchiveSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+  hasUnsentFollowUp: boolean;
+  trailingActions: ReactNode;
+}) {
+  return (
+    <div className="pigui-sidenav-row-with-actions" data-testid={rowTestId}>
+      <SideNavItem
+        collapsible={{
+          isCollapsed: !expanded,
+          onCollapsedChange: onToggle,
+        }}
+        icon={icon}
+        label={label}
+        // A <button> row cannot contain the interactive actions
+        // (astryx-migration issue 01); this only reserves their width
+        // so the label truncates before the overlay.
+        endContent={<span aria-hidden="true" className="pigui-sidenav-actions-spacer" />}
+      >
+        {sessions.length === 0 ? (
+          <SideNavItem
+            icon={<SessionGlyphSlot active={false} unread={false} />}
+            isDisabled
+            label={sessionsHydrated ? "No chats" : "Loading chats"}
+          />
+        ) : null}
+        {sessions.map((session) => {
+          const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
+
+          return (
+            // Same overlay-sibling pattern as the project row: the actions
+            // menu cannot live inside the SideNavItem <button>.
+            <div
+              key={session.id}
+              className="pigui-sidenav-row-with-actions pigui-sidenav-session-row"
+              data-testid="session-row-with-actions"
+            >
+              <SideNavItem
+                icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
+                isSelected={
+                  !draftViewActive && groupRouteActive && session.id === selectedSessionId
+                }
+                label={session.title}
+                endContent={
+                  <HStack
+                    className="pigui-sidenav-session-meta"
+                    gap={1}
+                    vAlign="center"
+                  >
+                    {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+                    <span className="text-muted text-[10px] leading-none">
+                      {formatSessionListTime(session.updatedAt)}
+                    </span>
+                  </HStack>
+                }
+                onClick={() => onOpenSession(session.id, sessionProjectId)}
+              />
+              <HStack
+                className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
+                gap={0.5}
+                vAlign="center"
+              >
+                <SessionActionsMenu
+                  session={session}
+                  onOpenTrajectory={onOpenTrajectory}
+                  onRenameSession={onRenameSession}
+                  onArchiveSession={onArchiveSession}
+                  onDeleteSession={onDeleteSession}
+                />
+              </HStack>
+            </div>
+          );
+        })}
+      </SideNavItem>
+      <HStack className="pigui-sidenav-row-actions" gap={0.5} vAlign="center">
+        {!expanded && hasUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+        {trailingActions}
+      </HStack>
+    </div>
   );
 }
 
@@ -590,19 +712,6 @@ function SessionActionsMenu({
   );
 }
 
-function ChatExpansionIndicator({ expanded }: { expanded: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="pigui-project-expansion-indicator"
-      data-expanded={expanded ? "true" : "false"}
-    >
-      <ChatAdd className="pigui-project-expansion-indicator__state" />
-      <ChevronRight className="pigui-project-expansion-indicator__chevron" />
-    </span>
-  );
-}
-
 function ChatNavigation({
   draftViewActive,
   pathname,
@@ -651,71 +760,25 @@ function ChatNavigation({
 
   return (
     <SideNavSection data-testid="sidebar-chats" title="Chats">
-      <div className="pigui-sidenav-row-with-actions" data-testid="chats-row-with-actions">
-        <SideNavItem
-          collapsible={{
-            isCollapsed: !expanded,
-            onCollapsedChange: onToggle,
-          }}
-          icon={<ChatExpansionIndicator expanded={expanded} />}
-          label={CHAT_WORKSPACE_DISPLAY_NAME}
-          endContent={<span aria-hidden="true" className="pigui-sidenav-actions-spacer" />}
-        >
-          {chatSessions.length === 0 ? (
-            <SideNavItem
-              icon={<SessionGlyphSlot active={false} unread={false} />}
-              isDisabled
-              label={sessionsHydrated ? "No chats" : "Loading chats"}
-            />
-          ) : null}
-          {chatSessions.map((session) => {
-            const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
-
-            return (
-              <div
-                key={session.id}
-                className="pigui-sidenav-row-with-actions pigui-sidenav-session-row"
-                data-testid="session-row-with-actions"
-              >
-                <SideNavItem
-                  icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
-                  isSelected={
-                    !draftViewActive && chatRouteActive && session.id === selectedSessionId
-                  }
-                  label={session.title}
-                  endContent={
-                    <HStack
-                      className="pigui-sidenav-session-meta"
-                      gap={1}
-                      vAlign="center"
-                    >
-                      {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
-                      <span className="text-muted text-[10px] leading-none">
-                        {formatSessionListTime(session.updatedAt)}
-                      </span>
-                    </HStack>
-                  }
-                  onClick={() => onOpenSession(session.id, CHAT_PROJECT_ID)}
-                />
-                <HStack
-                  className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
-                  gap={0.5}
-                  vAlign="center"
-                >
-                  <SessionActionsMenu
-                    session={session}
-                    onOpenTrajectory={onOpenTrajectory}
-                    onRenameSession={onRenameSession}
-                    onArchiveSession={onArchiveSession}
-                    onDeleteSession={onDeleteSession}
-                  />
-                </HStack>
-              </div>
-            );
-          })}
-        </SideNavItem>
-        <HStack className="pigui-sidenav-row-actions" gap={0.5} vAlign="center">
-          {!expanded && hasUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
+      <SidebarSessionGroupBody
+        rowTestId="chats-row-with-actions"
+        expanded={expanded}
+        onToggle={onToggle}
+        icon={<ProjectExpansionIndicator expanded={expanded} icon={ChatAdd} />}
+        label={CHAT_WORKSPACE_DISPLAY_NAME}
+        sessions={chatSessions}
+        sessionsHydrated={sessionsHydrated}
+        selectedSessionId={selectedSessionId}
+        groupRouteActive={chatRouteActive}
+        draftViewActive={draftViewActive}
+        sessionProjectId={CHAT_PROJECT_ID}
+        onOpenSession={onOpenSession}
+        onOpenTrajectory={onOpenTrajectory}
+        onRenameSession={onRenameSession}
+        onArchiveSession={onArchiveSession}
+        onDeleteSession={onDeleteSession}
+        hasUnsentFollowUp={hasUnsentFollowUp}
+        trailingActions={
           <IconButton
             icon={<Plus aria-hidden="true" />}
             label="New Chat"
@@ -723,8 +786,8 @@ function ChatNavigation({
             variant="ghost"
             onClick={onNewChat}
           />
-        </HStack>
-      </div>
+        }
+      />
     </SideNavSection>
   );
 }
@@ -801,95 +864,43 @@ function ProjectNavigation({
         void followUpDraftVersion;
 
         return (
-          <div
+          <SidebarSessionGroupBody
             key={project.id}
-            className="pigui-sidenav-row-with-actions"
-            data-testid="project-row-with-actions"
-          >
-            <SideNavItem
-              collapsible={{
-                isCollapsed: !expanded,
-                onCollapsedChange: () => onToggleProject(project.id),
-              }}
-              icon={<ProjectExpansionIndicator expanded={expanded} />}
-              label={project.displayName}
-              // A <button> row cannot contain the interactive actions
-              // (astryx-migration issue 01); this only reserves their width
-              // so the label truncates before the overlay.
-              endContent={<span aria-hidden="true" className="pigui-sidenav-actions-spacer" />}
-            >
-            {projectSessions.length === 0 ? (
-              <SideNavItem
-                icon={<SessionGlyphSlot active={false} unread={false} />}
-                isDisabled
-                label={sessionsHydrated ? "No chats" : "Loading chats"}
-              />
-            ) : null}
-            {projectSessions.map((session) => {
-              const hasSessionUnsentFollowUp = hasFollowUpDraft(session.id);
-
-              return (
-                // Same overlay-sibling pattern as the project row: the actions
-                // menu cannot live inside the SideNavItem <button>.
-                <div
-                  key={session.id}
-                  className="pigui-sidenav-row-with-actions pigui-sidenav-session-row"
-                  data-testid="session-row-with-actions"
-                >
-                  <SideNavItem
-                    icon={<SessionGlyphSlot active={session.active} unread={session.unread} />}
-                    isSelected={
-                      !draftViewActive && projectActive && session.id === selectedSessionId
-                    }
-                    label={session.title}
-                    endContent={
-                      <HStack
-                        className="pigui-sidenav-session-meta"
-                        gap={1}
-                        vAlign="center"
-                      >
-                        {hasSessionUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
-                        <span className="text-muted text-[10px] leading-none">
-                          {formatSessionListTime(session.updatedAt)}
-                        </span>
-                      </HStack>
-                    }
-                    onClick={() => onOpenSession(session.id, project.id)}
-                  />
-                  <HStack
-                    className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
-                    gap={0.5}
-                    vAlign="center"
-                  >
-                    <SessionActionsMenu
-                      session={session}
-                      onOpenTrajectory={onOpenTrajectory}
-                      onRenameSession={onRenameSession}
-                      onArchiveSession={onArchiveSession}
-                      onDeleteSession={onDeleteSession}
-                    />
-                  </HStack>
-                </div>
-              );
-            })}
-            </SideNavItem>
-            <HStack className="pigui-sidenav-row-actions" gap={0.5} vAlign="center">
-              {!expanded && hasProjectUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
-              <IconButton
-                icon={<Plus aria-hidden="true" />}
-                label={`New Session for ${project.displayName}`}
-                size="sm"
-                variant="ghost"
-                onClick={() => onNewProjectSession(project.id)}
-              />
-              <ProjectActionsMenu
-                project={project}
-                onRenameProject={onRenameProject}
-                onRevealProject={onRevealProject}
-                onRemoveProject={onRemoveProject}
-              />
-            </HStack>
-          </div>
+            rowTestId="project-row-with-actions"
+            expanded={expanded}
+            onToggle={() => onToggleProject(project.id)}
+            icon={<ProjectExpansionIndicator expanded={expanded} />}
+            label={project.displayName}
+            sessions={projectSessions}
+            sessionsHydrated={sessionsHydrated}
+            selectedSessionId={selectedSessionId}
+            groupRouteActive={projectActive}
+            draftViewActive={draftViewActive}
+            sessionProjectId={project.id}
+            onOpenSession={onOpenSession}
+            onOpenTrajectory={onOpenTrajectory}
+            onRenameSession={onRenameSession}
+            onArchiveSession={onArchiveSession}
+            onDeleteSession={onDeleteSession}
+            hasUnsentFollowUp={hasProjectUnsentFollowUp}
+            trailingActions={
+              <>
+                <IconButton
+                  icon={<Plus aria-hidden="true" />}
+                  label={`New Session for ${project.displayName}`}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onNewProjectSession(project.id)}
+                />
+                <ProjectActionsMenu
+                  project={project}
+                  onRenameProject={onRenameProject}
+                  onRevealProject={onRevealProject}
+                  onRemoveProject={onRemoveProject}
+                />
+              </>
+            }
+          />
         );
       })}
       <AddProjectButton onAddProject={onAddProject} />
