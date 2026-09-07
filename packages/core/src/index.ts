@@ -12,6 +12,7 @@ export type {
   ModelUsage,
   NamedCount,
   Title,
+  SessionPresence,
   SessionSummary,
 } from "./session";
 

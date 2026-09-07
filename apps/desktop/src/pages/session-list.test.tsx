@@ -55,6 +55,7 @@ function makeSummary(overrides: Partial<SessionSummary> & { id: string }): Sessi
     modelBreakdown: [],
     toolCounts: [],
     skillCounts: [],
+    presence: "external",
     ...overrides,
   };
 }

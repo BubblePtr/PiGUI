@@ -77,6 +77,13 @@ export type Title =
   | { kind: "text"; sentence: string }
   | { kind: "raw"; text: string };
 
+// Whether the Pi session behind a summary also exists as a PiGUI Session:
+// "active" and "archived" are both projected here (archiving only hides a
+// Session, it never drops its Trajectory), "external" means the session was
+// started outside PiGUI — the Pi CLI, say. Derived per request from the
+// projection store, so it is never cached alongside the parsed summary.
+export type SessionPresence = "active" | "archived" | "external";
+
 export type SessionSummary = {
   id: string;
   timestamp: string;
@@ -88,4 +95,5 @@ export type SessionSummary = {
   modelBreakdown: ModelUsage[];
   toolCounts: NamedCount[];
   skillCounts: NamedCount[];
+  presence: SessionPresence;
 };

@@ -6,6 +6,7 @@ import { createBackendService } from "./service";
 import { createInMemorySessionEventJournal } from "./persistence/session-event-journal";
 import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
+import type { SessionSummary } from "@pigui/core";
 import type { PiRuntimeDriver } from "./gateway/runtime-gateway";
 import type {
   TerminalManager,
@@ -335,6 +336,56 @@ describe("backend service", () => {
       result: expect.objectContaining({
         defaultModel: "gpt-5-codex",
       }),
+    });
+  });
+
+  it("re-derives list_sessions presence from the projection store on every call", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const projection = {
+      sessionId: "session-newest",
+      runtimeId: "runtime-newest",
+      piSessionId: "newest-session",
+      projectId: "project-1",
+      cwd: "/checkout/project",
+      status: "completed" as const,
+      updatedAt: "2026-08-27T10:00:00.000Z",
+    };
+    await projections.save(projection);
+
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      sessionProjectionStore: projections,
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    const presenceById = async (id: string) => {
+      const response = await service.handleRequest({ id, method: "list_sessions" });
+      const sessions = response.result as SessionSummary[];
+
+      return Object.fromEntries(
+        sessions.map((session) => [session.id, session.presence]),
+      );
+    };
+
+    expect(await presenceById("req-presence-1")).toEqual({
+      "newest-session": "active",
+      "middle-session": "external",
+      "oldest-session": "external",
+    });
+
+    // The summary index is cached by file mtime; presence must still follow the
+    // projection store, which changed without any session file changing.
+    await projections.save({
+      ...projection,
+      status: "archived",
+      archivedAt: "2026-08-27T11:00:00.000Z",
+      updatedAt: "2026-08-27T11:00:00.000Z",
+    });
+
+    expect(await presenceById("req-presence-2")).toEqual({
+      "newest-session": "archived",
+      "middle-session": "external",
+      "oldest-session": "external",
     });
   });
 

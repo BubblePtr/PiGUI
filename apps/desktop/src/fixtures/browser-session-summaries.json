@@ -14,7 +14,8 @@
       { "name": "read", "count": 18 },
       { "name": "bash", "count": 12 }
     ],
-    "skillCounts": [{ "name": "ui-review", "count": 2 }]
+    "skillCounts": [{ "name": "ui-review", "count": 2 }],
+    "presence": "active"
   },
   {
     "id": "dev-fixture-zenblog-jun05",
@@ -31,7 +32,8 @@
       { "name": "grep", "count": 8 },
       { "name": "ctx_batch_execute", "count": 3 }
     ],
-    "skillCounts": []
+    "skillCounts": [],
+    "presence": "active"
   },
   {
     "id": "dev-fixture-zenblog-may30",
@@ -48,7 +50,8 @@
       { "name": "read", "count": 24 },
       { "name": "bash", "count": 16 }
     ],
-    "skillCounts": [{ "name": "frontend-testing-debugging", "count": 1 }]
+    "skillCounts": [{ "name": "frontend-testing-debugging", "count": 1 }],
+    "presence": "archived"
   },
   {
     "id": "dev-fixture-bubble-mar22",
@@ -63,7 +66,8 @@
       { "name": "bash", "count": 9 },
       { "name": "read", "count": 6 }
     ],
-    "skillCounts": []
+    "skillCounts": [],
+    "presence": "external"
   },
   {
     "id": "dev-fixture-excalidraw-mar20",
@@ -80,7 +84,8 @@
       { "name": "bash", "count": 14 },
       { "name": "read", "count": 10 }
     ],
-    "skillCounts": []
+    "skillCounts": [],
+    "presence": "external"
   },
   {
     "id": "dev-fixture-void-mar20",
@@ -92,6 +97,7 @@
     "primaryModel": "k2p5",
     "modelBreakdown": [{ "model": "k2p5", "costUsd": 0.002763, "tokens": 1568 }],
     "toolCounts": [{ "name": "bash", "count": 2 }],
-    "skillCounts": []
+    "skillCounts": [],
+    "presence": "archived"
   }
 ]

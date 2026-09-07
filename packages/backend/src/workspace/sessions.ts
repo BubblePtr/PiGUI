@@ -7,6 +7,7 @@ import type {
   SessionTurn,
   ModelUsage,
   NamedCount,
+  SessionPresence,
   SessionSummary,
   Title,
 } from "@pigui/core";
@@ -105,6 +106,37 @@ export async function buildSessionIndexWithCache(
   return sessions
     .sort((left, right) => right.sortTimestamp - left.sortTimestamp)
     .map((session) => session.summary);
+}
+
+// The projection fields presence depends on — a structural subset of
+// PersistedSessionProjection so the session parser stays free of persistence.
+export type SessionPresenceProjection = {
+  piSessionId: string;
+  status: string;
+  archivedAt?: string;
+};
+
+export function annotateSessionPresence(
+  summaries: SessionSummary[],
+  projections: SessionPresenceProjection[],
+): SessionSummary[] {
+  const presenceByPiSessionId = new Map<string, SessionPresence>();
+
+  for (const projection of projections) {
+    const archived = projection.status === "archived" || Boolean(projection.archivedAt);
+    const presence = archived ? "archived" : "active";
+
+    // Duplicate projections of one Pi session should not exist, but if they do,
+    // a live one wins: the Session is still visible somewhere in PiGUI.
+    if (presence === "active" || !presenceByPiSessionId.has(projection.piSessionId)) {
+      presenceByPiSessionId.set(projection.piSessionId, presence);
+    }
+  }
+
+  return summaries.map((summary) => ({
+    ...summary,
+    presence: presenceByPiSessionId.get(summary.id) ?? "external",
+  }));
 }
 
 export async function loadSessionDetail(dir: string, id: string): Promise<SessionDetail> {
@@ -485,6 +517,9 @@ async function readSessionSummary(path: string): Promise<IndexedSession | undefi
       modelBreakdown: modelBreakdown(metrics),
       toolCounts: sortedNamedCounts(metrics.toolCounts),
       skillCounts: sortedNamedCounts(metrics.skillCounts),
+      // Pi's JSONL cannot say whether PiGUI knows this session; annotateSessionPresence
+      // resolves it per request, so the cached summary never holds a stale presence.
+      presence: "external",
     },
     sortTimestamp: sessionRecord.sortTimestamp,
   };
