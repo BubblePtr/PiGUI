@@ -1,3 +1,5 @@
+import { CHAT_PROJECT_ID } from "@pigui/core";
+import { isChatProjectId } from "@/entities/project/chat-workspace";
 import type { ProjectRegistryEntry } from "@/entities/project/project-registry";
 
 export type AppLanding =
@@ -9,23 +11,29 @@ export type AppLanding =
       draftProjectId: string | null;
     };
 
+function isSelectableDraftTarget(
+  projectId: string | null,
+  projects: Array<Pick<ProjectRegistryEntry, "id">>,
+) {
+  if (!projectId) {
+    return false;
+  }
+
+  return isChatProjectId(projectId) || projects.some((project) => project.id === projectId);
+}
+
 export function resolveAppLanding(input: {
   projects: Array<Pick<ProjectRegistryEntry, "id">>;
   draft: { projectId: string | null } | null;
 }): AppLanding {
   const firstProjectId = input.projects[0]?.id;
-
-  if (!firstProjectId) {
-    return { to: "/trajectory" };
-  }
-
   const requestedDraftProjectId = input.draft?.projectId ?? null;
-  const draftProjectId =
-    requestedDraftProjectId &&
-    input.projects.some((project) => project.id === requestedDraftProjectId)
-      ? requestedDraftProjectId
-      : null;
-  const routeProjectId = draftProjectId ?? firstProjectId;
+  const draftProjectId = isSelectableDraftTarget(requestedDraftProjectId, input.projects)
+    ? requestedDraftProjectId
+    : firstProjectId
+      ? null
+      : CHAT_PROJECT_ID;
+  const routeProjectId = draftProjectId ?? firstProjectId ?? CHAT_PROJECT_ID;
 
   return {
     to: "/projects/$projectId/sessions",

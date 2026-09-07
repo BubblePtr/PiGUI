@@ -60,6 +60,7 @@ import {
   resolveAgentDir,
   type SessionIndexCache,
 } from "./workspace/sessions";
+import { resolveChatWorkspaceRoot } from "./workspace/chat-workspace";
 
 export type BackendRpcRequest = {
   id: string;
@@ -153,6 +154,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
       }),
     projections: sessionProjectionStore,
     journal: runtimeJournal,
+    dataDir,
   });
   const listeners = new Set<(event: BackendRpcEvent) => void>();
   const terminalManager = options.terminalManager ?? createTerminalManager();
@@ -204,6 +206,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             runtimeGateway,
             runtimeJournal,
             terminalManager,
+            dataDir,
           }),
         };
       } catch (error) {
@@ -238,6 +241,7 @@ async function dispatchRequest(input: {
   runtimeGateway: RuntimeGatewayService;
   runtimeJournal: SessionEventJournal;
   terminalManager: TerminalManager;
+  dataDir: string;
 }) {
   const params = paramsRecord(input.request.params);
 
@@ -254,14 +258,18 @@ async function dispatchRequest(input: {
   switch (input.request.method) {
     case "list_sessions": {
       const [summaries, projections] = await Promise.all([
-        buildSessionIndexWithCache(input.agentDir, input.sessionCache),
+        buildSessionIndexWithCache(input.agentDir, input.sessionCache, input.dataDir),
         input.sessionProjectionStore.list(),
       ]);
 
       return annotateSessionPresence(summaries, projections);
     }
     case "get_session_detail":
-      return loadSessionDetail(input.agentDir, requiredString(params.id, "id"));
+      return loadSessionDetail(
+        input.agentDir,
+        requiredString(params.id, "id"),
+        input.dataDir,
+      );
     case "list_session_projections":
       return listSessionProjections({
         store: input.sessionProjectionStore,
@@ -283,6 +291,8 @@ async function dispatchRequest(input: {
       });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
+    case "get_chat_workspace_root":
+      return { path: resolveChatWorkspaceRoot(input.dataDir) };
     case "run_environment_preflight":
       return input.environmentPreflight.run();
     case "get_environment_preflight_status":
@@ -561,6 +571,7 @@ function isRuntimeGatewayMethod(method: string) {
     method === "create_session" ||
     method === "fork_session" ||
     method === "resume_session" ||
+    method === "prepare_chat_workspace" ||
     method === "send_prompt" ||
     method === "queue_follow_up" ||
     method === "withdraw_queued_message" ||

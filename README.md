@@ -77,6 +77,7 @@ flowchart LR
 | How Pi is driven | [`packages/backend/src/drivers/`](packages/backend/src/drivers/) — `pi-sdk-driver.ts` is the main path; the RPC driver is frozen ([ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md), [ADR-0021](docs/adr/0021-session-fork-resume-persistence-layering.md)) |
 | Persistence & replay (journal, projection) | [`packages/backend/src/persistence/`](packages/backend/src/persistence/) |
 | Sessions on disk, git worktrees, config inventory | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
+| Chat Workspace dirs (`<dataDir>/chats/<sessionId>/`) | [`packages/backend/src/workspace/chat-workspace.ts`](packages/backend/src/workspace/chat-workspace.ts) — sentinel `CHAT_PROJECT_ID` in [`packages/core`](packages/core/src/runtime-gateway.ts) ([ADR-0034](docs/adr/0034-projectless-chat-workspace.md)) |
 | Electron shell & transport | [`apps/desktop/electron/`](apps/desktop/electron/) — `main.ts`, `preload.ts`, `backend.ts` |
 | Why it is designed this way | [`docs/adr/`](docs/adr/) — terms in [`CONTEXT.md`](CONTEXT.md) |
 

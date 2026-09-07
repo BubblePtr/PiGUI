@@ -142,6 +142,8 @@ function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T
     }
     case "reveal_project_in_finder":
       return Promise.resolve(undefined as T);
+    case "get_chat_workspace_root":
+      return Promise.resolve({ path: "/tmp/pigui-chats" } as T);
     case "list_session_projections":
       return Promise.resolve([] as T);
     case "list_sessions":
@@ -305,8 +307,14 @@ export function selectProjectDirectory() {
   return invoke<string | null>("select_project_directory");
 }
 
-export function revealProjectInFinder(path: string) {
-  return invoke<void>("reveal_project_in_finder", { path });
+export function revealProjectInFinder(
+  path: string,
+  options?: { ensure?: boolean },
+) {
+  return invoke<void>(
+    "reveal_project_in_finder",
+    options?.ensure ? { path, ensure: true } : { path },
+  );
 }
 
 export async function onWindowFocusChanged(refetch: () => unknown) {

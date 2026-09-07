@@ -77,6 +77,7 @@ flowchart LR
 | Pi 的接入方式 | [`packages/backend/src/drivers/`](packages/backend/src/drivers/)——`pi-sdk-driver.ts` 是主路径；RPC driver 已冻结（[ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)、[ADR-0021](docs/adr/0021-session-fork-resume-persistence-layering.md)） |
 | 持久化与重放（journal、projection） | [`packages/backend/src/persistence/`](packages/backend/src/persistence/) |
 | 磁盘上的会话、git worktree、配置清单 | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
+| Chat Workspace 目录（`<dataDir>/chats/<sessionId>/`） | [`packages/backend/src/workspace/chat-workspace.ts`](packages/backend/src/workspace/chat-workspace.ts) — 哨兵 `CHAT_PROJECT_ID` 在 [`packages/core`](packages/core/src/runtime-gateway.ts)（[ADR-0034](docs/adr/0034-projectless-chat-workspace.md)） |
 | Electron 外壳与 transport | [`apps/desktop/electron/`](apps/desktop/electron/)——`main.ts`、`preload.ts`、`backend.ts` |
 | 为什么这么设计 | [`docs/adr/`](docs/adr/)——术语见 [`CONTEXT.md`](CONTEXT.md) |
 

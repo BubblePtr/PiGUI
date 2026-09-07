@@ -70,6 +70,7 @@ import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-stat
 import { invoke } from "@/shared/runtime";
 import {
   Box,
+  ChatAdd,
   Check,
   ChevronDown,
   Computer,
@@ -90,6 +91,13 @@ import {
   type ExecutionCheckoutManager,
 } from "@/entities/checkout/execution-checkout";
 import { createInvokeExecutionCheckoutGitClient } from "@/entities/checkout/execution-checkout-client";
+import {
+  CHAT_PICKER_LABEL,
+  CHAT_PROJECT_ID,
+  CHAT_WORKSPACE_DISPLAY_NAME,
+  chatWorkspaceListEntry,
+  isChatProjectId,
+} from "@/entities/project/chat-workspace";
 import {
   getProjectRegistry,
   subscribeProjectRegistry,
@@ -113,6 +121,7 @@ import { deriveCotView, type CotStep, type CotView } from "@/entities/session/co
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
+  prepareChatSessionCheckout,
   type CreateSessionFromDraftInput,
   type CreateSessionFromDraftResult,
 } from "@/entities/session/session-creation";
@@ -124,6 +133,7 @@ import {
 import { subscribeComposerInjections } from "@/entities/session/composer-injections";
 import {
   clearSessionDraft,
+  ensureSessionDraft,
   getSessionDraft,
   saveSessionDraft,
   setSessionDraftCheckoutMode,
@@ -776,6 +786,10 @@ function FullChatComposer({
           occupiedBranches={sessionGitChanges?.occupiedBranches ?? []}
           onBranchChange={(next) => void switchSessionBranch(next)}
         />
+      ) : isChatProjectId(projection.projectId) ? (
+        <span className="text-xs text-muted" data-testid="live-session-chat-label">
+          {CHAT_WORKSPACE_DISPLAY_NAME}
+        </span>
       ) : null}
       <span className="ml-auto inline-flex shrink-0">
         <ContextUsageMeter
@@ -1497,8 +1511,11 @@ function ProjectPicker({
   selectedProjectId: string | null;
   onProjectChange: (projectId: string | null) => void;
 }) {
-  const selectedProject = projects.find((project) => project.id === selectedProjectId);
+  const selectedProject = isChatProjectId(selectedProjectId)
+    ? chatWorkspaceListEntry()
+    : projects.find((project) => project.id === selectedProjectId);
   const selectedPickerKey = selectedProject?.id ?? projectPickerPlaceholderKey;
+  const StartIcon = isChatProjectId(selectedProjectId) ? ChatAdd : FolderClosed;
 
   return (
     <div className="max-w-full" data-testid="project-picker">
@@ -1508,6 +1525,16 @@ function ProjectPicker({
         label="Target Project"
         options={[
           { value: projectPickerPlaceholderKey, label: projectPickerPlaceholder },
+          {
+            value: CHAT_PROJECT_ID,
+            label: CHAT_PICKER_LABEL,
+            icon: (
+              <ChatAdd
+                aria-hidden="true"
+                className="pigui-compact-menu-item-icon text-muted"
+              />
+            ),
+          },
           ...projects.map((project) => ({
             value: project.id,
             label: project.displayName,
@@ -1521,7 +1548,7 @@ function ProjectPicker({
         ]}
         size="sm"
         startIcon={
-          <FolderClosed
+          <StartIcon
             aria-hidden="true"
             className="size-4 shrink-0 text-muted"
             data-testid="project-picker-folder-icon"
@@ -1977,10 +2004,12 @@ function SessionDraftComposer({
                 onDraftTargetChange(projectId);
               }}
             />
-            <CheckoutStrategyPicker
-              selectedCheckoutMode={selectedCheckoutMode}
-              onCheckoutModeChange={onDraftCheckoutModeChange}
-            />
+            {isChatProjectId(draft.projectId) ? null : (
+              <CheckoutStrategyPicker
+                selectedCheckoutMode={selectedCheckoutMode}
+                onCheckoutModeChange={onDraftCheckoutModeChange}
+              />
+            )}
           </div>
           {targetError ? (
             <p className="text-sm text-danger">
@@ -2504,14 +2533,20 @@ function LiveSessionColumn({
   const [registryProjects, setRegistryProjects] = useState(() =>
     getVisibleProjectRegistry(),
   );
-  const fallbackProject: ProjectRegistryEntry = {
-    id: projectId,
-    path: workspace.projectRoot,
-    displayName: workspace.name,
-    addedAt: "1970-01-01T00:00:00.000Z",
-  };
+  const fallbackProject: ProjectRegistryEntry = isChatProjectId(projectId)
+    ? chatWorkspaceListEntry()
+    : {
+        id: projectId,
+        path: workspace.projectRoot,
+        displayName: workspace.name,
+        addedAt: "1970-01-01T00:00:00.000Z",
+      };
   const usingRegistryProjects = registryProjects.length > 0;
-  const projects = usingRegistryProjects ? registryProjects : [fallbackProject];
+  const projects = usingRegistryProjects
+    ? registryProjects
+    : isChatProjectId(projectId)
+      ? []
+      : [fallbackProject];
   const projectIds = projects.map((project) => project.id);
   const projectIdsKey = projectIds.join("\n");
   const getVisibleSessionDraft = () =>
@@ -2720,7 +2755,9 @@ function LiveSessionColumn({
       return;
     }
 
-    const targetProject = projects.find((project) => project.id === draft.projectId);
+    const targetProject = isChatProjectId(draft.projectId)
+      ? chatWorkspaceListEntry()
+      : projects.find((project) => project.id === draft.projectId);
 
     if (!targetProject) {
       return;
@@ -2728,8 +2765,17 @@ function LiveSessionColumn({
 
     onDraftSubmit(event);
 
-    const targetProjectRoot = usingRegistryProjects ? targetProject.path : workspace.projectRoot;
-    const targetRepoRoot = usingRegistryProjects ? undefined : workspace.repoRoot;
+    const chatTarget = isChatProjectId(draft.projectId);
+    const targetProjectRoot = chatTarget
+      ? CHAT_PROJECT_ID
+      : usingRegistryProjects
+        ? targetProject.path
+        : workspace.projectRoot;
+    const targetRepoRoot = chatTarget
+      ? undefined
+      : usingRegistryProjects
+        ? undefined
+        : workspace.repoRoot;
 
     const result = await sessionCreator({
       draft: {
@@ -2741,7 +2787,9 @@ function LiveSessionColumn({
         repoRoot: targetRepoRoot,
         projectRoot: targetProjectRoot,
       },
-      executionMode: checkoutModeToExecutionMode(event.checkoutMode),
+      executionMode: chatTarget
+        ? "foreground"
+        : checkoutModeToExecutionMode(event.checkoutMode),
       ...(event.modelSelection ? { modelSelection: event.modelSelection } : {}),
       ...(event.images?.length ? { images: event.images } : {}),
       onProjectionChange: (projection) => {
@@ -3108,30 +3156,45 @@ function LiveSessionColumn({
       return;
     }
 
+    const chatFork = isChatProjectId(liveProjection.projectId);
     const confirmed = window.confirm(
-      [
-        "Fork this message into a new Session?",
-        "",
-        "PiGUI will create a separate Session from this message boundary.",
-        "Git Projects use a managed worktree; non-Git Projects may reuse the foreground directory.",
-        "The selected message text will be pre-filled in the new composer.",
-      ].join("\n"),
+      chatFork
+        ? [
+            "Fork this message into a new Session?",
+            "",
+            "PiGUI will create a separate Chat Session from this message boundary.",
+            "The selected message text will be pre-filled in the new composer.",
+          ].join("\n")
+        : [
+            "Fork this message into a new Session?",
+            "",
+            "PiGUI will create a separate Session from this message boundary.",
+            "Git Projects use a managed worktree; non-Git Projects may reuse the foreground directory.",
+            "The selected message text will be pre-filled in the new composer.",
+          ].join("\n"),
     );
 
     if (!confirmed) {
       return;
     }
 
-    const targetProject =
-      projects.find((candidate) => candidate.id === liveProjection.projectId) ??
-      projects.find((candidate) => candidate.id === projectId) ??
-      fallbackProject;
+    const targetProject = chatFork
+      ? chatWorkspaceListEntry()
+      : projects.find((candidate) => candidate.id === liveProjection.projectId) ??
+        projects.find((candidate) => candidate.id === projectId) ??
+        fallbackProject;
     const forkSessionId = createSessionId();
     const now = () => new Date().toISOString();
-    const targetProjectRoot = usingRegistryProjects
-      ? targetProject.path
-      : workspace.projectRoot;
-    const targetRepoRoot = usingRegistryProjects ? undefined : workspace.repoRoot;
+    const targetProjectRoot = chatFork
+      ? CHAT_PROJECT_ID
+      : usingRegistryProjects
+        ? targetProject.path
+        : workspace.projectRoot;
+    const targetRepoRoot = chatFork
+      ? undefined
+      : usingRegistryProjects
+        ? undefined
+        : workspace.repoRoot;
     let forkProjection = createSessionProjection({
       id: forkSessionId,
       projectId: targetProject.id,
@@ -3149,16 +3212,23 @@ function LiveSessionColumn({
     commitForkProjection(forkProjection);
 
     try {
-      const checkout = await checkoutManager.prepareCheckout({
-        sessionId: forkSessionId,
-        strategy: "background-managed",
-        project: {
-          id: targetProject.id,
-          repoRoot: targetRepoRoot,
-          projectRoot: targetProjectRoot,
-        },
-        now,
-      });
+      const checkout = chatFork
+        ? await prepareChatSessionCheckout({
+            sessionId: forkSessionId,
+            bridge,
+            checkoutManager,
+            now,
+          })
+        : await checkoutManager.prepareCheckout({
+            sessionId: forkSessionId,
+            strategy: "background-managed",
+            project: {
+              id: targetProject.id,
+              repoRoot: targetRepoRoot,
+              projectRoot: targetProjectRoot,
+            },
+            now,
+          });
 
       commitForkProjection(
         applySessionProjectionEvent(forkProjection, {
@@ -3590,13 +3660,20 @@ export function AgentWorkspaceSessionsPage() {
   const dockMounted = useSessionDockPresence(dockOpen);
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
-  const project = registryProjects.find((candidate) => candidate.id === projectId) ?? null;
+  const project = isChatProjectId(projectId)
+    ? chatWorkspaceListEntry()
+    : registryProjects.find((candidate) => candidate.id === projectId) ?? null;
   const workspace = project ? workspaceFromProject(project) : null;
   const selectedSessionProjection =
     sessionProjections.find(
       (projection) =>
         projection.id === selectedSessionId && projection.projectId === projectId,
     ) ?? null;
+  const emptyChatDraft =
+    registryProjects.length === 0 &&
+    isChatProjectId(projectId) &&
+    showDraft &&
+    !sessionProjections.some((projection) => isChatProjectId(projection.projectId));
   // One read for the composer git-branch chip, the Changes panel, and the
   // rail badge. The docked rail carries the Changes count whatever surface
   // is showing, so it needs the diff even on Terminal. The composer footer
@@ -3604,7 +3681,10 @@ export function AgentWorkspaceSessionsPage() {
   // is no longer gated on the dock being open.
   const sessionChanges = useSessionChanges({
     sessionId: selectedSessionProjection?.id ?? null,
-    enabled: Boolean(selectedSessionProjection?.id) && !showDraft,
+    enabled:
+      Boolean(selectedSessionProjection?.id) &&
+      !showDraft &&
+      !isChatProjectId(projectId),
   });
 
   useEffect(
@@ -3619,6 +3699,21 @@ export function AgentWorkspaceSessionsPage() {
     setTerminalInstanceCount(0);
     setBrowserInstanceCount(0);
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (registryProjects.length > 0 || isChatProjectId(projectId)) {
+      return;
+    }
+
+    ensureSessionDraft(CHAT_PROJECT_ID);
+    void navigate({
+      to: "/projects/$projectId/sessions",
+      params: { projectId: CHAT_PROJECT_ID },
+      search: { view: "draft" } as never,
+      replace: true,
+      resetScroll: false,
+    });
+  }, [navigate, projectId, registryProjects.length]);
 
   // After hydrate (or when project sessions appear), select the first valid session.
   useEffect(() => {
@@ -3685,27 +3780,6 @@ export function AgentWorkspaceSessionsPage() {
     setTerminalInstanceCount(instances.length);
   };
 
-  if (registryProjects.length === 0) {
-    return (
-      <AppFrame
-        sessionProjections={[]}
-        sessionsHydrated={sessionsHydrated}
-        selectedSessionId={null}
-        onSelectedSessionIdChange={setSelectedSessionId}
-      >
-        <section
-          className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center px-6 text-center"
-          data-testid="empty-workspace-state"
-        >
-          <h2 className="text-lg font-semibold text-foreground">No Projects</h2>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-            Add a Project to start a Session.
-          </p>
-        </section>
-      </AppFrame>
-    );
-  }
-
   if (!workspace) {
     return (
       <AppFrame
@@ -3714,15 +3788,17 @@ export function AgentWorkspaceSessionsPage() {
         selectedSessionId={null}
         onSelectedSessionIdChange={setSelectedSessionId}
       >
-        <section
-          className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center px-6 text-center"
-          data-testid="project-not-found-state"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Project not found</h2>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-            Choose an existing Project from the sidebar.
-          </p>
-        </section>
+        {registryProjects.length === 0 ? null : (
+          <section
+            className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center px-6 text-center"
+            data-testid="project-not-found-state"
+          >
+            <h2 className="text-lg font-semibold text-foreground">Project not found</h2>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
+              Choose an existing Project from the sidebar.
+            </p>
+          </section>
+        )}
       </AppFrame>
     );
   }
@@ -3740,6 +3816,10 @@ export function AgentWorkspaceSessionsPage() {
         />
       ) : undefined}
     >
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-col"
+        data-testid={emptyChatDraft ? "empty-workspace-state" : undefined}
+      >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
         asideOpen={dockOpen}
@@ -3779,6 +3859,7 @@ export function AgentWorkspaceSessionsPage() {
         onLatestMessageRendered={handleLatestMessageRendered}
         onManageModels={() => openSettings("models")}
       />
+      </div>
     </AppFrame>
   );
 }

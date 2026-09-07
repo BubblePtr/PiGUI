@@ -52,7 +52,7 @@ import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-u
 import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
 import { saveVisibleModels } from "@/entities/model/visible-models";
-import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
+import { ensureSessionDraft, getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 import * as sessionsApi from "@/entities/session/sessions";
 
 // The app shell renders the sidebar with Astryx SideNav: rows are buttons,
@@ -728,13 +728,104 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows an empty Workspace state until a Project is added manually", async () => {
-    renderProjectSessions("/projects/pig/sessions", { seedProjects: false });
+  it("shows a Chat draft when the Project Registry is empty", async () => {
+    ensureSessionDraft("chat");
+    renderProjectSessions("/projects/chat/sessions?view=draft", { seedProjects: false });
 
     expect(await screen.findByTestId("empty-workspace-state")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "No Projects" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Project" })).toBeInTheDocument();
-    expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New Session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New Chat" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No Projects" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("Chat · no project");
+  });
+
+  it("redirects an empty registry off a missing Project route to the Chat draft", async () => {
+    const { router } = renderProjectSessions("/projects/gone/sessions?view=draft", {
+      seedProjects: false,
+    });
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/projects/chat/sessions");
+      expect(router.state.location.search).toMatchObject({ view: "draft" });
+    });
+    expect(screen.queryByTestId("project-not-found-state")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("empty-workspace-state")).toBeInTheDocument();
+  });
+
+  it("does not mark a populated Chat workspace as the empty workspace state", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "session-chat-1",
+            runtimeId: "pi-sdk:session-chat-1",
+            piSessionId: "pi-session-chat-1",
+            projectId: "chat",
+            initialPrompt: "What is a monad?",
+            cwd: "/tmp/pigui-chats/session-chat-1",
+            status: "completed",
+            updatedAt: "2026-09-07T12:00:00.000Z",
+          },
+        ];
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions("/projects/chat/sessions", { seedProjects: false });
+
+    expect(await screen.findByRole("button", { name: "Session dock" })).toBeInTheDocument();
+    expect(screen.queryByTestId("empty-workspace-state")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("project-not-found-state")).not.toBeInTheDocument();
+  });
+
+  it("does not query session changes for a Chat session", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "session-chat-1",
+            runtimeId: "pi-sdk:session-chat-1",
+            piSessionId: "pi-session-chat-1",
+            projectId: "chat",
+            initialPrompt: "What is a monad?",
+            cwd: "/tmp/pigui-chats/session-chat-1",
+            status: "completed",
+            updatedAt: "2026-09-07T12:00:00.000Z",
+          },
+        ];
+      }
+
+      if (command === "get_session_changes") {
+        throw new Error("Chat sessions must not probe git");
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions("/projects/chat/sessions", { seedProjects: false });
+
+    expect(await screen.findByRole("button", { name: "Session dock" })).toBeInTheDocument();
+    expect(
+      invoke.mock.calls.filter(([command]) => command === "get_session_changes"),
+    ).toHaveLength(0);
   });
 
   it("renders an Electron Project with zero Sessions without fixture data", async () => {

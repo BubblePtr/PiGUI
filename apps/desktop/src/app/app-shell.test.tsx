@@ -15,6 +15,7 @@ import {
   AppFrame,
   defaultSidebarProjectSessionProjections,
 } from "@/app/app-shell";
+import type { SessionProjection } from "@/entities/session/session-projection";
 import { addProjectToRegistry, getProjectRegistry } from "@/entities/project/project-registry";
 import { saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
@@ -68,7 +69,12 @@ function renderAppFrame(
   {
     seedProjects = true,
     toolbarActions,
-  }: { seedProjects?: boolean; toolbarActions?: ReactNode } = {},
+    sessionProjections,
+  }: {
+    seedProjects?: boolean;
+    toolbarActions?: ReactNode;
+    sessionProjections?: SessionProjection[];
+  } = {},
 ) {
   if (seedProjects) {
     seedPigProject();
@@ -78,7 +84,7 @@ function renderAppFrame(
     component: () => (
       <AppFrame
         sidebar={<div>Route sidebar</div>}
-        sessionProjections={defaultSidebarProjectSessionProjections}
+        sessionProjections={sessionProjections ?? defaultSidebarProjectSessionProjections}
         toolbarActions={toolbarActions}
       >
         <div>Main content</div>
@@ -218,23 +224,55 @@ describe("AppFrame", () => {
   });
 
   it("renders Empty Workspace State when the Project Registry is empty", async () => {
-    renderAppFrame("/projects/pig/sessions", { seedProjects: false });
+    renderAppFrame("/projects/chat/sessions", { seedProjects: false });
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const chatsGroup = screen.getByTestId("sidebar-chats");
     const projectGroup = screen.getByTestId("sidebar-projects");
 
+    expect(within(chatsGroup).getByRole("button", { name: "Chat" })).toBeInTheDocument();
+    expect(within(chatsGroup).getByRole("button", { name: "New Chat" })).toBeInTheDocument();
+    expect(within(chatsGroup).queryByRole("button", { name: /Project actions/ })).not.toBeInTheDocument();
     expect(within(projectGroup).getByRole("button", { name: "Add Project" })).toBeInTheDocument();
     expect(within(projectGroup).queryByPlaceholderText("Absolute local path")).not.toBeInTheDocument();
     expect(
       within(projectGroup).queryByRole("button", { name: "New Session for Pig" }),
     ).not.toBeInTheDocument();
     expect(
-      within(screen.getByRole("group", { name: "Trajectory and usage navigation" })).queryByRole(
+      within(screen.getByRole("group", { name: "Trajectory and usage navigation" })).getByRole(
         "button",
         { name: "New Session" },
       ),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
     expect(within(projectGroup).queryByText("Pig")).not.toBeInTheDocument();
+  });
+
+  it("pins Chats above Projects and keeps chat sessions out of Project groups", async () => {
+    const chatProjection = {
+      ...defaultSidebarProjectSessionProjections[0],
+      id: "session-chat-casual",
+      projectId: "chat",
+      title: "Casual question",
+      initialPrompt: "Casual question",
+    };
+
+    renderAppFrame("/projects/pig/sessions", {
+      seedProjects: true,
+      sessionProjections: [...defaultSidebarProjectSessionProjections, chatProjection],
+    });
+
+    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const chatsGroup = screen.getByTestId("sidebar-chats");
+    const projectGroup = screen.getByTestId("sidebar-projects");
+    const sidebar = screen.getByTestId("app-layout-sidebar");
+    const chatsIndex = sidebar.innerHTML.indexOf("sidebar-chats");
+    const projectsIndex = sidebar.innerHTML.indexOf("sidebar-projects");
+
+    expect(chatsIndex).toBeGreaterThan(-1);
+    expect(projectsIndex).toBeGreaterThan(chatsIndex);
+    expect(within(chatsGroup).getByText("Casual question")).toBeInTheDocument();
+    expect(within(projectGroup).queryByText("Casual question")).not.toBeInTheDocument();
+    expect(within(chatsGroup).queryByRole("button", { name: /Project actions/ })).toBeNull();
   });
 
   it("renders Add Project as a rail-aware SideNavItem so the collapsed rail hides its label", async () => {

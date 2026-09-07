@@ -1,3 +1,5 @@
+import { isChatProjectId } from "@/entities/project/chat-workspace";
+
 export type SessionDraftCheckoutMode = "local" | "worktree";
 
 export type SessionDraft = {
@@ -95,7 +97,9 @@ function clearMissingTarget(
     return draft;
   }
 
-  if (options.projectIds.includes(draft.projectId)) {
+  // Chat is a built-in target, not a registry Project, so it stays valid
+  // even when projectIds is only the user's added folders.
+  if (isChatProjectId(draft.projectId) || options.projectIds.includes(draft.projectId)) {
     return draft;
   }
 

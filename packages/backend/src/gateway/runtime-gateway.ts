@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises";
 import type {
   RuntimeGatewayEventEnvelope,
   RuntimeGatewayEventInput,
@@ -11,6 +12,7 @@ import type {
   RuntimeToolSchemas,
 } from "@pigui/core";
 import {
+  CHAT_PROJECT_ID,
   createRuntimeGatewaySequencer,
   parseRuntimePromptImages,
   shouldJournalRuntimeEvent,
@@ -19,9 +21,11 @@ import {
   copiedSessionEventInputsForFork,
   forkMarkerEventInput,
   prepareSessionEventJournalFork,
+  resolveDataDir,
   type PreparedSessionEventJournalFork,
   type SessionEventJournal,
 } from "../persistence/session-event-journal";
+import { ensureChatWorkspace } from "../workspace/chat-workspace";
 import {
   mergeSessionProjection,
   projectionFromRuntimeSnapshot,
@@ -127,6 +131,7 @@ export type RuntimeGatewayServiceOptions = {
   projections?: SessionProjectionStore;
   now?: () => string;
   idFactory?: () => string;
+  dataDir?: string;
 };
 
 export function createRuntimeGatewayService(
@@ -135,6 +140,7 @@ export function createRuntimeGatewayService(
   const listeners = new Set<(event: RuntimeGatewayBackendEvent) => void>();
   const sessionIdsByPiSessionId = new Map<string, string>();
   const now = options.now ?? (() => new Date().toISOString());
+  const dataDir = options.dataDir ?? resolveDataDir();
   const nextEvent = createRuntimeGatewaySequencer({
     now,
     idFactory: options.idFactory,
@@ -203,6 +209,7 @@ export function createRuntimeGatewayService(
           driver: options.driver,
           journal: options.journal,
           projections: options.projections,
+          dataDir,
           emit,
           appendJournalEvent,
           now,
@@ -267,6 +274,7 @@ async function dispatchRuntimeGatewayRequest(input: {
   driver: PiRuntimeDriver;
   journal?: SessionEventJournal;
   projections?: SessionProjectionStore;
+  dataDir: string;
   emit: (event: RuntimeGatewayDriverEvent) => RuntimeGatewayEventEnvelope | null;
   appendJournalEvent: (event: RuntimeGatewayEventInput) => RuntimeGatewayEventEnvelope;
   now: () => string;
@@ -277,6 +285,11 @@ async function dispatchRuntimeGatewayRequest(input: {
   const params = paramsRecord(input.request.params);
 
   switch (input.request.method) {
+    case "prepare_chat_workspace": {
+      const sessionId = requiredString(params.sessionId, "sessionId");
+      const cwd = await ensureChatWorkspace(input.dataDir, sessionId);
+      return { cwd };
+    }
     case "create_session": {
       const snapshot = await input.driver.createSession({
         sessionId: requiredString(params.sessionId, "sessionId"),
@@ -296,6 +309,13 @@ async function dispatchRuntimeGatewayRequest(input: {
     case "resume_session": {
       const sessionId = requiredString(params.sessionId, "sessionId");
       const piSessionId = requiredString(params.piSessionId, "piSessionId");
+      const projectId = requiredString(params.projectId, "projectId");
+      const { cwd, rebuilt } = await resolveChatRuntimeCwd({
+        dataDir: input.dataDir,
+        projectId,
+        sessionId,
+        cwd: requiredString(params.cwd, "cwd"),
+      });
       const journaled = (await input.journal?.read(piSessionId)) ?? [];
       const persistedProjection = await input.projections?.get(sessionId);
 
@@ -303,11 +323,13 @@ async function dispatchRuntimeGatewayRequest(input: {
 
       const snapshot = await input.driver.resumeSession({
         sessionId,
-        projectId: requiredString(params.projectId, "projectId"),
+        projectId,
         piSessionId,
         sessionFile: requiredString(params.sessionFile, "sessionFile"),
-        cwd: requiredString(params.cwd, "cwd"),
-        checkout: params.checkout,
+        cwd,
+        checkout: rebuilt
+          ? rewriteRebuiltCheckoutPaths(params.checkout, cwd)
+          : params.checkout,
         modelSelection: persistedProjection?.modelSelection,
       });
       const snapshotWithEvents = journaled.length
@@ -323,6 +345,8 @@ async function dispatchRuntimeGatewayRequest(input: {
       return snapshotWithEvents;
     }
     case "fork_session": {
+      const sessionId = requiredString(params.sessionId, "sessionId");
+      const projectId = requiredString(params.projectId, "projectId");
       const sourcePiSessionId = requiredString(
         params.sourcePiSessionId,
         "sourcePiSessionId",
@@ -333,17 +357,25 @@ async function dispatchRuntimeGatewayRequest(input: {
         sourcePiSessionId,
         piEntryId,
       });
+      const { cwd, rebuilt } = await resolveChatRuntimeCwd({
+        dataDir: input.dataDir,
+        projectId,
+        sessionId,
+        cwd: requiredString(params.cwd, "cwd"),
+      });
       const result = await input.driver.forkSession({
-        sessionId: requiredString(params.sessionId, "sessionId"),
-        projectId: requiredString(params.projectId, "projectId"),
+        sessionId,
+        projectId,
         sourcePiSessionId,
         sourceSessionFile: requiredString(
           params.sourceSessionFile,
           "sourceSessionFile",
         ),
         piEntryId,
-        cwd: requiredString(params.cwd, "cwd"),
-        checkout: params.checkout,
+        cwd,
+        checkout: rebuilt
+          ? rewriteRebuiltCheckoutPaths(params.checkout, cwd)
+          : params.checkout,
       });
       const journaled = await copyJournalForFork({
         appendJournalEvent: input.appendJournalEvent,
@@ -885,6 +917,53 @@ async function setProjectionInitialPrompt(input: {
 
 function paramsRecord(params: unknown) {
   return isRecord(params) ? params : {};
+}
+
+const checkoutPathKeys = [
+  "root",
+  "runtimeCwd",
+  "diffRoot",
+  "repoRoot",
+  "projectRoot",
+  "executionCheckoutRoot",
+] as const;
+
+// Terminal and Changes persist checkout.root / diffRoot, so a rebuilt chat cwd
+// has to heal those fields or they keep pointing at the deleted directory.
+function rewriteRebuiltCheckoutPaths(checkout: unknown, cwd: string) {
+  if (!isRecord(checkout)) {
+    return checkout;
+  }
+
+  const next: Record<string, unknown> = { ...checkout };
+  for (const key of checkoutPathKeys) {
+    if (typeof next[key] === "string") {
+      next[key] = cwd;
+    }
+  }
+
+  return next;
+}
+
+async function resolveChatRuntimeCwd(input: {
+  dataDir: string;
+  projectId: string;
+  sessionId: string;
+  cwd: string;
+}) {
+  if (input.projectId !== CHAT_PROJECT_ID) {
+    return { cwd: input.cwd, rebuilt: false };
+  }
+
+  try {
+    await access(input.cwd);
+    return { cwd: input.cwd, rebuilt: false };
+  } catch {
+    return {
+      cwd: await ensureChatWorkspace(input.dataDir, input.sessionId),
+      rebuilt: true,
+    };
+  }
 }
 
 function requiredString(value: unknown, name: string) {

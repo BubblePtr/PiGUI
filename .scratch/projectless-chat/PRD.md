@@ -4,7 +4,7 @@ Status: ready-for-agent
 Feature: projectless-chat
 Created: 2026-09-07
 
-> 本 PRD 推翻 [ADR-0019](../../docs/adr/0019-project-registry-and-draft-model.md) 与 CONTEXT.md **Empty Workspace State** 中"不提供无 Project 归属的 prompt 输入"这一条。决策以新的 ADR-0034 记录（由实现 PR 落地）。
+> 本 PRD 推翻 [ADR-0019](../../docs/adr/0019-project-registry-and-draft-model.md) 与 CONTEXT.md **Empty Workspace State** 中"不提供无 Project 归属的 prompt 输入"这一条。决策以 [ADR-0034](../../docs/adr/0034-projectless-chat-workspace.md) 记录（由实现 PR 落地）。ADR-0033 已用于应用内升级，本决策编号为 0034。
 
 ## Problem Statement
 
@@ -32,7 +32,7 @@ Pi 本身永远需要一个 cwd（`createAgentSession({ cwd })`，`pi-sdk-runtim
    - Landing：registry 为空且无 draft 目标时 → `/projects/chat/sessions?view=draft`，不再落 `/trajectory`。
    - Live Session 页头对 Chat Session 显示 "Chat" 而非目录名；Git-only 动作（Changes diff、branch、worktree）沿用非 Git Project 的禁用/隐藏态。Terminal surface 的 cwd 为会话目录。
 9. **Settings。** 新增 `chats` section（`settings.tsx:727-731` 的 sections 数组 + `shared/settings-navigation.ts` 类型），内容只有两项：Chat Workspace 根目录的只读路径 + "Reveal in Finder / Open folder" 按钮（走现有 shell 打开能力，若无则新增 `reveal_path` IPC）。不做自定义根目录设置：目录跟随 `PIGUI_DATA_DIR`，dev 与正式 app 天然隔离，自定义路径留作未来需求。不做自动清理设置。
-10. **词汇。** CONTEXT.md 新增 **Chat Workspace**、**Chat Session** 两条；改写 **Empty Workspace State**（保留 heading，`regions.test.ts` 断言 heading 存在）、**Project Selector**、**Session Draft**、**Session** 中与"必须有 Project"相冲突的句子。新增 ADR-0034 记录本决策并注明部分推翻 ADR-0019 与 ADR-0004 的"Project 是唯一顶层组织单元"。
+10. **词汇。** CONTEXT.md 新增 **Chat Workspace**、**Chat Session** 两条；改写 **Empty Workspace State**（保留 heading，`regions.test.ts` 断言 heading 存在）、**Project Selector**、**Session Draft**、**Session** 中与"必须有 Project"相冲突的句子。新增 [ADR-0034](../../docs/adr/0034-projectless-chat-workspace.md) 记录本决策并注明部分推翻 ADR-0019 与 ADR-0004 的"Project 是唯一顶层组织单元"。
 
 ### 不变的部分
 

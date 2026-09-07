@@ -9,6 +9,7 @@ import {
   buildSessionIndexWithCache,
   classifyTitle,
   createSessionIndexCache,
+  deriveProjectName,
   parseSession,
   type SessionPresenceProjection,
 } from "./sessions";
@@ -32,9 +33,11 @@ function expectCost(actual: number, expected: number) {
   expect(Math.abs(actual - expected)).toBeLessThan(1e-12);
 }
 
+const unusedDataDir = "/tmp/pigui-unused-data";
+
 describe("backend session parser", () => {
   it("builds the session index newest first with projects and title chips", async () => {
-    const sessions = await buildSessionIndex(fixtureAgentDir());
+    const sessions = await buildSessionIndex(fixtureAgentDir(), unusedDataDir);
 
     expect(sessions).toHaveLength(3);
     expect(sessions.map((session) => session.id)).toEqual([
@@ -60,10 +63,20 @@ describe("backend session parser", () => {
       `{"type":"session","version":3,"id":"session-64372af7-2bf3-4238-9cbb-6d41ad451fed","timestamp":"2026-06-29T15:01:27.454Z","cwd":"/Users/void/code/opensource/.pig-worktrees/Pig/session-64372af7-2bf3-4238-9cbb-6d41ad451fed"}`,
     );
 
-    const sessions = await buildSessionIndex(agentDir);
+    const sessions = await buildSessionIndex(agentDir, unusedDataDir);
 
     expect(sessions).toHaveLength(1);
     expect(sessions[0].project).toBe("Pig");
+  });
+
+  it("labels chat workspace cwds as Chat", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+
+    expect(deriveProjectName(join(dataDir, "chats", "session-abc"), dataDir)).toBe("Chat");
+    expect(deriveProjectName(join(dataDir, "chats-extra", "session-abc"), dataDir)).toBe(
+      "session-abc",
+    );
+    expect(deriveProjectName("/Users/void/code/opensource/Pig", dataDir)).toBe("Pig");
   });
 
   it("reconstructs detail turn order and merges tool results into assistant turns", async () => {
@@ -75,7 +88,7 @@ describe("backend session parser", () => {
       "utf8",
     );
 
-    const detail = parseSession(jsonl);
+    const detail = parseSession(jsonl, unusedDataDir);
 
     expect(detail.id).toBe("middle-session");
     expect(detail.project).toBe("beta");
@@ -105,7 +118,7 @@ describe("backend session parser", () => {
 {"type":"message","role":"user","timestamp":"2026-01-07T10:00:01.000Z","content":[{"type":"text","text":"Compare these files."}]}
 {"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:02.000Z","usage":{"inputTokens":100,"outputTokens":50,"cost":{"inputUsd":0.01,"outputUsd":0.02,"totalUsd":0.03}},"content":[{"type":"text","text":"I will inspect both files."}]}
 {"type":"model_change","timestamp":"2026-01-07T10:00:03.000Z","from":"gpt-5-mini","to":"gpt-5-codex"}
-{"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:04.000Z","usage":{"input_tokens":150,"output_tokens":50,"cache_read_tokens":20,"total_tokens":220},"cost":{"input_usd":0.04,"output_usd":0.08,"cache_read_usd":0.01,"total_usd":0.13},"content":[{"type":"text","text":"The second file changed the API contract."}]}`);
+{"type":"message","role":"assistant","timestamp":"2026-01-07T10:00:04.000Z","usage":{"input_tokens":150,"output_tokens":50,"cache_read_tokens":20,"total_tokens":220},"cost":{"input_usd":0.04,"output_usd":0.08,"cache_read_usd":0.01,"total_usd":0.13},"content":[{"type":"text","text":"The second file changed the API contract."}]}`, unusedDataDir);
 
     expect(detail.totalTokens).toBe(370);
     expectCost(detail.totalCostUsd, 0.16);
@@ -136,7 +149,7 @@ describe("backend session parser", () => {
 {"type":"message","role":"assistant","timestamp":"2026-01-09T10:00:04.000Z","usage":{"totalTokens":220},"cost":{"totalUsd":0.13},"content":[{"type":"toolCall","name":"list_files"}]}`,
     );
 
-    const sessions = await buildSessionIndex(agentDir);
+    const sessions = await buildSessionIndex(agentDir, unusedDataDir);
 
     expect(sessions[0]).toMatchObject({
       id: "metrics-session",
@@ -161,8 +174,16 @@ describe("backend session parser", () => {
   it("reuses cached summaries when file mtimes are unchanged", async () => {
     const cache = createSessionIndexCache();
 
-    const first = await buildSessionIndexWithCache(fixtureAgentDir(), cache);
-    const second = await buildSessionIndexWithCache(fixtureAgentDir(), cache);
+    const first = await buildSessionIndexWithCache(
+      fixtureAgentDir(),
+      cache,
+      unusedDataDir,
+    );
+    const second = await buildSessionIndexWithCache(
+      fixtureAgentDir(),
+      cache,
+      unusedDataDir,
+    );
 
     expect(second).toEqual(first);
     expect(cache.misses).toBe(3);
@@ -172,7 +193,7 @@ describe("backend session parser", () => {
   it("parses nested message records used by current Pi sessions", () => {
     const detail = parseSession(`{"type":"session","id":"test-nested","timestamp":"2026-06-23T10:00:00.000Z","cwd":"/Users/test/proj"}
 {"type":"message","id":"msg1","parentId":null,"timestamp":"2026-06-23T10:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"Hello world"}]}}
-{"type":"message","id":"msg2","parentId":"msg1","timestamp":"2026-06-23T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Let me think."},{"type":"text","text":"Hi there!"},{"type":"toolCall","name":"list_files","arguments":{"path":"."}}],"model":"gpt-5","usage":{"input":100,"output":50,"totalTokens":150},"cost":{"input":0.01,"output":0.02,"total":0.03}}}`);
+{"type":"message","id":"msg2","parentId":"msg1","timestamp":"2026-06-23T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Let me think."},{"type":"text","text":"Hi there!"},{"type":"toolCall","name":"list_files","arguments":{"path":"."}}],"model":"gpt-5","usage":{"input":100,"output":50,"totalTokens":150},"cost":{"input":0.01,"output":0.02,"total":0.03}}}`, unusedDataDir);
 
     expect(detail.turns).toHaveLength(2);
     expect(detail.turns[0].parts[0]).toMatchObject({ partType: "text", text: "Hello world" });
@@ -194,7 +215,7 @@ describe("backend session parser", () => {
 {"type":"message","id":"m2","parentId":"m1","timestamp":"2026-06-23T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_1","name":"bash","arguments":{"command":"ls src"}}],"model":"gpt-5","stopReason":"toolUse"}}
 {"type":"message","id":"m3","parentId":"m2","timestamp":"2026-06-23T10:00:02.071Z","message":{"role":"toolResult","toolCallId":"call_1","toolName":"bash","content":[{"type":"text","text":"src/main.tsx"}],"isError":false,"timestamp":1750672802071}}
 {"type":"message","id":"m4","parentId":"m3","timestamp":"2026-06-23T10:00:03.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_2","name":"bash","arguments":{"command":"cat missing.txt"}}],"model":"gpt-5","stopReason":"toolUse"}}
-{"type":"message","id":"m5","parentId":"m4","timestamp":"2026-06-23T10:00:05.500Z","message":{"role":"toolResult","toolCallId":"call_2","toolName":"bash","content":[{"type":"text","text":"cat: missing.txt: No such file or directory"}],"isError":true,"timestamp":1750672805500}}`);
+{"type":"message","id":"m5","parentId":"m4","timestamp":"2026-06-23T10:00:05.500Z","message":{"role":"toolResult","toolCallId":"call_2","toolName":"bash","content":[{"type":"text","text":"cat: missing.txt: No such file or directory"}],"isError":true,"timestamp":1750672805500}}`, unusedDataDir);
 
     const assistantTurns = detail.turns.filter((turn) => turn.role === "assistant");
     const okResult = assistantTurns[0].parts.find((part) => part.partType === "toolResult");
@@ -230,7 +251,7 @@ describe("backend session parser", () => {
 {"type":"message","id":"m3","timestamp":"2026-06-23T10:00:12.000Z","message":{"role":"assistant","timestamp":1782208820000,"content":[{"type":"text","text":"Clock skew."}],"model":"gpt-5"}}
 {"type":"message","id":"m4","timestamp":"2026-06-23T10:00:14.000Z","message":{"role":"assistant","timestamp":"whenever","content":[{"type":"text","text":"Garbage stamp."}],"model":"gpt-5"}}
 {"type":"message","id":"m5","timestamp":"2026-06-23T10:00:16.000Z","message":{"role":"assistant","timestamp":0,"content":[{"type":"text","text":"Epoch zero."}],"model":"gpt-5"}}
-{"type":"message","id":"m6","timestamp":"2026-06-23T10:00:18.000Z","message":{"role":"assistant","timestamp":1782198018000,"content":[{"type":"text","text":"Three hours."}],"model":"gpt-5"}}`);
+{"type":"message","id":"m6","timestamp":"2026-06-23T10:00:18.000Z","message":{"role":"assistant","timestamp":1782198018000,"content":[{"type":"text","text":"Three hours."}],"model":"gpt-5"}}`, unusedDataDir);
 
     expect(detail.turns.map((turn) => turn.modelDurationMs)).toEqual([
       5_500,

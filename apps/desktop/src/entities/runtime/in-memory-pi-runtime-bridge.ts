@@ -270,6 +270,10 @@ export function createInMemoryPiRuntimeBridge(
       return cloneSessionState(state);
     },
 
+    async prepareChatWorkspace(input) {
+      return { cwd: `/tmp/pigui-chats/${input.sessionId}` };
+    },
+
     async restoreSessionState(state) {
       const restoredState = cloneSessionState(state);
 

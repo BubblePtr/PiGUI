@@ -1,9 +1,12 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBackendService } from "./service";
-import { createInMemorySessionEventJournal } from "./persistence/session-event-journal";
+import {
+  createInMemorySessionEventJournal,
+  resolveDataDir,
+} from "./persistence/session-event-journal";
 import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
 import type { SessionSummary } from "@pigui/core";
@@ -1467,5 +1470,96 @@ describe("backend service", () => {
       }),
     ).resolves.toEqual({ id: "req-close", result: null });
     expect(terminalManager.close).toHaveBeenCalledWith("term-fake-1");
+  });
+
+  it("creates a chat workspace directory through prepare_chat_workspace", async () => {
+    const dataDir = await tempDataDir();
+    const sessionId = "session-rpc-chat";
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      dataDir,
+      runtimeDriver: {
+        onEvent: vi.fn(() => () => {}),
+      } as unknown as PiRuntimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-prepare",
+        method: "prepare_chat_workspace",
+        params: { sessionId },
+      }),
+    ).resolves.toEqual({
+      id: "req-prepare",
+      result: { cwd: join(dataDir, "chats", sessionId) },
+    });
+    expect((await stat(join(dataDir, "chats", sessionId))).isDirectory()).toBe(true);
+  });
+
+  it("labels list_sessions under the service dataDir chats root as Chat", async () => {
+    const dataDir = await tempDataDir();
+    const agentDir = await tempDataDir();
+    const sessionId = "session-chat-label";
+    const cwd = join(dataDir, "chats", sessionId);
+    const sessionDir = join(agentDir, "sessions", "chat");
+
+    expect(dataDir).not.toBe(resolveDataDir());
+
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      join(sessionDir, "2026-09-07T12-00-00-000Z_session-chat-label.jsonl"),
+      `{"type":"session","id":"${sessionId}","timestamp":"2026-09-07T12:00:00.000Z","cwd":${JSON.stringify(cwd)}}`,
+    );
+
+    const service = createBackendService({
+      agentDir,
+      dataDir,
+      runtimeDriver: {
+        onEvent: vi.fn(() => () => {}),
+      } as unknown as PiRuntimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    const response = await service.handleRequest({
+      id: "req-list",
+      method: "list_sessions",
+    });
+
+    expect(response).toEqual({
+      id: "req-list",
+      result: [
+        expect.objectContaining({
+          id: sessionId,
+          project: "Chat",
+        }),
+      ],
+    });
+  });
+
+  it("returns the chat workspace root through get_chat_workspace_root", async () => {
+    const dataDir = await tempDataDir();
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      dataDir,
+      runtimeDriver: {
+        onEvent: vi.fn(() => () => {}),
+      } as unknown as PiRuntimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-chat-root",
+        method: "get_chat_workspace_root",
+      }),
+    ).resolves.toEqual({
+      id: "req-chat-root",
+      result: { path: join(dataDir, "chats") },
+    });
+    await expect(stat(join(dataDir, "chats"))).rejects.toThrow();
   });
 });

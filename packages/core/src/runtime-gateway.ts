@@ -1,5 +1,10 @@
 import type { RuntimePromptImage } from "./prompt-image";
 
+// Registry project ids are absolute paths (they start with `/`); this sentinel cannot collide.
+export const CHAT_PROJECT_ID = "chat";
+
+export type PrepareChatWorkspaceResult = { cwd: string };
+
 export type RuntimeGatewayRequest = {
   id: string;
   method: string;

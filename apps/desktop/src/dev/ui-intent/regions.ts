@@ -31,6 +31,10 @@ export const uiRegions: UiRegion[] = [
     match: { components: ["ProjectNavigation"], testIds: ["sidebar-projects"] },
   },
   {
+    term: "Chat Workspace",
+    match: { components: ["ChatNavigation"], testIds: ["sidebar-chats"] },
+  },
+  {
     term: "Trajectory Cockpit",
     match: { components: ["SessionDetailView"], testIds: ["session-detail-view"] },
   },

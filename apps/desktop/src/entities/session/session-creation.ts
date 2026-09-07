@@ -1,4 +1,6 @@
 import type { RuntimeModelSelection, RuntimePromptImage } from "@pigui/core";
+import { CHAT_PROJECT_ID } from "@pigui/core";
+import { isChatProjectId } from "@/entities/project/chat-workspace";
 import type { SessionDraft } from "@/entities/session/session-drafts";
 import { PiRuntimeBridgeError, type PiRuntimeBridge } from "@/entities/runtime/pi-runtime-bridge";
 import {
@@ -110,6 +112,32 @@ function failureDetail(error: unknown, fallbackStage: SessionCreationFailureStag
   };
 }
 
+export async function prepareChatSessionCheckout(input: {
+  sessionId: string;
+  bridge: PiRuntimeBridge;
+  checkoutManager: ExecutionCheckoutManager;
+  now?: () => string;
+}) {
+  const prepare = input.bridge.prepareChatWorkspace;
+
+  if (!prepare) {
+    throw new Error("Chat workspace is not available.");
+  }
+
+  const { cwd } = await prepare({ sessionId: input.sessionId });
+
+  return input.checkoutManager.prepareCheckout({
+    sessionId: input.sessionId,
+    strategy: "foreground-local",
+    project: {
+      id: CHAT_PROJECT_ID,
+      projectRoot: cwd,
+    },
+    now: input.now,
+    skipGit: true,
+  });
+}
+
 export async function createSessionFromDraft(
   input: CreateSessionFromDraftInput,
 ): Promise<CreateSessionFromDraftResult> {
@@ -142,13 +170,23 @@ export async function createSessionFromDraft(
   let unsubscribeRuntimeEvents: (() => void) | null = null;
 
   try {
-    const checkout = await checkoutManager.prepareCheckout({
-      sessionId: projection.id,
-      strategy:
-        input.executionMode === "background" ? "background-managed" : "foreground-local",
-      project: input.project,
-      now,
-    });
+    const chatCheckout = isChatProjectId(draftProjectId)
+      ? await prepareChatSessionCheckout({
+          sessionId: projection.id,
+          bridge: input.bridge,
+          checkoutManager,
+          now,
+        })
+      : null;
+    const checkout =
+      chatCheckout ??
+      (await checkoutManager.prepareCheckout({
+        sessionId: projection.id,
+        strategy:
+          input.executionMode === "background" ? "background-managed" : "foreground-local",
+        project: input.project,
+        now,
+      }));
 
     commit(
       applySessionProjectionEvent(projection, {
@@ -162,12 +200,12 @@ export async function createSessionFromDraft(
     failureStage = "starting runtime";
     const runtime = await input.bridge.startRuntime({
       sessionId: projection.id,
-      projectId: input.project.id,
+      projectId: draftProjectId,
       checkout,
     });
     const piState = await input.bridge.createPiSessionState({
       runtimeId: runtime.runtimeId,
-      projectId: input.project.id,
+      projectId: draftProjectId,
       cwd: checkout.runtimeCwd,
     });
     const unsubscribeLegacyEvents = input.bridge.subscribeToEvents(

@@ -18,7 +18,7 @@ import {
   useSettingsDialog,
   type SettingsSection,
 } from "@/shared/settings-navigation";
-import { Bot, Globe, RefreshCw, Sparkles } from "@/shared/ui/icons";
+import { Bot, FolderOpen, Globe, RefreshCw, Sparkles } from "@/shared/ui/icons";
 import { ChangelogSection } from "@/pages/settings-changelog";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import {
@@ -27,7 +27,7 @@ import {
 } from "@/entities/model/visible-models";
 import { useUpdateStatus } from "@/entities/update/use-update-status";
 import { isModelVisible } from "@/shared/ui/model-selector/model-selector-logic";
-import { invoke } from "@/shared/runtime";
+import { invoke, revealProjectInFinder } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 import type {
   ProviderAuthId,
@@ -484,6 +484,48 @@ function AboutUpdatesSection() {
   );
 }
 
+function ChatsSettingsSection({ enabled }: { enabled: boolean }) {
+  const rootQuery = useQuery({
+    queryKey: ["chat-workspace-root"],
+    queryFn: () => invoke<{ path: string }>("get_chat_workspace_root"),
+    enabled,
+  });
+  const path = rootQuery.data?.path ?? "";
+
+  return (
+    <VStack
+      as="section"
+      aria-labelledby="settings-chats-heading"
+      gap={3}
+      data-testid="settings-chats"
+    >
+      <VStack gap={2}>
+        <Heading level={2} id="settings-chats-heading">
+          Chats
+        </Heading>
+        <Text as="p" type="supporting">
+          Each Chat Session works in its own folder under this directory.
+        </Text>
+      </VStack>
+      <Card>
+        <VStack gap={3}>
+          <Text as="p" type="supporting">
+            {rootQuery.isPending ? "Loading…" : path || "Chat workspace path unavailable."}
+          </Text>
+          <Button
+            variant="secondary"
+            label="Open folder"
+            isDisabled={!path}
+            onClick={() => {
+              void revealProjectInFinder(path, { ensure: true });
+            }}
+          />
+        </VStack>
+      </Card>
+    </VStack>
+  );
+}
+
 function SettingsContent({
   section,
   onSectionChange,
@@ -722,6 +764,11 @@ function SettingsContent({
               providerLabels={providerLabels}
             />
           </VStack>
+          <VStack
+            style={{ display: section === "chats" ? undefined : "none" }}
+          >
+            <ChatsSettingsSection enabled={section === "chats"} />
+          </VStack>
           <VStack style={{ display: section === "changelog" ? undefined : "none" }}>
             <ChangelogSection />
           </VStack>
@@ -737,6 +784,7 @@ function SettingsContent({
 const settingsSections = [
   { id: "providers", label: "Providers", icon: Globe },
   { id: "models", label: "Models", icon: Bot },
+  { id: "chats", label: "Chats", icon: FolderOpen },
   { id: "changelog", label: "Changelog", icon: Sparkles },
   { id: "about", label: "About & Updates", icon: RefreshCw },
 ] as const;

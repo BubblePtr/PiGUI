@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createRuntimeGatewayService,
@@ -1544,5 +1547,294 @@ describe("Runtime Gateway service", () => {
       id: "req-schemas",
       result: { schemas: {} },
     });
+  });
+
+  it("creates a chat workspace directory for prepare_chat_workspace", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const sessionId = "session-chat-1";
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      dataDir,
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-prepare",
+        method: "prepare_chat_workspace",
+        params: { sessionId },
+      }),
+    ).resolves.toEqual({
+      id: "req-prepare",
+      result: { cwd: join(dataDir, "chats", sessionId) },
+    });
+    expect((await stat(join(dataDir, "chats", sessionId))).isDirectory()).toBe(true);
+  });
+
+  it("requires sessionId for prepare_chat_workspace", async () => {
+    const service = createRuntimeGatewayService({
+      driver: createFakeRuntimeDriver(),
+      dataDir: await mkdtemp(join(tmpdir(), "pigui-chats-")),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-missing",
+        method: "prepare_chat_workspace",
+        params: {},
+      }),
+    ).resolves.toEqual({
+      id: "req-missing",
+      error: "sessionId is required",
+    });
+    await expect(
+      service.handleRequest({
+        id: "req-blank",
+        method: "prepare_chat_workspace",
+        params: { sessionId: "   " },
+      }),
+    ).resolves.toEqual({
+      id: "req-blank",
+      error: "sessionId is required",
+    });
+  });
+
+  it("rebuilds a missing chat cwd before resume_session", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const sessionId = "session-chat-resume";
+    const rebuilt = join(dataDir, "chats", sessionId);
+    const driver = createFakeRuntimeDriver();
+    const resumeSession = vi.spyOn(driver, "resumeSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    const response = await service.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId,
+        projectId: "chat",
+        piSessionId: "pi-session-chat",
+        sessionFile: "/sessions/pi-session-chat.jsonl",
+        cwd: join(dataDir, "missing-chat-cwd"),
+      },
+    });
+
+    expect(response.error).toBeUndefined();
+    expect(resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: rebuilt }),
+    );
+    expect((await stat(rebuilt)).isDirectory()).toBe(true);
+  });
+
+  it("rewrites stale checkout paths when resume_session rebuilds a missing chat cwd", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const sessionId = "session-chat-resume-checkout";
+    const rebuilt = join(dataDir, "chats", sessionId);
+    const stale = join(dataDir, "missing-chat-cwd");
+    const staleCheckout = {
+      mode: "foreground-local",
+      root: stale,
+      runtimeCwd: stale,
+      diffRoot: stale,
+      repoRoot: stale,
+      projectRoot: stale,
+      executionCheckoutRoot: stale,
+    };
+    const driver = createFakeRuntimeDriver();
+    const resumeSession = vi.spyOn(driver, "resumeSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    const response = await service.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId,
+        projectId: "chat",
+        piSessionId: "pi-session-chat",
+        sessionFile: "/sessions/pi-session-chat.jsonl",
+        cwd: stale,
+        checkout: staleCheckout,
+      },
+    });
+
+    expect(response.error).toBeUndefined();
+    expect(resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: rebuilt,
+        checkout: {
+          mode: "foreground-local",
+          root: rebuilt,
+          runtimeCwd: rebuilt,
+          diffRoot: rebuilt,
+          repoRoot: rebuilt,
+          projectRoot: rebuilt,
+          executionCheckoutRoot: rebuilt,
+        },
+      }),
+    );
+  });
+
+  it("rebuilds a missing chat cwd for the new session on fork_session", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const sessionId = "session-chat-fork";
+    const rebuilt = join(dataDir, "chats", sessionId);
+    const driver = createFakeRuntimeDriver();
+    const forkSession = vi.spyOn(driver, "forkSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    const response = await service.handleRequest({
+      id: "req-fork",
+      method: "fork_session",
+      params: {
+        sessionId,
+        projectId: "chat",
+        sourcePiSessionId: "pi-session-source",
+        sourceSessionFile: "/sessions/pi-session-source.jsonl",
+        piEntryId: "pi-entry-1",
+        cwd: join(dataDir, "missing-fork-cwd"),
+      },
+    });
+
+    expect(response.error).toBeUndefined();
+    expect(forkSession).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: rebuilt }),
+    );
+    expect((await stat(rebuilt)).isDirectory()).toBe(true);
+  });
+
+  it("rewrites stale checkout paths when fork_session rebuilds a missing chat cwd", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const sessionId = "session-chat-fork-checkout";
+    const rebuilt = join(dataDir, "chats", sessionId);
+    const stale = join(dataDir, "missing-fork-cwd");
+    const staleCheckout = {
+      mode: "foreground-local",
+      root: stale,
+      runtimeCwd: stale,
+      diffRoot: stale,
+      repoRoot: stale,
+      projectRoot: stale,
+      executionCheckoutRoot: stale,
+    };
+    const driver = createFakeRuntimeDriver();
+    const forkSession = vi.spyOn(driver, "forkSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    const response = await service.handleRequest({
+      id: "req-fork",
+      method: "fork_session",
+      params: {
+        sessionId,
+        projectId: "chat",
+        sourcePiSessionId: "pi-session-source",
+        sourceSessionFile: "/sessions/pi-session-source.jsonl",
+        piEntryId: "pi-entry-1",
+        cwd: stale,
+        checkout: staleCheckout,
+      },
+    });
+
+    expect(response.error).toBeUndefined();
+    expect(forkSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: rebuilt,
+        checkout: {
+          mode: "foreground-local",
+          root: rebuilt,
+          runtimeCwd: rebuilt,
+          diffRoot: rebuilt,
+          repoRoot: rebuilt,
+          projectRoot: rebuilt,
+          executionCheckoutRoot: rebuilt,
+        },
+      }),
+    );
+  });
+
+  it("does not replace an existing chat cwd on resume_session", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const existing = join(dataDir, "still-here");
+    await mkdir(existing);
+    const driver = createFakeRuntimeDriver();
+    const resumeSession = vi.spyOn(driver, "resumeSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    await service.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId: "session-chat-existing",
+        projectId: "chat",
+        piSessionId: "pi-session-chat",
+        sessionFile: "/sessions/pi-session-chat.jsonl",
+        cwd: existing,
+      },
+    });
+
+    expect(resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: existing }),
+    );
+  });
+
+  it("does not rewrite checkout paths when the chat cwd still exists on resume_session", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const existing = join(dataDir, "still-here");
+    await mkdir(existing);
+    const checkout = {
+      mode: "foreground-local",
+      root: existing,
+      runtimeCwd: existing,
+      diffRoot: join(dataDir, "other-diff"),
+      repoRoot: existing,
+      projectRoot: existing,
+      executionCheckoutRoot: existing,
+    };
+    const driver = createFakeRuntimeDriver();
+    const resumeSession = vi.spyOn(driver, "resumeSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    await service.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId: "session-chat-existing-checkout",
+        projectId: "chat",
+        piSessionId: "pi-session-chat",
+        sessionFile: "/sessions/pi-session-chat.jsonl",
+        cwd: existing,
+        checkout,
+      },
+    });
+
+    expect(resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cwd: existing,
+        checkout,
+      }),
+    );
+  });
+
+  it("does not rebuild a missing cwd for non-chat resume_session", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pigui-chats-"));
+    const missing = join(dataDir, "gone-project");
+    const driver = createFakeRuntimeDriver();
+    const resumeSession = vi.spyOn(driver, "resumeSession");
+    const service = createRuntimeGatewayService({ driver, dataDir });
+
+    await service.handleRequest({
+      id: "req-resume",
+      method: "resume_session",
+      params: {
+        sessionId: "session-project",
+        projectId: "pig",
+        piSessionId: "pi-session-project",
+        sessionFile: "/sessions/pi-session-project.jsonl",
+        cwd: missing,
+      },
+    });
+
+    expect(resumeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: missing }),
+    );
+    await expect(stat(join(dataDir, "chats", "session-project"))).rejects.toThrow();
   });
 });

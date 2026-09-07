@@ -101,6 +101,14 @@ function renderSettings(
       return modelControls;
     }
 
+    if (command === "get_chat_workspace_root") {
+      return { path: "/tmp/pigui-dev/chats" };
+    }
+
+    if (command === "reveal_project_in_finder") {
+      return undefined;
+    }
+
     if (
       command === "update:status" ||
       command === "update:check" ||
@@ -284,6 +292,40 @@ describe("Settings — visible models", () => {
     expect(within(card).getByPlaceholderText("Paste API key")).toHaveValue(
       "sk-unsaved",
     );
+  });
+});
+
+describe("Settings — chats", () => {
+  it("does not query the chat workspace root until the Chats section is open", async () => {
+    const user = userEvent.setup();
+    const { countCalls } = renderSettings();
+
+    await findModelsSection();
+    expect(countCalls("get_chat_workspace_root")).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: "Chats" }));
+
+    await waitFor(() => {
+      expect(countCalls("get_chat_workspace_root")).toBe(1);
+    });
+  });
+
+  it("shows the chat workspace root and opens the folder", async () => {
+    const user = userEvent.setup();
+    const { countCalls } = renderSettings("/usage?settings=chats");
+
+    const section = await screen.findByTestId("settings-chats");
+
+    expect(within(section).getByRole("heading", { name: "Chats" })).toBeInTheDocument();
+    expect(await within(section).findByText("/tmp/pigui-dev/chats")).toBeInTheDocument();
+
+    await user.click(within(section).getByRole("button", { name: "Open folder" }));
+
+    expect(countCalls("reveal_project_in_finder")).toBe(1);
+    expect(window.pigui!.invoke).toHaveBeenCalledWith("reveal_project_in_finder", {
+      path: "/tmp/pigui-dev/chats",
+      ensure: true,
+    });
   });
 });
 

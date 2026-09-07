@@ -83,7 +83,9 @@ export {
 } from "./prompt-image";
 
 export {
+  CHAT_PROJECT_ID,
   createRuntimeGatewaySequencer,
+  type PrepareChatWorkspaceResult,
   type RuntimeGatewayRequest,
   type RuntimeGatewayResponse,
   type RuntimeGatewayEventPayload,

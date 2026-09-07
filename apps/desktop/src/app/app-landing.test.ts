@@ -9,13 +9,32 @@ describe("resolveAppLanding", () => {
     window.localStorage.clear();
   });
 
-  it("opens Trajectory when the Project Registry is empty", () => {
+  it("opens a Chat draft when the Project Registry is empty", () => {
     expect(
       resolveAppLanding({
         projects: [],
         draft: null,
       }),
-    ).toEqual({ to: "/trajectory" });
+    ).toEqual({
+      to: "/projects/$projectId/sessions",
+      params: { projectId: "chat" },
+      search: { view: "draft" },
+      draftProjectId: "chat",
+    });
+  });
+
+  it("keeps an existing Chat draft target when Projects are registered", () => {
+    expect(
+      resolveAppLanding({
+        projects: [{ id: pigProjectId }],
+        draft: { projectId: "chat" },
+      }),
+    ).toEqual({
+      to: "/projects/$projectId/sessions",
+      params: { projectId: "chat" },
+      search: { view: "draft" },
+      draftProjectId: "chat",
+    });
   });
 
   it("opens the New Session draft on the first registered Project when none is targeted", () => {
