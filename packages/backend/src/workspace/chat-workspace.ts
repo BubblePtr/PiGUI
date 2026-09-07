@@ -5,6 +5,12 @@ export function resolveChatWorkspaceRoot(dataDir: string) {
   return resolve(dataDir, "chats");
 }
 
+export async function ensureChatWorkspaceRoot(dataDir: string) {
+  const path = resolveChatWorkspaceRoot(dataDir);
+  await mkdir(path, { recursive: true });
+  return path;
+}
+
 export async function ensureChatWorkspace(dataDir: string, sessionId: string) {
   assertSafeChatSessionId(sessionId);
   const cwd = join(resolveChatWorkspaceRoot(dataDir), sessionId);

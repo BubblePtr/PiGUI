@@ -1494,4 +1494,28 @@ describe("backend service", () => {
     });
     expect((await stat(join(dataDir, "chats", sessionId))).isDirectory()).toBe(true);
   });
+
+  it("returns the chat workspace root through get_chat_workspace_root", async () => {
+    const dataDir = await tempDataDir();
+    const service = createBackendService({
+      agentDir: fixtureAgentDir(),
+      dataDir,
+      runtimeDriver: {
+        onEvent: vi.fn(() => () => {}),
+      } as unknown as PiRuntimeDriver,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-chat-root",
+        method: "get_chat_workspace_root",
+      }),
+    ).resolves.toEqual({
+      id: "req-chat-root",
+      result: { path: join(dataDir, "chats") },
+    });
+    expect((await stat(join(dataDir, "chats"))).isDirectory()).toBe(true);
+  });
 });

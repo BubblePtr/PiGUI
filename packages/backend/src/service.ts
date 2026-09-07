@@ -60,6 +60,7 @@ import {
   resolveAgentDir,
   type SessionIndexCache,
 } from "./workspace/sessions";
+import { ensureChatWorkspaceRoot } from "./workspace/chat-workspace";
 
 export type BackendRpcRequest = {
   id: string;
@@ -205,6 +206,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             runtimeGateway,
             runtimeJournal,
             terminalManager,
+            dataDir,
           }),
         };
       } catch (error) {
@@ -239,6 +241,7 @@ async function dispatchRequest(input: {
   runtimeGateway: RuntimeGatewayService;
   runtimeJournal: SessionEventJournal;
   terminalManager: TerminalManager;
+  dataDir: string;
 }) {
   const params = paramsRecord(input.request.params);
 
@@ -284,6 +287,8 @@ async function dispatchRequest(input: {
       });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
+    case "get_chat_workspace_root":
+      return { path: await ensureChatWorkspaceRoot(input.dataDir) };
     case "run_environment_preflight":
       return input.environmentPreflight.run();
     case "get_environment_preflight_status":

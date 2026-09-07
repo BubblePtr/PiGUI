@@ -52,7 +52,7 @@ import { getFollowUpDraft, saveFollowUpDraft } from "@/entities/session/follow-u
 import { injectIntoComposer } from "@/entities/session/composer-injections";
 import { getLastModelSelection, saveLastModelSelection } from "@/entities/session/last-model-preference";
 import { saveVisibleModels } from "@/entities/model/visible-models";
-import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
+import { ensureSessionDraft, getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 import * as sessionsApi from "@/entities/session/sessions";
 
 // The app shell renders the sidebar with Astryx SideNav: rows are buttons,
@@ -728,13 +728,16 @@ describe("AgentWorkspaceSessionsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows an empty Workspace state until a Project is added manually", async () => {
-    renderProjectSessions("/projects/pig/sessions", { seedProjects: false });
+  it("shows a Chat draft when the Project Registry is empty", async () => {
+    ensureSessionDraft("chat");
+    renderProjectSessions("/projects/chat/sessions?view=draft", { seedProjects: false });
 
     expect(await screen.findByTestId("empty-workspace-state")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "No Projects" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Project" })).toBeInTheDocument();
-    expect(screen.queryByText("Agent Workspace shell")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New Session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New Chat" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No Projects" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("project-picker-trigger")).toHaveTextContent("Chat · no project");
   });
 
   it("renders an Electron Project with zero Sessions without fixture data", async () => {

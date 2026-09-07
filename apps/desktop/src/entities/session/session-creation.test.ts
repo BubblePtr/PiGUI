@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createInMemoryPiRuntimeBridge } from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import { createPiRpcRuntimeBridge } from "@/entities/runtime/pi-rpc-runtime-bridge";
 import { createFakePiRpcTransport } from "@pigui/core/testing";
@@ -448,6 +448,48 @@ describe("Session Creation state machine", () => {
         .list()
         .filter((projection) => projection.projectId === "pig" && projection.status === "running"),
     ).toHaveLength(2);
+  });
+
+  it("prepares a chat workspace cwd and uses a foreground-local checkout", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const prepareChatWorkspace = vi.fn(async ({ sessionId }: { sessionId: string }) => ({
+      cwd: `/tmp/pigui-chats/${sessionId}`,
+    }));
+    const bridge = createInMemoryPiRuntimeBridge({
+      now: () => "2026-09-07T08:00:03.000Z",
+    });
+    bridge.prepareChatWorkspace = prepareChatWorkspace;
+
+    const result = await createSessionFromDraft({
+      bridge,
+      projections,
+      executionMode: "background",
+      draft: {
+        projectId: "chat",
+        prompt: "What is a monad?",
+        updatedAt: "2026-09-07T08:00:00.000Z",
+      },
+      project: {
+        id: "chat",
+        projectRoot: "chat",
+      },
+      now: () => "2026-09-07T08:00:00.000Z",
+      idFactory: () => "session-chat-1",
+    });
+
+    expect(prepareChatWorkspace).toHaveBeenCalledWith({ sessionId: "session-chat-1" });
+    expect(result).toMatchObject({
+      ok: true,
+      projection: {
+        id: "session-chat-1",
+        projectId: "chat",
+        checkout: {
+          mode: "foreground-local",
+          root: "/tmp/pigui-chats/session-chat-1",
+          runtimeCwd: "/tmp/pigui-chats/session-chat-1",
+        },
+      },
+    });
   });
 
   it.each([

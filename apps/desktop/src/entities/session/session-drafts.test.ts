@@ -95,4 +95,30 @@ describe("Session Draft storage", () => {
 
     expect(getSessionDraft()).toBeNull();
   });
+
+  it("keeps a Chat draft target even when the Project Registry is empty", () => {
+    saveSessionDraft("chat", "Ask something without a Project");
+
+    expect(
+      getSessionDraft({
+        projectIds: ["/Users/void/Documents/study"],
+      }),
+    ).toMatchObject({
+      projectId: "chat",
+      prompt: "Ask something without a Project",
+    });
+  });
+
+  it("still clears a missing Project target instead of falling back to Chat", () => {
+    saveSessionDraft("/Users/void/code/opensource/Pig", "Keep this global draft");
+
+    expect(
+      getSessionDraft({
+        projectIds: ["/Users/void/Documents/study"],
+      }),
+    ).toMatchObject({
+      projectId: null,
+      prompt: "Keep this global draft",
+    });
+  });
 });

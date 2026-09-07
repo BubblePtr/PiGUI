@@ -242,6 +242,7 @@ export type PiRuntimeBridge = {
   getSessionState(piSessionId: string): Promise<PiSessionState>;
   resumeSession?(input: ResumeSessionInput): Promise<PiSessionState>;
   forkSession?(input: ForkSessionInput): Promise<ForkSessionResult>;
+  prepareChatWorkspace?(input: { sessionId: string }): Promise<{ cwd: string }>;
   subscribeToEvents(piSessionId: string, listener: (event: PiRuntimeEvent) => void): () => void;
   // Optional until every bridge speaks the Agent Runtime Event Model; the
   // legacy PiRuntimeEvent stream above remains the compatibility surface.

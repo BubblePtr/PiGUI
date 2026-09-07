@@ -18,7 +18,7 @@ import {
   useSettingsDialog,
   type SettingsSection,
 } from "@/shared/settings-navigation";
-import { Bot, Globe, RefreshCw } from "@/shared/ui/icons";
+import { Bot, FolderOpen, Globe, RefreshCw } from "@/shared/ui/icons";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import {
   getVisibleModels,
@@ -26,7 +26,7 @@ import {
 } from "@/entities/model/visible-models";
 import { useUpdateStatus } from "@/entities/update/use-update-status";
 import { isModelVisible } from "@/shared/ui/model-selector/model-selector-logic";
-import { invoke } from "@/shared/runtime";
+import { invoke, revealProjectInFinder } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 import type {
   ProviderAuthId,
@@ -483,6 +483,47 @@ function AboutUpdatesSection() {
   );
 }
 
+function ChatsSettingsSection() {
+  const rootQuery = useQuery({
+    queryKey: ["chat-workspace-root"],
+    queryFn: () => invoke<{ path: string }>("get_chat_workspace_root"),
+  });
+  const path = rootQuery.data?.path ?? "";
+
+  return (
+    <VStack
+      as="section"
+      aria-labelledby="settings-chats-heading"
+      gap={3}
+      data-testid="settings-chats"
+    >
+      <VStack gap={2}>
+        <Heading level={2} id="settings-chats-heading">
+          Chats
+        </Heading>
+        <Text as="p" type="supporting">
+          Each Chat Session works in its own folder under this directory.
+        </Text>
+      </VStack>
+      <Card>
+        <VStack gap={3}>
+          <Text as="p" type="supporting">
+            {rootQuery.isPending ? "Loading…" : path || "Chat workspace path unavailable."}
+          </Text>
+          <Button
+            variant="secondary"
+            label="Open folder"
+            isDisabled={!path}
+            onClick={() => {
+              void revealProjectInFinder(path);
+            }}
+          />
+        </VStack>
+      </Card>
+    </VStack>
+  );
+}
+
 function SettingsContent({
   section,
   onSectionChange,
@@ -716,6 +757,11 @@ function SettingsContent({
               providerLabels={providerLabels}
             />
           </VStack>
+          <VStack
+            style={{ display: section === "chats" ? undefined : "none" }}
+          >
+            <ChatsSettingsSection />
+          </VStack>
           <VStack style={{ display: section === "about" ? undefined : "none" }}>
             <AboutUpdatesSection />
           </VStack>
@@ -728,6 +774,7 @@ function SettingsContent({
 const settingsSections = [
   { id: "providers", label: "Providers", icon: Globe },
   { id: "models", label: "Models", icon: Bot },
+  { id: "chats", label: "Chats", icon: FolderOpen },
   { id: "about", label: "About & Updates", icon: RefreshCw },
 ] as const;
 
