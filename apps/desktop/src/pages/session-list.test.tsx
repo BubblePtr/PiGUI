@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
   SessionListPanel,
@@ -8,6 +8,9 @@ import {
   filterByProjects,
   groupByProject,
   projectTokenColor,
+  readSessionListOrder,
+  sessionListOrderStorageKey,
+  sortByRecency,
 } from "@/pages/session-list";
 import type { SessionSummary } from "@/entities/session/sessions";
 
@@ -38,6 +41,7 @@ beforeEach(() => {
   // Default: a never-settling invoke keeps the panel in its loading state.
   invokeMock.mockReset();
   invokeMock.mockImplementation(() => new Promise(() => {}));
+  window.localStorage.clear();
 });
 
 function makeSummary(overrides: Partial<SessionSummary> & { id: string }): SessionSummary {
@@ -163,6 +167,7 @@ describe("SessionListPanel", () => {
 
 describe("SessionListPanel with sessions", () => {
   it("renders project group headers with counts and tabular-nums cost metadata", async () => {
+    window.localStorage.setItem(sessionListOrderStorageKey, "project");
     invokeMock.mockResolvedValue([
       makeSummary({ id: "s1", project: "beta" }),
       makeSummary({ id: "s2", project: "alpha", totalCostUsd: 0.2, totalTokens: 1_200_000 }),
@@ -190,5 +195,66 @@ describe("SessionListPanel with sessions", () => {
 
     const cost = screen.getByText("$0.2000");
     expect(cost).toHaveClass("tabular-nums", "text-right");
+  });
+});
+
+describe("sortByRecency", () => {
+  it("orders sessions newest first regardless of project", () => {
+    const sorted = sortByRecency([
+      makeSummary({ id: "old", project: "alpha", timestamp: "2026-08-01T00:00:00.000Z" }),
+      makeSummary({ id: "new", project: "zeta", timestamp: "2026-08-09T00:00:00.000Z" }),
+      makeSummary({ id: "mid", project: "beta", timestamp: "2026-08-05T00:00:00.000Z" }),
+    ]);
+
+    expect(sorted.map((session) => session.id)).toEqual(["new", "mid", "old"]);
+  });
+});
+
+describe("readSessionListOrder", () => {
+  it("defaults to recent and ignores unknown stored values", () => {
+    expect(readSessionListOrder()).toBe("recent");
+    window.localStorage.setItem(sessionListOrderStorageKey, "bogus");
+    expect(readSessionListOrder()).toBe("recent");
+    window.localStorage.setItem(sessionListOrderStorageKey, "project");
+    expect(readSessionListOrder()).toBe("project");
+  });
+});
+
+describe("SessionListPanel ordering", () => {
+  const sessions = [
+    makeSummary({ id: "old", project: "alpha", timestamp: "2026-08-01T00:00:00.000Z" }),
+    makeSummary({ id: "new", project: "zeta", timestamp: "2026-08-09T00:00:00.000Z" }),
+    makeSummary({ id: "mid", project: "beta", timestamp: "2026-08-05T00:00:00.000Z" }),
+  ];
+
+  it("defaults to a flat newest-first list with a project chip per row", async () => {
+    invokeMock.mockResolvedValue(sessions);
+
+    renderWithQueryClient(<SessionListPanel />);
+
+    const list = await screen.findByTestId("session-recent-list");
+    const rowProjects = within(list)
+      .getAllByTestId("session-row-project")
+      .map((chip) => chip.textContent);
+    expect(rowProjects).toEqual(["zeta", "beta", "alpha"]);
+    expect(screen.queryByTestId("session-group")).not.toBeInTheDocument();
+  });
+
+  it("switches to project grouping and remembers the choice", async () => {
+    invokeMock.mockResolvedValue(sessions);
+
+    renderWithQueryClient(<SessionListPanel />);
+    await screen.findByTestId("session-recent-list");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Project" }));
+
+    const groups = await screen.findAllByTestId("session-group");
+    expect(groups.map((group) => within(group).getByTestId("session-group-project").textContent)).toEqual([
+      "alpha",
+      "beta",
+      "zeta",
+    ]);
+    expect(screen.queryByTestId("session-recent-list")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(sessionListOrderStorageKey)).toBe("project");
   });
 });

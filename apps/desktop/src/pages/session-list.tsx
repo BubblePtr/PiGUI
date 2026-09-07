@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Token } from "@astryxdesign/core/Token";
 import { Tokenizer } from "@astryxdesign/core/Tokenizer";
 import { createStaticSource, type SearchableItem } from "@astryxdesign/core/Typeahead";
@@ -60,6 +61,44 @@ export function projectTokenColor(project: string): (typeof projectTokenColors)[
   return projectTokenColors[hash % projectTokenColors.length];
 }
 
+// Flat recency view: the newest session wins no matter which project it
+// belongs to, so a multi-project day reads as one chronological stream.
+export function sortByRecency<T extends { timestamp: string }>(sessions: T[]): T[] {
+  return [...sessions].sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+}
+
+export type SessionListOrder = "recent" | "project";
+
+export const sessionListOrderStorageKey = "pigui.sessionListOrder.v1";
+
+const sessionListOrderOptions: { id: SessionListOrder; label: string }[] = [
+  { id: "recent", label: "Recent" },
+  { id: "project", label: "Project" },
+];
+
+function isSessionListOrder(value: unknown): value is SessionListOrder {
+  return value === "recent" || value === "project";
+}
+
+// The order choice is a per-machine viewing preference, not session data, so
+// it lives in localStorage like the sidebar project expansion state.
+export function readSessionListOrder(): SessionListOrder {
+  try {
+    const stored = window.localStorage.getItem(sessionListOrderStorageKey);
+    return isSessionListOrder(stored) ? stored : "recent";
+  } catch {
+    return "recent";
+  }
+}
+
+function writeSessionListOrder(order: SessionListOrder) {
+  try {
+    window.localStorage.setItem(sessionListOrderStorageKey, order);
+  } catch {
+    // Storage may be unavailable (private mode, quota); the choice then lasts for the session only.
+  }
+}
+
 // Ledger-style grouping: projects sorted alphabetically, input order (newest
 // first) preserved inside each group.
 export function groupByProject<T extends { project: string }>(
@@ -115,9 +154,13 @@ function SessionTitle({ title }: { title: Title }) {
 function SessionRow({
   session,
   selected,
+  showProject = false,
 }: {
   session: SessionSummary;
   selected: boolean;
+  // In the flat recency view the group header is gone, so each row carries
+  // its project chip; grouped rows omit it to avoid repeating the header.
+  showProject?: boolean;
 }) {
   return (
     <li>
@@ -131,13 +174,24 @@ function SessionRow({
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <SessionTitle title={session.title} />
-            <time
-              className="mt-1 block text-xs text-muted"
-              dateTime={session.timestamp}
-              title={formatTimestamp(session.timestamp)}
-            >
-              {relativeTime(session.timestamp)}
-            </time>
+            <div className="mt-1 flex min-w-0 items-center gap-2">
+              {showProject ? (
+                <Token
+                  className="max-w-[60%]"
+                  color={projectTokenColor(session.project)}
+                  data-testid="session-row-project"
+                  label={session.project}
+                  size="sm"
+                />
+              ) : null}
+              <time
+                className="block truncate text-xs text-muted"
+                dateTime={session.timestamp}
+                title={formatTimestamp(session.timestamp)}
+              >
+                {relativeTime(session.timestamp)}
+              </time>
+            </div>
           </div>
           <div className="shrink-0">
             <div className="tabular-nums text-right text-sm font-medium text-foreground">
@@ -168,7 +222,10 @@ function SessionGroup({
   return (
     <section data-testid="session-group">
       <header className="sticky top-0 z-10 flex items-baseline justify-between gap-3 border-b border-separator bg-background px-4 py-1.5">
-        <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted">
+        <span
+          className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted"
+          data-testid="session-group-project"
+        >
           {project}
         </span>
         <span className="shrink-0 tabular-nums text-[11px] text-muted">{sessions.length}</span>
@@ -194,6 +251,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   const { refetch } = sessions;
   const allSessions = sessions.data ?? [];
   const [selectedProjects, setSelectedProjects] = useState<SearchableItem[]>([]);
+  const [order, setOrder] = useState<SessionListOrder>(readSessionListOrder);
   const projects = useMemo(() => distinctProjects(allSessions), [allSessions]);
   const projectSource = useMemo(
     () => createStaticSource(projects.map((project) => ({ id: project, label: project }))),
@@ -211,6 +269,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
   useRefreshOnWindowFocus(refetch);
 
   const groups = useMemo(() => groupByProject(sessionRows), [sessionRows]);
+  const recentRows = useMemo(() => sortByRecency(sessionRows), [sessionRows]);
 
   return (
     <div
@@ -256,6 +315,27 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
           width="100%"
           onChange={(items) => setSelectedProjects(items)}
         />
+        {/* View switcher sits under the filter: Recent is one chronological
+            stream across projects, Project is the grouped ledger. */}
+        <div className="mt-3">
+          <SegmentedControl
+            label="Session list order"
+            layout="fill"
+            size="sm"
+            value={order}
+            onChange={(value) => {
+              if (!isSessionListOrder(value)) {
+                return;
+              }
+              setOrder(value);
+              writeSessionListOrder(value);
+            }}
+          >
+            {sessionListOrderOptions.map((option) => (
+              <SegmentedControlItem key={option.id} label={option.label} value={option.id} />
+            ))}
+          </SegmentedControl>
+        </div>
       </div>
 
       <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto">
@@ -269,6 +349,17 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
           />
         ) : sessionRows.length === 0 ? (
           <EmptyState className="px-4 py-10" isCompact title="No sessions found." />
+        ) : order === "recent" ? (
+          <ol data-testid="session-recent-list">
+            {recentRows.map((session) => (
+              <SessionRow
+                key={session.id}
+                session={session}
+                selected={session.id === selectedSessionId}
+                showProject
+              />
+            ))}
+          </ol>
         ) : (
           groups.map((group) => (
             <SessionGroup
