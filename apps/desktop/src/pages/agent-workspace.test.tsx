@@ -788,6 +788,46 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(screen.queryByTestId("project-not-found-state")).not.toBeInTheDocument();
   });
 
+  it("does not query session changes for a Chat session", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "list_session_projections") {
+        return [
+          {
+            sessionId: "session-chat-1",
+            runtimeId: "pi-sdk:session-chat-1",
+            piSessionId: "pi-session-chat-1",
+            projectId: "chat",
+            initialPrompt: "What is a monad?",
+            cwd: "/tmp/pigui-chats/session-chat-1",
+            status: "completed",
+            updatedAt: "2026-09-07T12:00:00.000Z",
+          },
+        ];
+      }
+
+      if (command === "get_session_changes") {
+        throw new Error("Chat sessions must not probe git");
+      }
+
+      throw new Error(`unexpected backend command ${command}`);
+    });
+    window.pigui = {
+      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+      onBackendEvent: vi.fn(() => vi.fn()),
+      onBrowserEvent: vi.fn(() => vi.fn()),
+      onUpdateEvent: vi.fn(() => vi.fn()),
+      onWindowFocusChanged: vi.fn(() => vi.fn()),
+      onNavigateRequest: vi.fn(() => vi.fn()),
+    };
+
+    renderProjectSessions("/projects/chat/sessions", { seedProjects: false });
+
+    expect(await screen.findByRole("button", { name: "Session dock" })).toBeInTheDocument();
+    expect(
+      invoke.mock.calls.filter(([command]) => command === "get_session_changes"),
+    ).toHaveLength(0);
+  });
+
   it("renders an Electron Project with zero Sessions without fixture data", async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === "list_session_projections") {

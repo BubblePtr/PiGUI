@@ -20,6 +20,8 @@ export type PrepareExecutionCheckoutInput = {
   strategy: ExecutionCheckoutStrategy;
   project: ProjectExecutionTarget;
   now?: () => string;
+  /** Chat folders must not inherit a parent Git repo as their checkout. */
+  skipGit?: boolean;
 };
 
 export type ExecutionCheckoutManager = {
@@ -245,7 +247,9 @@ export function createExecutionCheckoutManager(
           ? trimTrailingSlash(normalizePath(input.project.repoRoot))
           : undefined,
       };
-      const gitProject = await resolveGitProject(project, options.gitClient);
+      const gitProject = input.skipGit
+        ? null
+        : await resolveGitProject(project, options.gitClient);
       const checkoutProject = gitProject ?? {
         ...project,
         repoRoot: undefined,

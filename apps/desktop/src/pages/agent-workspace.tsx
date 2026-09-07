@@ -3681,7 +3681,10 @@ export function AgentWorkspaceSessionsPage() {
   // is no longer gated on the dock being open.
   const sessionChanges = useSessionChanges({
     sessionId: selectedSessionProjection?.id ?? null,
-    enabled: Boolean(selectedSessionProjection?.id) && !showDraft,
+    enabled:
+      Boolean(selectedSessionProjection?.id) &&
+      !showDraft &&
+      !isChatProjectId(projectId),
   });
 
   useEffect(

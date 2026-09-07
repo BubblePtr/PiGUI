@@ -134,6 +134,7 @@ export async function prepareChatSessionCheckout(input: {
       projectRoot: cwd,
     },
     now: input.now,
+    skipGit: true,
   });
 }
 
