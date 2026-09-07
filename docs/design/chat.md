@@ -1,0 +1,89 @@
+# 对话、Composer、思维链
+
+三类自建组件都住在 `apps/desktop/src/shared/ui/chat/`、`composer-attachments/`、`model-selector/`。**页面不直接 import `@astryxdesign/core/Chat`**：Astryx 的 ChatMessage / ChatComposer 已被下面的组件包住并修正了字号（Astryx 根字号 16px，我们钉到 14px）与滚动行为。
+
+## 对话流
+
+### ChatConversation + ChatMessage
+
+消息列表用 `ChatConversation`（粘底滚动、"新消息"按钮），每条消息用复合件 `ChatMessage.User` / `.Assistant` → `.Body` → `.Content`；动作行是 `ChatMessageActions` 及其 `.Copy` / `.ThumbsUp` / `.ThumbsDown`。没有 `sender` prop，角色由子组件名决定。
+
+```tsx
+// 正确 — agent-workspace.tsx:406
+<ChatMessage.Assistant>
+  <ChatMessage.Body>
+    <ChatMessage.Content>…</ChatMessage.Content>
+    <ChatMessageActions className="chat-message__actions--persist">
+      <ChatMessageActions.Copy aria-label="Copy" onPress={copy} />
+```
+
+### 渲染文本：四个 Markdown 组件
+
+```
+要渲染的是什么？
+ ├── 助手回复正文
+ │    ├── 还在流式输出 → <ChatStreamMarkdown isStreaming>
+ │    └── 已完成 → <ChatMarkdown>
+ ├── 思考正文（thinking step 内）→ <ChatThoughtMarkdown text=…>（只认 ** * 反引号，流式安全，不会露出未闭合标记）
+ └── 独立代码块 → <ChatCodeBlock code language>（目前只在 /design；正文里的代码块由 ChatMarkdown 自己渲染）
+```
+
+两个 Markdown 都钉死 `density="compact"`、`headingLevelStart=3`，不暴露这两个 prop。
+
+### ChatRunFailure
+
+一次 run 失败的恢复卡：`error` 必填；`onRetry` 只对**最近一次**失败传（页面判定 `message.id === latestFailure?.id`），历史失败不传；`onOpenProviderSettings` 与 `modelControl` 让 401 / 429 有出口。内部按 401 / 429 / 其他三分文案，调用方不用自己判断。
+
+## Composer
+
+### ChatPromptInput
+
+`status: "ready" | "submitted" | "streaming" | "error"`，默认 `"ready"`。没有 `"idle"`、没有 `"loading"`。两组布尔决定运行中的行为：`allowSubmitWhileRunning`（队列模式为 true）、`lockInputOnRun`（非队列模式为 true），两者互斥地取自同一个 `queueMode`。插槽：`startActions`（Plus 菜单 + 模型选择器）、`endActions`、`drawer`（附件抽屉）、`footer`（上下文圆环）。
+
+```tsx
+// 正确 — agent-workspace.tsx:833
+<PromptInput allowSubmitWhileRunning={queueMode} lockInputOnRun={!queueMode} status={promptStatus} … />
+
+// 错误 — status 集合里没有 "loading"，TS 会拒绝，别去扩这个联合
+<PromptInput status="loading" … />
+```
+
+### 其余 Composer 件
+
+- `ChatPromptSuggestion` + `.Items` + `.Item`：空草稿时的建议卡（agent-workspace 的空 draft 态），点选后把文案填入草稿并聚焦输入框。
+- `ChatQueuedMessage`：队列里的一条；`presence: "none" | "enter" | "exit"` 由 `usePresenceList` 给，不要自己传 `"enter"`。
+- `ModelSelectorControl`：`controls` 来自 projection，`isLocked` 在队列模式为 true；`visibleModels` 空数组 = 全显。当前选中模型即使被隐藏也保留并标注。没有第二个模型选择器，失败卡里的 `modelControl` 插槽也用它。
+- `ComposerInsertMenu`：一级只有 Add files / Use skill / Chat commands / Use plugin 四项；技能与插件走 `CommandPalette` 搜索。`commands` 默认 `/compact` `/clear`。
+- `ComposerAttachmentDrawer`：`items` 为空返回 null；图片走 Thumbnail，文本走 Token。附件逻辑（大小上限、拒收文案、拼进 prompt）全在 `composer-attachment-logic.ts`，从 `composer-attachments/index.ts` 导入，不在页面里重算。
+
+## 思维链
+
+### ChatChainOfThought
+
+`phase: "hidden" | "thinking" | "acting" | "answering" | "settled"` 必填，`"hidden"` 返回 null。计时只有一个入口：run 期间传 `startedAtMs`（组件自己走表），结束后传 `elapsedMs`；两者不同时传。没有 `startedAtMs` 就不显示数字，因为"从挂载起算"会把页面打开时长当成等待。`hasSteps={false}` 时头部退化为纯标签。`outcome` 只有 `"failed"` 一个值，用于「Failed after Ns」。
+
+```tsx
+// 正确 — agent-workspace.tsx:471
+<ChainOfThought {...(ticking ? { startedAtMs: view.anchorMs } : { elapsedMs: view.elapsedMs })}
+  hasSteps={view.steps.length > 0} phase={view.phase} outcome={view.outcome}>
+  <ChainOfThought.Steps>{steps}</ChainOfThought.Steps>
+</ChainOfThought>
+
+// 错误 — 没有锚点就自己造一个，时钟从页面打开开始跑
+<ChainOfThought startedAtMs={Date.now()} phase="thinking">
+```
+
+### Step 行
+
+- `ChatThoughtStep`：`step` 是 `CotStep` 的 `thinking` 分支。live 是 shimmer 的「Thinking…」，收束为「Thought Ns」；无正文就是一行纯 label，**空正文是常态**，不要当异常渲染。
+- `ChatToolStep`：`step` 是 `tools` 分支。总结行动词表在 `VERBS`（bash → Ran N commands，read → Read N files…），新工具名先补 `chat-tool-kind.ts` 的 `KIND_ALIASES`，不要在页面里拼文案。
+- `ChatTool` / `ChatToolGroup` / `ChatToolDetail`：只在 `ChatToolStep` 内部与 `/design` 使用。`ToolPartState` 联合是 `"input-streaming" | "input-available" | "output-available" | "output-error"`，映射到 Astryx 的 running / complete / error。
+- `ChatStatusLine`：`phase` 只有 `"thinking" | "acting"`，由 `ChatChainOfThought` 在 run 期间自己挂在底部；页面不单独渲染它。
+- `ChatChainOfThoughtRail`：Timeline 皮肤，**只在 /design**，等 Appearance 设置页（#81）再接线。不要在页面里用它替代 `ChatChainOfThought`。
+
+```
+要在聊天流里表示"正在进行"？
+ ├── 整个 run → ChatChainOfThought phase="thinking" | "acting"（它自带状态行与心跳）
+ ├── 一行 step → ChatThoughtStep / ChatToolStep（自带 shimmer 与翻页）
+ └── 文字级占位 → <TextShimmer>；不要再放 ChatPixelLoader，心跳全局只有状态行一处
+```

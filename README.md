@@ -79,6 +79,7 @@ flowchart LR
 | Sessions on disk, git worktrees, config inventory | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Chat Workspace dirs (`<dataDir>/chats/<sessionId>/`) | [`packages/backend/src/workspace/chat-workspace.ts`](packages/backend/src/workspace/chat-workspace.ts) — sentinel `CHAT_PROJECT_ID` in [`packages/core`](packages/core/src/runtime-gateway.ts) ([ADR-0034](docs/adr/0034-projectless-chat-workspace.md)) |
 | Electron shell & transport | [`apps/desktop/electron/`](apps/desktop/electron/) — `main.ts`, `preload.ts`, `backend.ts` |
+| Design system rules (tokens, chosen Astryx variants, self-built component usage) | [`docs/design/`](docs/design/) — ledger of why each self-built piece exists in [`docs/self-built-ui.md`](docs/self-built-ui.md) |
 | Why it is designed this way | [`docs/adr/`](docs/adr/) — terms in [`CONTEXT.md`](CONTEXT.md) |
 
 `apps/server` and `apps/web` are intentional placeholders for the relocatable backend's future remote transport — see their READMEs and [ADR-0015](docs/adr/0015-multi-app-monorepo.md).

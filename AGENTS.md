@@ -29,6 +29,7 @@ The dev-only `/design` page (`apps/desktop/src/pages/design.tsx`) is the living 
 - **Every component added to `shared/ui/` MUST be registered on the Design page in the same PR**, showing all its variants and typical states (loading / empty / error where applicable). Changing a component's variants means updating its Design page entry in the same PR.
 - Token usage goes through the semantic bridge in `apps/desktop/src/app/styles.css` (`--foreground`, `--primary`, …) or raw Astryx first-level tokens — never hard-coded colors/radii/spacing in components.
 - The ledger of self-built components (why each exists, what's planned) is `docs/self-built-ui.md` — reconcile it at the end of any UI work.
+- **Usage rules live in `docs/design/`** (`README.md` is the entry): which token layer is allowed, which Astryx variants we chose, when to use which self-built component and what its closed variant set is. Read the relevant topic file before building UI; when a component's variants or a token changes, update the matching topic file in the same PR.
 
 PRD: `.scratch/design-system-gallery/PRD.md`.
 
