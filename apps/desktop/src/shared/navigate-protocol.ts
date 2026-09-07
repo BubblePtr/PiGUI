@@ -8,5 +8,8 @@
 export const navigateRequestChannel = "pigui:navigate";
 
 export type NavigateRequest = {
+  /** Route path, or "." to stay on the current route (dialogs live in search). */
   to: string;
+  /** Merged into the current search params, e.g. { settings: "about" }. */
+  search?: Record<string, unknown>;
 };

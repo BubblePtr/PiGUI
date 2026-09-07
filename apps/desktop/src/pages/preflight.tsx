@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSettingsDialog } from "@/shared/settings-navigation";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { useMemo } from "react";
@@ -99,6 +100,7 @@ function CheckRow({ check }: { check: EnvironmentPreflightCheck }) {
 
 export function PreflightPage() {
   const navigate = useNavigate();
+  const { openSettings } = useSettingsDialog();
   const queryClient = useQueryClient();
   const reportQuery = useQuery({
     queryKey: preflightReportQueryKey,
@@ -178,7 +180,7 @@ export function PreflightPage() {
                   variant="primary"
                   label="Configure providers →"
                   onClick={() => {
-                    void navigate({ to: "/settings" });
+                    openSettings();
                   }}
                 />
               </div>
@@ -199,7 +201,7 @@ export function PreflightPage() {
                 variant="secondary"
                 label="Provider Settings"
                 onClick={() => {
-                  void navigate({ to: "/settings" });
+                  openSettings();
                 }}
               />
               <Button

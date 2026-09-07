@@ -42,13 +42,13 @@ async function openSession(
 }
 
 test.describe("S3: Provider Settings (DF-002)", () => {
-  test("Settings page shows Subscription/API Key tabs with provider cards", async () => {
+  test("Settings dialog shows Subscription/API Key tabs with provider cards", async () => {
     const testApp = await launchPiGUI({ seedPreflightAuth: true });
 
     try {
-      // Navigate to Settings via the sidebar row
+      // Open Settings without navigating away from the current page.
       await testApp.window.getByRole("button", { name: "Settings" }).click();
-      await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
+      await expect(testApp.window.getByRole("dialog", { name: "Settings" })).toBeVisible();
 
       // Tab structure exists
       await expect(
@@ -106,9 +106,9 @@ test.describe("S3: Provider Settings (DF-002)", () => {
         gate.getByText("No models available", { exact: true }),
       ).toBeVisible();
 
-      // CTA navigates to Settings
+      // CTA opens Settings over the draft.
       await gate.getByRole("button", { name: /Open Provider Settings/i }).click();
-      await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
+      await expect(testApp.window.getByRole("dialog", { name: "Settings" })).toBeVisible();
       await expect(
         settingsTab(testApp.window, "API Key"),
       ).toBeVisible();
@@ -134,12 +134,69 @@ test.describe("S3: Provider Settings (DF-002)", () => {
         testApp.window.getByRole("button", { name: /Continue/i }),
       ).toBeDisabled();
 
-      // CTA jumps to Settings provider page
+      // CTA opens Settings over preflight.
       await testApp.window.getByRole("button", { name: /Configure providers/i }).click();
-      await expect(testApp.window.getByText("Settings", { exact: true }).first()).toBeVisible();
+      await expect(testApp.window.getByRole("dialog", { name: "Settings" })).toBeVisible();
       await expect(
         settingsTab(testApp.window, "API Key"),
       ).toBeVisible();
+      await testApp.window.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Close", exact: true }).click();
+      await expect(testApp.window.getByText("Before your first session")).toBeVisible();
+    } finally {
+      await testApp.close();
+    }
+  });
+
+  test("Settings preserves the draft and restores focus; Add Models opens its section", async () => {
+    const testApp = await launchPiGUI({ seedProject: true, seedModelControls: true, seedPreflightAuth: true });
+    try {
+      const page = testApp.window;
+      await page.getByRole("button", { name: "New Session", exact: true }).click();
+      const draft = page.getByRole("textbox");
+      await draft.fill("Keep this unsent draft while I change settings");
+      const url = page.url();
+      const trigger = page.getByRole("button", { name: "Settings", exact: true });
+      await trigger.click();
+      const dialog = page.getByRole("dialog", { name: "Settings" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toHaveJSProperty("open", true);
+      await page.keyboard.press("Tab");
+      expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      await expect(page).toHaveURL(url);
+      await expect(draft).toHaveValue("Keep this unsent draft while I change settings");
+      await expect(trigger).toBeFocused();
+
+      await page.getByTestId("model-thinking-trigger").click();
+      await page.getByText("Add Models", { exact: true }).click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("region", { name: "Models", exact: true })).toBeVisible();
+      const selectedModel = dialog.getByRole("listitem").filter({
+        has: page.getByRole("checkbox", { checked: true }),
+      }).first();
+      await expect(selectedModel).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(dialog).toBeHidden();
+      await expect(page).toHaveURL(url);
+      await expect(draft).toHaveValue("Keep this unsent draft while I change settings");
+    } finally {
+      await testApp.close();
+    }
+  });
+
+  test("legacy Models bookmarks open the dialog during first-run preflight", async () => {
+    const testApp = await launchPiGUI({ requirePreflight: true, seedPreflightAuth: false });
+    try {
+      await expect(testApp.window.getByText("Before your first session")).toBeVisible();
+      await testApp.window.evaluate(() => { window.location.hash = "/settings#models"; });
+      const dialog = testApp.window.getByRole("dialog", { name: "Settings" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("region", { name: "Models", exact: true })).toBeVisible();
+      await expect(testApp.window).toHaveURL(/#\/preflight\?settings=models$/);
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(dialog).toBeHidden();
+      await expect(testApp.window).toHaveURL(/#\/preflight$/);
     } finally {
       await testApp.close();
     }

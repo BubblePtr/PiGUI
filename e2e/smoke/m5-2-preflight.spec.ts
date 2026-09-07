@@ -2,6 +2,23 @@ import { expect, test } from "@playwright/test";
 import { launchPiGUI } from "../fixtures/electron-app";
 
 test.describe("M5.2: First-run preflight", () => {
+  test("cold start reaches preflight and keeps provider settings usable before setup completes", async ({}, testInfo) => {
+    const testApp = await launchPiGUI({ requirePreflight: true });
+
+    try {
+      await expect(testApp.window.getByText("Before your first session")).toBeVisible();
+      await expect(testApp.window).toHaveURL(/#\/preflight$/);
+      await testApp.window.getByRole("button", { name: /Configure providers/i }).click();
+      await expect(testApp.window.getByRole("dialog", { name: "Settings" })).toBeVisible();
+      await testApp.window.keyboard.press("Escape");
+      await expect(testApp.window.getByText("Before your first session")).toBeVisible();
+      await expect(testApp.window).toHaveURL(/#\/preflight$/);
+      await testApp.window.screenshot({ path: testInfo.outputPath("cold-start-preflight.png") });
+    } finally {
+      await testApp.close();
+    }
+  });
+
   test("gates first launch using the bundled engine without a global CLI", async ({}, testInfo) => {
     const testApp = await launchPiGUI({
       requirePreflight: true,

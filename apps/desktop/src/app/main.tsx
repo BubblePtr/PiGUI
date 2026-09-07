@@ -7,6 +7,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
@@ -14,7 +15,7 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { AppLandingPage } from "@/pages/app-landing";
 import { AgentWorkspaceSessionsPage } from "@/pages/agent-workspace";
 import { PreflightPage, preflightStatusQueryKey } from "@/pages/preflight";
-import { SettingsPage } from "@/pages/settings";
+import { SettingsDialog } from "@/pages/settings";
 import { SetupPage } from "@/pages/setup";
 import { TraceIndexPage, TraceSessionPage } from "@/pages/trace";
 import { UsagePage } from "@/pages/usage";
@@ -42,7 +43,12 @@ function isPreflightExemptPath(pathname: string) {
 
 function PreflightGate({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const pathname = useRouterState({
+    // Location changes before Outlet commits the new match. Releasing the old
+    // landing page during that gap lets its redirect cancel the preflight route.
+    select: (state) =>
+      state.matches[state.matches.length - 1]?.pathname ?? state.location.pathname,
+  });
   const onExemptRoute = isPreflightExemptPath(pathname);
   const statusQuery = useQuery({
     queryKey: preflightStatusQueryKey,
@@ -59,7 +65,7 @@ function PreflightGate({ children }: { children: React.ReactNode }) {
     }
 
     if (!statusQuery.data.completedAt && !onExemptRoute) {
-      void navigate({ to: "/preflight", replace: true });
+      void navigate({ to: "/preflight", search: true, replace: true });
     }
   }, [
     navigate,
@@ -102,9 +108,12 @@ function PreflightGate({ children }: { children: React.ReactNode }) {
 
 const rootRoute = createRootRoute({
   component: () => (
-    <PreflightGate>
-      <Outlet />
-    </PreflightGate>
+    <>
+      <PreflightGate>
+        <Outlet />
+      </PreflightGate>
+      <SettingsDialog />
+    </>
   ),
 });
 
@@ -147,7 +156,16 @@ const setupRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
-  component: SettingsPage,
+  beforeLoad: ({ location }) => {
+    // Existing bookmarks still open the matching settings panel.
+    throw redirect({
+      to: "/trace",
+      search: {
+        settings: location.hash === "models" ? "models" : "providers",
+      } as never,
+      replace: true,
+    });
+  },
 });
 
 const preflightRoute = createRoute({
@@ -229,8 +247,14 @@ declare module "@tanstack/react-router" {
   }
 }
 
-onNavigateRequest(({ to }) => {
-  void router.navigate({ to });
+onNavigateRequest(({ to, search }) => {
+  void router.navigate({
+    to,
+    search: ((previous: Record<string, unknown>) => ({ ...previous, ...search })) as never,
+    hash: true,
+    replace: true,
+    resetScroll: false,
+  } as never);
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

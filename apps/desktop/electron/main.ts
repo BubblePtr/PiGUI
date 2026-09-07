@@ -175,7 +175,9 @@ function navigateToSettings() {
       getWindow: () => mainWindow,
       createWindow: createMainWindow,
     },
-    { to: "/settings" },
+    // Settings is a dialog over the current route (#201); "." keeps the
+    // workspace mounted and the search param opens the About panel.
+    { to: ".", search: { settings: "about" } },
   );
 }
 
