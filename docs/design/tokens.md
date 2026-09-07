@@ -76,8 +76,6 @@ context: { label: "CONTEXT", color: "var(--success)" }
 | --- | --- | --- |
 | `text-[11px]` / `text-[10px]` / `text-[9px]` 共 18 处 | trajectory strip / ledger / inspector、session-list、session-dock | 微标签用 `--font-size-sm`（12px）+ `--muted` + `uppercase tracking-wider`，见 typography-motion.md |
 | `13px` 作 `--chat-icon-size` 的回退写了 7 遍 | `chat.css:499-573` | 直接 `var(--chat-icon-size)`，不带回退 |
-| `--font-family-mono` | `chat.css:694` | 该 token 不存在，永远走回退；正确名是 `--font-family-code` |
-| `--shadow-overlay` | `chat.css:170` | 不存在；弹层阴影用 `elevation` prop 或 `--shadow-med` |
 | `rounded-[1px]` / `rounded-[3px]` | `pi-trajectory-strip.tsx` | 用 `--radius-inner` |
 | `cubic-bezier(0.32, 0.72, 0, 1)` 与 `120ms` 各 8 处 | `styles.css` 弹层/tab | 见 typography-motion.md 的白名单 |
 
