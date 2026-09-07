@@ -73,6 +73,8 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 
 ## 维护规则
 
+- **2026-09-07 projectless chat**：切片 2 的 Chats 分组、ProjectPicker 首项和 Settings Chats section 是页面组合（`app-shell` / `agent-workspace` / `settings`），未新增 `shared/ui/` 组件，本表无新行。
+
 - Design 页的 Components 使用 6 个用途分类与可搜索目录，每次挂载一个组件预览；现有 33 组示例，PiSheet 已移除；所有窗口统一使用 SessionDock 面板，不再按 1280px 断点切换 Sheet/Dialog，工具栏开关与右侧 rail 共用同一状态。目录元数据与示例入口在 `pages/design-components.tsx` 的 `componentExamples`，目录布局在 `pages/design-component-browser.tsx`，属于页面组合，不新增共享原语。新增组件时同时填写名称、用途分类、说明和预览入口，各状态采用顶部标签与独立展示区。
 
 - 新增 `shared/ui/` 组件:进表一,同 PR 注册 /design 页(AGENTS.md 硬规则)。

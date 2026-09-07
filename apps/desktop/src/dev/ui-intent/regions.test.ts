@@ -77,6 +77,7 @@ describe("additional named regions", () => {
     ["SessionBrowserPanel", "Surface"],
     ["TerminalView", "Surface"],
     ["CheckoutStrategyPicker", "Execution Checkout"],
+    ["ChatNavigation", "Chat Workspace"],
   ])("maps %s to %s", (name, term) => {
     expect(matchRegion([componentEntry(name)], null)?.region.term).toBe(term);
   });
