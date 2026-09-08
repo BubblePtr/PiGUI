@@ -17,7 +17,7 @@ Changes surface 目前是「左侧文件列表、右侧单文件 diff、点一�
 
 - 左列自上而下堆叠每个有变化文件的 diff，每个文件是一个可折叠区块（Astryx `Collapsible`），默认全部展开；折叠的区块不挂载 diff 渲染器。
 - 右列是文件清单，标题即文件数；点一行滚到对应区块并展开。它不再是「当前选中文件」的选择器。
-- 第一行工具条保留状态与刷新，并容纳 Unified / Split 切换和「全部折叠 / 展开」。
+- 第一行工具条保留状态与刷新，并容纳「全部折叠 / 展开」。diff 固定为上下（unified）对比；Unified / Split 切换从工具条移除，若要做应放进 Settings，不再占 surface 的入口。
 - 现有的 clean / non-git / 错误 / 截断状态一律不变；后端读取契约（`SessionChanges`）不变。
 
 ### 2. 新增 Built-in Surface：Files（只读）

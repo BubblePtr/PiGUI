@@ -2193,7 +2193,6 @@ export function SessionChangesPanel({
     () => new Set(),
   );
   const [currentPath, setCurrentPath] = useState<string | null>(null);
-  const [diffStyle, setDiffStyle] = useState<"unified" | "split">("unified");
   const sectionRefs = useRef(new Map<string, HTMLDivElement>());
 
   // Another Session is another review; its folds start from scratch.
@@ -2263,17 +2262,6 @@ export function SessionChangesPanel({
             <>
               {hasReview ? (
                 <>
-                  <SegmentedControl
-                    label="Diff layout"
-                    size="sm"
-                    value={diffStyle}
-                    onChange={(value) =>
-                      setDiffStyle(value === "split" ? "split" : "unified")
-                    }
-                  >
-                    <SegmentedControlItem label="Unified" value="unified" />
-                    <SegmentedControlItem label="Split" value="split" />
-                  </SegmentedControl>
                   <Button
                     className="pigui-pressable"
                     label={anyOpen ? "Collapse all" : "Expand all"}
@@ -2418,7 +2406,7 @@ export function SessionChangesPanel({
                           <SessionDiffViewer
                             cacheKey={`${changes.sessionId}:${changes.generatedAt}:${file.path}`}
                             patch={file.patch}
-                            style={diffStyle}
+                            style="unified"
                           />
                         </Suspense>
                       ) : (

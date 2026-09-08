@@ -7492,9 +7492,7 @@ describe("Session changes action surface", () => {
     expect(rows[1]).toHaveTextContent("Added · Staged");
   });
 
-  it("stacks every file's diff, with binary notices inline, and switches layout for all of them", async () => {
-    const user = userEvent.setup();
-
+  it("stacks every file's diff unified, with binary notices inline", async () => {
     render(panel(twoTextFiles()));
 
     // Every text diff is on screen at once: nothing to select, only scroll.
@@ -7507,9 +7505,10 @@ describe("Session changes action surface", () => {
       "src/app.ts",
     );
 
-    await user.click(screen.getByText("Split"));
+    // No layout switch: every diff is the unified layout until Settings grows one.
+    expect(screen.queryByText("Split")).not.toBeInTheDocument();
     for (const viewer of screen.getAllByTestId("session-diff-viewer")) {
-      expect(viewer).toHaveAttribute("data-style", "split");
+      expect(viewer).toHaveAttribute("data-style", "unified");
     }
   });
 
@@ -7560,8 +7559,7 @@ describe("Session changes action surface", () => {
     render(panel(twoTextFiles()));
     expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
 
-    // The layout control and the fold toggle both live in the bar's actions.
-    expect(within(bar()).getByText("Unified")).toBeInTheDocument();
+    // The fold toggle lives in the bar's actions.
     await user.click(within(bar()).getByRole("button", { name: "Collapse all" }));
     expect(screen.queryByTestId("session-diff-viewer")).not.toBeInTheDocument();
     expect(
