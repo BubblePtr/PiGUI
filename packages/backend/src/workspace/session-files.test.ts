@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createNodeSessionFilesReader } from "./session-files";
 
@@ -37,7 +37,7 @@ describe("createNodeSessionFilesReader", () => {
       const listing = await reader.listDirectory({ sessionId: "s1", diffRoot: root, path: "" });
 
       expect(listing).toMatchObject({ sessionId: "s1", path: "", truncated: false });
-      expect(listing.rootName).toBe(root.split("/").at(-1));
+      expect(listing.rootName).toBe(basename(root));
       expect(listing.entries.map((entry) => `${entry.kind}:${entry.path}`)).toEqual([
         "directory:src",
         "file:image.png",

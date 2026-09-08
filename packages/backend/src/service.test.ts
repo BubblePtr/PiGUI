@@ -519,6 +519,129 @@ describe("backend service", () => {
     });
   });
 
+  it("lists a Session directory under the stored diff root, not renderer paths", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const listDirectory = vi.fn(async () => ({
+      sessionId: "session-files",
+      path: "src",
+      rootName: "project",
+      entries: [],
+      truncated: false,
+    }));
+    await projections.save({
+      sessionId: "session-files",
+      runtimeId: "runtime-files",
+      piSessionId: "pi-files",
+      projectId: "project-1",
+      cwd: "/checkout/project",
+      status: "completed",
+      checkout: {
+        root: "/source/repo",
+        executionCheckoutRoot: "/checkout",
+        diffRoot: "/checkout/project",
+      },
+      updatedAt: "2026-07-19T00:00:00.000Z",
+    });
+
+    const service = createBackendService({
+      sessionProjectionStore: projections,
+      sessionFilesReader: { listDirectory, readFile: vi.fn() },
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-list-dir",
+        method: "list_session_directory",
+        params: {
+          sessionId: "session-files",
+          path: "src",
+          diffRoot: "/renderer/cannot/override/this",
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-list-dir",
+      result: expect.objectContaining({ path: "src", rootName: "project" }),
+    });
+    expect(listDirectory).toHaveBeenCalledWith({
+      sessionId: "session-files",
+      diffRoot: "/checkout/project",
+      path: "src",
+    });
+
+    // A missing path lists the diff root itself.
+    await service.handleRequest({
+      id: "req-list-root",
+      method: "list_session_directory",
+      params: { sessionId: "session-files" },
+    });
+    expect(listDirectory).toHaveBeenLastCalledWith({
+      sessionId: "session-files",
+      diffRoot: "/checkout/project",
+      path: "",
+    });
+  });
+
+  it("reads a Session file under the stored diff root, not renderer paths", async () => {
+    const projections = createInMemorySessionProjectionStore();
+    const readSessionFile = vi.fn(async () => ({
+      sessionId: "session-files",
+      path: "src/app.ts",
+      size: 3,
+      content: "abc",
+      truncated: false,
+      binary: false,
+    }));
+    await projections.save({
+      sessionId: "session-files",
+      runtimeId: "runtime-files",
+      piSessionId: "pi-files",
+      projectId: "project-1",
+      cwd: "/checkout/project",
+      status: "completed",
+      checkout: {
+        root: "/source/repo",
+        executionCheckoutRoot: "/checkout",
+        diffRoot: "/checkout/project",
+      },
+      updatedAt: "2026-07-19T00:00:00.000Z",
+    });
+
+    const service = createBackendService({
+      sessionProjectionStore: projections,
+      sessionFilesReader: { listDirectory: vi.fn(), readFile: readSessionFile },
+      piRpc: createFakePiRpcTransport(),
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-read-file",
+        method: "read_session_file",
+        params: {
+          sessionId: "session-files",
+          path: "src/app.ts",
+          diffRoot: "/renderer/cannot/override/this",
+        },
+      }),
+    ).resolves.toEqual({
+      id: "req-read-file",
+      result: expect.objectContaining({ content: "abc" }),
+    });
+    expect(readSessionFile).toHaveBeenCalledWith({
+      sessionId: "session-files",
+      diffRoot: "/checkout/project",
+      path: "src/app.ts",
+    });
+
+    await expect(
+      service.handleRequest({
+        id: "req-read-file-missing-path",
+        method: "read_session_file",
+        params: { sessionId: "session-files" },
+      }),
+    ).resolves.toMatchObject({ error: expect.stringMatching(/path/) });
+  });
+
   it("journals boundary events to the data dir and serves them from the runtime snapshot", async () => {
     const sdkSession = createFakeSdkAgentSession();
     createAgentSession.mockResolvedValue({ session: sdkSession.session });
