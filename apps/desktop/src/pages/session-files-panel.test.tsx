@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionDirectoryListing, SessionFileContent } from "@pigui/core";
@@ -96,11 +96,71 @@ describe("SessionFilesPanel", () => {
 
     render(<SessionFilesPanel sessionId="session-1" />);
 
-    await user.click(await screen.findByText("src"));
+    const directory = await screen.findByText("src");
+    expect(listSessionDirectory).not.toHaveBeenCalledWith("session-1", "src");
+    await user.click(directory);
 
     expect(await screen.findByText("index.ts")).toBeInTheDocument();
     expect(listSessionDirectory).toHaveBeenCalledWith("session-1", "src");
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
+  it("keeps expanded directories visible and reloads their descendants on refresh", async () => {
+    const user = userEvent.setup();
+    let resolveRoot!: (value: SessionDirectoryListing) => void;
+    const refreshedRoot = new Promise<SessionDirectoryListing>((resolve) => {
+      resolveRoot = resolve;
+    });
+    const src = listing("src", [
+      { name: "nested", path: "src/nested", kind: "directory", size: null },
+    ]);
+    const nested = listing("src/nested", [
+      { name: "index.ts", path: "src/nested/index.ts", kind: "file", size: 3 },
+    ]);
+    listSessionDirectory
+      .mockResolvedValueOnce(rootListing)
+      .mockResolvedValueOnce(src)
+      .mockResolvedValueOnce(nested)
+      .mockImplementationOnce(() => refreshedRoot)
+      .mockResolvedValueOnce(src)
+      .mockResolvedValueOnce(listing("src/nested", [
+        { name: "updated.ts", path: "src/nested/updated.ts", kind: "file", size: 4 },
+      ]));
+
+    render(<SessionFilesPanel sessionId="session-1" />);
+    await user.click(await screen.findByText("src"));
+    await user.click(await screen.findByText("nested"));
+    await screen.findByText("index.ts");
+    const tree = screen.getByRole("tree");
+
+    await user.click(screen.getByRole("button", { name: "Refresh Session files" }));
+    expect(screen.getByRole("tree")).toBe(tree);
+    expect(screen.getByText("src").closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "true");
+    await act(async () => resolveRoot(rootListing));
+
+    expect(await screen.findByText("updated.ts")).toBeInTheDocument();
+    expect(screen.queryByText("index.ts")).not.toBeInTheDocument();
+    for (const name of ["src", "nested"]) {
+      expect(screen.getByText(name).closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "true");
+    }
+    expect(listSessionDirectory.mock.calls.map(([, path]) => path)).toEqual([
+      "", "src", "src/nested", "", "src", "src/nested",
+    ]);
+  });
+
+  it("keeps an empty directory expandable and shows its empty state", async () => {
+    const user = userEvent.setup();
+    scriptListings({ "": rootListing, src: listing("src", []) });
+    render(<SessionFilesPanel sessionId="session-1" />);
+
+    await user.click(await screen.findByText("src"));
+    expect(await screen.findByRole("treeitem", { name: "Empty directory" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("src").closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "true");
+    await user.click(screen.getByText("src"));
+    expect(screen.queryByText("Empty directory")).not.toBeInTheDocument();
+    await user.click(screen.getByText("src"));
+    expect(screen.getByText("Empty directory")).toBeInTheDocument();
+    expect(screen.getByText("src").closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "true");
   });
 
   it("shows an error row when a directory fails to load", async () => {
@@ -114,7 +174,52 @@ describe("SessionFilesPanel", () => {
 
     await user.click(await screen.findByText("src"));
 
-    expect(await screen.findByText("permission denied")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("permission denied");
+  });
+
+  it("retries a failed child listing when collapsed and expanded again", async () => {
+    const user = userEvent.setup();
+    listSessionDirectory
+      .mockResolvedValueOnce(rootListing)
+      .mockRejectedValueOnce(new Error("permission denied"))
+      .mockResolvedValueOnce(listing("src", [
+        { name: "recovered.ts", path: "src/recovered.ts", kind: "file", size: 3 },
+      ]));
+    render(<SessionFilesPanel sessionId="session-1" />);
+
+    await user.click(await screen.findByText("src"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("permission denied");
+    expect(listSessionDirectory).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByText("src"));
+    expect(screen.queryByText("permission denied")).not.toBeInTheDocument();
+    expect(screen.getByText("src").closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByText("src"));
+
+    expect(await screen.findByText("recovered.ts")).toBeInTheDocument();
+    expect(screen.queryByText("permission denied")).not.toBeInTheDocument();
+    expect(screen.getByText("src").closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "true");
+    expect(listSessionDirectory.mock.calls.map(([, path]) => path)).toEqual(["", "src", "src"]);
+  });
+
+  it("refreshes an expanded directory after its listing failed", async () => {
+    const user = userEvent.setup();
+    listSessionDirectory
+      .mockResolvedValueOnce(rootListing)
+      .mockRejectedValueOnce(new Error("permission denied"))
+      .mockResolvedValueOnce(rootListing)
+      .mockResolvedValueOnce(listing("src", [
+        { name: "recovered.ts", path: "src/recovered.ts", kind: "file", size: 3 },
+      ]));
+    render(<SessionFilesPanel sessionId="session-1" />);
+    await user.click(await screen.findByText("src"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("permission denied");
+
+    await user.click(screen.getByRole("button", { name: "Refresh Session files" }));
+
+    expect(await screen.findByText("recovered.ts")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("src").closest('[role="treeitem"]')).toHaveAttribute("aria-expanded", "true");
+    expect(listSessionDirectory.mock.calls.map(([, path]) => path)).toEqual(["", "src", "", "src"]);
   });
 
   it("marks a truncated listing", async () => {
