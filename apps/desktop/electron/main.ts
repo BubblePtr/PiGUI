@@ -160,6 +160,9 @@ function createMainWindow() {
 
   if (backgroundWindowForEndToEnd) {
     mainWindow.once("ready-to-show", () => {
+      // Fully transparent: the window still renders for CDP screenshots but
+      // never covers the developer's screen.
+      mainWindow?.setOpacity(0);
       mainWindow?.showInactive();
     });
   }
