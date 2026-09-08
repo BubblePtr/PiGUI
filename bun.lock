@@ -44,7 +44,7 @@
     },
     "apps/desktop": {
       "name": "@pigui/desktop",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "dependencies": {
         "@astryxdesign/cli": "^0.3.0",
         "@astryxdesign/core": "^0.3.0",
