@@ -1,14 +1,15 @@
 import type { ComponentType } from "react";
-import { FileDiff, Globe, Terminal } from "@/shared/ui/icons";
+import { FileDiff, FolderOpen, Globe, Terminal } from "@/shared/ui/icons";
 
 /**
  * Registry of the Session-scoped surfaces the SessionDock can host.
  *
  * Metadata only: the panel content stays with the feature that owns the data
- * (Changes, Terminal, Browser), so the registry never grows a dependency on
- * Session state. The File surface remains deferred by ADR-0007.
+ * (Changes, Files, Terminal, Browser), so the registry never grows a
+ * dependency on Session state. ADR-0007 deferred the File surface; it is now
+ * unfrozen as a read-only checkout browser — editing stays out of scope.
  */
-export type SessionSurfaceId = "changes" | "terminal" | "browser";
+export type SessionSurfaceId = "changes" | "files" | "terminal" | "browser";
 
 export type SessionSurfaceMeta = {
   id: SessionSurfaceId;
@@ -37,6 +38,7 @@ export type SessionSurfaceMeta = {
 
 export const sessionSurfaceOrder = [
   "changes",
+  "files",
   "terminal",
   "browser",
 ] as const satisfies readonly SessionSurfaceId[];
@@ -47,6 +49,13 @@ export const sessionSurfaces: Record<SessionSurfaceId, SessionSurfaceMeta> = {
     title: "Changes",
     icon: FileDiff,
     hint: "Working tree for this Session checkout",
+    flushContent: true,
+  },
+  files: {
+    id: "files",
+    title: "Files",
+    icon: FolderOpen,
+    hint: "Browse this Session's checkout",
     flushContent: true,
   },
   terminal: {
