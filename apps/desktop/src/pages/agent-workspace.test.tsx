@@ -33,6 +33,7 @@ import {
   type ForkSessionResult,
   type PiSessionState,
 } from "@/entities/runtime/pi-runtime-bridge";
+import * as inMemoryBridgeModule from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import {
   createInMemoryPiRuntimeBridge,
   type InMemoryPiRuntimeBridge,
@@ -1153,11 +1154,15 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    await waitFor(() => {
-      expect(screen.getAllByText("Missing session file")).toHaveLength(2);
-    });
-    expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
-      "Session file is missing",
+    // The title also lands in the header and sidebar; count-free so a new
+    // surface showing it does not break the missing-file contract below.
+    await waitFor(() =>
+      expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
+        "Session file is missing",
+      ),
+    );
+    expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent(
+      "Missing session file",
     );
     expect(invoke).not.toHaveBeenCalledWith("resume_session", expect.anything());
   });
@@ -1359,6 +1364,109 @@ describe("AgentWorkspaceSessionsPage", () => {
       }
     },
   );
+
+  it("hands the draft over to the Live Session before Pi accepts the initial prompt", async () => {
+    const user = userEvent.setup();
+    addProjectToRegistry(pigProjectPath);
+    saveSessionDraft(pigProjectPath, "Hand over before accept");
+    let releasePrompt = () => {};
+    const promptGate = new Promise<void>((resolve) => {
+      releasePrompt = resolve;
+    });
+    const createBridge = inMemoryBridgeModule.createInMemoryPiRuntimeBridge;
+    // The real user-message boundary can be held back for seconds by Pi
+    // extensions; the view must not wait for it.
+    const bridgeSpy = vi
+      .spyOn(inMemoryBridgeModule, "createInMemoryPiRuntimeBridge")
+      .mockImplementation((options) => {
+        const bridge = createBridge(options);
+
+        return {
+          ...bridge,
+          sendInitialPrompt: async (input) => {
+            await promptGate;
+            return bridge.sendInitialPrompt(input);
+          },
+        };
+      });
+
+    try {
+      const { router } = renderProjectSessions("/projects/pig/sessions?view=draft");
+      await screen.findByTestId("session-draft-composer");
+
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      await waitFor(() =>
+        expect(screen.queryByTestId("session-draft-composer")).not.toBeInTheDocument(),
+      );
+      expect(router.state.location.search).toEqual({});
+      expect(router.state.location.pathname).toBe(
+        `/projects/${encodeURIComponent(pigProjectPath)}/sessions`,
+      );
+      expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent(
+        "Hand over before accept",
+      );
+      expect(screen.getByTestId("session-creation-status")).toHaveTextContent("sending prompt");
+      expect(screen.getByTestId("live-session-column")).toHaveAttribute("data-draft-handoff");
+      expect(screen.getByPlaceholderText("Starting session…")).toBeDisabled();
+      expect(getSessionDraft()?.prompt).toBe("Hand over before accept");
+      const sessionRow = await findSidebarSessionRow("Hand over before accept");
+      expect(sessionRow).toHaveAttribute("aria-current", "page");
+
+      releasePrompt();
+
+      await waitFor(() => expect(getSessionDraft()).toBeNull());
+      await waitFor(() =>
+        expect(screen.queryByTestId("session-creation-status")).not.toBeInTheDocument(),
+      );
+      expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent(
+        "Hand over before accept",
+      );
+      expect(screen.getByPlaceholderText("Queue the next task…")).toBeInTheDocument();
+    } finally {
+      bridgeSpy.mockRestore();
+    }
+  });
+
+  it("shows a failed Session Creation in the Live Session and reopens the kept draft", async () => {
+    const user = userEvent.setup();
+    addProjectToRegistry(pigProjectPath);
+    saveSessionDraft(pigProjectPath, "Fail after handoff");
+    const createBridge = inMemoryBridgeModule.createInMemoryPiRuntimeBridge;
+    const bridgeSpy = vi
+      .spyOn(inMemoryBridgeModule, "createInMemoryPiRuntimeBridge")
+      .mockImplementation((options) =>
+        createBridge({
+          ...options,
+          failAt: "send-initial-prompt",
+          failureMessage: "Pi rejected the initial prompt",
+        }),
+      );
+
+    try {
+      const { router } = renderProjectSessions("/projects/pig/sessions?view=draft");
+      await screen.findByTestId("session-draft-composer");
+
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      const failure = await screen.findByTestId("session-creation-failure");
+      expect(failure).toHaveTextContent("Session creation failed");
+      expect(failure).toHaveTextContent("sending prompt");
+      expect(failure).toHaveTextContent("Pi rejected the initial prompt");
+      expect(screen.queryByTestId("session-draft-composer")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("full-chat-composer")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent("Fail after handoff");
+      expect(getSessionDraft()?.prompt).toBe("Fail after handoff");
+
+      await user.click(within(failure).getByRole("button", { name: "Back to draft" }));
+
+      expect(await screen.findByTestId("session-draft-composer")).toBeInTheDocument();
+      expect(router.state.location.search).toEqual({ view: "draft" });
+      expect(screen.getByPlaceholderText("Do anything with Pi")).toHaveValue("Fail after handoff");
+    } finally {
+      bridgeSpy.mockRestore();
+    }
+  });
 
   it("stops a draft-created Session without appending a runtime status message", async () => {
     const user = userEvent.setup();

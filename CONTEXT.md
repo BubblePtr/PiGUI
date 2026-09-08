@@ -77,7 +77,7 @@ _Avoid_: Task, workspace, trace-only session, draft prompt, nullable-projectId
 _Avoid_: untitled project, temporary project, projectless-null-session
 
 **Session Draft**:
-用户点击 New Chat 或加号后进入的全局唯一未提交输入状态。它跨 app 重启保留一份 initial prompt、可选的当前提交目标（Project 或 Chat）和少量高级覆盖项，但尚未创建 PiGUI Session、Pi Session State、Agent Run 或 Execution Checkout，也不显示在 Session 列表中。切换目标不清空 Session Draft 文本。如果目标 Project 被移除，draft 文本保留但目标清空，并由 composer 要求重新选择，不自动回落到 Chat；app 启动恢复 draft 时，已不在 Project Registry 中的 Project 目标同样被清空，Chat 目标保持有效。全局新 draft 默认目标为 Chat，与 Registry 是否为空无关。未确定目标时隐藏执行方式；选中 Project 后以 Project folder / Git worktree 说明对文件的影响。草稿不展示上一会话的 Session Dock。提交 draft 后才进入 Session 创建流程；只有 Pi Runtime 接受 initial prompt 或发出首个 runtime event 后，draft 才清空。
+用户点击 New Chat 或加号后进入的全局唯一未提交输入状态。它跨 app 重启保留一份 initial prompt、可选的当前提交目标（Project 或 Chat）和少量高级覆盖项，但尚未创建 PiGUI Session、Pi Session State、Agent Run 或 Execution Checkout，也不显示在 Session 列表中。切换目标不清空 Session Draft 文本。如果目标 Project 被移除，draft 文本保留但目标清空，并由 composer 要求重新选择，不自动回落到 Chat；app 启动恢复 draft 时，已不在 Project Registry 中的 Project 目标同样被清空，Chat 目标保持有效。全局新 draft 默认目标为 Chat，与 Registry 是否为空无关。未确定目标时隐藏执行方式；选中 Project 后以 Project folder / Git worktree 说明对文件的影响。草稿不展示上一会话的 Session Dock。提交 draft 后才进入 Session 创建流程；`creating` 状态的 Session Projection 一出现，视图就交给 Live Session View（路由离开 draft、侧栏选中新 Session），不等待 Pi 的事件边界；只有 Pi Runtime 接受 initial prompt 或发出首个 runtime event 后，draft 才清空。创建失败时 Live Session View 展示失败阶段与错误，并提供回到 Session Draft 的入口，draft 文本保持完整。
 _Avoid_: Per-project draft, Project-scoped draft, follow-up input, Session, Pi session, run, trace
 
 **Follow-up Draft**:
@@ -89,7 +89,7 @@ Project Sidebar 中提示已有 Session 存在 Follow-up Draft 的轻量标记�
 _Avoid_: Draft badge, Session Draft indicator, Project draft indicator, status badge
 
 **Session Creation**:
-Session Draft 提交后的创建状态机。PiGUI 先创建 `creating` 状态的 Session Projection，再选择或创建 Execution Checkout，然后启动或 attach Pi Runtime / 创建 Pi Session State，最后发送 initial prompt。每个阶段都要能记录错误和恢复点。
+Session Draft 提交后的创建状态机。PiGUI 先创建 `creating` 状态的 Session Projection，再选择或创建 Execution Checkout，然后启动或 attach Pi Runtime / 创建 Pi Session State，最后发送 initial prompt。每个阶段都要能记录错误和恢复点。Live Session View 从第一阶段起就承接该 Session：initial prompt 以待发送气泡显示，当前阶段以状态行显示，composer 锁定到 initial prompt 被接受为止；UI 的交接时机不依赖 Pi 的 user message 边界，因为扩展可以把该边界推迟任意久。
 _Avoid_: Draft editing, single-step create, invisible side effect
 
 **Resume**:

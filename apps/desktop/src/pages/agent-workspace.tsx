@@ -59,6 +59,7 @@ import {
   type ReactNode,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -608,6 +609,7 @@ function QueuedMessageList({
 
 function FullChatComposer({
   queueMode = false,
+  isCreating = false,
   isStoppingRun = false,
   projection,
   sessionChanges: providedSessionChanges,
@@ -620,6 +622,8 @@ function FullChatComposer({
   onManageModels,
 }: {
   queueMode?: boolean;
+  /** Session Creation in flight: the input waits for Pi to accept the initial prompt. */
+  isCreating?: boolean;
   isStoppingRun?: boolean;
   projection?: SessionProjection | null;
   sessionChanges?: SessionChangesView;
@@ -656,7 +660,7 @@ function FullChatComposer({
     enabled:
       !providedSessionChanges && Boolean(sessionId && projection?.piSessionId),
   });
-  const promptStatus = isStoppingRun
+  const promptStatus = isStoppingRun || isCreating
     ? "submitted"
     : queueMode
       ? "streaming"
@@ -864,7 +868,11 @@ function FullChatComposer({
           </>
         }
         placeholder={
-          queueMode ? "Queue the next task…" : "What do you want to know?"
+          isCreating
+            ? "Starting session…"
+            : queueMode
+              ? "Queue the next task…"
+              : "What do you want to know?"
         }
         status={promptStatus}
         value={draft}
@@ -1822,6 +1830,38 @@ function CheckoutStrategyPicker({
   );
 }
 
+/**
+ * Mirrors `--duration-medium` (410ms): how long the Live Session keeps the
+ * handoff attributes after leaving the draft, so the transform never outlives
+ * the transition (docs/design/typography-motion.md rule 2).
+ */
+const draftHandoffMs = 410;
+
+function SessionCreationFailureDetail({
+  failure,
+  action,
+}: {
+  failure: NonNullable<SessionProjection["failure"]>;
+  action?: ReactNode;
+}) {
+  return (
+    <>
+      <p className="font-medium text-foreground">Session creation failed</p>
+      <dl className="mt-2 grid gap-1">
+        <div className="flex items-center gap-2">
+          <dt className="text-muted">Stage</dt>
+          <dd className="font-medium text-foreground">{failure.stage}</dd>
+        </div>
+        <div className="flex items-center gap-2">
+          <dt className="text-muted">Error</dt>
+          <dd className="text-foreground">{failure.message}</dd>
+        </div>
+      </dl>
+      {action ? <div className="mt-3">{action}</div> : null}
+    </>
+  );
+}
+
 function SessionDraftComposer({
   draft,
   projects,
@@ -2034,25 +2074,7 @@ function SessionDraftComposer({
               data-testid="session-creation-status"
             >
               {creationProjection.failure ? (
-                <>
-                  <p className="font-medium text-foreground">
-                    Session creation failed
-                  </p>
-                  <dl className="mt-2 grid gap-1">
-                    <div className="flex items-center gap-2">
-                      <dt className="text-muted">Stage</dt>
-                      <dd className="font-medium text-foreground">
-                        {creationProjection.failure.stage}
-                      </dd>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <dt className="text-muted">Error</dt>
-                      <dd className="text-foreground">
-                        {creationProjection.failure.message}
-                      </dd>
-                    </div>
-                  </dl>
-                </>
+                <SessionCreationFailureDetail failure={creationProjection.failure} />
               ) : (
                 <p className="font-medium text-foreground">
                   {creationProjection.creationStage}
@@ -2511,7 +2533,9 @@ function LiveSessionColumn({
   projectId,
   showDraft,
   onDraftSubmit,
+  onSessionCreationStarted,
   onSessionCreated,
+  onReopenDraft,
   sessionCreator,
   checkoutManager,
   getRuntimeBridge,
@@ -2529,7 +2553,11 @@ function LiveSessionColumn({
   projectId: string;
   showDraft: boolean;
   onDraftSubmit: (event: SessionDraftSubmitEvent) => void;
+  /** The `creating` projection exists; the view can leave the draft now. */
+  onSessionCreationStarted?: (projection: SessionProjection) => void;
   onSessionCreated?: (projection: SessionProjection) => void;
+  /** Return to the kept Session Draft after a failed creation. */
+  onReopenDraft?: (projection: SessionProjection) => void;
   sessionCreator: SessionCreator;
   checkoutManager: ExecutionCheckoutManager;
   getRuntimeBridge: () => PiRuntimeBridge;
@@ -2572,6 +2600,11 @@ function LiveSessionColumn({
     useState<SessionProjection | null>(null);
   const [interactionProjection, setInteractionProjection] =
     useState<SessionProjection | null>(null);
+  // Set by a draft submit in this column; consumed when the route leaves the
+  // draft so only that handoff plays the composer settle, not a sidebar click.
+  const draftHandoffPendingRef = useRef(false);
+  const [draftHandoff, setDraftHandoff] = useState<"measure" | "run" | null>(null);
+  const columnRef = useRef<HTMLElement | null>(null);
   const [stoppingRun, setStoppingRun] = useState(false);
   const [liveClockNowMs, setLiveClockNowMs] = useState(() => Date.now());
   const resumeAttemptedKeysRef = useRef(new Set<string>());
@@ -2596,6 +2629,50 @@ function LiveSessionColumn({
       setSessionDraft(getVisibleSessionDraft());
     });
   }, [projectId, projectIdsKey, showDraft]);
+
+  useEffect(() => {
+    if (showDraft || !draftHandoffPendingRef.current) {
+      return;
+    }
+
+    draftHandoffPendingRef.current = false;
+    setDraftHandoff("measure");
+  }, [showDraft]);
+
+  // First frame: park the composer where the draft composer sat (vertically
+  // centred). Next frame: release it so the transition carries it down.
+  useLayoutEffect(() => {
+    if (draftHandoff !== "measure") {
+      return;
+    }
+
+    const column = columnRef.current;
+    const composer = column?.querySelector<HTMLElement>(
+      '[data-testid="full-chat-composer"]',
+    );
+
+    if (column && composer) {
+      const offset = Math.max(0, (column.clientHeight - composer.offsetHeight) / 2);
+      column.style.setProperty("--pigui-draft-handoff-offset", `${-offset}px`);
+    }
+
+    const frame = requestAnimationFrame(() => setDraftHandoff("run"));
+
+    return () => cancelAnimationFrame(frame);
+  }, [draftHandoff]);
+
+  useEffect(() => {
+    if (draftHandoff !== "run") {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      columnRef.current?.style.removeProperty("--pigui-draft-handoff-offset");
+      setDraftHandoff(null);
+    }, draftHandoffMs);
+
+    return () => clearTimeout(timer);
+  }, [draftHandoff]);
 
   useEffect(() => {
     setInteractionProjection(null);
@@ -2790,6 +2867,7 @@ function LiveSessionColumn({
         ? undefined
         : workspace.repoRoot;
 
+    let creationStarted = false;
     const result = await sessionCreator({
       draft: {
         ...draft,
@@ -2808,6 +2886,12 @@ function LiveSessionColumn({
       onProjectionChange: (projection) => {
         setCreationProjection(projection);
         onProjectionChange?.(projection);
+
+        if (!creationStarted) {
+          creationStarted = true;
+          draftHandoffPendingRef.current = true;
+          onSessionCreationStarted?.(projection);
+        }
       },
     });
 
@@ -2979,9 +3063,21 @@ function LiveSessionColumn({
   const readOnlyProjection = isReadOnlyProjection(liveProjection);
   const runtimeUnavailableProjection =
     isRuntimeUnavailableProjection(liveProjection) ? liveProjection : null;
+  // Session Creation owns the column until Pi accepts the initial prompt: no
+  // queueing before the first prompt exists, no follow-up input either.
+  const creating = liveProjection?.status === "creating";
+  const creationFailure =
+    liveProjection?.status === "failed" ? liveProjection.failure : null;
+  const pendingInitialPrompt =
+    liveProjection &&
+    (creating || creationFailure) &&
+    !liveMessages.some((message) => message.role === "user")
+      ? liveProjection.initialPrompt
+      : null;
   const queueMode =
     Boolean(liveProjection?.piSessionId) &&
     Boolean(liveProjection && isSessionProjectionActive(liveProjection)) &&
+    !creating &&
     !readOnlyProjection;
   const handleQueueSubmit = async (
     message: string,
@@ -3330,8 +3426,10 @@ function LiveSessionColumn({
 
   return (
     <main
+      ref={columnRef}
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="live-session-column"
+      data-draft-handoff={draftHandoff ?? undefined}
     >
       {showDraft && sessionDraft ? (
         <SessionDraftComposer
@@ -3369,13 +3467,22 @@ function LiveSessionColumn({
           ) : null}
           <ChatConversation
             aria-label="Live Chat messages"
-            className="min-h-0 flex-1"
+            className="pigui-draft-handoff__chat min-h-0 flex-1"
             isStreaming={liveMessages.some((message) => message.isStreaming)}
           >
             {/* Tight at the top: the pane already carries the header's own
                 offset, so a second 24px band only pushed the first message
                 down. The bottom keeps its distance from the composer. */}
             <ChatConversation.Content className="mx-auto flex w-full max-w-[44rem] flex-col gap-8 px-4 pb-6 pt-2">
+              {pendingInitialPrompt && liveProjection ? (
+                <LiveChatMessage
+                  message={{
+                    id: `${liveProjection.id}:pending-initial-prompt`,
+                    role: "user",
+                    body: pendingInitialPrompt,
+                  }}
+                />
+              ) : null}
               {liveMessages.map((message) => (
                 <LiveChatMessage
                   key={message.id}
@@ -3398,11 +3505,45 @@ function LiveSessionColumn({
                   }
                 />
               ))}
+              {creating && liveProjection ? (
+                <p
+                  aria-live="polite"
+                  className="text-sm text-muted"
+                  data-testid="session-creation-status"
+                  role="status"
+                >
+                  {liveProjection.creationStage}…
+                </p>
+              ) : null}
             </ChatConversation.Content>
           </ChatConversation>
 
-          {readOnlyProjection ? null : (
+          {creationFailure && liveProjection ? (
+            <div
+              className="mt-auto shrink-0 px-4 pb-3 pt-3"
+              data-testid="session-creation-failure"
+              role="alert"
+            >
+              <div className="mx-auto w-full max-w-[44rem] rounded-md border border-border bg-surface px-3 py-2 text-sm">
+                <SessionCreationFailureDetail
+                  failure={creationFailure}
+                  action={
+                    onReopenDraft ? (
+                      <Button
+                        label="Back to draft"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onReopenDraft(liveProjection)}
+                      />
+                    ) : undefined
+                  }
+                />
+              </div>
+            </div>
+          ) : readOnlyProjection ? null : (
+            <div className="pigui-draft-handoff__composer mt-auto flex shrink-0 flex-col">
             <FullChatComposer
+              isCreating={creating}
               isStoppingRun={stoppingRun}
               queueMode={queueMode}
               projection={liveProjection}
@@ -3415,6 +3556,7 @@ function LiveSessionColumn({
               onModelConfigChange={handleModelConfigChange}
               onManageModels={onManageModels}
             />
+            </div>
           )}
         </>
       )}
@@ -3451,7 +3593,9 @@ export function AgentWorkspaceSessionsView({
   aside,
   asideOpen = true,
   onDraftSubmit = () => {},
+  onSessionCreationStarted,
   onSessionCreated,
+  onReopenDraft,
   sessionCreator,
   checkoutManager,
   runtimeBridge,
@@ -3471,7 +3615,9 @@ export function AgentWorkspaceSessionsView({
   /** False while the dock plays its exit; the pane closes on the same clock. */
   asideOpen?: boolean;
   onDraftSubmit?: (event: SessionDraftSubmitEvent) => void;
+  onSessionCreationStarted?: (projection: SessionProjection) => void;
   onSessionCreated?: (projection: SessionProjection) => void;
+  onReopenDraft?: (projection: SessionProjection) => void;
   sessionCreator?: SessionCreator;
   checkoutManager?: ExecutionCheckoutManager;
   runtimeBridge?: PiRuntimeBridge;
@@ -3519,7 +3665,9 @@ export function AgentWorkspaceSessionsView({
       showDraft={showDraft}
       workspace={workspace}
       onDraftSubmit={onDraftSubmit}
+      onSessionCreationStarted={onSessionCreationStarted}
       onSessionCreated={onSessionCreated}
+      onReopenDraft={onReopenDraft}
       sessionCreator={sessionCreator ?? defaultSessionCreator}
       checkoutManager={activeCheckoutManager}
       getRuntimeBridge={getActiveRuntimeBridge}
@@ -3813,9 +3961,11 @@ export function AgentWorkspaceSessionsPage() {
       ),
     );
   };
-  const handleSessionCreated = (projection: SessionProjection) => {
-    // Live-session reads and subscriptions follow the route's draft flag.
-    // Clear it only once creation succeeds, including a retargeted draft.
+  // The Live Session takes over as soon as the `creating` projection exists:
+  // waiting for Pi to accept the prompt left the draft on screen for as long
+  // as extensions held the user-message boundary. Also fires on success so a
+  // retargeted draft lands on its Project route.
+  const enterLiveSession = (projection: SessionProjection) => {
     void navigate({
       to: "/projects/$projectId/sessions",
       params: { projectId: projection.projectId },
@@ -3825,6 +3975,18 @@ export function AgentWorkspaceSessionsPage() {
       }) as never,
       hash: true,
       replace: true,
+      resetScroll: false,
+    });
+  };
+  const handleReopenDraft = (projection: SessionProjection) => {
+    if (!getSessionDraft()?.prompt.trim()) {
+      saveSessionDraft(projection.projectId, projection.initialPrompt);
+    }
+
+    void navigate({
+      to: "/projects/$projectId/sessions",
+      params: { projectId: projection.projectId },
+      search: { view: "draft" } as never,
       resetScroll: false,
     });
   };
@@ -3907,7 +4069,9 @@ export function AgentWorkspaceSessionsPage() {
         runtimeGeneration={backendGeneration}
         sessionProjection={selectedSessionProjection}
         onProjectionChange={handleProjectionChange}
-        onSessionCreated={handleSessionCreated}
+        onSessionCreationStarted={enterLiveSession}
+        onSessionCreated={enterLiveSession}
+        onReopenDraft={handleReopenDraft}
         onLatestMessageRendered={handleLatestMessageRendered}
         onManageModels={() => openSettings("models")}
         onOpenProviderSettings={() => openSettings("providers")}
