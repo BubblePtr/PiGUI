@@ -230,7 +230,7 @@ describe("AppFrame", () => {
     const chatsGroup = screen.getByTestId("sidebar-chats");
     const projectGroup = screen.getByTestId("sidebar-projects");
 
-    expect(within(chatsGroup).getByText("Chats")).toBeInTheDocument();
+    expect(within(chatsGroup).getByRole("button", { name: "Collapse Chats" })).toHaveTextContent("Chats");
     expect(within(chatsGroup).getByRole("button", { name: "New Chat without a project" })).toBeInTheDocument();
     expect(within(chatsGroup).queryByRole("button", { name: /Project actions/ })).not.toBeInTheDocument();
     expect(within(projectGroup).getByRole("button", { name: "Add Project" })).toBeInTheDocument();
@@ -336,6 +336,9 @@ describe("AppFrame", () => {
     const projects = screen.getByTestId("sidebar-projects");
     const collapseChats = within(chats).getByRole("button", { name: "Collapse Chats" });
     expect(collapseChats).toHaveAttribute("aria-expanded", "true");
+    // The section title itself is the toggle (Codex-style): no separate chevron button.
+    expect(collapseChats).toHaveTextContent("Chats");
+    expect(within(chats).getAllByRole("button", { name: /Chats$/ })).toHaveLength(1);
     const chatList = document.getElementById(collapseChats.getAttribute("aria-controls")!)!;
     await user.click(collapseChats);
     expect(chatList).toBeEmptyDOMElement();
@@ -1018,7 +1021,7 @@ describe("AppFrame", () => {
     expect(sidebar).toContainElement(trajectoryUsageNavigation);
     expect(sidebar).toContainElement(projectGroup);
     expect(sidebar).toContainElement(systemGroup);
-    expect(within(projectGroup).getByText("Projects")).toBeInTheDocument();
+    expect(within(projectGroup).getByRole("button", { name: "Collapse Projects" })).toHaveTextContent("Projects");
     expect(within(projectGroup).getByRole("button", { name: "Add Project" })).toBeInTheDocument();
     expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-workspace")).not.toBeInTheDocument();

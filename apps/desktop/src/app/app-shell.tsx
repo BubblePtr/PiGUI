@@ -10,7 +10,6 @@ import {
   Archive,
   BarChart3,
   ChatAdd,
-  ChevronDown,
   ChevronRight,
   FolderClosed,
   FolderOpen,
@@ -462,7 +461,7 @@ function SidebarSessionRows({
               onClick={() => onOpenSession(session.id, sessionProjectId)}
             />
             <HStack
-              className="pigui-sidenav-row-actions pigui-sidenav-session-actions"
+              className="pigui-sidenav-row-actions pigui-sidenav-hover-actions"
               gap={0.5}
               vAlign="center"
             >
@@ -550,7 +549,9 @@ function SidebarSessionGroupBody({
       </SideNavItem>
       <HStack className="pigui-sidenav-row-actions" gap={0.5} vAlign="center">
         {!expanded && hasUnsentFollowUp ? <UnsentFollowUpIndicator /> : null}
-        {trailingActions}
+        <HStack className="pigui-sidenav-hover-actions" gap={0.5} vAlign="center">
+          {trailingActions}
+        </HStack>
       </HStack>
     </div>
   );
@@ -774,6 +775,47 @@ function useSidebarSectionExpansion(section: "chats" | "projects") {
   return { expanded, contentId, toggle };
 }
 
+// Codex-style section header: the title is the collapse toggle and the
+// creation action only surfaces on hover/focus (see .pigui-sidenav-hover-actions).
+// SideNavSection keeps its own title visually hidden so the group still has
+// an accessible name; this row is what the user actually sees.
+function SidebarSectionHeader({
+  title,
+  expanded,
+  contentId,
+  onToggle,
+  actions,
+}: {
+  title: string;
+  expanded: boolean;
+  contentId: string;
+  onToggle: () => void;
+  actions: ReactNode;
+}) {
+  return (
+    <div className="pigui-sidenav-section-header">
+      <button
+        type="button"
+        className="pigui-sidenav-section-toggle"
+        aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        onClick={onToggle}
+      >
+        <span className="pigui-sidenav-section-toggle__title">{title}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className="pigui-sidenav-section-toggle__chevron"
+          data-expanded={expanded ? "true" : "false"}
+        />
+      </button>
+      <HStack className="pigui-sidenav-hover-actions" gap={0.5} vAlign="center">
+        {actions}
+      </HStack>
+    </div>
+  );
+}
+
 function ChatNavigation({
   draftViewActive,
   pathname,
@@ -816,26 +858,17 @@ function ChatNavigation({
   void followUpDraftVersion;
 
   return (
-    <SideNavSection
-      data-testid="sidebar-chats"
-      title="Chats"
-      endContent={
-        <HStack gap={0.5}>
-          <IconButton
-            icon={expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-            label={expanded ? "Collapse Chats" : "Expand Chats"}
-            tooltip={expanded ? "Collapse Chats" : "Expand Chats"}
-            aria-expanded={expanded}
-            aria-controls={contentId}
-            size="sm"
-            variant="ghost"
-            onClick={toggle}
-          />
+    <SideNavSection data-testid="sidebar-chats" isHeaderHidden title="Chats">
+      <SidebarSectionHeader
+        title="Chats"
+        expanded={expanded}
+        contentId={contentId}
+        onToggle={toggle}
+        actions={
           <IconButton icon={<Plus aria-hidden="true" />} label="New Chat without a project"
             tooltip="New Chat" size="sm" variant="ghost" onClick={onNewChat} />
-        </HStack>
-      }
-    >
+        }
+      />
       <VStack id={contentId} gap={0.5}>
         {expanded ? (
           <SidebarSessionRows
@@ -909,25 +942,14 @@ function ProjectNavigation({
   );
 
   return (
-    <SideNavSection
-      data-testid="sidebar-projects"
-      title="Projects"
-      endContent={
-        <HStack gap={0.5}>
-          <IconButton
-            icon={sectionExpanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
-            label={sectionExpanded ? "Collapse Projects" : "Expand Projects"}
-            tooltip={sectionExpanded ? "Collapse Projects" : "Expand Projects"}
-            aria-expanded={sectionExpanded}
-            aria-controls={contentId}
-            size="sm"
-            variant="ghost"
-            onClick={toggle}
-          />
-          <AddProjectButton onAddProject={onAddProject} />
-        </HStack>
-      }
-    >
+    <SideNavSection data-testid="sidebar-projects" isHeaderHidden title="Projects">
+      <SidebarSectionHeader
+        title="Projects"
+        expanded={sectionExpanded}
+        contentId={contentId}
+        onToggle={toggle}
+        actions={<AddProjectButton onAddProject={onAddProject} />}
+      />
       <VStack id={contentId} gap={0.5}>
         {sectionExpanded ? projects.map((project) => {
           const projectSessions = sessions.filter(

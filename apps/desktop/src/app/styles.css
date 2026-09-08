@@ -230,27 +230,112 @@ body {
   padding-inline-start: 0;
 }
 
-/* Session rows keep the timestamp in the trailing slot and reveal the actions
-   menu only on hover/focus, swapping the two so they never overlap. */
-.pigui-sidenav-session-actions {
+/* Section header (Chats / Projects): the title is the collapse toggle, laid
+   out on the same row grid as the items so the hover-only "+" lines up with
+   the project-row actions below it. */
+.pigui-sidenav-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--pigui-sidebar-row-height);
+  padding-inline: var(--spacing-2) var(--spacing-1);
+}
+
+.pigui-sidenav-section-toggle {
+  display: inline-flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 0;
+  border: none;
+  border-radius: var(--pigui-sidebar-item-radius);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-supporting-size);
+  line-height: var(--text-supporting-leading);
+  text-align: start;
+  cursor: default;
+}
+
+.pigui-sidenav-section-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.pigui-sidenav-section-toggle__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pigui-sidenav-section-toggle__chevron {
+  width: var(--pigui-sidebar-icon-size);
+  height: var(--pigui-sidebar-icon-size);
+  flex: 0 0 auto;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
+  transition:
+    opacity 120ms ease-out,
+    rotate 150ms ease-out;
 }
 
-.pigui-sidenav-session-row:hover .pigui-sidenav-session-actions,
-.pigui-sidenav-session-row:focus-within .pigui-sidenav-session-actions {
-  opacity: 1;
-  pointer-events: auto;
+.pigui-sidenav-section-toggle__chevron[data-expanded="true"] {
+  rotate: 90deg;
 }
 
+/* Actions (new chat, add project, row menus) are hidden until the row is
+   hovered, keyboard-focused, or has its menu open. Status glyphs (unread dot,
+   unsent-draft pencil, timestamp) sit outside this container and stay put.
+   Guarded by (hover: hover) so touch devices keep the actions permanently
+   reachable. Opacity only, no pointer-events toggle: a pointer over the
+   buttons already hovers the row (or the overlay), so they are never
+   invisible-but-clickable, and automation can hit them without a prior hover. */
+@media (hover: hover) {
+  .pigui-sidenav-hover-actions {
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+  }
+
+  /* Project rows: only the header button counts, not the nested session
+     rows the same wrapper contains. The overlay's own :hover keeps it shown
+     once the pointer crosses from the button onto the actions. */
+  .pigui-sidenav-section-header:hover .pigui-sidenav-hover-actions,
+  .pigui-sidenav-section-header:focus-within .pigui-sidenav-hover-actions,
+  .pigui-sidenav-session-row:hover > .pigui-sidenav-hover-actions,
+  .pigui-sidenav-session-row:focus-within > .pigui-sidenav-hover-actions,
+  .pigui-sidenav-row-with-actions:has(> div > .astryx-side-nav-item:hover) > .pigui-sidenav-row-actions > .pigui-sidenav-hover-actions,
+  .pigui-sidenav-row-with-actions:has(> div > .astryx-side-nav-item:focus-visible) > .pigui-sidenav-row-actions > .pigui-sidenav-hover-actions,
+  .pigui-sidenav-row-actions:hover > .pigui-sidenav-hover-actions,
+  .pigui-sidenav-row-actions:focus-within > .pigui-sidenav-hover-actions,
+  .pigui-sidenav-hover-actions:has([aria-expanded="true"]) {
+    opacity: 1;
+  }
+
+  .pigui-sidenav-section-header:hover .pigui-sidenav-section-toggle__chevron,
+  .pigui-sidenav-section-header:focus-within .pigui-sidenav-section-toggle__chevron,
+  .pigui-sidenav-section-toggle__chevron[data-expanded="false"] {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .pigui-sidenav-section-toggle__chevron {
+    opacity: 1;
+  }
+}
+
+/* Session rows keep the timestamp in the trailing slot and swap it for the
+   actions menu on hover so the two never overlap. */
 .pigui-sidenav-session-meta {
   transition: opacity 120ms ease-out;
 }
 
-.pigui-sidenav-session-row:hover .pigui-sidenav-session-meta,
-.pigui-sidenav-session-row:focus-within .pigui-sidenav-session-meta {
-  opacity: 0;
+@media (hover: hover) {
+  .pigui-sidenav-session-row:hover .pigui-sidenav-session-meta,
+  .pigui-sidenav-session-row:focus-within .pigui-sidenav-session-meta {
+    opacity: 0;
+  }
 }
 
 /* Project rows carry their own folder/chevron indicator — hide the built-in
