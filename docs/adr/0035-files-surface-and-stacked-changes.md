@@ -36,4 +36,5 @@ ADR-0007 要求 terminal / file tree 一旦加入必须是 Session-scoped、绑�
 
 - `SessionSurfaceId` 扩为四个；CONTEXT.md 的 **Built-in Surface** 词条与 **Live Session View** 的「文件树仍不包含」随之更新。
 - Changes 面板同时挂载多份 diff 渲染器，上限由后端既有的 200 文件 / 2 MiB 总补丁限制兜底；折叠即卸载是性能前提，不是可选项。
+- 符号链接一律列出但不可进入、不可预览，包括指向根内部的（monorepo 里 `packages/*` 软链就是这种）。这是有意收窄：realpath 校验只保证不逃逸，放行根内软链需要再做一次判定与去环，留给后续决策。
 - Files 的目录列表不读 `.gitignore`：`node_modules` 之类会出现在树里，但懒加载让它不成为性能问题。若之后要隐藏忽略项，需要新的决策。
