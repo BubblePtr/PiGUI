@@ -7475,6 +7475,23 @@ describe("Session changes action surface", () => {
   const sections = () => screen.getAllByTestId("session-change-section");
   const outline = () => screen.getByRole("navigation", { name: "Changed files" });
 
+  it("keeps the outline before narrow diffs and beside wide diffs when review is bounded", () => {
+    render(panel(changes({ truncated: true, omittedFileCount: 3 })));
+
+    expect(screen.getByText("Review is bounded. 3 additional files were omitted.")).toBeInTheDocument();
+    expect(outline()).toBeInTheDocument();
+    expect(outline()).toHaveClass("order-first", "md:order-none");
+    expect(outline().className).not.toContain("order-last");
+  });
+
+  it("shows each file's kind and stage in the outline", () => {
+    render(panel(twoTextFiles()));
+
+    const rows = within(outline()).getAllByRole("button");
+    expect(rows[0]).toHaveTextContent("Modified · Working tree");
+    expect(rows[1]).toHaveTextContent("Added · Staged");
+  });
+
   it("stacks every file's diff, with binary notices inline, and switches layout for all of them", async () => {
     const user = userEvent.setup();
 
@@ -7521,14 +7538,17 @@ describe("Session changes action surface", () => {
 
     await user.click(rows[0]!);
     expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+    expect(scrollIntoView).toHaveBeenCalled();
     expect(scrollIntoView.mock.instances[0]).toBe(sections()[0]);
-    expect(rows[0]).toHaveAttribute("aria-current", "true");
-    expect(rows[1]).not.toHaveAttribute("aria-current");
+    expect(sections()[0]!.contains(document.activeElement)).toBe(true);
+    expect(rows[0]).toHaveAttribute("data-current", "true");
+    expect(rows[0]).not.toHaveAttribute("aria-current");
+    expect(rows[1]).not.toHaveAttribute("data-current");
 
     await user.click(rows[2]!);
-    expect(rows[2]).toHaveAttribute("aria-current", "true");
-    expect(rows[0]).not.toHaveAttribute("aria-current");
+    expect(rows[2]).toHaveAttribute("data-current", "true");
+    expect(sections()[2]!.contains(document.activeElement)).toBe(true);
+    expect(rows[0]).not.toHaveAttribute("data-current");
 
     scrollIntoView.mockRestore();
   });
@@ -7569,6 +7589,41 @@ describe("Session changes action surface", () => {
       panel({ ...twoTextFiles(), sessionId: "session-other" }, { sessionId: "session-other" }),
     );
     expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+  });
+
+  it("forgets a removed file's fold when it reappears after later refreshes", async () => {
+    const user = userEvent.setup();
+    const original = twoTextFiles();
+    const view = render(panel(original));
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+    await user.click(within(sections()[0]!).getByRole("button", { expanded: true }));
+    expect(within(sections()[0]!).queryByTestId("session-diff-viewer")).not.toBeInTheDocument();
+
+    view.rerender(panel({ ...original, files: original.files.slice(1) }));
+    expect(within(outline()).queryByRole("button", { name: /src\/app.ts/ })).not.toBeInTheDocument();
+
+    view.rerender(panel({ ...original, generatedAt: "2026-07-19T00:03:00.000Z" }));
+    expect(within(sections()[0]!).getByRole("button", { expanded: true })).toHaveTextContent("src/app.ts");
+    expect(await within(sections()[0]!).findByTestId("session-diff-viewer")).toBeInTheDocument();
+  });
+
+  it("keeps conflict and patch-limit notices in their sections with the tree-limit notice below", () => {
+    const original = twoTextFiles();
+    render(panel({
+      ...original,
+      files: [
+        { ...original.files[0]!, kind: "conflicted", patch: undefined },
+        { ...original.files[1]!, patchTruncated: true, patch: undefined },
+      ],
+      truncated: true,
+      omittedFileCount: 4,
+    }));
+
+    expect(within(sections()[0]!).getByText(/This file has unresolved merge conflicts/)).toBeInTheDocument();
+    expect(within(sections()[1]!).getByText(/This patch exceeds the review limit/)).toBeInTheDocument();
+    expect(screen.queryByTestId("session-diff-viewer")).not.toBeInTheDocument();
+    expect(screen.getByText("Review is bounded. 4 additional files were omitted.")).toBeInTheDocument();
+    expect(within(outline()).getAllByRole("button")).toHaveLength(2);
   });
 
   it("shows clean and non-Git states without treating them as failures", async () => {
