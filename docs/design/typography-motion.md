@@ -16,6 +16,7 @@
 
 - Astryx `Text`：默认 `type="body"`；辅助说明、表单提示、空态副标题用 `type="supporting"`（仓库 41 处里 32 处是它）；次要色传 `color="secondary"`。`Text` 的类型 prop 叫 `type`，不叫 `variant`。
 - `Heading`：页面标题 `level={2}`，区块标题 `level={3}`，再往下 `level={4}`。没有 `level={1}` 的调用，页面只有一个 h1 由 AppShell 管。
+- AppShell 顶部会话标题使用正常字重（`font-normal`）；名称与侧栏共用会话投影，随自动命名、手动重命名和会话切换同步，新对话草稿显示 `New Chat`。
 - **对话标题阶梯**（`chat.css:39-93`）：Markdown 以 `headingLevelStart=3` 渲染，`#` = `--font-size-lg` semibold，`##` = base semibold，`###` 及以下 = base medium。规则是"比正文大一档，其余永不小于正文"，因为聊天里的标题是分节，不是文档层级。
 - **数字一律 `tabular-nums`**（时长、token 数、百分比、时钟）。原因：`1.2s` 变 `4.7s` 时宽度不变，旁边的 chevron 不会抖。
 - 聊天正文行高 1.6，段落间距 `--spacing-3`（`chat.css:53,100`）；这两个值只在 `.chat-message` 作用域内，别处沿用 Astryx 默认。

@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -463,7 +463,41 @@ describe("AppFrame", () => {
     expect(projectActionsButton).toHaveClass("astryx-button");
     expect(projectActionsButton).toHaveAttribute("data-size", "sm");
     expect(projectActionsButton).toHaveAttribute("aria-haspopup", "menu");
-    expect(screen.getByRole("heading", { level: 1, name: "Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Agent Workspace shell" })).toBeInTheDocument();
+  });
+
+  it.each(["pig", "chat"])("keeps the %s header in sync with session naming and selection", async (projectId) => {
+    const [first, second] = defaultSidebarProjectSessionProjections;
+    let update!: (state: { sessions: SessionProjection[]; selected: string | null }) => void;
+    const rootRoute = createRootRoute({
+      component: function TestFrame() {
+        const [state, setState] = useState<{ sessions: SessionProjection[]; selected: string | null }>({
+          sessions: [{ ...first, title: null, sessionName: undefined, initialPrompt: "Fix the session header" }, second],
+          selected: first.id,
+        });
+        update = setState;
+        return <AppFrame sessionProjections={state.sessions} selectedSessionId={state.selected}>Content</AppFrame>;
+      },
+    });
+    const route = createRoute({ getParentRoute: () => rootRoute, path: "/projects/$projectId/sessions" });
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([route]),
+      history: createMemoryHistory({ initialEntries: [`/projects/${projectId}/sessions`] }),
+    });
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Fix the session header" })).toBeInTheDocument();
+
+    const named = { ...first, title: null, sessionName: "Generated session name" };
+    act(() => update({ sessions: [named, second], selected: first.id }));
+    expect(screen.getByRole("heading", { level: 1, name: named.sessionName })).toBeInTheDocument();
+
+    const renamed = { ...named, title: "Session title synchronization" };
+    act(() => update({ sessions: [renamed, second], selected: first.id }));
+    expect(screen.getByRole("heading", { level: 1, name: renamed.title })).toBeInTheDocument();
+    act(() => update({ sessions: [renamed, second], selected: second.id }));
+    expect(screen.getByRole("heading", { level: 1, name: second.title ?? second.sessionName ?? second.initialPrompt })).toBeInTheDocument();
+    await act(() => router.navigate({ to: "/projects/$projectId/sessions", params: { projectId }, search: { view: "draft" } }));
+    expect(screen.getByRole("heading", { level: 1, name: "New Chat" })).toBeInTheDocument();
   });
 
   it("renders Project headers as side nav rows with sibling row actions (no nested buttons)", async () => {
