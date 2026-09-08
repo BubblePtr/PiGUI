@@ -69,6 +69,11 @@ function PromptTextArea({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME confirmation belongs to text entry; 229 covers composition ending before keydown.
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+      return;
+    }
+
     if (event.key !== "Enter") {
       return;
     }

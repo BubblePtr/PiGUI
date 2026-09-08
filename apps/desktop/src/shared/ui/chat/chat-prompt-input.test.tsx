@@ -88,6 +88,32 @@ describe("ChatPromptInput", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { isComposing: true, keyCode: 13 },
+    { isComposing: false, keyCode: 229 },
+  ])("preserves the draft on IME Enter ($isComposing, $keyCode)", (ime) => {
+    const onSubmit = vi.fn();
+    const onValueChange = vi.fn();
+    renderPromptInput({ value: "你好", onSubmit, onValueChange });
+    const textarea = screen.getByPlaceholderText("Type here");
+
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+      ...ime,
+    });
+    fireEvent(textarea, event);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onValueChange).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue("你好");
+    expect(event.defaultPrevented).toBe(false);
+
+    fireEvent.keyDown(textarea, { key: "Enter", isComposing: false, keyCode: 13 });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it("submits on Cmd+Enter", async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
