@@ -167,6 +167,7 @@ import {
 import { getVisibleModels } from "@/entities/model/visible-models";
 import type { TerminalInstanceInfo } from "@/entities/terminal/terminal-client";
 import { SessionBrowserPanel } from "@/pages/session-browser-panel";
+import { SessionFilesPanel } from "@/pages/session-files-panel";
 import { SessionTerminalPanel } from "@/pages/session-terminal-panel";
 import { useSettingsDialog } from "@/shared/settings-navigation";
 import {
@@ -2523,6 +2524,15 @@ function SessionSurfaceContent({
         onRefresh={sessionChanges.refresh}
       />
     );
+  }
+
+  if (surfaceId === "files") {
+    // No projection means no checkout, so there is no tree to browse.
+    if (!projection) {
+      return null;
+    }
+
+    return <SessionFilesPanel sessionId={projection.id} />;
   }
 
   if (surfaceId === "terminal") {
