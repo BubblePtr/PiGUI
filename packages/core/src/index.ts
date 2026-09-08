@@ -58,6 +58,13 @@ export type {
   SessionChangedFileKind,
 } from "./session-changes";
 
+export type {
+  SessionDirectoryEntry,
+  SessionDirectoryEntryKind,
+  SessionDirectoryListing,
+  SessionFileContent,
+} from "./session-files";
+
 export {
   surfaceForMessagePart,
   shouldJournalRuntimeEvent,
