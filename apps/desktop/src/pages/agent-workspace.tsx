@@ -2238,7 +2238,10 @@ export function SessionChangesPanel({
     // The section root stays mounted while folded, so it can be scrolled to
     // before React has re-rendered the expanded body. jsdom has no
     // scrollIntoView, hence the optional call.
-    sectionRefs.current.get(path)?.scrollIntoView?.({ block: "start" });
+    const section = sectionRefs.current.get(path);
+    section?.scrollIntoView?.({ block: "start" });
+    // Continue keyboard navigation from the diff after an outline jump.
+    section?.querySelector("button")?.focus();
   };
 
   const status = sessionChangesStatus({ changes, error, loading });
@@ -2431,11 +2434,11 @@ export function SessionChangesPanel({
           </CollapsibleGroup>
 
           {/* The outline: one row per file, in the order of the sections. It
-              stacks above the diffs on narrow widths and sits at the right on
-              md+, where sticky keeps it in reach while the reviewer scrolls. */}
+              comes first on narrow widths; md+ restores DOM order so the diffs
+              and outline share a row before the full-width truncated notice. */}
           <nav
             aria-label="Changed files"
-            className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 md:sticky md:top-2 md:order-last"
+            className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 md:sticky md:top-2 order-first md:order-none"
           >
             <p className="px-2 py-1 text-xs font-medium text-muted">
               {changes.files.length} files
@@ -2444,7 +2447,7 @@ export function SessionChangesPanel({
               {changes.files.map((file) => (
                 <button
                   key={`${file.previousPath ?? ""}:${file.path}`}
-                  aria-current={file.path === currentPath ? "true" : undefined}
+                  data-current={file.path === currentPath ? "true" : undefined}
                   className={`w-full min-w-0 rounded px-2 py-1.5 text-left transition-colors ${
                     file.path === currentPath
                       ? "bg-default/70 text-foreground"
@@ -2458,7 +2461,7 @@ export function SessionChangesPanel({
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2 text-xs">
                     <span className="min-w-0 truncate" title={changeStageLabel(file)}>
-                      {changeKindLabel(file.kind)}
+                      {changeKindLabel(file.kind)} · {changeStageLabel(file)}
                     </span>
                     <ChangeCounts file={file} />
                   </span>
