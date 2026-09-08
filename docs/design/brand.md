@@ -10,7 +10,7 @@
 
 `PaceWordmark` 位于 `apps/desktop/src/shared/ui/pace-wordmark.tsx`，直接保留确认后的六条矢量路径，不依赖字体。默认高度为 `h-6`，宽高比为 824:180，颜色继承 `currentColor`；明暗主题使用界面的 foreground，不添加阴影、渐变或玻璃效果。
 
-字标放在 SideNav 固定头部、原生标题栏安全区下方，左边缘与导航内容对齐。仅用于品牌识别，不添加点击行为。根 SVG 默认 `role="img"`、`aria-label="Pace"`，支持 `className` 与其他 SVG 属性透传。Design 页展示默认尺寸和大尺寸。
+字标放在 SideNav 固定头部、原生标题栏安全区下方，侧栏使用 `h-5`（20px）并水平居中。仅用于品牌识别，不添加点击行为。根 SVG 默认 `role="img"`、`aria-label="Pace"`，支持 `className` 与其他 SVG 属性透传。Design 页展示侧栏尺寸和大尺寸。
 
 ## 应用图标
 

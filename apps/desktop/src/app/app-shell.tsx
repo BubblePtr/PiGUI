@@ -1676,15 +1676,13 @@ export function AppFrame({
           data-testid="app-layout-sidebar"
           resizable={{ defaultWidth: 260, minWidth: 240, maxWidth: 320, autoSaveId: "pigui-app-shell" }}
           header={
-            <VStack gap={3} align="start" className="pb-2">
+            <VStack gap={3} align="center" className="w-full pb-2">
               <div
                 aria-hidden="true"
                 data-testid="sidebar-titlebar-spacer"
                 style={sidebarTitlebarSpacerStyle}
               />
-              <HStack paddingInline={2}>
-                <PaceWordmark />
-              </HStack>
+              <PaceWordmark className="h-5" />
             </VStack>
           }
           footer={<SystemNavigation pathname={pathname} onNavigate={handleNavigate} />}

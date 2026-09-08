@@ -1000,7 +1000,7 @@ function PaceWordmarkGallery() {
     <GallerySection title="PaceWordmark">
       <VariantRow>
         <Variant caption="Sidebar · theme foreground">
-          <PaceWordmark />
+          <PaceWordmark className="h-5" />
         </Variant>
         <Variant caption="Large · inherited color">
           <PaceWordmark className="h-10 text-muted" />
