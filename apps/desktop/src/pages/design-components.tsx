@@ -57,7 +57,7 @@ import {
   type ToolPartState,
 } from "@/shared/ui/chat/chat-tool";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
-import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
+import { BrowserSurface, type BrowserSurfaceState } from "@/shared/ui/browser/browser-surface";
 import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
 import {
   TerminalView,
@@ -235,8 +235,8 @@ function SessionSurfaceTabsSample({
       addLabel="New terminal"
       icon={Icons.Terminal}
       items={items}
-      label="Terminal instances"
-      onActivate={setActiveId}
+      aria-label="Terminal instances"
+      onActiveChange={setActiveId}
       onAdd={() => {}}
       onClose={() => {}}
     />
@@ -361,6 +361,72 @@ function SessionDockGallery() {
 const gallerySnapshot =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAF0lEQVR4nGP8//8/AwwwMSAB7BwmJIUQDgB7pgMBfxRcVAAAAABJRU5ErkJggg==";
 
+function GalleryBrowserSurface({
+  state,
+  tabs = [
+    { id: "preview", label: "Browser 1" },
+    { id: "docs", label: "Browser 2" },
+  ],
+  activeTabId = "preview",
+  address = "",
+  annotationCount = 0,
+  canGoBack = false,
+  canGoForward = false,
+  isDesignMode = false,
+  isLoading,
+  isSending,
+  notice,
+  snapshot,
+  onAddressChange,
+}: {
+  state: BrowserSurfaceState;
+  tabs?: { id: string; label: string }[];
+  activeTabId?: string | null;
+  address?: string;
+  annotationCount?: number;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  isDesignMode?: boolean;
+  isLoading?: boolean;
+  isSending?: boolean;
+  notice?: string;
+  snapshot?: string;
+  onAddressChange?: (address: string) => void;
+}) {
+  const noop = () => {};
+  return (
+    <BrowserSurface state={state}>
+      <BrowserSurface.Tabs
+        tabs={tabs}
+        activeTabId={activeTabId}
+        annotationCount={annotationCount}
+        onActiveTabChange={noop}
+        onAddTab={noop}
+        onCloseTab={noop}
+      />
+      <BrowserSurface.Toolbar
+        address={address}
+        annotationCount={annotationCount}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        isDesignMode={isDesignMode}
+        isLoading={isLoading}
+        isSending={isSending}
+        onAddressChange={onAddressChange ?? noop}
+        onAddressSubmit={noop}
+        onBack={noop}
+        onClearAnnotations={noop}
+        onDesignModeChange={noop}
+        onForward={noop}
+        onOpenExternal={noop}
+        onReload={noop}
+        onSendToComposer={noop}
+      />
+      <BrowserSurface.Viewport notice={notice} snapshot={snapshot} onAddTab={noop} onReload={noop} />
+    </BrowserSurface>
+  );
+}
+
 function BrowserSurfaceGallery() {
   const [address, setAddress] = useState("localhost:5173");
 
@@ -369,145 +435,65 @@ function BrowserSurfaceGallery() {
       <VariantRow>
         <Variant caption="loading, two tabs — the active address shows progress while the native page loads">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
+            <GalleryBrowserSurface
               address={address}
-              isLoading
-              annotationCount={0}
               canGoBack
-              canGoForward={false}
-              designMode={false}
+              isLoading
               state={{ kind: "live" }}
               onAddressChange={setAddress}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
         <Variant caption="design mode on, two elements marked — the marks live in the page's own overlay, and Send to composer drops them plus a screenshot into the chat draft">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
+            <GalleryBrowserSurface
               address="http://localhost:5173/"
               annotationCount={2}
-              canGoBack={false}
-              canGoForward={false}
-              designMode
+              isDesignMode
               state={{ kind: "live" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
+              tabs={[{ id: "preview", label: "Browser 1" }]}
             />
           </div>
         </Variant>
         <Variant caption="sending — the page is settling its overlay for the shot, so the action is out of reach until it answers">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
+            <GalleryBrowserSurface
               address="http://localhost:5173/"
               annotationCount={2}
-              canGoBack={false}
-              canGoForward={false}
-              designMode
+              isDesignMode
               isSending
               state={{ kind: "live" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
         <Variant caption="notice — one line about the last send, in plain text: a layer here would swap the live page for a still">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
+            <GalleryBrowserSurface
               address="http://localhost:5173/"
               annotationCount={2}
-              canGoBack={false}
-              canGoForward={false}
-              designMode
+              isDesignMode
               notice="Sent without a screenshot — the page could not be photographed."
               state={{ kind: "live" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
         <Variant caption="live + snapshot — a DOM overlay is open, so a still of the page stands in for the native view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
+            <GalleryBrowserSurface
               address="http://localhost:5173/"
-              annotationCount={0}
               canGoBack
-              canGoForward={false}
-              designMode={false}
               snapshot={gallerySnapshot}
               state={{ kind: "live" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
         {[
-          { caption: "empty — explicit action before creating or restoring tabs" },
-          { caption: "initializing — only checking for existing tabs", isInitializing: true },
-          { caption: "opening — creation is pending, duplicate clicks are disabled", isOpening: true },
-          { caption: "creation failed — stay empty and offer another attempt", notice: "The browser could not be opened." },
-          { caption: "blank tab — created explicitly, ready for an address", hasTab: true },
-        ].map(({ caption, hasTab, ...status }) => (
+          { caption: "empty — explicit action before creating or restoring tabs", state: { kind: "empty" } as const },
+          { caption: "initializing — only checking for existing tabs", state: { kind: "empty", phase: "initializing" } as const },
+          { caption: "opening — creation is pending, duplicate clicks are disabled", state: { kind: "empty", phase: "opening" } as const },
+          { caption: "creation failed — stay empty and offer another attempt", notice: "The browser could not be opened.", state: { kind: "empty" } as const },
+          { caption: "blank tab — created explicitly, ready for an address", hasTab: true, state: { kind: "empty", phase: "blank" } as const },
+        ].map(({ caption, hasTab, notice, state }) => (
           <Variant caption={caption} key={caption}>
             <VStack
               style={{
@@ -516,108 +502,31 @@ function BrowserSurfaceGallery() {
                 overflow: "hidden",
               }}
             >
-              <BrowserSurface
-                {...status}
-                tabs={hasTab ? [{ id: "blank", label: "Browser 1" }] : []}
+              <GalleryBrowserSurface
                 activeTabId={hasTab ? "blank" : null}
-                onActivateTab={() => {}}
-                onAddTab={() => {}}
-                onCloseTab={() => {}}
-                address=""
-                annotationCount={0}
-                canGoBack={false}
-                canGoForward={false}
-                designMode={false}
-                state={{ kind: "empty" }}
-                onAddressChange={() => {}}
-                onAddressSubmit={() => {}}
-                onBack={() => {}}
-                onClearAnnotations={() => {}}
-                onDesignModeChange={() => {}}
-                onForward={() => {}}
-                onOpenExternal={() => {}}
-                onReload={() => {}}
-                onSendToComposer={() => {}}
+                notice={notice}
+                state={state}
+                tabs={hasTab ? [{ id: "blank", label: "Browser 1" }] : []}
               />
             </VStack>
           </Variant>
         ))}
         <Variant caption="error — our own state, never Chromium's error page">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
+            <GalleryBrowserSurface
               address="http://localhost:5173/"
-              annotationCount={0}
-              canGoBack={false}
-              canGoForward={false}
-              designMode={false}
               state={{ kind: "error", message: "ERR_CONNECTION_REFUSED" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
             />
           </div>
         </Variant>
         <Variant caption="narrow — below 1280px the dock is a Dialog portal, so the chrome goes away with the view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
-              address=""
-              annotationCount={0}
-              canGoBack={false}
-              canGoForward={false}
-              designMode={false}
-              state={{ kind: "narrow" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
-            />
+            <GalleryBrowserSurface state={{ kind: "narrow" }} />
           </div>
         </Variant>
         <Variant caption="unsupported — browser-only dev, no Electron main process to host a view">
           <div className="h-56 w-[30rem] overflow-hidden rounded-md border border-separator px-2">
-            <BrowserSurface
-              tabs={[{ id: "preview", label: "Browser 1" }, { id: "docs", label: "Browser 2" }]}
-              activeTabId="preview"
-              onActivateTab={() => {}}
-              onAddTab={() => {}}
-              onCloseTab={() => {}}
-              address=""
-              annotationCount={0}
-              canGoBack={false}
-              canGoForward={false}
-              designMode={false}
-              state={{ kind: "unsupported" }}
-              onAddressChange={() => {}}
-              onAddressSubmit={() => {}}
-              onBack={() => {}}
-              onClearAnnotations={() => {}}
-              onDesignModeChange={() => {}}
-              onForward={() => {}}
-              onOpenExternal={() => {}}
-              onReload={() => {}}
-              onSendToComposer={() => {}}
-            />
+            <GalleryBrowserSurface state={{ kind: "unsupported" }} />
           </div>
         </Variant>
       </VariantRow>
@@ -874,7 +783,7 @@ function PiTrajectoryLedgerGallery() {
             <PiTrajectoryLedger
               runs={trajectoryRuns}
               selectedStepId={selectedStepId}
-              onSelectStep={setSelectedStepId}
+              onSelectedStepChange={setSelectedStepId}
             />
           </div>
         </Variant>
@@ -987,7 +896,7 @@ function PiTrajectoryStripTimeVariant() {
 function PiTrajectoryStripGallery() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("steps");
   const [range, setRange] = useState<SegmentRange | undefined>(defaultGalleryFocus);
-  const [activeStepId, setActiveStepId] = useState<string | undefined>(
+  const [selectedStepId, setSelectedStepId] = useState<string | undefined>(
     galleryStripSegments[defaultGalleryFocus[0]]?.stepIds[0],
   );
   const focusedStepIds = new Set(
@@ -1002,21 +911,21 @@ function PiTrajectoryStripGallery() {
         <Variant caption="Input / Model / Tools swimlanes · hover = scrub cursor · click = one block · drag = contiguous blocks · columns outside the box dim">
           <div className="rounded-md border border-separator bg-surface-muted/25 px-3 py-2">
             <PiTrajectoryStrip
-              activeStepId={activeStepId}
+              selectedStepId={selectedStepId}
               selectedRange={range}
               turns={trajectoryTurns}
               widthMode={widthMode}
               onBrush={setRange}
-              onSelect={(_, stepId) => setActiveStepId(stepId)}
+              onSelect={(_, stepId) => setSelectedStepId(stepId)}
               onWidthModeChange={setWidthMode}
             />
           </div>
           <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-separator">
             <PiTrajectoryLedger
               runs={trajectoryRuns}
-              selectedStepId={activeStepId}
+              selectedStepId={selectedStepId}
               isStepDimmed={range ? (step) => !focusedStepIds.has(step.id) : undefined}
-              onSelectStep={setActiveStepId}
+              onSelectedStepChange={setSelectedStepId}
             />
           </div>
         </Variant>
@@ -1425,7 +1334,7 @@ function ChatRunFailureGallery() {
       <Variant caption="authentication failure with recovery">
         <ChatRunFailure error={'401 {"error":{"message":"Invalid API key"}}'}
           onOpenProviderSettings={() => {}} onRetry={async () => {}}
-          modelControl={<ModelSelectorControl controls={modelSelectorControls} isLocked={false} onChange={() => {}} />} />
+          modelControl={<ModelSelectorControl controls={modelSelectorControls} isDisabled={false} onChange={() => {}} />} />
       </Variant>
       <Variant caption="historical failure (read only)">
         <ChatRunFailure error="The provider dropped the connection." />
@@ -1587,7 +1496,7 @@ function ChatChainOfThoughtGallery() {
           </ChatChainOfThought>
         </Variant>
         <Variant caption='phase="settled", expanded'>
-          <ChatChainOfThought defaultExpanded elapsedMs={16_400} phase="settled">
+          <ChatChainOfThought defaultOpen elapsedMs={16_400} phase="settled">
             <ChatChainOfThought.Steps>
               <ChatChainOfThought.Step>
                 <ChatThoughtStep step={settledThought} />
@@ -2002,7 +1911,7 @@ function ChatChainOfThoughtRailGallery() {
       <div className="flex max-w-xl flex-col gap-4">
         <Variant caption="expanded, settled — rounds with done/failed tools">
           <ChatChainOfThoughtRail
-            defaultExpanded
+            defaultOpen
             parts={railParts.slice(0, 4)}
             summary="Thought for 23s · 2 tool calls"
           />
@@ -2246,14 +2155,14 @@ function ModelSelectorControlGallery() {
         <Variant caption="default — open for search, flyout, Fast Mode">
           <ModelSelectorControl
             controls={modelSelectorControls}
-            isLocked={false}
+            isDisabled={false}
             onChange={() => {}}
           />
         </Variant>
         <Variant caption="locked while a run is active">
           <ModelSelectorControl
             controls={modelSelectorControls}
-            isLocked
+            isDisabled
             onChange={() => {}}
           />
         </Variant>
@@ -2267,14 +2176,14 @@ function ModelSelectorControlGallery() {
                 thinkingLevel: "medium",
               },
             }}
-            isLocked={false}
+            isDisabled={false}
             onChange={() => {}}
           />
         </Variant>
         <Variant caption="Settings visibility — hidden selection marked, Add Models live">
           <ModelSelectorControl
             controls={modelSelectorControls}
-            isLocked={false}
+            isDisabled={false}
             visibleModels={[{ provider: "moonshot", modelId: "kimi-k3" }]}
             onChange={() => {}}
             onManageModels={() => {}}

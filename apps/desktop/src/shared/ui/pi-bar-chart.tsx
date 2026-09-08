@@ -1,3 +1,5 @@
+import type { ComponentProps } from "react";
+
 export type PiBarChartSeries = {
   /** Key into each datum's `values` record. */
   key: string;
@@ -22,17 +24,7 @@ export type PiBarChartDatum = {
  * contained to this component. Tooltips are rendered per bucket and revealed
  * on hover/focus via primitives.css.
  */
-export function PiBarChart({
-  "aria-label": ariaLabel,
-  data,
-  series,
-  height = 200,
-  barSize = 14,
-  tickInterval = 0,
-  valueFormatter = (value: number) => String(value),
-  emptyLabel = "No data yet",
-  className = "",
-}: {
+type PiBarChartOwnProps = {
   "aria-label": string;
   data: PiBarChartDatum[];
   series: PiBarChartSeries[];
@@ -45,8 +37,23 @@ export function PiBarChart({
   valueFormatter?: (value: number) => string;
   /** Shown inside the plot when `data` is empty. */
   emptyLabel?: string;
-  className?: string;
-}) {
+};
+
+export type PiBarChartProps = Omit<ComponentProps<"div">, keyof PiBarChartOwnProps | "children"> &
+  PiBarChartOwnProps;
+
+export function PiBarChart({
+  "aria-label": ariaLabel,
+  data,
+  series,
+  height = 200,
+  barSize = 14,
+  tickInterval = 0,
+  valueFormatter = (value: number) => String(value),
+  emptyLabel = "No data yet",
+  className = "",
+  ...rest
+}: PiBarChartProps) {
   const bucketTotals = data.map((datum) =>
     series.reduce((total, item) => total + (datum.values[item.key] ?? 0), 0),
   );
@@ -58,6 +65,7 @@ export function PiBarChart({
       className={`pi-bar-chart ${className}`.trim()}
       data-slot="bar-chart"
       role="img"
+      {...rest}
     >
       <div className="pi-bar-chart__plot" style={{ height }}>
         {data.length === 0 ? (

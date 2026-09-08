@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type ComponentProps,
+} from "react";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -14,11 +20,13 @@ export type TerminalViewHandle = {
   focus(): void;
 };
 
-export type TerminalViewProps = {
+type TerminalViewOwnProps = {
   onData?: (data: string) => void;
   onResize?: (cols: number, rows: number) => void;
-  className?: string;
 };
+
+export type TerminalViewProps = Omit<ComponentProps<"div">, keyof TerminalViewOwnProps | "children"> &
+  TerminalViewOwnProps;
 
 /**
  * Resolves any CSS color (token reference, color-mix(), …) to a concrete
@@ -173,7 +181,7 @@ function terminalTheme(scope: HTMLElement): ITheme {
 }
 
 export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
-  function TerminalView({ onData, onResize, className }, ref) {
+  function TerminalView({ onData, onResize, className, ...rest }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRef = useRef<Terminal | null>(null);
     // Callbacks go through refs so a fresh parent closure never rebuilds the
@@ -250,6 +258,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       };
     }, []);
 
-    return <div className={className} data-testid="terminal-view" ref={containerRef} />;
+    return (
+      <div className={className} data-testid="terminal-view" ref={containerRef} {...rest} />
+    );
   },
 );

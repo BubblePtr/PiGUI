@@ -1,5 +1,5 @@
 import { IconButton } from "@astryxdesign/core/IconButton";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentProps, ComponentType, ReactNode } from "react";
 import { usePresenceList } from "@/shared/ui/chat/use-presence-list";
 import { Cancel, Plus } from "@/shared/ui/icons";
 
@@ -16,10 +16,7 @@ import { Cancel, Plus } from "@/shared/ui/icons";
  * itself from `--size-element-*` plus its own block padding, and its roving
  * tabindex would nest inside the tab strip's own arrow-key model.
  */
-export function SessionSurfaceBar({
-  actions,
-  children,
-}: {
+type SessionSurfaceBarOwnProps = {
   /**
    * Right-hand slot. Reserved even when a surface has nothing to put there
    * yet — Changes will grow checkout / commit / push actions (ADR-0008).
@@ -27,7 +24,20 @@ export function SessionSurfaceBar({
   actions?: ReactNode;
   /** Left-hand slot: what the surface currently is. */
   children: ReactNode;
-}) {
+};
+
+export type SessionSurfaceBarProps = Omit<
+  ComponentProps<"div">,
+  keyof SessionSurfaceBarOwnProps
+> &
+  SessionSurfaceBarOwnProps;
+
+export function SessionSurfaceBar({
+  actions,
+  children,
+  className,
+  ...rest
+}: SessionSurfaceBarProps) {
   return (
     // h-10 puts the row on the same baseline as Chat's title band. px-2 is the
     // flush surfaces' inset: every leading element here is a control with its
@@ -36,9 +46,10 @@ export function SessionSurfaceBar({
     // window's drag region — sharing that band means the chrome would
     // otherwise swallow every click here.
     <div
-      className="flex h-10 shrink-0 items-center gap-2 px-2"
+      className={`flex h-10 shrink-0 items-center gap-2 px-2 ${className ?? ""}`.trim()}
       data-slot="session-surface-bar"
       data-testid="session-surface-bar"
+      {...rest}
     >
       <div className="flex min-w-0 flex-1 items-center gap-1">{children}</div>
       <div className="flex shrink-0 items-center gap-1">{actions}</div>
@@ -63,16 +74,7 @@ export type SessionSurfaceTabItem = {
  * Hand-rolled because Astryx renders each Tab as a single `<button>`, which
  * cannot legally nest the per-tab close button.
  */
-export function SessionSurfaceTabs({
-  activeId,
-  addLabel,
-  icon: TabIcon,
-  items,
-  label,
-  onActivate,
-  onAdd,
-  onClose,
-}: {
+type SessionSurfaceTabsOwnProps = {
   activeId: string | null;
   /** Label and tooltip of the trailing new-instance button. */
   addLabel: string;
@@ -80,11 +82,30 @@ export function SessionSurfaceTabs({
   icon: ComponentType<{ className?: string }>;
   items: readonly SessionSurfaceTabItem[];
   /** Accessible name of the strip, e.g. "Terminal instances". */
-  label: string;
-  onActivate: (id: string) => void;
+  "aria-label": string;
+  onActiveChange: (id: string) => void;
   onAdd: () => void;
   onClose: (id: string) => void;
-}) {
+};
+
+export type SessionSurfaceTabsProps = Omit<
+  ComponentProps<"div">,
+  keyof SessionSurfaceTabsOwnProps | "children"
+> &
+  SessionSurfaceTabsOwnProps;
+
+export function SessionSurfaceTabs({
+  activeId,
+  addLabel,
+  icon: TabIcon,
+  items,
+  "aria-label": ariaLabel,
+  onActiveChange,
+  onAdd,
+  onClose,
+  className,
+  ...rest
+}: SessionSurfaceTabsProps) {
   const { present, onExitTransitionEnd } = usePresenceList(
     items,
     (item) => item.id,
@@ -93,9 +114,10 @@ export function SessionSurfaceTabs({
 
   return (
     <div
-      aria-label={label}
-      className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+      aria-label={ariaLabel}
+      className={`flex min-w-0 flex-1 items-center gap-1 overflow-x-auto ${className ?? ""}`.trim()}
       role="tablist"
+      {...rest}
     >
       {present.map(({ item, key, motion }) => {
         const isActive = item.id === activeId;
@@ -126,7 +148,7 @@ export function SessionSurfaceTabs({
               role="tab"
               title={item.hint}
               type="button"
-              onClick={() => onActivate(item.id)}
+              onClick={() => onActiveChange(item.id)}
             >
               <TabIcon className="size-3.5" />
               <span className={item.isExited ? "text-muted" : undefined}>

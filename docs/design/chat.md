@@ -52,7 +52,7 @@
 
 - `ChatPromptSuggestion` + `.Items` + `.Item`：空草稿时的建议卡（agent-workspace 的空 draft 态），点选后把文案填入草稿并聚焦输入框。
 - `ChatQueuedMessage`：队列里的一条；`presence: "none" | "enter" | "exit"` 由 `usePresenceList` 给，不要自己传 `"enter"`。
-- `ModelSelectorControl`：`controls` 来自 projection，`isLocked` 在队列模式为 true；`visibleModels` 空数组 = 全显。当前选中模型即使被隐藏也保留并标注。没有第二个模型选择器，失败卡里的 `modelControl` 插槽也用它。
+- `ModelSelectorControl`：`controls` 来自 projection，`isDisabled` 在队列模式为 true；`visibleModels` 空数组 = 全显。当前选中模型即使被隐藏也保留并标注。没有第二个模型选择器，失败卡里的 `modelControl` 插槽也用它。
 - `ComposerInsertMenu`：一级只有 Add files / Use skill / Chat commands / Use plugin 四项；技能与插件走 `CommandPalette` 搜索。`commands` 默认 `/compact` `/clear`。
 - `ComposerAttachmentDrawer`：`items` 为空返回 null；图片走 Thumbnail，文本走 Token。附件逻辑（大小上限、拒收文案、拼进 prompt）全在 `composer-attachment-logic.ts`，从 `composer-attachments/index.ts` 导入，不在页面里重算。
 

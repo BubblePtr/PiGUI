@@ -1,4 +1,5 @@
 import { Tooltip } from "@astryxdesign/core/Tooltip";
+import type { ComponentProps } from "react";
 import type { RuntimeContextUsage } from "@pigui/core";
 
 // Pi's own footer paints the context share amber past 70% and red past 90%;
@@ -8,12 +9,18 @@ const CRITICAL_PERCENT = 90;
 
 type ContextUsageLevel = "compacting" | "unknown" | "normal" | "warning" | "critical";
 
-export type ContextUsageMeterProps = {
+type ContextUsageMeterOwnProps = {
   /** Live occupancy; null until the runtime has reported any. */
   usage: RuntimeContextUsage | null;
   /** A compaction is running — the count is in flight, not one we hold. */
   isCompacting?: boolean;
 };
+
+export type ContextUsageMeterProps = Omit<
+  ComponentProps<"span">,
+  keyof ContextUsageMeterOwnProps | "children"
+> &
+  ContextUsageMeterOwnProps;
 
 const compactTokens = new Intl.NumberFormat(undefined, {
   notation: "compact",
@@ -86,6 +93,8 @@ function usageDetail(usage: RuntimeContextUsage | null, isCompacting: boolean) {
 export function ContextUsageMeter({
   usage,
   isCompacting = false,
+  className,
+  ...rest
 }: ContextUsageMeterProps) {
   const percent = usage?.percent ?? null;
   const level = usageLevel(percent, isCompacting);
@@ -98,10 +107,11 @@ export function ContextUsageMeter({
     <Tooltip content={detail}>
       <span
         aria-label={detail}
-        className={`inline-flex ${levelClassNames[level]}`}
+        className={`inline-flex ${levelClassNames[level]} ${className ?? ""}`.trim()}
         data-level={level}
         data-slot="context-usage-meter"
         role="img"
+        {...rest}
       >
         <svg
           aria-hidden="true"

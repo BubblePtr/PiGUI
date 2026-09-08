@@ -6,7 +6,7 @@
 // it is never stolen by rows on the way. Decision record:
 // .scratch/model-selector/PRD.md
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Popover } from "@astryxdesign/core/Popover";
@@ -370,20 +370,30 @@ function ModelOptionsFlyout({
  * Contract matches the previous inline ModelThinkingControl: renders nothing
  * without a selection, disables while locked, and reports failures inline.
  */
-export function ModelSelectorControl({
-  controls,
-  isLocked,
-  visibleModels = [],
-  onChange,
-  onManageModels,
-}: {
+type ModelSelectorControlOwnProps = {
   controls: RuntimeModelControls;
-  isLocked: boolean;
+  isDisabled: boolean;
   /** Settings-managed allowlist; empty lists the whole catalog (issue #102). */
   visibleModels?: ModelRef[];
   onChange: (selection: RuntimeModelSelection) => Promise<void> | void;
   onManageModels?: () => void;
-}) {
+};
+
+export type ModelSelectorControlProps = Omit<
+  ComponentProps<typeof Button>,
+  keyof ModelSelectorControlOwnProps | "children" | "label" | "onClick"
+> &
+  ModelSelectorControlOwnProps;
+
+export function ModelSelectorControl({
+  controls,
+  isDisabled,
+  visibleModels = [],
+  onChange,
+  onManageModels,
+  className,
+  ...rest
+}: ModelSelectorControlProps) {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -439,10 +449,10 @@ export function ModelSelectorControl({
       )
     : flyoutTop;
 
-  const isDisabled = isLocked || isPending;
+  const isControlDisabled = isDisabled || isPending;
 
   const submitSelection = async (selection: RuntimeModelSelection) => {
-    if (isDisabled) {
+    if (isControlDisabled) {
       return;
     }
 
@@ -536,12 +546,12 @@ export function ModelSelectorControl({
                           ? undefined
                           : "Hidden in Settings"
                       }
-                      isDisabled={isDisabled}
+                      isDisabled={isControlDisabled}
                       isSelected={modelKey(model) === activeKey}
                       key={modelKey(model)}
                       label={model.name}
                       onClick={(event: React.MouseEvent) => {
-                        if (!isDisabled && !isSelected) {
+                        if (!isControlDisabled && !isSelected) {
                           void submitSelection({
                             provider: model.provider,
                             modelId: model.modelId,
@@ -584,7 +594,7 @@ export function ModelSelectorControl({
                 style={{ left: "calc(100% + 28px)", top: clampedFlyoutTop }}
               >
                 <ModelOptionsFlyout
-                  isDisabled={isDisabled}
+                  isDisabled={isControlDisabled}
                   model={flyoutModel}
                   models={catalog}
                   selected={selected}
@@ -604,7 +614,7 @@ export function ModelSelectorControl({
               />
             </List>
           </div>
-          {isLocked ? (
+          {isDisabled ? (
             <span className="px-2 pb-0.5 text-xs text-muted">
               Locked while running
             </span>
@@ -618,12 +628,13 @@ export function ModelSelectorControl({
       }
     >
       <Button
-        className="min-w-0 max-w-[19rem] flex-nowrap gap-1.5 px-2 text-muted"
+        className={`min-w-0 max-w-[19rem] flex-nowrap gap-1.5 px-2 text-muted ${className ?? ""}`.trim()}
         data-testid="model-thinking-trigger"
         isDisabled={!controls.models.length}
         label="Model and Thinking"
         size="sm"
         variant="ghost"
+        {...rest}
       >
         <span className="flex min-w-0 items-center gap-1.5">
           {selectedModel && isFastModel(selectedModel) ? (

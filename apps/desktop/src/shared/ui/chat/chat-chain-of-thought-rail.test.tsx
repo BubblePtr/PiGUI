@@ -38,7 +38,7 @@ const parts: ChainOfThoughtRailPart[] = [
 describe("ChatChainOfThoughtRail", () => {
   it("groups think→tool loops into labeled rounds with distinct node kinds", () => {
     const { container } = render(
-      <ChatChainOfThoughtRail defaultExpanded parts={parts} summary="Thought for 23s" />,
+      <ChatChainOfThoughtRail defaultOpen parts={parts} summary="Thought for 23s" />,
     );
 
     expect(
@@ -55,7 +55,7 @@ describe("ChatChainOfThoughtRail", () => {
 
   it("shows tool name, extracted target, duration, and error state", () => {
     const { container } = render(
-      <ChatChainOfThoughtRail defaultExpanded parts={parts} summary="Thought for 23s" />,
+      <ChatChainOfThoughtRail defaultOpen parts={parts} summary="Thought for 23s" />,
     );
 
     expect(screen.getByText("Read")).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe("ChatChainOfThoughtRail", () => {
   it("reveals args and output when a tool row is expanded", async () => {
     const user = userEvent.setup();
     render(
-      <ChatChainOfThoughtRail defaultExpanded parts={parts} summary="Thought for 23s" />,
+      <ChatChainOfThoughtRail defaultOpen parts={parts} summary="Thought for 23s" />,
     );
 
     const detail = screen.getByText("77 remapEntryId(part.piEntryId)", { exact: false });

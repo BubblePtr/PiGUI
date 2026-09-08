@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import type { CotPhase } from "@/entities/session/cot-view";
@@ -56,12 +57,7 @@ export function statusWord(phase: ChatStatusPhase, elapsedMs: number) {
   return pool[seed % pool.length];
 }
 
-export function ChatStatusLine({
-  className = "",
-  elapsedMs,
-  phase,
-}: {
-  className?: string;
+type ChatStatusLineOwnProps = {
   /**
    * Absent while the Run has no clock anchor — a retry gap, most of all. The
    * line still beats and still names what is happening; only the number goes,
@@ -69,12 +65,26 @@ export function ChatStatusLine({
    */
   elapsedMs?: number;
   phase: ChatStatusPhase;
-}) {
+};
+
+export type ChatStatusLineProps = Omit<
+  ComponentProps<"p">,
+  keyof ChatStatusLineOwnProps | "children"
+> &
+  ChatStatusLineOwnProps;
+
+export function ChatStatusLine({
+  className = "",
+  elapsedMs,
+  phase,
+  ...rest
+}: ChatStatusLineProps) {
   return (
     <p
       className={`chat-status-line ${className}`.trim()}
       data-slot="chat-status-line"
       role="status"
+      {...rest}
     >
       <ChatPixelLoader />
       <TextShimmer className="chat-status-line__word">

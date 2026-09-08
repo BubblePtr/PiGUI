@@ -46,7 +46,7 @@ describe("SessionDock", () => {
       return <span data-testid="motion">{useSessionDockMotion() ? "moving" : "still"}</span>;
     }
     const { rerender } = render(
-      <SessionDock activeSurfaceId="browser" open onActiveSurfaceChange={vi.fn()}>
+      <SessionDock activeSurfaceId="browser" isOpen onActiveSurfaceChange={vi.fn()}>
         <MotionProbe />
       </SessionDock>,
     );
@@ -55,7 +55,7 @@ describe("SessionDock", () => {
     expect(screen.getByTestId("motion")).toHaveTextContent("still");
 
     rerender(
-      <SessionDock activeSurfaceId="browser" open={false} onActiveSurfaceChange={vi.fn()}>
+      <SessionDock activeSurfaceId="browser" isOpen={false} onActiveSurfaceChange={vi.fn()}>
         <MotionProbe />
       </SessionDock>,
     );
@@ -74,7 +74,7 @@ describe("SessionDock", () => {
       return <span data-testid="motion">{useSessionDockMotion() ? "moving" : "still"}</span>;
     }
     render(
-      <SessionDock activeSurfaceId="browser" mountMotion open onActiveSurfaceChange={vi.fn()}>
+      <SessionDock activeSurfaceId="browser" mountMotion isOpen onActiveSurfaceChange={vi.fn()}>
         <MotionProbe />
       </SessionDock>,
     );
@@ -189,7 +189,7 @@ describe("SessionDock", () => {
     render(
       <SessionDock
         activeSurfaceId="changes"
-        open={false}
+        isOpen={false}
         onActiveSurfaceChange={vi.fn()}
       >
         <p>Changes surface content</p>

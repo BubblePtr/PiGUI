@@ -1,4 +1,5 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
+import type { ComponentProps } from "react";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 import {
   formatToolDuration,
@@ -137,20 +138,28 @@ function RailToolNode({ tool }: { tool: ChatToolItem }) {
   );
 }
 
+type ChatChainOfThoughtRailOwnProps = {
+  parts: ChainOfThoughtRailPart[];
+  /** Settled trigger label, e.g. "Thought for 38s · 6 tool calls". */
+  summary: string;
+  defaultOpen?: boolean;
+  isStreaming?: boolean;
+};
+
+export type ChatChainOfThoughtRailProps = Omit<
+  ComponentProps<"div">,
+  keyof ChatChainOfThoughtRailOwnProps | "children"
+> &
+  ChatChainOfThoughtRailOwnProps;
+
 export function ChatChainOfThoughtRail({
   parts,
   summary,
   className = "",
-  defaultExpanded = false,
+  defaultOpen = false,
   isStreaming = false,
-}: {
-  parts: ChainOfThoughtRailPart[];
-  /** Settled trigger label, e.g. "Thought for 38s · 6 tool calls". */
-  summary: string;
-  className?: string;
-  defaultExpanded?: boolean;
-  isStreaming?: boolean;
-}) {
+  ...rest
+}: ChatChainOfThoughtRailProps) {
   const rounds = groupRounds(parts);
 
   return (
@@ -158,7 +167,8 @@ export function ChatChainOfThoughtRail({
       className={`chain-of-thought-rail ${className}`.trim()}
       data-slot="chain-of-thought-rail"
       data-streaming={String(isStreaming)}
-      defaultOpen={isStreaming || defaultExpanded}
+      defaultOpen={isStreaming || defaultOpen}
+      {...rest}
     >
       <Collapsible.Trigger className="chain-of-thought-rail__trigger">
         <span className="chain-of-thought-rail__trigger-chevron" aria-hidden="true">

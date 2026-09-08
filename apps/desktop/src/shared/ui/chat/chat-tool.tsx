@@ -3,6 +3,7 @@ import {
   type ChatToolCallItem,
   type ChatToolCallStatus,
 } from "@astryxdesign/core";
+import type { ComponentProps } from "react";
 
 /**
  * Lifecycle of a tool invocation as rendered in the trace. Mirrors the state
@@ -92,9 +93,13 @@ export function hasToolDetail(tool: ChatToolItem) {
  * it expands, and directly by a single-call ChatToolStep, whose own row
  * already names the call — a second header there would only cost a click.
  */
-export function ChatToolDetail({ tool }: { tool: ChatToolItem }) {
+export type ChatToolDetailProps = Omit<ComponentProps<"div">, "children"> & {
+  tool: ChatToolItem;
+};
+
+export function ChatToolDetail({ tool, className, ...rest }: ChatToolDetailProps) {
   return (
-    <>
+    <div className={className} {...rest}>
       {tool.argsText != null ? (
         <pre className="chat-tool__section" data-slot="chat-tool-args">
           {tool.argsText}
@@ -105,7 +110,7 @@ export function ChatToolDetail({ tool }: { tool: ChatToolItem }) {
           {tool.output}
         </pre>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -128,13 +133,15 @@ function toAstryxCall(tool: ChatToolItem, index: number): ChatToolCallItem {
  * several collapse into the "N tool calls" summary Astryx provides. The
  * wrapper div carries the data-slot contract page tests assert on.
  */
+export type ChatToolGroupProps = Omit<ComponentProps<"div">, "children"> & {
+  tools: ChatToolItem[];
+};
+
 export function ChatToolGroup({
   tools,
   className = "",
-}: {
-  tools: ChatToolItem[];
-  className?: string;
-}) {
+  ...rest
+}: ChatToolGroupProps) {
   if (!tools.length) {
     return null;
   }
@@ -146,6 +153,7 @@ export function ChatToolGroup({
       data-tool-count={tools.length}
       // Single-call groups keep the per-tool state contract on the wrapper.
       data-state={tools.length === 1 ? tools[0].state : undefined}
+      {...rest}
     >
       <ChatToolCalls calls={tools.map(toAstryxCall)} />
     </div>
@@ -157,6 +165,9 @@ export function ChatToolGroup({
  * data-state contract (detail stays unmounted while collapsed — Astryx
  * native behavior).
  */
+export type ChatToolProps = Omit<ComponentProps<"div">, keyof ChatToolItem | "children"> &
+  ChatToolItem;
+
 export function ChatTool({
   argsText,
   durationMs,
@@ -165,13 +176,15 @@ export function ChatTool({
   toolCallId,
   toolName,
   className = "",
-}: ChatToolItem & { className?: string }) {
+  ...rest
+}: ChatToolProps) {
   return (
     <div
       className={`chat-tool ${className}`.trim()}
       data-slot="chat-tool"
       data-state={state}
       data-tool-call-id={toolCallId}
+      {...rest}
     >
       <ChatToolCalls
         calls={[toAstryxCall({ argsText, durationMs, output, state, toolCallId, toolName }, 0)]}

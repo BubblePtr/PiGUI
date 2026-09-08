@@ -314,8 +314,8 @@ function TerminalSessionContent({ sessionId, onInstancesChange }: Props) {
             hint: instance.cwd,
             isExited: instance.status === "exited",
           }))}
-          label="Terminal instances"
-          onActivate={setActiveTerminalId}
+          aria-label="Terminal instances"
+          onActiveChange={setActiveTerminalId}
           onAdd={() => void openNewTerminal()}
           onClose={(terminalId) => void closeInstance(terminalId)}
         />

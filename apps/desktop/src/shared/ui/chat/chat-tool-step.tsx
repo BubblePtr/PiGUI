@@ -1,4 +1,5 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
+import type { ComponentProps } from "react";
 import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
 import {
   ChatToolDetail,
@@ -140,15 +141,20 @@ export function summarizeTools(tools: ChatToolItem[]) {
     .join(", ");
 }
 
+type ChatToolStepOwnProps = {
+  dwellMs?: number;
+  step: ChatToolStepItem;
+};
+
+export type ChatToolStepProps = Omit<ComponentProps<"div">, keyof ChatToolStepOwnProps | "children"> &
+  ChatToolStepOwnProps;
+
 export function ChatToolStep({
   className = "",
   dwellMs,
   step,
-}: {
-  className?: string;
-  dwellMs?: number;
-  step: ChatToolStepItem;
-}) {
+  ...rest
+}: ChatToolStepProps) {
   const { tools } = step;
   const failed = tools.filter((tool) => tool.state === "output-error").length;
   const totalMs = tools.reduce((sum, tool) => sum + (tool.durationMs ?? 0), 0);
@@ -163,6 +169,7 @@ export function ChatToolStep({
     <Collapsible.Root
       className={`chat-step chat-tool-step ${className}`.trim()}
       data-slot="chat-tool-step"
+      {...rest}
     >
       <Collapsible.Trigger className="chat-step__trigger">
         <ChatInlinePager dwellMs={dwellMs} pageKey={pageKey}>

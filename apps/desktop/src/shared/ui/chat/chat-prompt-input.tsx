@@ -1,5 +1,6 @@
 import {
   type ClipboardEvent,
+  type ComponentProps,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -119,6 +120,31 @@ function PromptTextArea({
  * button, and error status are Astryx; the textarea stays native and the
  * neutral footer hint is ours (Astryx status only carries error/warning).
  */
+type ChatPromptInputOwnProps = {
+  value: string;
+  status?: PromptInputStatus;
+  placeholder?: string;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
+  allowSubmitWhileRunning?: boolean;
+  lockInputOnRun?: boolean;
+  startActions?: ReactNode;
+  endActions?: ReactNode;
+  drawer?: ReactNode;
+  footer?: ReactNode;
+  error?: string | null;
+  hasAttachments?: boolean;
+  onSubmit?: () => void;
+  onStop?: () => void;
+  onValueChange?: (value: string) => void;
+  onFiles?: (files: File[]) => void;
+};
+
+export type ChatPromptInputProps = Omit<
+  ComponentProps<"div">,
+  keyof ChatPromptInputOwnProps | "children"
+> &
+  ChatPromptInputOwnProps;
+
 export function ChatPromptInput({
   value,
   status = "ready",
@@ -137,25 +163,8 @@ export function ChatPromptInput({
   onStop,
   onValueChange,
   onFiles,
-}: {
-  value: string;
-  status?: PromptInputStatus;
-  className?: string;
-  placeholder?: string;
-  inputRef?: RefObject<HTMLTextAreaElement | null>;
-  allowSubmitWhileRunning?: boolean;
-  lockInputOnRun?: boolean;
-  startActions?: ReactNode;
-  endActions?: ReactNode;
-  drawer?: ReactNode;
-  footer?: ReactNode;
-  error?: string | null;
-  hasAttachments?: boolean;
-  onSubmit?: () => void;
-  onStop?: () => void;
-  onValueChange?: (value: string) => void;
-  onFiles?: (files: File[]) => void;
-}) {
+  ...rest
+}: ChatPromptInputProps) {
   const isRunning = status === "streaming" || status === "submitted";
   const isStopShown = isRunning && !value.trim() && !hasAttachments && Boolean(onStop);
   const canSubmit =
@@ -226,6 +235,7 @@ export function ChatPromptInput({
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      {...rest}
     >
       <ChatComposer
         drawer={drawer}

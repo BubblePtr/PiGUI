@@ -1,4 +1,4 @@
-import { type ReactNode, useRef } from "react";
+import { type ComponentProps, type ReactNode, useRef } from "react";
 import {
   ChatMessageList,
   useChatNewMessages,
@@ -13,17 +13,22 @@ import { ChevronDown } from "@/shared/ui/icons";
  * scrollend at the bottom, reduced-motion fallback. ChatMessageList owns
  * the log semantics (role, aria-live, aria-busy).
  */
+type ChatConversationOwnProps = {
+  children: ReactNode;
+  isStreaming?: boolean;
+  "aria-label"?: string;
+};
+
+export type ChatConversationProps = Omit<ComponentProps<"div">, keyof ChatConversationOwnProps> &
+  ChatConversationOwnProps;
+
 export function ChatConversation({
   children,
   className = "",
   isStreaming = false,
   "aria-label": ariaLabel,
-}: {
-  children: ReactNode;
-  className?: string;
-  isStreaming?: boolean;
-  "aria-label"?: string;
-}) {
+  ...rest
+}: ChatConversationProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scroll = useChatStreamScroll({ scrollRef: viewportRef });
   const newMessages = useChatNewMessages({
@@ -36,6 +41,7 @@ export function ChatConversation({
       className={`chat-conversation ${className}`.trim()}
       data-pinned={String(scroll.isLocked)}
       data-slot="chat-conversation"
+      {...rest}
     >
       <div
         ref={viewportRef}
@@ -78,17 +84,18 @@ export function ChatConversation({
 }
 
 /** Width-constraint wrapper for the message column; spacing comes from the list. */
+type ChatConversationContentProps = ComponentProps<"div">;
+
 function ChatConversationContent({
   children,
   className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  ...rest
+}: ChatConversationContentProps) {
   return (
     <div
       className={`chat-conversation__content ${className}`.trim()}
       data-slot="chat-conversation-content"
+      {...rest}
     >
       {children}
     </div>

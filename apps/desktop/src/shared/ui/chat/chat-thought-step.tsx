@@ -1,4 +1,5 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
+import type { ComponentProps } from "react";
 import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
 import { ChatThoughtMarkdown } from "@/shared/ui/chat/chat-thought-markdown";
 import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
@@ -24,15 +25,23 @@ function formatThoughtDuration(durationMs: number | undefined) {
   return durationMs < 1000 ? "briefly" : `${Math.round(durationMs / 1000)}s`;
 }
 
+type ChatThoughtStepOwnProps = {
+  dwellMs?: number;
+  step: ChatThoughtStepItem;
+};
+
+export type ChatThoughtStepProps = Omit<
+  ComponentProps<"div">,
+  keyof ChatThoughtStepOwnProps | "children"
+> &
+  ChatThoughtStepOwnProps;
+
 export function ChatThoughtStep({
   className = "",
   dwellMs,
   step,
-}: {
-  className?: string;
-  dwellMs?: number;
-  step: ChatThoughtStepItem;
-}) {
+  ...rest
+}: ChatThoughtStepProps) {
   const body = step.text.trim();
   const duration = formatThoughtDuration(step.durationMs);
   // "Thinking…" → "Thought 2s" turns the page at the same pace as the tool
@@ -57,14 +66,22 @@ export function ChatThoughtStep({
 
   if (!body) {
     return (
-      <p className={`chat-step chat-step--plain ${className}`.trim()} data-slot="chat-thought-step">
+      <p
+        className={`chat-step chat-step--plain ${className}`.trim()}
+        data-slot="chat-thought-step"
+        {...rest}
+      >
         {label}
       </p>
     );
   }
 
   return (
-    <Collapsible.Root className={`chat-step ${className}`.trim()} data-slot="chat-thought-step">
+    <Collapsible.Root
+      className={`chat-step ${className}`.trim()}
+      data-slot="chat-thought-step"
+      {...rest}
+    >
       <Collapsible.Trigger className="chat-step__trigger">
         {label}
         <ChevronRight aria-hidden="true" className="chat-step__chevron" />

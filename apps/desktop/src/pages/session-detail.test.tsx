@@ -150,7 +150,7 @@ describe("SessionDetailView (Trajectory Cockpit)", () => {
     await user.click(screen.getAllByRole("button", { name: /read_file/ })[0]);
     await user.click(screen.getByRole("tab", { name: "Schema" }));
 
-    expect(screen.getByText(/查不到这个工具现在的定义/)).toBeInTheDocument();
+    expect(screen.getByText(/This tool's current definition is unavailable/)).toBeInTheDocument();
   });
 
   it("shows a resolved Schema when the Gateway returns the current tool definition", async () => {
@@ -176,7 +176,7 @@ describe("SessionDetailView (Trajectory Cockpit)", () => {
     await user.click(screen.getByRole("tab", { name: "Schema" }));
 
     expect(screen.getByText("Read a file from disk")).toBeInTheDocument();
-    expect(screen.queryByText(/查不到这个工具现在的定义/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/This tool's current definition is unavailable/)).not.toBeInTheDocument();
   });
 
   it("filters with the errors chip and reports the visible step count", async () => {

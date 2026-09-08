@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 /**
  * Inline one-line viewport with paced flips: the outgoing page rises out, the
@@ -23,18 +23,23 @@ function prefersReducedMotion() {
 
 type Page = { key: string; node: ReactNode };
 
+type ChatInlinePagerOwnProps = {
+  children: ReactNode;
+  /** Minimum time a page is shown before the next one may replace it. */
+  dwellMs?: number;
+  pageKey?: string;
+};
+
+export type ChatInlinePagerProps = Omit<ComponentProps<"span">, keyof ChatInlinePagerOwnProps> &
+  ChatInlinePagerOwnProps;
+
 export function ChatInlinePager({
   children,
   className = "",
   dwellMs = DEFAULT_DWELL_MS,
   pageKey = "",
-}: {
-  children: ReactNode;
-  className?: string;
-  /** Minimum time a page is shown before the next one may replace it. */
-  dwellMs?: number;
-  pageKey?: string;
-}) {
+  ...rest
+}: ChatInlinePagerProps) {
   // A dwell shorter than the enter would cut the incoming page off half-way.
   const dwell = Math.max(dwellMs, FLIP_DURATION_MS);
   const [shown, setShown] = useState<Page>({ key: pageKey, node: children });
@@ -98,6 +103,7 @@ export function ChatInlinePager({
     <span
       className={`chat-inline-pager ${className}`.trim()}
       data-slot="chat-inline-pager"
+      {...rest}
     >
       <span className="chat-inline-pager__flip">
         {outgoing ? (

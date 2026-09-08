@@ -77,7 +77,7 @@ describe("buildIntentTarget", () => {
       selected: { provider: "xai", modelId: "grok-4", thinkingLevel: "high" },
     };
     render(
-      <ModelSelectorControl controls={controls} isLocked={false} onChange={() => {}} />,
+      <ModelSelectorControl controls={controls} isDisabled={false} onChange={() => {}} />,
     );
 
     const target = buildIntentTarget(screen.getByTestId("model-thinking-trigger"));

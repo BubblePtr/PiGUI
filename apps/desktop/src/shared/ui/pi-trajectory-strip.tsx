@@ -12,7 +12,7 @@
 // guess", nothing else: a turn whose one measured call spans several model
 // segments splits it evenly and stays solid, disclosing the split in its
 // tooltip. Validated in the trajectory-cockpit prototype round (2026-08-18).
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import type { TrajectoryTurn } from "@/entities/session/trajectory-model";
 
 /** Inclusive strip-column range (one column = one swimlane block). */
@@ -265,25 +265,35 @@ export function stripSegmentsFromTurns(turns: TrajectoryTurn[]): StripSegment[] 
   return segments;
 }
 
-export function PiTrajectoryStrip({
-  turns,
-  activeStepId,
-  onSelect,
-  selectedRange,
-  onBrush,
-  widthMode,
-  onWidthModeChange,
-}: {
+type PiTrajectoryStripOwnProps = {
   turns: TrajectoryTurn[];
   /** The Playhead step; the segment containing it carries the position marker. */
-  activeStepId?: string;
+  selectedStepId?: string;
   /** Called with the segment's turn index and its first step id. */
   onSelect: (turnIndex: number, stepId?: string) => void;
   selectedRange?: SegmentRange;
   onBrush?: (range: SegmentRange | undefined) => void;
   widthMode: StripWidthMode;
   onWidthModeChange: (mode: StripWidthMode) => void;
-}) {
+};
+
+export type PiTrajectoryStripProps = Omit<
+  ComponentProps<"div">,
+  keyof PiTrajectoryStripOwnProps | "children"
+> &
+  PiTrajectoryStripOwnProps;
+
+export function PiTrajectoryStrip({
+  turns,
+  selectedStepId,
+  onSelect,
+  selectedRange,
+  onBrush,
+  widthMode,
+  onWidthModeChange,
+  className,
+  ...rest
+}: PiTrajectoryStripProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragOrigin = useRef<{ index: number; x: number; y: number } | undefined>(undefined);
   const didDrag = useRef(false);
@@ -416,7 +426,11 @@ export function PiTrajectoryStrip({
   const laneOf: Record<StripLane, number> = { input: 0, model: 1, tools: 2 };
 
   return (
-    <div className="flex items-stretch gap-2" data-slot="trajectory-strip">
+    <div
+      className={`flex items-stretch gap-2 ${className ?? ""}`.trim()}
+      data-slot="trajectory-strip"
+      {...rest}
+    >
       <div
         aria-hidden="true"
         className="flex shrink-0 flex-col justify-between py-px text-right font-mono text-[9px] uppercase leading-none tracking-wider text-muted"
@@ -437,7 +451,7 @@ export function PiTrajectoryStrip({
         onPointerUp={handlePointerUp}
       >
         {segments.map((segment, index) => {
-          const isActive = activeStepId !== undefined && segment.stepIds.includes(activeStepId);
+          const isActive = selectedStepId !== undefined && segment.stepIds.includes(selectedStepId);
           const dimmed = isDimmed(index);
           const fill = segment.hasError
             ? "var(--danger)"

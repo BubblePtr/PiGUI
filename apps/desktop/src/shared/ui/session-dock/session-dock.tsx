@@ -9,6 +9,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { SidebarLeft } from "@/shared/ui/icons";
@@ -60,11 +61,7 @@ export function sessionDockResizableBounds(availableWidth: number) {
  * Toolbar affordance for the whole dock. It is the only way back once the
  * panel (and with it the rail) is closed, so it lives with the component.
  */
-export function SessionDockTrigger({
-  alignToRail = false,
-  isOpen,
-  onOpenChange,
-}: {
+type SessionDockTriggerOwnProps = {
   /**
    * Docked layouts: seat the toggle on the rail's axis so it reads as the
    * head of the rail column. The slot is rail-width (`w-11`) and cancels the
@@ -74,7 +71,21 @@ export function SessionDockTrigger({
   alignToRail?: boolean;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-}) {
+};
+
+export type SessionDockTriggerProps = Omit<
+  ComponentProps<typeof IconButton>,
+  keyof SessionDockTriggerOwnProps | "icon" | "label" | "onClick"
+> &
+  SessionDockTriggerOwnProps;
+
+export function SessionDockTrigger({
+  alignToRail = false,
+  isOpen,
+  onOpenChange,
+  className,
+  ...rest
+}: SessionDockTriggerProps) {
   // A plain ghost button, not a ToggleButton: the panel being open is already
   // obvious, and a pressed fill here would compete with the rail's active
   // surface, which is the selection that matters. aria-pressed keeps the
@@ -82,13 +93,14 @@ export function SessionDockTrigger({
   const toggle = (
     <IconButton
       aria-pressed={isOpen}
-      className="pigui-pressable"
+      className={`pigui-pressable ${className ?? ""}`.trim()}
       icon={<SidebarLeft className="size-4 rotate-180" />}
       label="Session dock"
       size="sm"
       tooltip={isOpen ? "Hide dock" : "Show dock"}
       variant="ghost"
       onClick={() => onOpenChange(!isOpen)}
+      {...(alignToRail ? undefined : rest)}
     />
   );
 
@@ -100,6 +112,7 @@ export function SessionDockTrigger({
     <span
       className="-mr-4 flex w-11 shrink-0 justify-center"
       data-testid="session-dock-trigger-rail-slot"
+      {...rest}
     >
       {toggle}
     </span>
@@ -198,14 +211,7 @@ export function useSessionDockMotionState(open: boolean, mountMotion: boolean) {
   return { moving, settle: () => setMoving(false) };
 }
 
-export function SessionDock({
-  activeSurfaceId,
-  badges,
-  children,
-  mountMotion = false,
-  open = true,
-  onActiveSurfaceChange,
-}: {
+type SessionDockOwnProps = {
   activeSurfaceId: SessionSurfaceId;
   /** Live counts per surface, e.g. changed file count. */
   badges?: Partial<Record<SessionSurfaceId, string>>;
@@ -215,11 +221,26 @@ export function SessionDock({
    * so always-mounted hosts (the design gallery) do not animate on page load.
    */
   mountMotion?: boolean;
-  open?: boolean;
+  isOpen?: boolean;
   onActiveSurfaceChange: (surfaceId: SessionSurfaceId) => void;
-}) {
+};
+
+export type SessionDockProps = Omit<ComponentProps<"aside">, keyof SessionDockOwnProps> &
+  SessionDockOwnProps;
+
+export function SessionDock({
+  activeSurfaceId,
+  badges,
+  children,
+  mountMotion = false,
+  isOpen = true,
+  onActiveSurfaceChange,
+  className,
+  onTransitionEnd,
+  ...rest
+}: SessionDockProps) {
   const surface = sessionSurfaces[activeSurfaceId];
-  const motion = useSessionDockMotionState(open, mountMotion);
+  const motion = useSessionDockMotionState(isOpen, mountMotion);
   // Pointer vs keyboard is cheaper to remember on the rail than to thread
   // through Astryx's ToggleButtonGroup, which only reports the next value.
   const pointerSurfaceChangeRef = useRef(false);
@@ -235,14 +256,16 @@ export function SessionDock({
 
   return (
     <aside
-      aria-hidden={open ? undefined : true}
+      aria-hidden={isOpen ? undefined : true}
       aria-label={surface.title}
-      className="pigui-session-dock flex h-full min-h-0 min-w-0 bg-surface"
+      className={`pigui-session-dock flex h-full min-h-0 min-w-0 bg-surface ${className ?? ""}`.trim()}
       data-mount-motion={mountMotion ? "true" : undefined}
-      data-open={open ? "true" : "false"}
+      data-open={isOpen ? "true" : "false"}
       data-testid="session-dock"
-      inert={open ? undefined : true}
+      inert={isOpen ? undefined : true}
+      {...rest}
       onTransitionEnd={(event) => {
+        onTransitionEnd?.(event);
         // Only the aside's own slide counts; surface fades bubble up too.
         if (event.target === event.currentTarget) {
           motion.settle();
