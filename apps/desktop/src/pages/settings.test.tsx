@@ -437,7 +437,8 @@ describe("Settings — changelog", () => {
     expect(within(section).getByText("Chat and trajectory")).toBeVisible();
     expect(within(section).getByText("Browser and terminal")).toBeVisible();
     expect(within(section).getByText("Providers and models")).toBeVisible();
-    expect(within(section).getByRole("link", { name: /View release on GitHub/ }))
+    const firstRelease = within(section).getByRole("article", { name: "v0.0.1" });
+    expect(within(firstRelease).getByRole("link", { name: /View release on GitHub/ }))
       .toHaveAttribute("href", "https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.1");
   });
 
