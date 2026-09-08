@@ -2365,14 +2365,14 @@ export function SessionChangesPanel({
               return (
                 <Collapsible
                   key={`${file.previousPath ?? ""}:${file.path}`}
-                  className="px-2"
+                  className="pigui-change-section px-2"
                   data-testid="session-change-section"
                   ref={(node) => {
                     if (node) sectionRefs.current.set(file.path, node);
                     else sectionRefs.current.delete(file.path);
                   }}
                   trigger={
-                    <span className="flex min-w-0 items-center gap-3 text-left">
+                    <span className="flex w-full min-w-0 items-center gap-3 text-left">
                       <span
                         className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
                         title={file.path}
@@ -2380,7 +2380,7 @@ export function SessionChangesPanel({
                         {file.path}
                       </span>
                       <span
-                        className="hidden shrink-0 truncate text-xs text-muted sm:inline"
+                        className="hidden min-w-0 shrink truncate text-xs text-muted sm:inline"
                         title={changeStageLabel(file)}
                       >
                         {changeKindLabel(file.kind)} · {changeStageLabel(file)}
