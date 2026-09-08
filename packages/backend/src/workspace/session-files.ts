@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { lstat, open, readdir, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
@@ -65,20 +66,27 @@ function toPosixPath(path: string) {
  */
 async function resolveInsideRoot(diffRoot: string, path: string) {
   assertSafeRelativePath(path);
-  const root = await realpath(diffRoot);
-  const lexical = resolve(root, path);
+  try {
+    const root = await realpath(diffRoot);
+    const lexical = resolve(root, path);
 
-  if (!isInside(root, lexical)) {
-    throw new Error(`Session file path "${path}" is outside the diff root.`);
+    if (!isInside(root, lexical) || relative(root, lexical).split(sep)[0] === ".git") {
+      throw new Error(`Session file path "${path}" is outside the diff root.`);
+    }
+
+    const target = await realpath(lexical);
+
+    if (!isInside(root, target)) {
+      throw new Error(`Session file path "${path}" is outside the diff root.`);
+    }
+
+    return { root, target, relativePath: toPosixPath(relative(root, lexical)) };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`Session path "${path}" does not exist.`);
+    }
+    throw error;
   }
-
-  const target = await realpath(lexical);
-
-  if (!isInside(root, target)) {
-    throw new Error(`Session file path "${path}" is outside the diff root.`);
-  }
-
-  return { root, target, relativePath: toPosixPath(relative(root, lexical)) };
 }
 
 function entryKind(dirent: {
@@ -108,6 +116,7 @@ function looksBinary(bytes: Buffer) {
 
 export function createNodeSessionFilesReader(
   options: SessionFilesReaderOptions = {},
+  filesystem: { stat: (path: string) => Promise<Stats> } = { stat },
 ): SessionFilesReader {
   const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
@@ -125,29 +134,27 @@ export function createNodeSessionFilesReader(
       }
 
       const dirents = await readdir(target, { withFileTypes: true });
-      const entries: SessionDirectoryEntry[] = [];
-
-      for (const dirent of dirents) {
-        if (dirent.name === ".git") continue;
-        const kind = entryKind(dirent);
-        const size =
-          kind === "file" ? (await stat(join(target, dirent.name))).size : null;
-
-        entries.push({
+      const entries: SessionDirectoryEntry[] = dirents
+        .filter((dirent) => dirent.name !== ".git")
+        .map((dirent) => ({
           name: dirent.name,
           path: relativePath ? `${relativePath}/${dirent.name}` : dirent.name,
-          kind,
-          size,
-        });
-      }
-
+          kind: entryKind(dirent),
+          size: null,
+        }));
       entries.sort(compareEntries);
+      const keptEntries = await Promise.all(entries.slice(0, maxEntries).map(async (entry) => ({
+        ...entry,
+        size: entry.kind === "file"
+          ? await filesystem.stat(join(target, entry.name)).then((info) => info.size, () => null)
+          : null,
+      })));
 
       return {
         sessionId: input.sessionId,
         path: relativePath,
         rootName: basename(root),
-        entries: entries.slice(0, maxEntries),
+        entries: keptEntries,
         truncated: entries.length > maxEntries,
       };
     },
@@ -157,7 +164,7 @@ export function createNodeSessionFilesReader(
         input.diffRoot,
         input.path,
       );
-      const targetStat = await stat(target);
+      const targetStat = await filesystem.stat(target);
 
       if (!targetStat.isFile()) {
         throw new Error(`Session path "${input.path}" is not a file.`);
@@ -168,7 +175,7 @@ export function createNodeSessionFilesReader(
       let bytes: Buffer;
 
       try {
-        const buffer = Buffer.alloc(Math.min(size, maxFileBytes));
+        const buffer = Buffer.alloc(maxFileBytes + 1);
         const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
         bytes = buffer.subarray(0, bytesRead);
       } finally {
@@ -181,7 +188,7 @@ export function createNodeSessionFilesReader(
         return { ...base, content: "", truncated: false, binary: true };
       }
 
-      if (size <= bytes.length) {
+      if (bytes.length <= maxFileBytes) {
         return {
           ...base,
           content: bytes.toString("utf8"),
@@ -190,11 +197,13 @@ export function createNodeSessionFilesReader(
         };
       }
 
-      // Cut on a line boundary so a truncated view never ends mid-line (or
-      // mid-multibyte-character). Fall back to the raw limit for files with
-      // no newline at all, since an empty preview would be worse.
-      const lastNewline = bytes.lastIndexOf(0x0a);
-      const cut = lastNewline >= 0 ? bytes.subarray(0, lastNewline + 1) : bytes;
+      // Prefer complete lines; single-line previews must preserve UTF-8 characters.
+      const lastNewline = bytes.subarray(0, maxFileBytes).lastIndexOf(0x0a);
+      let end = lastNewline >= 0 ? lastNewline + 1 : maxFileBytes;
+      if (lastNewline < 0) {
+        while (end > 0 && (bytes[end] & 0xc0) === 0x80) end--;
+      }
+      const cut = bytes.subarray(0, end);
 
       return {
         ...base,

@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createNodeSessionFilesReader } from "./session-files";
 
 const tempDirs: string[] = [];
-
 async function tempDirectory() {
   const directory = await mkdtemp(join(tmpdir(), "pigui-session-files-"));
   tempDirs.push(directory);
@@ -29,6 +28,30 @@ async function checkout() {
 }
 
 describe("createNodeSessionFilesReader", () => {
+  it("rejects Git metadata paths after normalization while allowing .gitignore", async () => {
+    const root = await checkout();
+    await writeFile(join(root, ".git", "config"), "[core]\n");
+    await writeFile(join(root, ".gitignore"), "node_modules\n");
+    const reader = createNodeSessionFilesReader();
+    for (const path of [".git/config", "./.git//config"]) {
+      await expect(reader.readFile({ sessionId: "s1", diffRoot: root, path }))
+        .rejects.toThrow(/outside|invalid/i);
+    }
+    await expect(reader.listDirectory({ sessionId: "s1", diffRoot: root, path: ".git" }))
+      .rejects.toThrow(/outside|invalid/i);
+    await expect(reader.readFile({ sessionId: "s1", diffRoot: root, path: ".gitignore" }))
+      .resolves.toMatchObject({ content: "node_modules\n" });
+  });
+
+  it("reports missing paths without exposing the host path", async () => {
+    const root = await checkout();
+    const reader = createNodeSessionFilesReader();
+    for (const read of [reader.listDirectory, reader.readFile]) {
+      await expect(read({ sessionId: "s1", diffRoot: root, path: "missing" }))
+        .rejects.toThrow('Session path "missing" does not exist.');
+    }
+  });
+
   describe("listDirectory", () => {
     it("lists the root with directories first, names case-insensitively sorted, and .git hidden", async () => {
       const root = await checkout();
@@ -85,6 +108,22 @@ describe("createNodeSessionFilesReader", () => {
       ).rejects.toThrow(/outside/i);
     });
 
+    it("keeps the listing when an entry disappears before stat", async () => {
+      const root = await tempDirectory();
+      await writeFile(join(root, "gone.txt"), "gone");
+      await writeFile(join(root, "kept.txt"), "kept");
+      const statEntry = async (path: string) => {
+        if (basename(path) === "gone.txt") await rm(join(root, "gone.txt"));
+        return stat(path);
+      };
+      const reader = createNodeSessionFilesReader({}, { stat: statEntry });
+
+      await expect(reader.listDirectory({ sessionId: "s1", diffRoot: root, path: "" }))
+        .resolves.toMatchObject({
+          entries: [{ name: "gone.txt", size: null }, { name: "kept.txt", size: 4 }],
+        });
+    });
+
     it("bounds oversized directories and reports the cut", async () => {
       const root = await tempDirectory();
       await Promise.all(
@@ -92,11 +131,16 @@ describe("createNodeSessionFilesReader", () => {
           writeFile(join(root, `file-${String(index).padStart(2, "0")}.txt`), "x", "utf8"),
         ),
       );
-      const reader = createNodeSessionFilesReader({ maxEntries: 10 });
+      const statSpy = vi.fn((path: string) => stat(path));
+      const reader = createNodeSessionFilesReader({ maxEntries: 10 }, { stat: statSpy });
 
       const listing = await reader.listDirectory({ sessionId: "s1", diffRoot: root, path: "" });
 
-      expect(listing.entries).toHaveLength(10);
+      expect(listing.entries.map((entry) => entry.name)).toEqual([
+        "file-00.txt", "file-01.txt", "file-02.txt", "file-03.txt", "file-04.txt",
+        "file-05.txt", "file-06.txt", "file-07.txt", "file-08.txt", "file-09.txt",
+      ]);
+      expect(statSpy).toHaveBeenCalledTimes(10);
       expect(listing.truncated).toBe(true);
     });
   });
@@ -139,6 +183,32 @@ describe("createNodeSessionFilesReader", () => {
         truncated: true,
         size: 33,
       });
+    });
+
+    it("truncates a single line at a complete UTF-8 character", async () => {
+      const root = await tempDirectory();
+      await writeFile(join(root, "text.txt"), "中".repeat(10));
+      const reader = createNodeSessionFilesReader({ maxFileBytes: 20 });
+      await expect(reader.readFile({ sessionId: "s1", diffRoot: root, path: "text.txt" }))
+        .resolves.toMatchObject({ content: "中".repeat(6), truncated: true });
+    });
+
+    it.each([
+      { before: "short", after: "x".repeat(30), truncated: true, content: "x".repeat(20) },
+      { before: "x".repeat(30), after: "short", truncated: false, content: "short" },
+      { before: "x".repeat(20), after: "x".repeat(20), truncated: false, content: "x".repeat(20) },
+    ])("uses bytes read when a file changes from $before to $after", async ({ before, after, truncated, content }) => {
+      const root = await tempDirectory();
+      const path = join(root, "changing.txt");
+      await writeFile(path, before);
+      const statBeforeWrite = async (target: string) => {
+        const info = await stat(target);
+        await writeFile(path, after);
+        return info;
+      };
+      const reader = createNodeSessionFilesReader({ maxFileBytes: 20 }, { stat: statBeforeWrite });
+      await expect(reader.readFile({ sessionId: "s1", diffRoot: root, path: "changing.txt" }))
+        .resolves.toMatchObject({ content, truncated, size: Buffer.byteLength(before) });
     });
 
     it("rejects directories and paths outside the diff root", async () => {
