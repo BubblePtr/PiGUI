@@ -2,9 +2,9 @@
 
 ## 已确认的方向
 
-侧栏顶部使用分离式 PACE 矢量字标，A 的内侧拱顶已经抬高，减少顶部黑色重量。应用图标使用圆润开口 P、黑白底稿与 Icon Composer 原生材质；不使用 Figma 中的烟晶、冰晶或 IP 插画探索版。
+侧栏顶部使用 Figma 04 版独立 PACE 矢量字标，采用平直端点和切角轮廓。应用图标使用圆润开口 P、黑白底稿与 Icon Composer 原生材质；不使用 Figma 中的烟晶、冰晶或 IP 插画探索版。
 
-设计来源：[Figma 第 11 版字标](https://www.figma.com/design/r5HLnoU3mVD8ddnAXMiGrA?node-id=9-249)，以及 `build/Pace.icon` 源工程。
+设计来源：[Figma 第 04 版字标](https://www.figma.com/design/r5HLnoU3mVD8ddnAXMiGrA?node-id=3-197)，以及 `build/Pace.icon` 源工程。
 
 ## 界面字标
 
