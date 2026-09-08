@@ -36,6 +36,8 @@ v1 注册 `changes` 与 `actions`。Terminal / File / Browser surface 仍受 ADR
 
 > **修订（2026-09-03）**：Terminal 已由 PR #147 解冻，Browser 已由 ADR-0029 正式解冻并注册为第三个 surface；File surface 仍受 ADR-0007 冻结。
 >
+> **修订（2026-09-08）**：File surface 由 ADR-0035 解冻为只读的 Files surface，注册为第二格；Changes 同时改为堆叠全量 diff。
+>
 > **修订（2026-09-05）**：注册表元数据现为 id、title、icon、hint、`multiInstance`、`flushContent`；hint 只供 rail tooltip，`flushContent` 只控制内容内边距（表头已移除，见下文修订）。
 
 ### 多实例只建模，不实装
