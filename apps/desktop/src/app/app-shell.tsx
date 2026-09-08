@@ -1139,7 +1139,7 @@ function HeaderChrome({
           data-testid="header-chrome-title"
           style={titleStyle}
         >
-          <h1 className="select-none truncate text-sm font-semibold leading-7 tracking-normal text-foreground">
+          <h1 className="select-none truncate text-sm font-normal leading-7 tracking-normal text-foreground">
             {title}
           </h1>
         </div>
@@ -1225,6 +1225,9 @@ export function AppFrame({
   );
   const effectiveSelectedSessionId =
     selectedSessionId === undefined ? localSelectedSessionId : selectedSessionId;
+  const sessionTitle = pathname.startsWith("/projects/")
+    ? sessions.find((session) => session.id === effectiveSelectedSessionId)?.title
+    : undefined;
   const updateSelectedSessionId = onSelectedSessionIdChange ?? setLocalSelectedSessionId;
   const headerMainLeft = measuredSidebarWidth;
   const handleSidebarOpenChange = (open: boolean) => {
@@ -1606,7 +1609,7 @@ export function AppFrame({
         mainLeft={showSidebar ? headerMainLeft : "0px"}
         showSidebarToggle={showSidebar}
         sidebarOpen={showSidebar ? sidebarOpen : false}
-        title={draftViewActive ? "New Chat" : activeTab}
+        title={draftViewActive ? "New Chat" : sessionTitle || activeTab}
         toolbarActions={toolbarActions}
         onToggleSidebar={() => handleSidebarOpenChange(!sidebarOpen)}
       />
