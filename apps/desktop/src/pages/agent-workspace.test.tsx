@@ -1154,11 +1154,15 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     renderProjectSessions();
 
-    await waitFor(() => {
-      expect(screen.getAllByText("Missing session file")).toHaveLength(2);
-    });
-    expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
-      "Session file is missing",
+    // The title also lands in the header and sidebar; count-free so a new
+    // surface showing it does not break the missing-file contract below.
+    await waitFor(() =>
+      expect(screen.getByTestId("runtime-fallback-banner")).toHaveTextContent(
+        "Session file is missing",
+      ),
+    );
+    expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent(
+      "Missing session file",
     );
     expect(invoke).not.toHaveBeenCalledWith("resume_session", expect.anything());
   });
