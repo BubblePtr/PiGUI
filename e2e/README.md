@@ -26,6 +26,8 @@ bun run test:e2e:packaged:linux
 bun run test:e2e -- e2e/smoke/m1-fixture-free.spec.ts
 ```
 
+`PIGUI_E2E=1` 下主进程会隐藏 Dock 图标、把窗口透明度设为 0 并用 `showInactive()` 显示，所以每条用例启动的 Electron 既不抢焦点也不遮挡屏幕；CDP 截图不受窗口透明度影响，照常渲染。开发者可以在 e2e 跑的时候继续做别的事。注意 e2e 跑的是 `apps/desktop/out` 构建产物，改了主进程代码要先 `bun run build`。
+
 当前 smoke 不调用真实 LLM。每条测试都会创建独立的 Electron user data、PiGUI data 和 Project 目录，并在结束后清理，避免读取开发者机器上的 localStorage 或 `~/.pigui`。
 
 `test:e2e:packaged:*` 不使用源码入口，而是直接启动打包产物（macOS `dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI`，Linux `dist/linux-unpacked/pigui`），用于发现 ASAR、运行时资产和 utility process 路径只在安装包中出现的问题。
