@@ -94,8 +94,10 @@ describe("Design components layer", () => {
 
     const strip = screen.getByRole("region", { name: "PiTrajectoryStrip" });
     expect(strip.querySelector('[data-slot="trajectory-strip"]')).toBeInTheDocument();
-    expect(within(strip).getAllByRole("button", { name: "Steps" }).length).toBe(2);
-    expect(within(strip).getAllByRole("button", { name: "Time" }).length).toBe(2);
+    expect(within(strip).getAllByRole("button", { name: "Steps" }).length).toBe(3);
+    expect(within(strip).getAllByRole("button", { name: "Time" }).length).toBe(3);
+    const strips = strip.querySelectorAll('[data-slot="trajectory-strip"]');
+    expect(strips[2].querySelectorAll("[data-strip-col]")).toHaveLength(727);
     expect(strip.querySelectorAll("[data-strip-col][data-focus-dimmed]").length).toBeGreaterThan(2);
     // The Time-mode variant must show both truths: measured and estimated spans.
     expect(strip.querySelector("[data-strip-col][data-estimated-width]")).toBeInTheDocument();
