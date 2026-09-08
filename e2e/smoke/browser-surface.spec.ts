@@ -125,7 +125,7 @@ async function openBrowserSurface(testApp: PiGUITestApplication) {
 
   await testApp.resizeWindow(1440, 900);
   await window
-    .getByRole("button", { name: "New Session", exact: true })
+    .getByRole("button", { name: "New Chat for E2E Project", exact: true })
     .click();
   await window
     .getByRole("button", {

@@ -23,7 +23,7 @@ function sessionRowButton(window: import("@playwright/test").Page, title: string
 }
 
 async function openProjectDraft(window: import("@playwright/test").Page, project: E2EProject) {
-  const newSession = window.getByRole("button", { name: "New Session", exact: true });
+  const newSession = window.getByRole("button", { name: "New Chat for E2E Project", exact: true });
   await expect(newSession).toBeVisible();
   await newSession.click();
   await expect(window.getByRole("textbox")).toBeVisible();
@@ -98,7 +98,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
 
     try {
       // Open draft composer without any auth -> hard gate
-      await testApp.window.getByRole("button", { name: "New Session", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "New Chat for E2E Project", exact: true }).click();
 
       const gate = testApp.window.getByTestId("session-draft-no-models-gate");
       await expect(gate).toBeVisible();
@@ -151,7 +151,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
     const testApp = await launchPiGUI({ seedProject: true, seedModelControls: true, seedPreflightAuth: true });
     try {
       const page = testApp.window;
-      await page.getByRole("button", { name: "New Session", exact: true }).click();
+      await page.getByRole("button", { name: "New Chat for E2E Project", exact: true }).click();
       const draft = page.getByRole("textbox");
       await draft.fill("Keep this unsent draft while I change settings");
       const url = page.url();
@@ -210,7 +210,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
 
     try {
       // Draft composer (no session selected) must NOT show the no-models gate
-      await testApp.window.getByRole("button", { name: "New Session", exact: true }).click();
+      await testApp.window.getByRole("button", { name: "New Chat for E2E Project", exact: true }).click();
       await expect(testApp.window.getByTestId("session-draft-no-models-gate")).toHaveCount(0);
 
       // Open the seeded session: model/thinking trigger is available with models
