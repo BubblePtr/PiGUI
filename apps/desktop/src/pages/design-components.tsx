@@ -875,6 +875,13 @@ const stripTimingTurns: SessionTurn[] = [
 ];
 
 const stripTimingTrajectoryTurns = buildTrajectoryTurns(stripTimingTurns);
+const denseStripTurns = buildTrajectoryTurns(
+  Array.from({ length: 727 }, (_, index) => ({
+    kind: "message" as const,
+    role: index % 2 ? "assistant" as const : "user" as const,
+    parts: [{ partType: "text" as const, text: `Step ${index + 1}`, payload: {} }],
+  })),
+);
 
 function PiTrajectoryStripTimeVariant() {
   const [widthMode, setWidthMode] = useState<StripWidthMode>("duration");
@@ -930,6 +937,14 @@ function PiTrajectoryStripGallery() {
           </div>
         </Variant>
         <PiTrajectoryStripTimeVariant />
+        <Variant caption="密集轨迹 · 727 段随容器压缩，完整保留尾部与模式切换">
+          <PiTrajectoryStrip
+            turns={denseStripTurns}
+            widthMode={widthMode}
+            onSelect={() => {}}
+            onWidthModeChange={setWidthMode}
+          />
+        </Variant>
       </div>
     </GallerySection>
   );

@@ -56,7 +56,7 @@ const annotationColor = "var(--pigui-data-green)";
 
 /**
  * Time-mode column weight. Widths are relative, so one 40-minute think would
- * otherwise crush every other column to its 2px floor, and a 200ms call would
+ * otherwise crush every other column to its minimum width, and a 200ms call would
  * vanish. The bounds match the turn-gap clamp; tooltips report the real value.
  */
 function columnWeight(durationSec: number) {
@@ -301,6 +301,9 @@ export function PiTrajectoryStrip({
   const [cursor, setCursor] = useState<{ x: number; index: number } | undefined>(undefined);
 
   const segments = stripSegmentsFromTurns(turns);
+  // Reserve at most two thirds for column floors and one third for gaps.
+  // Fixed 2px columns + 1px gaps overflow long sessions even with min-w-0.
+  const densityBudget = Math.max(1, segments.length) * 3;
 
   function segmentIndexFromClientX(clientX: number) {
     const track = trackRef.current;
@@ -427,7 +430,7 @@ export function PiTrajectoryStrip({
 
   return (
     <div
-      className={`flex items-stretch gap-2 ${className ?? ""}`.trim()}
+      className={`flex min-w-0 items-stretch gap-2 ${className ?? ""}`.trim()}
       data-slot="trajectory-strip"
       {...rest}
     >
@@ -441,7 +444,8 @@ export function PiTrajectoryStrip({
       </div>
 
       <div
-        className={`relative flex min-w-0 flex-1 items-stretch gap-px ${onBrush ? "cursor-crosshair" : ""}`.trim()}
+        className={`relative flex min-w-0 flex-1 items-stretch ${onBrush ? "cursor-crosshair" : ""}`.trim()}
+        style={{ columnGap: `min(1px, calc(100% / ${densityBudget}))` }}
         ref={trackRef}
         role="listbox"
         aria-label="Session activity segments"
@@ -482,8 +486,9 @@ export function PiTrajectoryStrip({
               data-strip-col=""
               data-estimated-width={estimatedWidth ? "" : undefined}
               data-focus-dimmed={dimmed ? "" : undefined}
-              className="group relative flex min-w-[2px] cursor-pointer flex-col gap-px"
+              className="group relative flex cursor-pointer flex-col gap-px"
               style={{
+                minWidth: `min(2px, calc(200% / ${densityBudget}))`,
                 // Steps mode: width tracks activity volume (36 collapsed tool
                 // calls read 36x wider than one think). Time mode: seconds,
                 // bounded so no single span can flatten the rest of the strip.
