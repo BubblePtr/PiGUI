@@ -80,6 +80,7 @@ import {
   getProjectRegistryWithBrowserDevelopmentFallback,
   shouldUseBrowserDevelopmentData,
 } from "@/shared/browser-development-data";
+import { PaceWordmark } from "@/shared/ui/pace-wordmark";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { revealProjectInFinder, selectProjectDirectory } from "@/shared/runtime";
 
@@ -1675,11 +1676,16 @@ export function AppFrame({
           data-testid="app-layout-sidebar"
           resizable={{ defaultWidth: 260, minWidth: 240, maxWidth: 320, autoSaveId: "pigui-app-shell" }}
           header={
-            <div
-              aria-hidden="true"
-              data-testid="sidebar-titlebar-spacer"
-              style={sidebarTitlebarSpacerStyle}
-            />
+            <VStack gap={3} align="start" className="pb-2">
+              <div
+                aria-hidden="true"
+                data-testid="sidebar-titlebar-spacer"
+                style={sidebarTitlebarSpacerStyle}
+              />
+              <HStack paddingInline={2}>
+                <PaceWordmark />
+              </HStack>
+            </VStack>
           }
           footer={<SystemNavigation pathname={pathname} onNavigate={handleNavigate} />}
         >
