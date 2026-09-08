@@ -123,14 +123,20 @@ function applyDevelopmentDockIcon() {
   }
 }
 
+// E2E launches one Electron per test; a normal show() would activate the app
+// and steal the developer's focus every time. Keep those windows in the
+// background: no Dock presence, shown without activation.
+const backgroundWindowForEndToEnd = process.env.PIGUI_E2E === "1";
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
     minWidth: 960,
     minHeight: 720,
+    show: !backgroundWindowForEndToEnd,
     // Headless macOS runners can expose displays smaller than the E2E viewport.
-    enableLargerThanScreen: process.env.PIGUI_E2E === "1",
+    enableLargerThanScreen: backgroundWindowForEndToEnd,
     title: "PiGUI",
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 13 },
@@ -152,6 +158,11 @@ function createMainWindow() {
     },
   });
 
+  if (backgroundWindowForEndToEnd) {
+    mainWindow.once("ready-to-show", () => {
+      mainWindow?.showInactive();
+    });
+  }
   mainWindow.on("focus", () => {
     mainWindow?.webContents.send("pigui:window-focus");
   });
@@ -712,6 +723,9 @@ if (developmentUserDataPath) {
 }
 
 app.whenReady().then(() => {
+  if (backgroundWindowForEndToEnd && process.platform === "darwin") {
+    app.dock?.hide();
+  }
   applyDevelopmentDockIcon();
   startBackendBridge();
   appUpdater = createAppUpdater({
