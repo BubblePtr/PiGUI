@@ -32,7 +32,10 @@ const SessionFileViewer = lazy(
 );
 
 type DirectoryState =
-  | { status: "loading" }
+  | {
+      status: "loading";
+      previous?: Extract<DirectoryState, { status: "loaded" }>;
+    }
   | { status: "loaded"; entries: SessionDirectoryEntry[]; truncated: boolean }
   | { status: "error"; message: string };
 
@@ -54,15 +57,21 @@ function errorMessage(error: unknown, fallback: string) {
 function DirectoryPlaceholder({
   path,
   onMount,
+  error,
 }: {
   path: string;
   onMount: (path: string) => void;
+  error?: string;
 }) {
   useEffect(() => {
     onMount(path);
   }, [onMount, path]);
 
-  return <span className="text-muted">Loading…</span>;
+  return error ? (
+    <span className="text-danger" role="alert">{error}</span>
+  ) : (
+    <span className="text-muted">Loading…</span>
+  );
 }
 
 type Props = {
@@ -80,20 +89,25 @@ function FilesSessionContent({ sessionId }: Props) {
     () => new Map(),
   );
   const [preview, setPreview] = useState<PreviewState | null>(null);
-  // A refresh drops every cached listing; responses from the previous
-  // generation must not resurrect them.
+  // Refresh invalidates listings; stale responses must not overwrite the
+  // new generation, even while the root rows remain visible.
   const generationRef = useRef(0);
   // Paths whose listing was requested in the current generation, so a
-  // re-mounted placeholder (StrictMode, re-expansion) never double-fetches.
+  // re-mounted placeholder never double-fetches in-flight or successful loads.
   const requestedRef = useRef(new Set<string>());
   const previewRequestRef = useRef(0);
+  const previewPathRef = useRef<string | null>(null);
 
   const loadDirectory = useCallback(
     async (path: string) => {
       const generation = generationRef.current;
       setDirectories((current) => {
         const next = new Map(current);
-        next.set(path, { status: "loading" });
+        const previous = current.get(path);
+        next.set(path, {
+          status: "loading",
+          previous: previous?.status === "loaded" ? previous : undefined,
+        });
         return next;
       });
 
@@ -115,6 +129,7 @@ function FilesSessionContent({ sessionId }: Props) {
         });
       } catch (error) {
         if (generation !== generationRef.current) return;
+        requestedRef.current.delete(path);
         const message = errorMessage(error, "The directory could not be listed.");
         if (path === "") {
           setRootError(message);
@@ -140,6 +155,7 @@ function FilesSessionContent({ sessionId }: Props) {
 
   const openFile = useCallback(
     async (path: string) => {
+      previewPathRef.current = path;
       const request = ++previewRequestRef.current;
       setPreview({ status: "loading", path });
 
@@ -163,12 +179,16 @@ function FilesSessionContent({ sessionId }: Props) {
     generationRef.current += 1;
     requestedRef.current = new Set([""]);
     setRootError(null);
-    setDirectories(new Map());
+    // Keep the root rows mounted so TreeList retains its expansion state.
+    setDirectories((current) => {
+      const root = current.get("");
+      return root ? new Map([["", root]]) : new Map();
+    });
     void loadDirectory("");
-    if (preview) {
-      void openFile(preview.path);
+    if (previewPathRef.current !== null) {
+      void openFile(previewPathRef.current);
     }
-  }, [loadDirectory, openFile, preview]);
+  }, [loadDirectory, openFile]);
 
   useEffect(() => {
     ensureDirectory("");
@@ -178,21 +198,23 @@ function FilesSessionContent({ sessionId }: Props) {
 
   const treeItems = useMemo(() => {
     const toItems = (path: string): TreeListItemData[] => {
-      const state = directories.get(path);
-      if (!state || state.status === "loading") {
+      const current = directories.get(path);
+      const state =
+        current?.status === "loading" && path === ""
+          ? current.previous ?? current
+          : current;
+      if (!state || state.status !== "loaded") {
         return [
           {
-            id: `${path}/…loading`,
-            label: <DirectoryPlaceholder path={path} onMount={ensureDirectory} />,
-            isDisabled: true,
-          },
-        ];
-      }
-      if (state.status === "error") {
-        return [
-          {
-            id: `${path}/…error`,
-            label: <span className="text-danger">{state.message}</span>,
+            // Keep the placeholder mounted on failure; only re-expansion retries.
+            id: `${path}/…loading/${generationRef.current}`,
+            label: (
+              <DirectoryPlaceholder
+                path={path}
+                onMount={ensureDirectory}
+                error={state?.status === "error" ? state.message : undefined}
+              />
+            ),
             isDisabled: true,
           },
         ];
@@ -227,6 +249,13 @@ function FilesSessionContent({ sessionId }: Props) {
         };
       });
 
+      if (items.length === 0 && !state.truncated) {
+        items.push({
+          id: `${path}/…empty`,
+          label: <span className="text-muted">Empty directory</span>,
+          isDisabled: true,
+        });
+      }
       if (state.truncated) {
         items.push({
           id: `${path}/…truncated`,
@@ -269,8 +298,8 @@ function FilesSessionContent({ sessionId }: Props) {
 
       {/* px-2 is the flush surface's inset, so the tree border lands on the
           same column as the bar's leading control. */}
-      {rootLoading && !rootError ? (
-        <div className="mt-3 grid gap-2 px-2" aria-label="Loading Session files">
+      {rootLoading && rootName === null && !rootError ? (
+        <div className="mt-3 grid gap-2 px-2" role="status" aria-label="Loading Session files">
           <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
           <div className="h-24 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
         </div>
@@ -320,7 +349,7 @@ function FilePreview({
 
   if (preview.status === "loading") {
     return (
-      <div className="grid gap-2" aria-label="Loading file">
+      <div className="grid gap-2" role="status" aria-label="Loading file">
         <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
         <div className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
       </div>
@@ -374,6 +403,7 @@ function FilePreview({
         fallback={
           <div
             className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
+            role="status"
             aria-label="Loading file renderer"
           />
         }
