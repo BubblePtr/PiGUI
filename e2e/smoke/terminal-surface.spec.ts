@@ -15,7 +15,7 @@ test("Terminal surface runs a real shell, multi-instance, with replay", async ()
     await testApp.resizeWindow(1440, 900);
 
     const { window } = testApp;
-    const newSession = window.getByRole("button", { name: "New Session", exact: true });
+    const newSession = window.getByRole("button", { name: "New Chat for E2E Project", exact: true });
 
     await expect(newSession).toBeVisible();
     await newSession.click();

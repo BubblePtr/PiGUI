@@ -24,7 +24,7 @@ function sessionRowButton(window: Page, title: string) {
 }
 
 async function openProjectDraft(window: Page, project: E2EProject) {
-  const newSession = window.getByRole("button", { name: "New Session", exact: true });
+  const newSession = window.getByRole("button", { name: "New Chat for E2E Project", exact: true });
 
   await expect(newSession).toBeVisible();
   await newSession.click();
@@ -66,7 +66,7 @@ test.describe("M1: Real-data-only", () => {
 
     try {
       await openProjectDraft(testApp.window, testApp.project!);
-      await expect(testApp.window.getByText("No chats", { exact: true })).toBeVisible();
+      await expect(testApp.window.getByTestId("project-row-with-actions").getByRole("button", { name: "No chats", exact: true })).toBeVisible();
       await assertNoFixtureData(testApp.window);
     } finally {
       await testApp.close();
