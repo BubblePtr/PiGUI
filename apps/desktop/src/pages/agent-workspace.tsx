@@ -1,4 +1,5 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Collapsible, CollapsibleGroup } from "@astryxdesign/core/Collapsible";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Popover } from "@astryxdesign/core/Popover";
@@ -2184,23 +2185,67 @@ export function SessionChangesPanel({
   loading,
   onRefresh,
 }: SessionChangesPanelProps) {
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  // Fold state is the set of *closed* paths: a file the reviewer has not
+  // touched is open, so a fresh read (new files included) needs no
+  // bookkeeping to come up expanded, and only explicit folds are remembered.
+  const [closedPaths, setClosedPaths] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
   const [diffStyle, setDiffStyle] = useState<"unified" | "split">("unified");
+  const sectionRefs = useRef(new Map<string, HTMLDivElement>());
 
-  // Each read yields a new object; keep the reviewed file when it survived.
+  // Another Session is another review; its folds start from scratch.
+  useEffect(() => {
+    setClosedPaths(new Set());
+    setCurrentPath(null);
+  }, [sessionId]);
+
+  // Each read yields a new object; keep folds for files that survived and let
+  // the rest go so a path that comes back later is open again.
   useEffect(() => {
     if (!changes) return;
 
-    setSelectedPath((current) =>
-      changes.files.some((file) => file.path === current)
-        ? current
-        : (changes.files[0]?.path ?? null),
+    const present = new Set(changes.files.map((file) => file.path));
+    setClosedPaths((current) => {
+      const next = new Set([...current].filter((path) => present.has(path)));
+      return next.size === current.size ? current : next;
+    });
+    setCurrentPath((current) =>
+      current !== null && present.has(current) ? current : null,
     );
   }, [changes]);
 
-  const selectedFile =
-    changes?.files.find((file) => file.path === selectedPath) ?? null;
+  const files = changes?.files ?? [];
+  const openPaths = files
+    .map((file) => file.path)
+    .filter((path) => !closedPaths.has(path));
+  const anyOpen = openPaths.length > 0;
+
+  const toggleAll = () => {
+    setClosedPaths(anyOpen ? new Set(files.map((file) => file.path)) : new Set());
+  };
+
+  const navigateTo = (path: string) => {
+    setClosedPaths((current) => {
+      if (!current.has(path)) return current;
+      const next = new Set(current);
+      next.delete(path);
+      return next;
+    });
+    setCurrentPath(path);
+    // The section root stays mounted while folded, so it can be scrolled to
+    // before React has re-rendered the expanded body. jsdom has no
+    // scrollIntoView, hence the optional call.
+    sectionRefs.current.get(path)?.scrollIntoView?.({ block: "start" });
+  };
+
   const status = sessionChangesStatus({ changes, error, loading });
+  const hasReview =
+    Boolean(sessionId) &&
+    !error &&
+    changes?.state === "ready" &&
+    files.length > 0;
 
   return (
     <section aria-label="Session changes" className="pb-2">
@@ -2211,16 +2256,40 @@ export function SessionChangesPanel({
       {sessionId ? (
         <SessionSurfaceBar
           actions={
-            <IconButton
-              className="pigui-pressable"
-              icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
-              isDisabled={loading}
-              label="Refresh Session changes"
-              size="sm"
-              tooltip="Refresh changes"
-              variant="ghost"
-              onClick={onRefresh}
-            />
+            <>
+              {hasReview ? (
+                <>
+                  <SegmentedControl
+                    label="Diff layout"
+                    size="sm"
+                    value={diffStyle}
+                    onChange={(value) =>
+                      setDiffStyle(value === "split" ? "split" : "unified")
+                    }
+                  >
+                    <SegmentedControlItem label="Unified" value="unified" />
+                    <SegmentedControlItem label="Split" value="split" />
+                  </SegmentedControl>
+                  <Button
+                    className="pigui-pressable"
+                    label={anyOpen ? "Collapse all" : "Expand all"}
+                    size="sm"
+                    variant="ghost"
+                    onClick={toggleAll}
+                  />
+                </>
+              ) : null}
+              <IconButton
+                className="pigui-pressable"
+                icon={<RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />}
+                isDisabled={loading}
+                label="Refresh Session changes"
+                size="sm"
+                tooltip="Refresh changes"
+                variant="ghost"
+                onClick={onRefresh}
+              />
+            </>
           }
         >
           {status ? (
@@ -2267,107 +2336,135 @@ export function SessionChangesPanel({
           Working tree clean. No staged, unstaged, or untracked changes.
         </p>
       ) : (
-        <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-[14rem_minmax(0,1fr)]">
-          <div className="min-w-0 rounded-md border border-default/70 bg-surface p-1.5">
+        <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_13rem]">
+          {/* Every diff, top to bottom: the reviewer scrolls instead of
+              switching. Each section is one file; a folded one drops its
+              viewer so a wide tree never keeps hundreds of renderers alive. */}
+          <CollapsibleGroup
+            className="min-w-0 rounded-md border border-default/70 bg-surface"
+            density="compact"
+            hasDividers
+            type="multiple"
+            value={openPaths}
+            onChange={(value) => {
+              const open = new Set(Array.isArray(value) ? value : [value]);
+              setClosedPaths(
+                new Set(
+                  files.map((file) => file.path).filter((path) => !open.has(path)),
+                ),
+              );
+            }}
+          >
+            {changes.files.map((file) => {
+              const isOpen = !closedPaths.has(file.path);
+
+              return (
+                <Collapsible
+                  key={`${file.previousPath ?? ""}:${file.path}`}
+                  className="px-2"
+                  data-testid="session-change-section"
+                  ref={(node) => {
+                    if (node) sectionRefs.current.set(file.path, node);
+                    else sectionRefs.current.delete(file.path);
+                  }}
+                  trigger={
+                    <span className="flex min-w-0 items-center gap-3 text-left">
+                      <span
+                        className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+                        title={file.path}
+                      >
+                        {file.path}
+                      </span>
+                      <span
+                        className="hidden shrink-0 truncate text-xs text-muted sm:inline"
+                        title={changeStageLabel(file)}
+                      >
+                        {changeKindLabel(file.kind)} · {changeStageLabel(file)}
+                      </span>
+                      <ChangeCounts file={file} />
+                    </span>
+                  }
+                  value={file.path}
+                >
+                  {isOpen ? (
+                    <div className="pb-2">
+                      {file.kind === "conflicted" ? (
+                        <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                          This file has unresolved merge conflicts. Resolve it in the
+                          checkout before reviewing a normal patch.
+                        </p>
+                      ) : file.binary ? (
+                        <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+                          Binary file changed. A textual diff is not available.
+                        </p>
+                      ) : file.patchTruncated ? (
+                        <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                          This patch exceeds the review limit and was omitted. Open the
+                          checkout for the full diff.
+                        </p>
+                      ) : file.patch ? (
+                        <Suspense
+                          fallback={
+                            <div
+                              className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
+                              aria-label="Loading diff renderer"
+                            />
+                          }
+                        >
+                          <SessionDiffViewer
+                            cacheKey={`${changes.sessionId}:${changes.generatedAt}:${file.path}`}
+                            patch={file.patch}
+                            style={diffStyle}
+                          />
+                        </Suspense>
+                      ) : (
+                        <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+                          No textual patch is available for this file.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </Collapsible>
+              );
+            })}
+          </CollapsibleGroup>
+
+          {/* The outline: one row per file, in the order of the sections. It
+              stacks above the diffs on narrow widths and sits at the right on
+              md+, where sticky keeps it in reach while the reviewer scrolls. */}
+          <nav
+            aria-label="Changed files"
+            className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 md:sticky md:top-2 md:order-last"
+          >
+            <p className="px-2 py-1 text-xs font-medium text-muted">
+              {changes.files.length} files
+            </p>
             <div className="max-h-[34rem] space-y-1 overflow-y-auto">
               {changes.files.map((file) => (
                 <button
                   key={`${file.previousPath ?? ""}:${file.path}`}
-                  aria-pressed={file.path === selectedPath}
-                  className={`w-full min-w-0 rounded px-2 py-2 text-left transition-colors ${
-                    file.path === selectedPath
+                  aria-current={file.path === currentPath ? "true" : undefined}
+                  className={`w-full min-w-0 rounded px-2 py-1.5 text-left transition-colors ${
+                    file.path === currentPath
                       ? "bg-default/70 text-foreground"
                       : "text-muted hover:bg-default/40 hover:text-foreground"
                   }`}
                   type="button"
-                  onClick={() => setSelectedPath(file.path)}
+                  onClick={() => navigateTo(file.path)}
                 >
-                  <span
-                    className="block truncate text-sm font-medium"
-                    title={file.path}
-                  >
+                  <span className="block truncate text-sm" title={file.path}>
                     {file.path}
                   </span>
-                  <span className="mt-1 flex items-center justify-between gap-2 text-xs">
+                  <span className="mt-0.5 flex items-center justify-between gap-2 text-xs">
                     <span className="min-w-0 truncate" title={changeStageLabel(file)}>
-                      {changeKindLabel(file.kind)} · {changeStageLabel(file)}
+                      {changeKindLabel(file.kind)}
                     </span>
-                    {file.kind === "conflicted" ? (
-                      <span className="shrink-0">Resolve</span>
-                    ) : file.binary ? (
-                      <span>Binary</span>
-                    ) : (
-                      <span className="shrink-0">
-                        <span className="text-success">
-                          +{file.additions ?? 0}
-                        </span>{" "}
-                        <span className="text-danger">
-                          -{file.deletions ?? 0}
-                        </span>
-                      </span>
-                    )}
+                    <ChangeCounts file={file} />
                   </span>
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="min-w-0">
-            <div className="mb-2 flex min-h-8 items-center justify-between gap-3">
-              <p
-                className="min-w-0 truncate text-sm font-medium text-foreground"
-                title={selectedFile?.path}
-              >
-                {selectedFile?.path}
-              </p>
-              <SegmentedControl
-                label="Diff layout"
-                size="sm"
-                value={diffStyle}
-                onChange={(value) =>
-                  setDiffStyle(value === "split" ? "split" : "unified")
-                }
-              >
-                <SegmentedControlItem label="Unified" value="unified" />
-                <SegmentedControlItem label="Split" value="split" />
-              </SegmentedControl>
-            </div>
-
-            {selectedFile?.kind === "conflicted" ? (
-              <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
-                This file has unresolved merge conflicts. Resolve it in the
-                checkout before reviewing a normal patch.
-              </p>
-            ) : selectedFile?.binary ? (
-              <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-                Binary file changed. A textual diff is not available.
-              </p>
-            ) : selectedFile?.patchTruncated ? (
-              <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
-                This patch exceeds the review limit and was omitted. Open the
-                checkout for the full diff.
-              </p>
-            ) : selectedFile?.patch ? (
-              <Suspense
-                fallback={
-                  <div
-                    className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
-                    aria-label="Loading diff renderer"
-                  />
-                }
-              >
-                <SessionDiffViewer
-                  cacheKey={`${changes.sessionId}:${changes.generatedAt}:${selectedFile.path}`}
-                  patch={selectedFile.patch}
-                  style={diffStyle}
-                />
-              </Suspense>
-            ) : (
-              <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-                No textual patch is available for this file.
-              </p>
-            )}
-          </div>
+          </nav>
 
           {changes.truncated ? (
             <p className="md:col-span-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
@@ -2379,6 +2476,22 @@ export function SessionChangesPanel({
         </div>
       )}
     </section>
+  );
+}
+
+/** The +A −D tail of a file row, or what stands in for it. */
+function ChangeCounts({ file }: { file: SessionChangedFile }) {
+  if (file.kind === "conflicted") {
+    return <span className="shrink-0 text-xs">Resolve</span>;
+  }
+  if (file.binary) {
+    return <span className="shrink-0 text-xs">Binary</span>;
+  }
+  return (
+    <span className="shrink-0 text-xs">
+      <span className="text-success">+{file.additions ?? 0}</span>{" "}
+      <span className="text-danger">-{file.deletions ?? 0}</span>
+    </span>
   );
 }
 

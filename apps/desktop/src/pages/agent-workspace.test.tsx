@@ -7448,28 +7448,127 @@ describe("Session changes action surface", () => {
     expect(screen.queryByTestId("session-surface-bar")).not.toBeInTheDocument();
   });
 
-  it("lists loaded changes, switches files, and changes the diff layout", async () => {
+  /** A second text file so the stacked layout has more than one viewer. */
+  function twoTextFiles(): SessionChanges {
+    const base = changes();
+    return {
+      ...base,
+      files: [
+        base.files[0]!,
+        {
+          path: "src/util.ts",
+          kind: "added",
+          staged: true,
+          unstaged: false,
+          additions: 4,
+          deletions: 0,
+          binary: false,
+          patch: "diff --git a/src/util.ts b/src/util.ts\n@@ -0,0 +1 @@\n+util\n",
+          patchTruncated: false,
+        },
+        base.files[1]!,
+      ],
+      totals: { ...base.totals, files: 3, additions: 6 },
+    };
+  }
+
+  const sections = () => screen.getAllByTestId("session-change-section");
+  const outline = () => screen.getByRole("navigation", { name: "Changed files" });
+
+  it("stacks every file's diff, with binary notices inline, and switches layout for all of them", async () => {
     const user = userEvent.setup();
 
-    render(panel(changes()));
+    render(panel(twoTextFiles()));
 
-    expect(await screen.findAllByText("src/app.ts")).toHaveLength(2);
-    expect(screen.getByText("2 files ·", { exact: false })).toBeInTheDocument();
-    expect(await screen.findByTestId("session-diff-viewer")).toHaveAttribute(
-      "data-style",
-      "unified",
-    );
-
-    await user.click(screen.getByText("Split"));
-    expect(screen.getByTestId("session-diff-viewer")).toHaveAttribute(
-      "data-style",
-      "split",
-    );
-
-    await user.click(screen.getByText("assets/logo.png"));
+    // Every text diff is on screen at once: nothing to select, only scroll.
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
     expect(
       screen.getByText("Binary file changed. A textual diff is not available."),
     ).toBeInTheDocument();
+    expect(sections()).toHaveLength(3);
+    expect(within(sections()[0]!).getByRole("button", { expanded: true })).toHaveTextContent(
+      "src/app.ts",
+    );
+
+    await user.click(screen.getByText("Split"));
+    for (const viewer of screen.getAllByTestId("session-diff-viewer")) {
+      expect(viewer).toHaveAttribute("data-style", "split");
+    }
+  });
+
+  it("unmounts a collapsed section's viewer and brings it back from the outline", async () => {
+    const user = userEvent.setup();
+    // jsdom has no scrollIntoView; src/test/setup.ts stubs it on HTMLElement.
+    const scrollIntoView = vi
+      .spyOn(HTMLElement.prototype, "scrollIntoView")
+      .mockImplementation(() => {});
+
+    render(panel(twoTextFiles()));
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+
+    await user.click(within(sections()[0]!).getByRole("button", { expanded: true }));
+    expect(screen.getAllByTestId("session-diff-viewer")).toHaveLength(1);
+    expect(within(sections()[0]!).getByRole("button", { expanded: false })).toBeInTheDocument();
+
+    // The outline names every file and the count, at the density of a list.
+    expect(within(outline()).getByText("3 files")).toBeInTheDocument();
+    const rows = within(outline()).getAllByRole("button");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining("src/app.ts"),
+      expect.stringContaining("src/util.ts"),
+      expect.stringContaining("assets/logo.png"),
+    ]);
+
+    await user.click(rows[0]!);
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+    expect(scrollIntoView.mock.instances[0]).toBe(sections()[0]);
+    expect(rows[0]).toHaveAttribute("aria-current", "true");
+    expect(rows[1]).not.toHaveAttribute("aria-current");
+
+    await user.click(rows[2]!);
+    expect(rows[2]).toHaveAttribute("aria-current", "true");
+    expect(rows[0]).not.toHaveAttribute("aria-current");
+
+    scrollIntoView.mockRestore();
+  });
+
+  it("collapses and expands every section from the surface bar", async () => {
+    const user = userEvent.setup();
+    const bar = () => screen.getByTestId("session-surface-bar");
+
+    render(panel(twoTextFiles()));
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+
+    // The layout control and the fold toggle both live in the bar's actions.
+    expect(within(bar()).getByText("Unified")).toBeInTheDocument();
+    await user.click(within(bar()).getByRole("button", { name: "Collapse all" }));
+    expect(screen.queryByTestId("session-diff-viewer")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Binary file changed. A textual diff is not available."),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(bar()).getByRole("button", { name: "Expand all" }));
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+    expect(within(bar()).getByRole("button", { name: "Collapse all" })).toBeInTheDocument();
+  });
+
+  it("keeps fold state across a refresh of the same Session and resets it for another", async () => {
+    const user = userEvent.setup();
+
+    const view = render(panel(twoTextFiles()));
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
+    await user.click(within(sections()[0]!).getByRole("button", { expanded: true }));
+    expect(screen.getAllByTestId("session-diff-viewer")).toHaveLength(1);
+
+    // A refresh yields a new object with the same files: the fold survives.
+    view.rerender(panel({ ...twoTextFiles(), generatedAt: "2026-07-19T00:02:00.000Z" }));
+    expect(screen.getAllByTestId("session-diff-viewer")).toHaveLength(1);
+
+    view.rerender(
+      panel({ ...twoTextFiles(), sessionId: "session-other" }, { sessionId: "session-other" }),
+    );
+    expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
   });
 
   it("shows clean and non-Git states without treating them as failures", async () => {
