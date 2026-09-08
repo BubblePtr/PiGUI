@@ -23,6 +23,10 @@ import {
   createNodeSessionChangesReader,
   type SessionChangesReader,
 } from "./workspace/session-changes";
+import {
+  createNodeSessionFilesReader,
+  type SessionFilesReader,
+} from "./workspace/session-files";
 import { createNodePiRpcProcess } from "./drivers/pi-rpc";
 import { createPiSdkDriver } from "./drivers/pi-sdk-driver";
 import {
@@ -94,6 +98,7 @@ export type BackendServiceOptions = {
   runtimeJournal?: SessionEventJournal;
   sessionProjectionStore?: SessionProjectionStore;
   sessionChangesReader?: SessionChangesReader;
+  sessionFilesReader?: SessionFilesReader;
   piSessionListAll?: () => Promise<PiSessionListItem[]>;
   environmentPreflight?: EnvironmentPreflightReader;
   providerAuth?: ProviderAuthService;
@@ -118,6 +123,8 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
     });
   const sessionChangesReader =
     options.sessionChangesReader ?? createNodeSessionChangesReader();
+  const sessionFilesReader =
+    options.sessionFilesReader ?? createNodeSessionFilesReader();
   const environmentPreflight =
     options.environmentPreflight ??
     createEnvironmentPreflightReader({
@@ -200,6 +207,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             piRpc,
             sessionProjectionStore,
             sessionChangesReader,
+            sessionFilesReader,
             environmentPreflight,
             providerAuth,
             piSessionListAll,
@@ -235,6 +243,7 @@ async function dispatchRequest(input: {
   piRpc: PiRpcTransport;
   sessionProjectionStore: SessionProjectionStore;
   sessionChangesReader: SessionChangesReader;
+  sessionFilesReader: SessionFilesReader;
   environmentPreflight: EnvironmentPreflightReader;
   providerAuth: ProviderAuthService;
   piSessionListAll: () => Promise<PiSessionListItem[]>;
@@ -288,6 +297,20 @@ async function dispatchRequest(input: {
         branch: requiredString(params.branch, "branch"),
         store: input.sessionProjectionStore,
         reader: input.sessionChangesReader,
+      });
+    case "list_session_directory":
+      return listSessionDirectory({
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        path: optionalString(params.path) ?? "",
+        store: input.sessionProjectionStore,
+        reader: input.sessionFilesReader,
+      });
+    case "read_session_file":
+      return readSessionFile({
+        sessionId: requiredString(params.sessionId, "sessionId"),
+        path: requiredString(params.path, "path"),
+        store: input.sessionProjectionStore,
+        reader: input.sessionFilesReader,
       });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
@@ -416,6 +439,30 @@ async function checkoutSessionBranch(input: {
     ...(await resolveSessionCheckoutRoots(input)),
     branch: input.branch,
   });
+}
+
+// Both Files RPCs take the root from the stored projection only: the renderer
+// names a session and a relative path, never a filesystem root.
+async function listSessionDirectory(input: {
+  sessionId: string;
+  path: string;
+  store: SessionProjectionStore;
+  reader: SessionFilesReader;
+}) {
+  const { sessionId, diffRoot } = await resolveSessionCheckoutRoots(input);
+
+  return input.reader.listDirectory({ sessionId, diffRoot, path: input.path });
+}
+
+async function readSessionFile(input: {
+  sessionId: string;
+  path: string;
+  store: SessionProjectionStore;
+  reader: SessionFilesReader;
+}) {
+  const { sessionId, diffRoot } = await resolveSessionCheckoutRoots(input);
+
+  return input.reader.readFile({ sessionId, diffRoot, path: input.path });
 }
 
 async function openTerminal(input: {

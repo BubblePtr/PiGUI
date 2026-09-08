@@ -843,3 +843,12 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
 * {
   box-sizing: border-box;
 }
+
+/* Changes surface (ADR-0035): Astryx's Collapsible wraps the trigger label in
+   an inline span with no min-width, so a flex row inside it cannot shrink and
+   the +A -D tail gets clipped at narrow dock widths. Let the slot shrink; the
+   path inside yields first because it is the only flex-1 child. */
+.pigui-change-section > .astryx-collapsible-trigger > span:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}

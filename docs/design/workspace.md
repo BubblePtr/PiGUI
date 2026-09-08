@@ -2,7 +2,7 @@
 
 ## Session Dock（会话页右栏）
 
-`SessionDock` 是 surface 宿主：面板 + 贴右缘的 44px 图标 rail。`activeSurfaceId: "changes" | "terminal" | "browser"`，联合定义在 `session-dock/surface-registry.ts:11`，就这三个。
+`SessionDock` 是 surface 宿主：面板 + 贴右缘的 44px 图标 rail。`activeSurfaceId: "changes" | "files" | "terminal" | "browser"`，联合定义在 `session-dock/surface-registry.ts:12`，就这四个。
 
 新增一个 surface 的三步：`surface-registry.ts` 加元数据（id / title / icon / hint / `multiInstance` / `flushContent`）→ 页面注入内容 → 页面给 `badges` 供数（干净树、非 Git、加载中、读取失败都传 `undefined`，不传 `"0"`）。注册表只存元数据，不依赖 Session 状态。
 
@@ -47,6 +47,10 @@
 ## TerminalView
 
 xterm.js 宿主，对外只有 `ref.write()` / `ref.focus()` 和 `onData` / `onResize`，不含任何 RPC。零实例时页面层用 `EmptyState` + 「New terminal」按钮，不补建、不自建空态。ANSI 16 色是刻意保留的惯例终端色（diff 红、测试绿），不是 UI chrome，是仓库里少数合法 hex。
+
+## Files（SessionFilesPanel）
+
+只读的 checkout 浏览器（ADR-0007 解冻，仅到「读」为止）：第一行 `SessionSurfaceBar` 左槽是选中文件路径（未选中时是 diff root 的目录名），右槽一个刷新 `IconButton`；下方与 Changes 同款两栏 `md:grid-cols-[14rem_minmax(0,1fr)]`，左树右预览。树用 Astryx `TreeList`（`density="compact"`、`variant="noGuides"`），目录懒加载：未加载的目录挂一个禁用的「Loading…」占位子行，占位行被渲染即触发列目录，失败显示带 `role="alert"` 的 danger 禁用行，折叠再展开会重试；空目录保留展开器并显示禁用的「Empty directory」子行；列表被截断时末尾追加禁用的「Listing truncated」行。首次加载根列表时显示带 `role="status"` 的骨架屏；刷新时保留树实例与展开状态，工具条图标旋转，已展开目录会重新列出内容。文件行 `FileIcon`、目录行 `FolderClosed`，symlink / 其他类型渲染但禁用。预览走 `SessionFileViewer`（`@pierre/diffs` 的 `File`，与 diff viewer 同一套 options），二进制 / 空文件 / 截断各有 notice，读取失败给 alert + Retry。不编辑、不外部打开、不新增 shared/ui 组件。
 
 ## 轨迹（Trajectory Cockpit）
 

@@ -1,5 +1,7 @@
 # 首版暂不内置 Terminal 和 File Tree
 
+> **修订（2026-09-08）**：Terminal 已由 PR #147 解冻，只读的 Files surface 由 ADR-0035 解冻。本文的 Session-scoped 约束仍然有效；编辑器级交互仍不在范围内。
+
 PiGUI 首版不做完整 terminal emulator，也不做通用文件树。Live Session View 聚焦 Pi Chat、runtime event stream、运行状态、diff 摘要和结构化动作。真正交互式 shell 暂时交给 Pi Runtime 或外部终端；文件浏览和编辑暂时交给用户已有编辑器。
 
 ## Consequences

@@ -121,7 +121,7 @@ Project 下 Session 列表的默认排序：active run 在前，其次是有 Unr
 _Avoid_: Status taxonomy ordering, alphabetical default, draft ordering
 
 **Live Session View**:
-PiGUI 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trajectory 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Dock 的三栏结构（首版称 Structured Action Surface）；Dock 里的 Terminal / Browser Surface 已由 ADR-0028 / 0029 解冻，文件树仍不包含。
+PiGUI 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trajectory 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Dock 的三栏结构（首版称 Structured Action Surface）；Dock 里的 Terminal / Browser Surface 已由 ADR-0028 / 0029 解冻，只读的 Files Surface 由 ADR-0035 解冻；编辑仍不包含。
 _Avoid_: Trace replay, analyze page, log viewer, IDE
 
 **Steer**:
@@ -233,7 +233,7 @@ Dock 里的一个面板，绑定当前 Session（它的 Execution Checkout、she
 _Avoid_: Panel, tab, view, plugin, widget
 
 **Built-in Surface**:
-PiGUI 自带的 Surface：Changes、Terminal、Browser。它们与将来扩展注册的 Surface 走同一套注册表与 Rail，只是 provider 为 `builtin`。
+PiGUI 自带的 Surface：Changes、Files、Terminal、Browser。它们与将来扩展注册的 Surface 走同一套注册表与 Rail，只是 provider 为 `builtin`。Files 是只读的 checkout 目录树加文件预览（ADR-0035）。
 _Avoid_: Core panel, native panel, first-party plugin
 
 **Session Projection**:

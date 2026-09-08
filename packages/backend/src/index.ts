@@ -68,3 +68,11 @@ export {
   type CheckoutSessionBranchInput,
   type SessionChangesReader,
 } from "./workspace/session-changes";
+
+export {
+  createNodeSessionFilesReader,
+  type ListSessionDirectoryInput,
+  type ReadSessionFileInput,
+  type SessionFilesReader,
+  type SessionFilesReaderOptions,
+} from "./workspace/session-files";
