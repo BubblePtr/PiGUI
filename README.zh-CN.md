@@ -2,57 +2,69 @@
   <img src="build/icon-512.png" alt="" width="128" height="128">
 </p>
 <h1 align="center">Pace</h1>
-<p align="center"><a href="https://pi.dev">Pi coding agent</a> 的 GUI。把 Pi 的扩展性搬到屏幕上。</p>
+<p align="center"><a href="https://pi.dev">Pi coding agent</a> 的桌面 GUI。把 Pi 的会话、思维链、费用和扩展面板放进一个窗口。</p>
 
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
 <p align="center">
   <a href="https://github.com/BubblePtr/pace/releases/latest"><img src="https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag" alt="Release"></a>
   <a href="https://github.com/BubblePtr/pace/releases/latest"><img src="https://img.shields.io/badge/platform-macOS%20arm64-black" alt="Platform: macOS arm64"></a>
-  <a href="https://github.com/BubblePtr/pace/actions"><img src="https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release" alt="Release workflow"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/BubblePtr/pace" alt="License: Apache-2.0"></a>
 </p>
 
-Pi 是一个终端里的 coding agent，带有类似 VS Code 的扩展体系：Package 贡献 tool、command、skill、prompt 和 theme，我们希望将这种灵活性也拓展到桌面软件上，可以让用户定制专属于自己的桌面 Agent。Pace 这个名字代表的是 move at your own pace，我们希望在 AI 时代个人可以对 Agent 的使用拥有完全自主的权利，定制和控制好自己的节奏。
+Pace 面向已经在用 Pi 的开发者。Pi 是运行在终端里的 coding agent，带有类似 VS Code 的扩展体系：Package 提供 tool、command、skill、prompt 和 theme。Pace 把这套扩展性搬到桌面端，让你在图形界面里观察、驾驭和定制自己的 Agent。名字取自 *move at your own pace*：在 AI 时代，开发者应当对 Agent 保有完全的自主权，按自己的节奏开发与协作。
 
-Pace 不是 Pi 的分叉，也不是第二个运行时。Pi 始终是唯一的引擎和会话真相的唯一所有者；Pace 通过稳定的 Runtime Gateway 观察并驾驭它。
+> [!NOTE]
+> Pace 处于 `0.y.z` 早期阶段，只支持最新的 GitHub Release。journal 与 projection 的存储格式可能在小版本间变化，升级由应用内更新器完成；Pi 的会话数据不受影响（见[本地数据与恢复](#本地数据与恢复)）。
 
-## Pace 是什么
+<!-- TODO(screenshot): 主界面截图，需同时看到 Live Chat、Trajectory 与费用统计。放到 docs/assets/readme/ 后替换本注释。 -->
 
-- **真相属于 Pi。** Pi 的会话日志（`~/.pi`）是上下文真相：恢复会话时，Pi 自己从这份日志重建 LLM 上下文。Pace 从不拼装 prompt，也从不改写这份日志。Pace 持久化的一切都是 Pi 所发事件的投影，存放在自己的目录里。
-- **事件日志就是界面。** 每个 Pi 事件都被规范化为 `AgentRuntimeEvent`，盖上序号和确定性的 run / turn / message id，写入 journal。实时时间线、冷回放、成本与 token 统计都从这份 journal 推导，从不依赖渲染层状态。
-- **Harness 的行为来自扩展，而不是源码。** GUI 只内置少量 Surface，但所有路由接缝（事件的 `surface` 戳、Dock 的 Surface 注册表、Runtime Gateway 的 capability 模型）都为一件事设计：让一个 Pi 扩展不必等 Pace 发版就能贡献视图、控件或工作流可视化。这和 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的"一切皆插件"是同一个赌注；他们的插件模型跑通之后，Pace 会借鉴。
-- **仪表盘永远不能拖慢引擎。** 后端运行在 Electron 的 `utilityProcess` 里：重解析和驱动崩溃都冻不住窗口，后端协议与传输无关，将来可以原样放到远程 socket 后面。
+## 亮点
 
-今天它带来的直接收益，是几秒钟内回答三个终端藏起来的问题：这次会话花了多少钱，哪一步最贵，Pi 当时到底在想什么。
+- **会话费用与 Token 真相**：每一轮花了多少钱、用了多少 Token、哪一步最贵，直接显示在时间线上，不用事后翻日志。
+- **Trajectory 执行轨迹**：思维链和工具调用按时间展开，能看到 Agent 每一步在想什么、做了什么。
+- **历史回放**：任何一个 Pi 会话都能冷回放，时间线、费用、工具调用与实时观看时一致。
+- **Session Dock 面板**：代码变更（Changes）、文件（Files）、终端（Terminal）、内嵌浏览器（Browser）挂在同一个侧边栏，Pi 扩展可以贡献自己的面板。
+- **Pi 仍是唯一引擎**：Pace 不是 Pi 的 fork，也不是第二套运行时。会话真相始终在 Pi 的本地日志里，删掉 Pace 不会丢任何会话。
 
-## 获取 Pace
+## 快速开始
 
-**发布版。** 已签名、已公证的 macOS Apple Silicon 构建发布在 [GitHub Releases](https://github.com/BubblePtr/pace/releases)。下载 DMG 拖入 Applications，之后由应用内更新器接管（ADR-0033）。Linux 的 AppImage 与 deb 在打包配置里已存在，但尚未作为发布版提供；不支持 Windows。
+### 安装
 
-**要求。** macOS 12 及以上。Pi 随应用一起打包（ADR-0031），不需要单独安装 `pi`；若本机已有，Pace 与其共享 `~/.pi/agent` 下的数据、认证和扩展。
+**预编译安装包（推荐）。** 已签名、已公证的 macOS Apple Silicon 构建发布在 [GitHub Releases](https://github.com/BubblePtr/pace/releases)。下载 DMG 拖入 Applications 即可，后续更新由应用内更新器接管（ADR-0033）。
 
-**首次运行。** Pace 会先打开环境预检（ADR-0025），检查内置的 Pi 运行时、数据目录和 provider 认证，并明确显示会写到哪里。Pace 打开期间在 Pi TUI 里完成的登录无需重启即可生效。
+**从源码运行。** 需要 Bun 1.3.x 与 Node 24：
 
-## 从源码构建
-
-```sh
+```bash
 git clone https://github.com/BubblePtr/pace.git pace
 cd pace
 bun install
 bun run dev
 ```
 
-工具链：Bun 1.3.x（workspace 与脚本）、Node 24（Electron 运行时与 vitest）、Electron 42。`bun run dev` 启动带热更新的 electron-vite。开发实例写入 `~/.pace-dev` 和带 `-dev` 后缀的 userData profile，不会碰已安装版本的数据；用 Pace 开发 Pace 的隔离规则见 [`docs/dogfooding.md`](docs/dogfooding.md)。
+**运行要求。** macOS 12 及以上，Apple Silicon。Pi 运行时已随应用内置（ADR-0031），无需单独安装 `pi`；若本机已装 Pi，Pace 会共享 `~/.pi/agent` 下的会话、认证与扩展。Linux 的 AppImage 与 deb 打包脚本已就绪但尚未正式发布；暂不支持 Windows。
 
-打包：
+### 第一次成功
 
-```sh
-bun run package:mac:unsigned   # 未签名 .app + zip，本地测试用
-bun run dist:mac               # 签名 + 公证的 DMG（需要 Apple 凭据）
-bun run dist:linux             # AppImage + deb（x64）
-```
+1. 首次启动进入环境预检（ADR-0025）：检查内置 Pi 运行时、数据目录和模型提供商的认证状态，并明确显示数据会写到哪里。若还没登录任何提供商，在终端里完成 `pi` 的登录即可，Pace 运行期间会实时识别，无需重启。
+2. 预检通过后，选择一个项目目录，新建会话。
+3. 在输入框发出第一个 prompt，比如让它解释这个仓库的结构。
+4. 看到的结果：Live Chat 里是对话；Trajectory 里是思维链和每一次工具调用；状态栏里是这一轮的 Token 与费用。这三样东西，就是终端里最难看到的部分。
 
-完整的签名、公证与发布流水线见 [`docs/release/macos.md`](docs/release/macos.md)。
+<!-- TODO(screenshot): 第一次成功后的画面，对应上面第 4 步。 -->
+
+## 什么时候不需要 Pace
+
+- 你只在终端里用 Pi，不需要看费用、思维链或工具调用的可视化。
+- 你的机器是 Windows，或 Intel Mac。目前只有 macOS Apple Silicon 构建。
+- 你想要一个不依赖 Pi 的独立 Agent 客户端。Pace 不实现 Agent 循环，所有推理和上下文都由 Pi 完成。
+
+## 设计原则
+
+- **Pace 只是会话事件的投影，不侵入核心上下文。** Pi 的本地会话日志（`~/.pi`）是唯一事实来源，会话恢复时由 Pi 自己从中重建大模型上下文。Pace 不拼装 prompt，也不修改该日志；Pace 持久化的所有数据都是 Pi 事件流的投影，存放在自己的目录里。
+- **界面完全由事件日志驱动。** Pi 的每个原始事件都被标准化为 `AgentRuntimeEvent`，分配单调递增的序号和确定的 run / turn / message ID，写入 journal。实时时间线、历史回放、Token 与费用统计都从 journal 推导，不依赖前端渲染状态。
+- **面板与行为解耦，可由扩展驱动。** Pace 自身只内置少量核心面板（Surface）。事件路由、Session Dock 注册表和 Runtime Gateway 能力模型都按插件化设计：Pi 扩展不必等 Pace 发版就能注册自定义面板、控件或工作流视图。这与 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的"一切皆插件"思路一致；其插件模型成熟后，Pace 会借鉴。
+- **监控与交互不阻塞执行引擎。** 后端运行在 Electron 独立的 `utilityProcess` 中：繁重的日志解析和驱动崩溃都不会让窗口卡顿。后端协议与传输介质解耦，将来可以直接迁到远程 socket 后面。
 
 ## 架构
 
@@ -72,27 +84,31 @@ flowchart LR
   R -->|"commands: prompt / queue / steer / stop"| G
 ```
 
-- **Driver** 包裹 Pi。SDK driver 是主路径；RPC driver 存在但已冻结（[ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)）。
-- **Normalizer** 把原始 Pi 事件转成带 phase、`surface` 和确定性 id 的 `AgentRuntimeEvent`（[ADR-0020](docs/adr/0020-agent-runtime-event-model.md)）。它的 fixture 契约测试就是协议的可执行规格。
-- **Runtime Gateway** 是渲染层唯一对话的 API：命令进，带序号的信封出。它会声明 capability（模型 / thinking 控件、queue、steer），界面跟随运行时实际能做的，而不是假设（[ADR-0024](docs/adr/0024-model-thinking-controls-follow-runtime-capabilities.md)）。
-- **Persistence** 维护 Session Event Journal（只追加、可回放）和 Session Projection（供列表与摘要查询的模型）。
-- **Renderer** 按每个事件的 `surface` 戳把它路由到 Live Chat、Trajectory（思维链与工具调用）、状态或隐藏态，并承载 Session Dock，内置与扩展提供的 Surface 都停在那里（[ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md)）。
+- **Driver（驱动层）**：封装 Pi 运行时。SDK Driver 是默认主路径；RPC Driver 保留但已冻结（[ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)）。
+- **Normalizer（标准化层）**：把 Pi 的原始事件转换为统一的 `AgentRuntimeEvent`，附加阶段（Phase）、目标展示区（Surface）和确定的消息 ID（[ADR-0020](docs/adr/0020-agent-runtime-event-model.md)）。录制的 Fixture 契约测试就是该协议的可执行规范。
+- **Runtime Gateway（运行时网关）**：渲染层唯一对话的协议接口。上行接收控制命令，下行推送带单调递增序号的信封。网关声明当前运行时的能力集（模型切换、思维链控件、排队与引导），界面跟随运行时实际支持的功能，而非静态假设（[ADR-0024](docs/adr/0024-model-thinking-controls-follow-runtime-capabilities.md)）。
+- **Persistence（持久化层）**：维护仅追加、可按时间线回放的 Session Event Journal，以及供列表和统计查询的 Session Projection。
+- **Renderer（渲染层）**：按事件的 `surface` 标签分发到实时对话（Live Chat）、执行轨迹（Trajectory）、状态栏或隐藏态；同时承载 Session Dock 侧边栏，挂载内置与扩展贡献的面板（[ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md)）。
 
-### 一条 prompt 的流转
+<details>
+<summary>一条 prompt 的流转</summary>
 
-1. 渲染层通过 Runtime Gateway client 发出 `send_prompt`（`apps/desktop/src/entities/runtime/runtime-gateway-client.ts`）。
-2. 命令穿过 MessagePort 进入 `utilityProcess`（`apps/desktop/electron/preload.ts`、`backend.ts`）。
-3. `createBackendService()` 把它分发给 Runtime Gateway（`packages/backend/src/service.ts`）。
-4. Gateway 铸造用户消息 id，转发给当前 driver（`packages/backend/src/gateway/runtime-gateway.ts`）。
-5. SDK driver 驱动 Pi 的 `AgentSession`，Pi 跑 agent 循环（`packages/backend/src/drivers/pi-sdk-driver.ts`）。
-6. 原始 Pi 事件被规范化（`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`）。
-7. Gateway 把每个事件装进带序号的信封，记录生命周期边界，更新 projection（`packages/backend/src/persistence/`）。
-8. 事件经同一条传输流回渲染层，按 `surface` 路由（`apps/desktop/src/entities/runtime/`）。
+1. 渲染层通过 Runtime Gateway Client 发起 `send_prompt`（`apps/desktop/src/entities/runtime/runtime-gateway-client.ts`）。
+2. 命令经 MessagePort 跨进程通道转发至后端 `utilityProcess`（`apps/desktop/electron/preload.ts`、`backend.ts`）。
+3. `createBackendService()` 将命令分发至 Runtime Gateway 实例（`packages/backend/src/service.ts`）。
+4. Gateway 分配确定的用户消息 ID，转发给当前激活的 Driver（`packages/backend/src/gateway/runtime-gateway.ts`）。
+5. SDK Driver 调用 Pi 的 `AgentSession`，驱动 Agent 执行循环（`packages/backend/src/drivers/pi-sdk-driver.ts`）。
+6. Pi 的原始事件经 Normalizer 转换为标准格式（`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`）。
+7. Gateway 为每个事件赋予单调递增序号，记录生命周期边界，同步更新投影（`packages/backend/src/persistence/`）。
+8. 事件经同一传输通道推回渲染层，按 `surface` 标签路由到对应界面组件（`apps/desktop/src/entities/runtime/`）。
 
-### 代码在哪里
+</details>
+
+<details>
+<summary>代码在哪里</summary>
 
 | 要改… | 去… |
-|---|---|
+| --- | --- |
 | 界面、页面、交互 | [`apps/desktop/src/`](apps/desktop/src/)，FSD 分层 `pages` → `entities` → `shared`（[ADR-0016](docs/adr/0016-fsd-layers-in-apps-desktop.md)） |
 | 事件语义（什么算 message / run / turn） | [`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`](packages/backend/src/gateway/) 及其 fixture 测试 |
 | Gateway 协议（命令、事件契约、身份） | [`packages/core/src/`](packages/core/src/)：`runtime-gateway.ts`、`agent-runtime-event.ts` |
@@ -101,28 +117,30 @@ flowchart LR
 | 磁盘上的 Session、git worktree、配置清单 | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Electron 外壳与传输 | [`apps/desktop/electron/`](apps/desktop/electron/)：`main.ts`、`preload.ts`、`backend.ts` |
 | Dock Surface（Changes、Files、Terminal、Browser） | [`apps/desktop/src/shared/ui/session-dock/surface-registry.ts`](apps/desktop/src/shared/ui/session-dock/surface-registry.ts) |
-| 设计系统规则 | [`docs/design/`](docs/design/)，自建组件台账在 [`docs/self-built-ui.md`](docs/self-built-ui.md) |
+| 设计系统规则 | [`docs/design/`](docs/design/)，自建组件清单见 [`docs/self-built-ui.md`](docs/self-built-ui.md) |
 | 为什么这样设计 | [`docs/adr/`](docs/adr/)，术语在 [`CONTEXT.md`](CONTEXT.md) |
 
-## 扩展性：GUI 与 Pi 扩展体系的接缝
+</details>
 
-Pi 的层级是 Package → Extension / Skill / Prompt / Theme。Pace 不重述、不扩展这些词，只命名扩展贡献给 GUI 的东西。今天已经存在的接缝：
+## 扩展机制：GUI 与 Pi 扩展生态的融合点
 
-- **每个事件上的 `surface`。** `chat | trace | status | composer | hidden` 决定事件被路由到哪种可视化。今天是闭集，也是为扩展注册的 Surface 预留的插槽。
-- **Dock Surface 注册表。** Session Dock 里的每块面板都是一个 Surface，有 id、标题、图标和提示，集中声明在 `surface-registry.ts`。今天注册表是四个内置项的闭集（Changes、Files、Terminal、Browser）；ADR-0032 预留了 `provider` 字段（`builtin` 或 Pi 的 extension id），扩展贡献的 Surface 会落到同一个注册表和 Rail，而不是另起一套机制。
-- **Runtime Gateway capability。** 界面已经会跟随加载的运行时声明的能力。Pi SDK 的 Extension UI request 是 Gateway 协议里已登记的 capability 缺口（[ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)），补上它是这条线的下一步。
+Pi 的扩展生态基于 `Package → Extension / Skill / Prompt / Theme` 体系。Pace 直接复用这一模型，只定义扩展能为桌面 GUI 贡献哪些视觉与交互能力。当前已落地的扩展点：
 
-这条线上的路线图，按顺序：
+- **事件级别的 `surface` 路由标签**：事件携带的 `chat | trace | status | composer | hidden` 标签决定它在界面上如何呈现。目前是固定枚举集合，同时也是未来扩展面板的标准挂载插槽。
+- **Session Dock 面板注册表**：侧边栏里的每块面板都是一个 Surface，有唯一 ID、标题、图标与提示，集中声明在 `surface-registry.ts`。当前有四个内置面板（Changes、Files、Terminal、Browser）。按 [ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md) 的设计，注册表预留了 `provider` 字段（`builtin` 或具体的 Pi 扩展 ID），外部扩展贡献的面板会挂到同一侧边栏，不另起机制。
+- **Runtime Gateway 能力模型**：界面自适应当前运行时声明的能力。针对 Pi SDK 的"扩展界面交互请求（Extension UI request）"，网关已在协议层预留位置（[ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)），后续逐步补齐。
 
-1. **扩展 Surface**：让 Pi 扩展注册一个由同一条事件流水线喂数据的 Dock Surface 的协议。
-2. **动态工作流可视化**：当 Pi 执行多步骤或多 agent 工作时，渲染为实时可检视的视图，而不是交错的日志。
-3. **通过扩展调优 Harness**：把 Pace 中影响 agent 行为的部件（composer 注入、权限面、run 控件）暴露为扩展点，让调优 harness 变成安装一个 package，而不是给这个仓库打补丁。
+后续路线，按优先级：
 
-与之并行的是终端承载不了的 GUI 原生能力：带 DOM 批注的内嵌浏览器（[ADR-0029](docs/adr/0029-embedded-browser-surface.md)）是选择 Electron 外壳的承重理由。
+1. **自定义面板协议（Extension Surface）**：标准化协议，让 Pi 扩展注册自定义面板，直接消费同一条事件流。
+2. **多 Agent 动态工作流可视化**：Pi 执行多步骤任务或多 Agent 协作时，渲染为执行链路拓扑图，而非交错的文本日志。
+3. **插件化运行时调优**：把 Pace 中影响 Agent 行为的控制项（提示词注入、权限管控、执行中断策略等）开放为扩展点，装一个 Package 就能定制 Agent 行为，不用改客户端仓库。
+
+与此并行的是终端承载不了的 GUI 原生能力：具备 DOM 元素级批注与交互的内嵌浏览器（[ADR-0029](docs/adr/0029-embedded-browser-surface.md)），这也是 Pace 选择 Electron 的核心原因。
 
 ## 仓库布局
 
-```
+```plaintext
 apps/desktop/        Electron 应用：electron/（main、preload、后端宿主）+ src/（React，FSD）
 apps/server/         占位：WebSocket 后面的无头后端（ADR-0015）
 apps/web/            占位：apps/server 的浏览器客户端
@@ -145,11 +163,13 @@ CONTEXT.md           领域术语表；每个界面区域和概念在这里都�
 | Session journal、projection、预检状态 | `~/.pace` | `~/.pace-dev` | Pace。可用 `PACE_DATA_DIR` 覆盖（`PIGUI_DATA_DIR` 为已弃用别名）。 |
 | 渲染层偏好（项目注册表、草稿、模型选择）、Chromium profile | Electron userData | userData `-dev` | Pace。 |
 
-删掉 Pace 的数据目录会丢失界面时间线和成本历史，但永远不会丢 Pi 会话：Pi 仍能从自己的日志恢复。任何改动 journal 或 projection 格式的变更都必须能读旧格式或附带迁移（[`docs/dogfooding.md`](docs/dogfooding.md)）。
+删除 Pace 的本地数据目录只会丢失界面历史与费用统计，不会损坏 Pi 的会话数据，Pi 随时可从自己的会话日志重建状态。任何调整 journal 或 projection 存储格式的变更，都必须能读旧格式或附带迁移脚本（见 [`docs/dogfooding.md`](docs/dogfooding.md)）。
 
 ## 开发与验证
 
-```sh
+工具链：Bun 1.3.x（workspace 与脚本）、Node 24（Electron 运行时与 vitest）、Electron 42。`bun run dev` 启动带热更新的 electron-vite。开发实例写入 `~/.pace-dev` 和带 `-dev` 后缀的 userData profile，不会碰已安装版本的数据；用 Pace 开发 Pace 的隔离规则见 [`docs/dogfooding.md`](docs/dogfooding.md)。
+
+```bash
 bun run typecheck        # 整个 workspace 的 tsc --noEmit
 bun run test             # vitest：单元 + 契约测试（normalizer fixture、gateway、persistence）
 bun run test:e2e         # 针对 dev Electron 构建的 Playwright 冒烟测试
@@ -159,12 +179,23 @@ bun run build            # typecheck + electron-vite build
 
 开 PR 前 `typecheck`、`test`、`build` 必须全绿；手动的 `Validate macOS ARM64` workflow 按需执行打包和打包版 E2E。
 
+打包：
+
+```bash
+bun run package:mac:unsigned   # 未签名 .app + zip，本地测试用
+bun run dist:mac               # 签名 + 公证的 DMG（需要 Apple 凭据）
+bun run dist:linux             # AppImage + deb（x64）
+```
+
+完整的签名、公证与发布流水线见 [`docs/release/macos.md`](docs/release/macos.md)。
+
 做界面时有两个 dev-only 工具：
 
-- `/design` 是设计系统的活注册表；`shared/ui/` 里每个组件都在这里展示全部变体与状态。
-- **UI intent picker**（浮动十字准星，或 `Cmd/Ctrl+Shift+X`）对任意元素复制它的 CONTEXT.md 词条、带 file:line 的组件栈和最近的 `data-testid`（[`docs/ui-intent-picker.md`](docs/ui-intent-picker.md)）。
+- 路由 `/design`：设计系统的实时组件展板，`shared/ui/` 下每个组件的全部变体与状态都在这里。
+- **UI Intent Picker**：按 `Cmd/Ctrl+Shift+X` 激活准星，点击任意元素即可复制它对应的 CONTEXT.md 术语、源码组件调用栈（含文件与行号）和最近的 `data-testid`（见 [`docs/ui-intent-picker.md`](docs/ui-intent-picker.md)）。
 
-不要在 Bun 下运行终端 pty driver：生产环境后端跑在 Node 上，Bun 的 Node-API 会弄坏 `node-pty`。
+> [!WARNING]
+> 不要在 Bun 下直接调试终端 PTY 驱动。生产环境后端跑在 Node 上，Bun 当前的 Node-API 兼容层会让 `node-pty` 崩溃。
 
 ## 文档
 
@@ -175,13 +206,19 @@ bun run build            # typecheck + electron-vite build
 - [`docs/agents/`](docs/agents/)：issue、triage 标签和领域文档面向人类与 agent 贡献者的组织方式。
 - [`.scratch/<feature>/PRD.md`](.scratch/)：某个时间点的产品需求记录。
 
+## 支持与安全
+
+- **Bug 与功能请求**：提交到 [GitHub Issues](https://github.com/BubblePtr/pace/issues)。
+- **安全漏洞**：不要开公开 issue。按 [SECURITY.md](SECURITY.md) 的指引走 GitHub 私密安全通报，只支持最新 Release。
+- **版本变化**：每个版本的更新说明在 [GitHub Releases](https://github.com/BubblePtr/pace/releases)。
+
 ## 参与贡献
 
-- **Issue** 在 GitHub Issues。标签沿用五角色 triage 词汇（`needs-triage`、`needs-info`、`ready-for-agent`、`ready-for-human`、`wontfix`）；标为 `ready-for-human` 的都可以领。
-- **分支与 PR。** 在 `feat/`、`fix/`、`chore/` 分支工作；`main` 是唯一长期分支，发布用 tag。有依赖的 PR 用 `gh stack`。提交信息遵循 Conventional Commits。
-- **决策。** 改动架构边界或产品术语的变更要附 ADR；涉及词汇的，在同一 PR 里更新 CONTEXT.md。
-- **界面。** 可复用组件放 `apps/desktop/src/shared/ui/`，并在同一 PR 里登记到 `/design`。token 走语义桥接层，不写死。
-- **适合的第一个 PR** 是给事件 normalizer 加一条新的 fixture 流：录一段 Pi 会话，加 fixture，断言规范化后的事件。它能走通整条协议而不碰界面。
+- **Issue 协作**：任务与缺陷统一在 GitHub Issues 中跟进。标签采用五角色 triage 流转（`needs-triage`、`needs-info`、`ready-for-agent`、`ready-for-human`、`wontfix`）；标为 `ready-for-human` 的任务都可以认领。
+- **分支与提交**：在 `feat/`、`fix/`、`chore/` 分支开发；`main` 是唯一长期分支，发布用 git tag。有依赖关系的 PR 用 `gh stack`。提交信息遵循 Conventional Commits。
+- **架构决策记录**：改动架构边界或关键业务术语的变更要附 ADR；涉及概念定义的，在同一 PR 里同步更新 `CONTEXT.md`。
+- **界面组件**：可复用组件放 `apps/desktop/src/shared/ui/`，并在同一 PR 里登记到 `/design` 展板。样式 token 走语义化桥接层，不硬编码。
+- **适合的第一个 PR**：给事件 Normalizer 补一条 Fixture 测试：录一段 Pi 的原生会话日志，新增测试用例并断言转换后的标准事件。不涉及前端，能快速熟悉核心协议。
 
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)、[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) 和 [SECURITY.md](SECURITY.md)。[`AGENTS.md`](AGENTS.md) 是完整的贡献规则，写给人类和 coding agent 共同遵守。
 

@@ -2,7 +2,7 @@
   <img src="build/icon-512.png" alt="" width="128" height="128">
 </p>
 <h1 align="center">Pace</h1>
-<p align="center">The GUI for the <a href="https://pi.dev">Pi coding agent</a>. Pi's extensibility, on a screen.</p>
+<p align="center">The desktop GUI for the <a href="https://pi.dev">Pi coding agent</a>. Pi's design and flexibility, carried to the desktop.</p>
 
 <p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
@@ -12,41 +12,44 @@
   <a href="https://github.com/BubblePtr/pace/actions"><img src="https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release" alt="Release workflow"></a>
 </p>
 
-Pi is a terminal coding agent with a VS Code-like extension system: packages contribute tools, commands, skills, prompts and themes. We want to bring that same flexibility to the desktop, so that everyone can shape a desktop agent that is truly their own. The name stands for *move at your own pace*: in the age of AI, individuals should keep full ownership of how they use an agent, customizing it and setting their own rhythm.
+Pi is a coding agent that runs in the terminal, with a highly extensible system in the spirit of VS Code: packages contribute tools, commands, skills, prompts and themes. We want to bring that flexibility to a desktop application, so that developers can freely shape a desktop agent that is truly their own. The name comes from *move at your own pace*: in the age of AI, developers should keep full ownership of their agent, and set their own rhythm for how they build and collaborate.
 
-Pace is not a fork of Pi and not a second runtime. Pi stays the only engine and the only owner of session truth; Pace observes and steers it through a stable Runtime Gateway.
+Pace is not a fork of Pi, and it is not a second, independent runtime. Pi remains the true host of every session and its context; Pi is always the only underlying engine and the single source of truth. Pace observes Pi, interacts with it and presents its state through a stable, standardized Runtime Gateway.
 
 ## What Pace is
 
-- **Pi owns the truth.** Pi's session log (`~/.pi`) is the context truth: on resume, Pi rebuilds the LLM context from it by itself. Pace never assembles a prompt and never edits that log. Everything Pace persists is a projection of what Pi emitted, kept in its own directory.
-- **The event journal is the UI.** Every Pi event is normalized into an `AgentRuntimeEvent`, stamped with a sequence number and deterministic run / turn / message ids, and journaled. The live timeline, cold replay, cost and token accounting are all derived from that journal, never from renderer state.
-- **Harness behavior comes from extensions, not from source.** The GUI has a small set of built-in surfaces, but every routing seam (event `surface` stamps, the Dock surface registry, the Runtime Gateway capability model) is designed so that a Pi extension can contribute a view, a control or a workflow visualization without a Pace release. This is the same bet [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) makes with "everything is a plugin"; where their plugin model proves out, Pace intends to borrow from it.
-- **The dashboard never stalls the engine.** The backend runs in an Electron `utilityProcess`. Heavy log parsing and driver crashes cannot freeze the window, and the backend protocol is transport-agnostic so it can later sit behind a remote socket untouched.
+- **Pace is a projection of session events; it never intrudes on the core context.** Pi's local session log (`~/.pi`) is the single source of truth, and Pi is always the real host of the session and its context. On resume, Pi rebuilds the LLM context from that log on its own. Pace never assembles a prompt and never modifies that log. Everything Pace persists is only a projection of Pi's event stream, kept in Pace's own directory.
 
-What that buys you today, in seconds instead of grep: how much a session cost, which step was expensive, and what Pi was actually thinking.
+- **The UI is driven entirely by the event journal.** Every raw event Pi emits is normalized into an `AgentRuntimeEvent`, assigned a monotonically increasing sequence number and deterministic run / turn / message ids, and persisted to a journal. The live timeline, history replay, and token and cost accounting are all derived from that journal, never from volatile renderer state.
+
+- **Panels and behavior are decoupled from the client, and both can come from extensions.** The Pace client itself ships only a small set of core panels (Surfaces). The underlying event routing, the Session Dock registry and the Runtime Gateway capability model all follow a plugin-oriented design: a Pi extension can register its own panels, controls or workflow visualizations without waiting for a Pace release. This follows the same "everything is a plugin" idea as [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness); as their plugin model matures, Pace intends to borrow from it heavily.
+
+- **Monitoring and interaction never block the engine.** The backend runs in a separate Electron `utilityProcess`: heavy log parsing and driver crashes cannot make the GUI window stutter or hang. The backend protocol is decoupled from any specific transport, so it can later move behind a remote socket service without a rewrite.
+
+In day-to-day use, Pace surfaces what is hard to see in a terminal: what a session cost in tokens and money, which step was the most expensive, and what the agent was actually thinking at each step.
 
 ## Get Pace
 
-**Releases.** Signed and notarized macOS Apple Silicon builds are published on [GitHub Releases](https://github.com/BubblePtr/pace/releases). Download the DMG, drag to Applications, and let the in-app updater handle the rest (ADR-0033). Linux AppImage and deb targets exist in the packaging config but are not yet shipped as releases; Windows is not targeted.
+**Prebuilt installers.** Signed and notarized macOS Apple Silicon builds are published on [GitHub Releases](https://github.com/BubblePtr/pace/releases). Download the DMG, drag it into Applications, and the in-app updater takes over from there (ADR-0033). Linux AppImage and deb packaging scripts are in place but not yet shipped as official releases; Windows is not supported yet.
 
-**Requirements.** macOS 12 or later. Pi itself is bundled with the app (ADR-0031); you do not need a separate `pi` install, but if you have one, Pace shares its `~/.pi/agent` data, auth and extensions with it.
+**Requirements.** macOS 12 or later. The Pi runtime is bundled with the app (ADR-0031), so no separate `pi` install is needed. If Pi is already installed on the machine, Pace automatically shares the session data, auth configuration and extensions under `~/.pi/agent`.
 
-**First run.** Pace opens an environment preflight (ADR-0025) that checks the bundled Pi runtime, the data directory and provider auth, and shows exactly where it will write. Provider logins done in the Pi TUI while Pace is open show up without a restart.
+**First run.** On first launch, Pace opens an environment preflight (ADR-0025) that checks the bundled Pi runtime, the local data directory and the auth state of each model provider, and shows exactly where files will be written. Provider logins completed in the terminal or the Pi UI while Pace is running take effect immediately, with no restart.
 
 ## Build from source
 
-```sh
+```bash
 git clone https://github.com/BubblePtr/pace.git pace
 cd pace
 bun install
 bun run dev
 ```
 
-Toolchain: Bun 1.3.x (workspaces, scripts), Node 24 (Electron's runtime and vitest), Electron 42. `bun run dev` starts electron-vite with hot reload. The dev instance writes to `~/.pace-dev` and a `-dev` suffixed userData profile, so it never touches the data of an installed copy; see [`docs/dogfooding.md`](docs/dogfooding.md) for the isolation rules that let you develop Pace with Pace.
+Toolchain: Bun 1.3.x (workspaces and scripts), Node 24 (Electron's runtime and vitest), Electron 42. `bun run dev` starts electron-vite with hot reload. The dev instance writes to `~/.pace-dev` and a `-dev` suffixed userData profile, so it never touches the data of an installed copy; the isolation rules that let you develop Pace with Pace are in [`docs/dogfooding.md`](docs/dogfooding.md).
 
 Packaging:
 
-```sh
+```bash
 bun run package:mac:unsigned   # unsigned .app + zip, for local testing
 bun run dist:mac               # signed + notarized DMG (needs Apple credentials)
 bun run dist:linux             # AppImage + deb (x64)
@@ -56,7 +59,7 @@ The full signing, notarization and release pipeline is documented in [`docs/rele
 
 ## Architecture
 
-The system is one unidirectional event pipeline plus two persistence tracks that must never swap roles ([ADR-0021](docs/adr/0021-session-fork-resume-persistence-layering.md)):
+The whole system is one unidirectional event pipeline plus two persistence tracks whose roles never swap ([ADR-0021](docs/adr/0021-session-fork-resume-persistence-layering.md)):
 
 ```mermaid
 flowchart LR
@@ -72,27 +75,38 @@ flowchart LR
   R -->|"commands: prompt / queue / steer / stop"| G
 ```
 
-- **Drivers** wrap Pi. The SDK driver is the main path; an RPC driver exists and is frozen ([ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)).
-- **Normalizer** turns raw Pi events into `AgentRuntimeEvent`s with a phase, a `surface` and deterministic ids ([ADR-0020](docs/adr/0020-agent-runtime-event-model.md)). Its fixture contract tests are the executable spec of the protocol.
-- **Runtime Gateway** is the only API the renderer talks to: commands in, sequenced envelopes out. It advertises capabilities (model / thinking controls, queue, steer) so the UI follows what the runtime can do rather than assuming ([ADR-0024](docs/adr/0024-model-thinking-controls-follow-runtime-capabilities.md)).
-- **Persistence** keeps the Session Event Journal (append-only, replayable) and the Session Projection (a query model for lists and summaries).
-- **Renderer** routes each event by its `surface` stamp into Live Chat, the Trajectory (chain of thought and tool calls), status, or hidden state, and hosts the Session Dock where built-in and extension-provided surfaces live ([ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md)).
+- **Driver**: wraps the underlying Pi runtime. The SDK driver is the default and main path; the RPC driver is kept but archived and frozen ([ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)).
+
+- **Normalizer**: converts the raw events Pi emits into a unified `AgentRuntimeEvent`, attaching a phase, a target surface and globally deterministic message ids ([ADR-0020](docs/adr/0020-agent-runtime-event-model.md)). The recorded fixture contract tests are the executable spec of this protocol.
+
+- **Runtime Gateway**: the only protocol interface the renderer talks to. Control commands go up; sequenced envelopes with monotonically increasing sequence numbers come down. The gateway dynamically advertises the capabilities of the current runtime (model switching, thinking controls, queueing and steering), so the UI follows what the runtime actually supports instead of static assumptions ([ADR-0024](docs/adr/0024-model-thinking-controls-follow-runtime-capabilities.md)).
+
+- **Persistence**: maintains the Session Event Journal (append-only, replayable as a timeline) and the Session Projection (a query model for fast list rendering and state statistics).
+
+- **Renderer**: routes each event by its `surface` stamp into Live Chat, the Trajectory (chain of thought and tool calls), the status bar or hidden background state. It also hosts the Session Dock sidebar, where both built-in and extension-contributed panels are mounted ([ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md)).
 
 ### How a prompt flows
 
-1. The renderer sends `send_prompt` through the Runtime Gateway client (`apps/desktop/src/entities/runtime/runtime-gateway-client.ts`).
-2. The command crosses the MessagePort into the `utilityProcess` (`apps/desktop/electron/preload.ts`, `backend.ts`).
-3. `createBackendService()` dispatches it to the Runtime Gateway (`packages/backend/src/service.ts`).
-4. The Gateway mints the user message id and forwards to the active driver (`packages/backend/src/gateway/runtime-gateway.ts`).
-5. The SDK driver drives Pi's `AgentSession`; Pi runs the agent loop (`packages/backend/src/drivers/pi-sdk-driver.ts`).
-6. Raw Pi events are normalized (`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`).
-7. The Gateway stamps each event into a sequenced envelope, journals lifecycle boundaries, and updates the projection (`packages/backend/src/persistence/`).
-8. Events stream back over the same transport and the renderer routes them by `surface` (`apps/desktop/src/entities/runtime/`).
+1. The renderer issues a `send_prompt` request through the Runtime Gateway client (`apps/desktop/src/entities/runtime/runtime-gateway-client.ts`).
+
+2. The command crosses the MessagePort channel into the backend `utilityProcess` (`apps/desktop/electron/preload.ts`, `backend.ts`).
+
+3. `createBackendService()` dispatches it to the Runtime Gateway instance (`packages/backend/src/service.ts`).
+
+4. The Gateway assigns a globally deterministic user message id and forwards the command to the active driver (`packages/backend/src/gateway/runtime-gateway.ts`).
+
+5. The SDK driver calls into Pi's `AgentSession`, which runs the core agent loop (`packages/backend/src/drivers/pi-sdk-driver.ts`).
+
+6. The raw events Pi emits are converted into the standard format by the Normalizer (`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`).
+
+7. The Gateway stamps each event with a monotonically increasing sequence number, records lifecycle boundaries and updates the projection (`packages/backend/src/persistence/`).
+
+8. Events stream back over the same transport, and the renderer routes each one to its UI component by its `surface` stamp (`apps/desktop/src/entities/runtime/`).
 
 ### Where things live
 
 | To change… | Go to… |
-|---|---|
+| --- | --- |
 | UI, pages, interactions | [`apps/desktop/src/`](apps/desktop/src/), FSD layers `pages` → `entities` → `shared` ([ADR-0016](docs/adr/0016-fsd-layers-in-apps-desktop.md)) |
 | Event semantics (what counts as a message / run / turn) | [`packages/backend/src/gateway/agent-runtime-event-normalizer.ts`](packages/backend/src/gateway/) and its fixture tests |
 | Gateway protocol (commands, event contract, identity) | [`packages/core/src/`](packages/core/src/): `runtime-gateway.ts`, `agent-runtime-event.ts` |
@@ -101,28 +115,32 @@ flowchart LR
 | Sessions on disk, git worktrees, config inventory | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Electron shell and transport | [`apps/desktop/electron/`](apps/desktop/electron/): `main.ts`, `preload.ts`, `backend.ts` |
 | Dock surfaces (Changes, Files, Terminal, Browser) | [`apps/desktop/src/shared/ui/session-dock/surface-registry.ts`](apps/desktop/src/shared/ui/session-dock/surface-registry.ts) |
-| Design system rules | [`docs/design/`](docs/design/), ledger of self-built pieces in [`docs/self-built-ui.md`](docs/self-built-ui.md) |
+| Design system rules | [`docs/design/`](docs/design/), inventory of self-built components in [`docs/self-built-ui.md`](docs/self-built-ui.md) |
 | Why it is designed this way | [`docs/adr/`](docs/adr/), vocabulary in [`CONTEXT.md`](CONTEXT.md) |
 
-## Extensibility: where the GUI meets Pi's extension system
+## Extensibility: where the GUI meets Pi's extension ecosystem
 
-Pi's layering is Package → Extension / Skill / Prompt / Theme. Pace does not restate or extend those terms; it only names what an extension contributes to the GUI. The seams that exist today:
+Pi's extension ecosystem is built on the `Package → Extension / Skill / Prompt / Theme` model. Pace follows and reuses that model as is; it only defines what an extension can contribute to the desktop GUI in terms of visuals and interaction. The extension points that exist today:
 
-- **`surface` on every event.** `chat | trace | status | composer | hidden` routes an event to its visualization. Today it is a closed set; it is the designed slot for extension-registered surfaces.
-- **Dock surface registry.** Every panel in the Session Dock is a Surface with an id, title, icon and hint, declared in one registry (`surface-registry.ts`). Today the registry is a closed set of four built-ins (Changes, Files, Terminal, Browser); ADR-0032 reserves a `provider` field (`builtin` or a Pi extension id) so extension-contributed surfaces land in the same registry and rail rather than a second mechanism.
-- **Runtime Gateway capabilities.** The UI already adapts to what the loaded runtime advertises. Extension UI requests from Pi's SDK are a tracked capability gap in the Gateway protocol ([ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)); closing it is the next step on this track.
+- **The `surface` routing stamp on every event**: the `chat | trace | status | composer | hidden` stamp an event carries decides how it is presented in the UI. Today it is a fixed, predefined set; it is also the standard mounting slot for future extension panels.
 
-Roadmap on this track, in order:
+- **The Session Dock panel registry**: every interactive panel in the Session Dock sidebar is a Surface with a unique id, title, icon and hint, declared centrally in `surface-registry.ts`. The registry currently holds four built-in panels (Changes, Files, Terminal and the embedded Browser). Per [ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md), the registry already reserves a `provider` field (`builtin` or a specific Pi extension id), so panels contributed by external extensions mount into the same sidebar with no extra mechanism.
 
-1. **Extension surfaces**: a protocol for a Pi extension to register a Dock surface fed by the same event pipeline.
-2. **Dynamic workflow visualization**: when Pi runs multi-step or multi-agent work, render it as a live, inspectable view instead of interleaved logs.
-3. **Harness tuning through extensions**: expose the pieces of Pace that shape the agent's behavior (composer injection, permission surfaces, run controls) as extension points, so tuning the harness is a package you install rather than a patch to this repo.
+- **The Runtime Gateway capability model**: the UI adapts to the features the current runtime advertises. For Pi SDK "extension UI requests", the gateway already reserves a slot at the protocol level ([ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)); support will be filled in step by step.
 
-Alongside, the GUI-native track that a terminal cannot host: the embedded browser with DOM annotation ([ADR-0029](docs/adr/0029-embedded-browser-surface.md)) is the load-bearing reason for the Electron shell.
+The roadmap on this track, in priority order:
+
+1. **Extension Surface protocol**: a standardized protocol that lets a Pi extension register a custom panel fed directly by the same underlying event stream.
+
+2. **Multi-agent dynamic workflow visualization**: when Pi runs multi-step tasks or coordinates multiple agents, render the work as a clear execution topology instead of interleaved text logs.
+
+3. **Pluggable runtime tuning**: open up the controls in Pace that shape agent behavior (prompt injection, permission management, interruption policy and so on) as extension points, so developers can customize agent behavior by installing a package rather than modifying the client repository.
+
+Alongside this, Pace aims to deliver the GUI-native experience a terminal cannot host: an embedded browser with DOM-level annotation and interaction ([ADR-0029](docs/adr/0029-embedded-browser-surface.md)). That is also the core reason Pace is built on Electron.
 
 ## Repository layout
 
-```
+```plaintext
 apps/desktop/        Electron app: electron/ (main, preload, backend host) + src/ (React, FSD)
 apps/server/         placeholder: headless backend behind a WebSocket (ADR-0015)
 apps/web/            placeholder: browser client for apps/server
@@ -145,11 +163,11 @@ Stack: Electron + electron-vite, React 19, TypeScript, TanStack (Query / Router 
 | Session journal, projections, preflight state | `~/.pace` | `~/.pace-dev` | Pace. Override with `PACE_DATA_DIR` (`PIGUI_DATA_DIR` is a deprecated alias). |
 | Renderer preferences (project registry, drafts, model choice), Chromium profile | Electron userData | userData `-dev` | Pace. |
 
-Deleting Pace's data directory loses the UI timeline and cost history but never a Pi session: Pi can still resume from its own log. Any change to the journal or projection format must read the previous format or ship a migration ([`docs/dogfooding.md`](docs/dogfooding.md)).
+Deleting Pace's local data directory only loses the UI history and cost statistics. It never damages the underlying Pi session data: Pi can fully rebuild its state from its own session log at any time. Any later change to the journal or projection storage format must stay backward compatible with the old format or ship a migration script (see [`docs/dogfooding.md`](docs/dogfooding.md)).
 
 ## Development and verification
 
-```sh
+```bash
 bun run typecheck        # tsc --noEmit across the workspace
 bun run test             # vitest: unit + contract tests (normalizer fixtures, gateway, persistence)
 bun run test:e2e         # Playwright smoke tests against the dev Electron build
@@ -159,31 +177,41 @@ bun run build            # typecheck + electron-vite build
 
 Before opening a PR, `typecheck`, `test` and `build` must be green; the manual `Validate macOS ARM64` workflow runs packaging and the packaged-app E2E on demand.
 
-Two dev-only tools help when working on UI:
+Two dev-only tools help when working on the UI locally:
 
-- `/design` is the living registry of the design system; every component in `shared/ui/` is shown there with all its variants and states.
-- The **UI intent picker** (floating crosshair, or `Cmd/Ctrl+Shift+X`) copies, for any element, its CONTEXT.md term, component stack with file:line and nearest `data-testid` ([`docs/ui-intent-picker.md`](docs/ui-intent-picker.md)).
+- The `/design` route: a live gallery of the design system, showing every base component under `shared/ui/` with all of its states and variants.
 
-Never run the terminal pty driver under Bun; the backend runs on Node in production and Bun's Node-API breaks `node-pty`.
+- The **UI Intent Picker**: press `Cmd/Ctrl+Shift+X` to activate a crosshair, then click any element to copy its CONTEXT.md term, its component stack with file and line, and the nearest `data-testid` (see [`docs/ui-intent-picker.md`](docs/ui-intent-picker.md)).
+
+> **Note**: do not debug the terminal PTY driver directly under Bun. The production backend runs on Node, and Bun's current Node-API compatibility layer can crash `node-pty`.
 
 ## Documentation
 
-- [`CONTEXT.md`](CONTEXT.md): domain glossary. Terms here are the names used in code, tests and issues.
+- [`CONTEXT.md`](CONTEXT.md): domain glossary. The terms here are the names used in code, tests and issues.
+
 - [`docs/adr/`](docs/adr/): architecture decision records, from the control-plane pivot ([ADR-0001](docs/adr/0001-agent-workspace-control-plane.md)) to the current surfaces.
+
 - [`docs/design/`](docs/design/): which tokens, which Astryx variants, which self-built components.
+
 - [`docs/release/macos.md`](docs/release/macos.md), [`docs/dogfooding.md`](docs/dogfooding.md): shipping and daily-driving Pace.
+
 - [`docs/agents/`](docs/agents/): how issues, triage labels and domain docs are organized for both human and agent contributors.
+
 - [`.scratch/<feature>/PRD.md`](.scratch/): point-in-time product requirement records.
 
 ## Contributing
 
-- **Issues** live on GitHub Issues. Labels follow a five-role triage vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); pick up anything marked `ready-for-human`.
-- **Branches and PRs.** Work on `feat/`, `fix/` or `chore/` branches; `main` is the only long-lived branch and releases are tags. Dependent PRs use `gh stack`. Commits follow Conventional Commits.
-- **Decisions.** A change that alters an architectural boundary or a product term ships with an ADR and, if it touches vocabulary, a CONTEXT.md update in the same PR.
-- **UI.** Reusable components go in `apps/desktop/src/shared/ui/` and are registered on `/design` in the same PR. Tokens come from the semantic bridge, never hard-coded.
-- **A good first PR** is a new fixture stream for the event normalizer: record a Pi session, add the fixture, assert the normalized events. It exercises the whole protocol without touching UI.
+- **Issues**: tasks and bugs are tracked on GitHub Issues. Labels follow a role-based triage flow (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); anything marked `ready-for-human` is open for community members to pick up.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md). [`AGENTS.md`](AGENTS.md) holds the full contributor rules; it is written to be followed by humans and coding agents alike.
+- **Branches and commits**: features and fixes are developed on `feat/`, `fix/` and `chore/` branches; `main` is the only long-lived branch, and releases are cut from git tags. Dependent PRs should be managed with `gh stack`. Commit messages strictly follow Conventional Commits.
+
+- **Architecture decision records**: any change that moves an architectural boundary or adjusts a key domain term ships with an ADR; if it touches concept definitions, update `CONTEXT.md` in the same PR.
+
+- **UI components**: reusable components go in `apps/desktop/src/shared/ui/` and are added to the `/design` gallery in the same PR. Style tokens come through the semantic bridge layer; hard-coded values are not allowed.
+
+- **Good first issue**: a recommended entry point is adding a fixture test for the event Normalizer: record a raw Pi session log, add a test case and assert the normalized events. It needs no UI work and is a fast way to learn the core protocol.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md). [`AGENTS.md`](AGENTS.md) holds the full contributor rules, written to be followed by humans and coding agents alike.
 
 ## License
 
