@@ -48,6 +48,12 @@ Resource Filter 用 `+path` / `-path` 精确项，不用 `!pattern`：文件名�
 
 Packages 页打开时检查一次 `check_package_updates`，不按窗口聚焦、重连或后台定时轮询。按 Source 与 Scope 给 Package 行显示 `Update available` Token；安装、卸载或更新成功后失效更新查询，重查后移除已更新的徽标。检查失败显式展示错误，不阻断资源管理动作。
 
+### 6. 后续：Marketplace 发现入口
+
+2026-09-10，用户在三个交互原型中选择 Marketplace，并授权正式落地。第 1 节“首版不引入市场”的阶段限制至此结束；Package / Resource、user scope、SDK 写回与生效时机保持原决策。
+
+Discover 查询 npm 公共目录中标记 `pi-package` 的包，安装仍交给 Pi；Pace 不维护自己的包仓库或评分。主题推荐进入目录搜索，详情中的资源控制来自本地库存，不能用 manifest 里的目录声明模拟已安装 Resource。目录请求失败时，Installed 和 Updates 保持独立。完整布局、分页与类型筛选边界见 [Packages Marketplace 设计决定](../design/packages-marketplace.md)。
+
 ## 后果与验证
 
 - 资源配置仍使用 Pi 原生格式；查询不安装、不执行扩展、不写 settings，运行事件仍由既有 journal 持有。

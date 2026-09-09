@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { DefaultPackageManager, loadSkills, SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { ConfigInventory, ResourceInfo } from "@pace/core";
+import type { ConfigInventory, PackageInfo, ResourceInfo } from "@pace/core";
 
 export async function buildConfigInventory(dir: string): Promise<ConfigInventory> {
   const agentDir = resolve(dir);
@@ -44,10 +44,11 @@ export async function buildConfigInventory(dir: string): Promise<ConfigInventory
     defaultProvider: settingsManager.getDefaultProvider(),
     defaultThinkingLevel: settingsManager.getDefaultThinkingLevel(),
     theme: settingsManager.getTheme(),
-    packages: packages.listConfiguredPackages().map(pkg => ({
+    packages: (await Promise.all(packages.listConfiguredPackages().map(async pkg => ({
       ...pkg,
+      ...await packageMetadata(pkg.installedPath),
       resources: allResources.filter(resource => resource.packageSource === pkg.source && resource.scope === pkg.scope),
-    })).sort((left, right) => left.source.localeCompare(right.source)),
+    })))).sort((left, right) => left.source.localeCompare(right.source)),
     extensions,
     skills,
     promptTemplates,
@@ -62,5 +63,17 @@ async function readSettings(dir: string): Promise<Parameters<typeof SettingsMana
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return {};
     throw error;
+  }
+}
+
+async function packageMetadata(path?: string): Promise<Pick<PackageInfo, "name" | "version" | "description" | "author">> {
+  if (!path) return {};
+  try {
+    const manifest = JSON.parse(await readFile(join(path, "package.json"), "utf8"));
+    const text = (value: unknown) => typeof value === "string" ? value : undefined;
+    return { name: text(manifest.name), version: text(manifest.version), description: text(manifest.description), author: text(typeof manifest.author === "string" ? manifest.author : manifest.author?.name) };
+  } catch {
+    // Missing, bare-file or damaged manifests must not prevent removing a package.
+    return {};
   }
 }

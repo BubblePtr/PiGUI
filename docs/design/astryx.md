@@ -98,8 +98,15 @@ Settings 是一个 `Dialog purpose="form"` + 左侧 `SideNav` 分类，不是页
 
 ## Resource Management（Setup）
 
-安装表单复用 `Dialog purpose="form"`、`TextInput` 和 `Button`，留在 `pages/setup.tsx` 做页面组合。安装期间显示“安装中…”并禁用重复提交，返回后用 `List` 展示后端累计的 progress；错误留在对话框内。包行用 Update / Remove，资源行用 `Switch`；Theme、无 Package Filter 的 top-level 和 CLI 单文件／裸目录包用 `isDisabled` + `disabledMessage` 说明限制，drop-in 不显示开关。
+安装表单复用 `Dialog purpose="form"`、`TextInput` 和 `Button`，留在 `pages/packages/resources.tsx` 做页面组合。安装期间显示“安装中…”并禁用重复提交，返回后用 `List` 展示后端累计的 progress；错误留在对话框内。包行用 Update / Remove，资源行用 `Switch`；Theme、无 Package Filter 的 top-level 和 CLI 单文件／裸目录包用 `isDisabled` + `disabledMessage` 说明限制，drop-in 不显示开关。
 
 Add local resource 使用系统文件选择器，同名替换、包移除和 drop-in 删除沿用 `window.confirm`。所有写动作完成后提示“将在下一个新 Session 生效，运行中的 Session 不受影响”，并失效共享 `config-inventory` query，composer 插入菜单同步读取启用状态。没有新增组件原语或控件变体，Astryx 组件直接复用。
 
 Package 行的更新状态使用 `Token size="sm" label="Update available"`，按 Source / Scope 匹配；查询失败用区块内错误文案。Resource 的最近扩展错误留在该行 description 内，以 `VStack`、`Text` 和语义 `time` 展示时间与消息，消息使用 danger token，无错误不留占位。Package 详情与 drop-in 视图共用这一行组合，不新增控件变体。
+
+
+### Packages Marketplace
+
+`pages/setup.tsx` 只连接路由壳与库存查询，`pages/packages/marketplace.tsx` 负责 Discover / Installed / Updates、卡片目录和详情组合。窗口栏保留 Packages，内容区不重复同名大标题。主题卡用既有数据色与 surface 混合，包卡用 `Card padding={4}` 和响应式 `Grid`；没有新增 token 或共享原语。
+
+目录搜索使用 `TextInput`（300 ms 防抖）和分页；类型用 ghost / secondary Button，选中态带 `aria-pressed`，排序用 Selector。详情用命名的 `Dialog purpose="form"`，资源清单复用管理面真实 ResourceList；未知类型、目录故障和更新检查故障分别呈现，检查失败不能显示“全部已是最新”。Add local resource 与 Resources & configuration 保留独立入口，配置检查弹窗提供默认值和环境检查。

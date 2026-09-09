@@ -14,6 +14,10 @@ export type ResourceInfo = {
 };
 
 export type PackageInfo = {
+  name?: string;
+  version?: string;
+  description?: string;
+  author?: string;
   source: string;
   scope: "user" | "project";
   filtered: boolean;
@@ -31,4 +35,20 @@ export type ConfigInventory = {
   skills: ResourceInfo[];
   promptTemplates: ResourceInfo[];
   themes: ResourceInfo[];
+};
+
+export type CatalogPackage = {
+  source: string;
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  kinds: ResourceInfo["kind"][];
+  typesKnown: boolean;
+};
+
+export type PackageCatalogPage = {
+  packages: CatalogPackage[];
+  total: number;
+  nextOffset: number | null;
 };
