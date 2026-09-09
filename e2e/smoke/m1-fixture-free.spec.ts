@@ -186,9 +186,14 @@ test.describe("M3: Real diff action surface", () => {
       await expect(testApp.window.getByRole("complementary", { name: "Changes" })).toBeVisible();
       await expect(testApp.window.getByRole("dialog")).toHaveCount(0);
 
-      await expect(testApp.window.getByText("src/app.ts").first()).toBeVisible();
+      // Each file name renders twice (section header + outline); at narrow
+      // dock widths the header copy truncates to zero width, so assert on
+      // whichever copy is actually visible.
       await expect(
-        testApp.window.getByText("src/new-feature.ts").first(),
+        testApp.window.getByText("src/app.ts").filter({ visible: true }).first(),
+      ).toBeVisible();
+      await expect(
+        testApp.window.getByText("src/new-feature.ts").filter({ visible: true }).first(),
       ).toBeVisible();
       await expect(testApp.window.getByText("+2").first()).toBeVisible();
       await expect(testApp.window.getByText("-1").first()).toBeVisible();
