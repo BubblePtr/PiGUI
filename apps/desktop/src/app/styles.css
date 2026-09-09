@@ -853,8 +853,7 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
   min-width: 0;
 }
 
-/* Separate visible tree rows without changing their nesting or hit targets. */
+/* Keep file rows square within the edge-to-edge tree. */
 .pigui-files-tree .astryx-tree-list-item {
-  border-bottom: var(--border-width) solid var(--separator);
   border-radius: 0;
 }

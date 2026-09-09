@@ -348,7 +348,14 @@ function listing(sessionId: string, path: string): SessionDirectoryListing {
     sessionId,
     path,
     rootName: "Pace-Mock",
-    entries: [...entries.values()],
+    entries: [...entries.values()].sort((a, b) => {
+      if (a.kind !== b.kind) {
+        if (a.kind === "directory") return -1;
+        if (b.kind === "directory") return 1;
+      }
+      return a.name.localeCompare(b.name, "en", { sensitivity: "base" }) ||
+        a.name.localeCompare(b.name, "en");
+    }),
     truncated: false,
   };
 }

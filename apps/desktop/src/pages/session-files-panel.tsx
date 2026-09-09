@@ -317,7 +317,7 @@ function FilesSessionContent({ sessionId }: Props) {
         </div>
       ) : (
         <div className="grid min-h-0 min-w-0 flex-1 md:grid-cols-[minmax(0,1fr)_14rem]">
-          <div className="min-w-0 overflow-y-auto rounded-md border border-default/70 bg-surface p-1.5 md:order-last">
+          <div className="min-w-0 overflow-y-auto border border-default/70 bg-surface p-1.5 md:order-last">
             <TreeList
               className="pigui-files-tree"
               density="compact"
