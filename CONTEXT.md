@@ -141,12 +141,32 @@ Project 中用于复盘和比较历史 Session Trajectory、用量、成本、�
 _Avoid_: Session list, chat, control plane
 
 **Control Plane**:
-Pace 中负责创建、启动、切换、管理和观察 Agent Workspace 的产品层。它可以触发 agent 行为，因此不同于只读的飞行记录仪。
-_Avoid_: Flight recorder, passive observer
+Pace 中负责创建、启动、切换、管理和观察 Agent Workspace 的产品层。它可以触发 agent 行为，因此不同于只读的飞行记录仪。它管的是 Agent Workspace，不是 Pi 的扩展体系；后者的管理面叫 Resource Management。
+_Avoid_: Flight recorder, passive observer, extension control plane
 
 **Pi Runtime**:
-Pace 唯一支持的 agent runtime，负责模型调用、工具执行、session 状态、配置加载和 Pi 原生扩展能力。Pace 不把其他 agent runtime 纳入产品边界。 Pi 自身的扩展层级（Package、Extension、Skill、Prompt、Theme）词义以 Pi 为准，Pace 不重述、不扩展；Pace 只命名扩展贡献的东西（如 Surface），不为贡献方另造名词（ADR-0032）。
+Pace 唯一支持的 agent runtime，负责模型调用、工具执行、session 状态、配置加载和 Pi 原生扩展能力。Pace 不把其他 agent runtime 纳入产品边界。 Pi 自身的扩展层级（Package → Resource，Resource 分 Extension、Skill、Prompt、Theme 四类）词义以 Pi 为准，Pace 不扩展；下面的 **Package**、**Resource** 词条只是为了引用方便而复述 Pi 的定义。Pace 只命名扩展贡献的东西（如 Surface）和自己新增的取值（如 Origin 的 drop-in），不为贡献方另造名词（ADR-0032）。
 _Avoid_: Generic agent runtime, ACP agent, provider
+
+**Resource Management**:
+Pace 插件系统三个面里的管理面：安装、卸载、更新 Package，启用、禁用 Resource，并展示版本与加载诊断。另外两个面是贡献面（扩展向 GUI 声明 Surface、UI request，ADR-0018 / #85）和执行面（Pi 加载并运行 Resource，Pace 不介入）。首版只管 user scope（`~/.pi/agent/settings.json`），写回全部走 Pi SDK 的 `PackageManager` 与 `SettingsManager`，不 spawn `pi` CLI，不引入 Pi 没有的概念；settings 变更与 Pi 一致，在下一个 Session 创建时生效，运行中的 Session 不受影响。它的入口是 Setup 页现有的 Config Inventory。
+_Avoid_: Extension control plane, plugin manager, marketplace, profile, workspace-scope toggle, hot reload
+
+**Package**:
+用户安装、卸载、更新的单位，对应 Pi settings `packages` 数组里的一项。它由 Source 标识，展开后包含零到多个 Resource；自写的单文件 extension 经 `pi install ./foo.ts` 登记后也是一个 Package，只是只含一个 Resource，用户不需要"单文件包"概念。Package 本身没有开关，禁用作用在它的 Resource 上。
+_Avoid_: Plugin, extension (as umbrella), bundle, source (as noun for the thing installed)
+
+**Resource**:
+启用、禁用的单位，Pi 加载的最小可视对象，四类：Extension（注册 tool / command / event handler 的代码模块）、Skill、Prompt（prompt template）、Theme。产品文案不再拿 extension 当四类的统称。Theme 只影响 Pi 终端，对 Pace GUI 无效，管理面只读展示并标注；Skill 的启用状态被 composer 插入菜单直接消费。禁用在 Pi 里靠 settings 的 package Filter 表达，没有独立开关 API。
+_Avoid_: Extension (as umbrella), plugin, capability, feature flag
+
+**Source**:
+Package 的地址，是属性不是名词性的"东西"：取值 `npm:`、`git:` 或本地路径（文件或目录）。npm / git 会下载到 `~/.pi/agent/npm/`，本地路径只登记不复制。它出现在安装输入框与 Package 详情里，不出现在动作文案里。
+_Avoid_: Registry, marketplace, install target (as verb object)
+
+**Origin**:
+一个 Resource 的来历，Package 详情与 Resource 行上的字段：`package`（从某个 Package 展开）、`top-level`（settings 顶层 `extensions` / `skills` / `prompts` / `themes` 数组）、`drop-in`（`~/.pi/agent/{extensions,skills,prompts,themes}/` 约定目录自动发现）。前两个是 Pi `PathMetadata.origin` 的原值，`drop-in` 是 Pace 为约定目录发现的资源新增的取值，Pi 自己没有命名它。drop-in 的 Resource 不属于任何 Package、没有 Source，"卸载"它等于删文件；local Source 的 Package 卸载只移除登记不删文件。
+_Avoid_: Provider (that is the Surface field), scope, kind
 
 **Runtime Gateway**:
 Pace 在客户端/后端与 Pi 接入实现之间固定的产品语义边界。它稳定表达 Session、Prompt、Queue、Steer、Stop、Snapshot 和 Runtime Event，不等同于 Pi SDK API 或 Pi RPC 原始协议。
