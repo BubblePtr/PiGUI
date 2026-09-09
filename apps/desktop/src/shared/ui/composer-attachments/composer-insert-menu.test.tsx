@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -13,8 +14,12 @@ describe("ComposerInsertMenu", () => {
       skills: [{ name: "enabled", enabled: true }, { name: "disabled", enabled: false }],
       extensions: [],
     });
-    const { result } = renderHook(() => useComposerInsertCatalog());
+    const client = new QueryClient();
+    const { result } = renderHook(() => useComposerInsertCatalog(), { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
     await waitFor(() => expect(result.current.skills).toEqual([{ name: "enabled", enabled: true }]));
+    vi.mocked(invoke).mockResolvedValueOnce({ skills: [{ name: "enabled", enabled: false }], extensions: [] });
+    await client.invalidateQueries({ queryKey: ["config-inventory"] });
+    await waitFor(() => expect(result.current.skills).toEqual([]));
   });
 
   it("keeps the first menu short even with many installed skills", async () => {

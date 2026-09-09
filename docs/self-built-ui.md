@@ -106,3 +106,7 @@ Browser 的弹层检测同时观察 Astryx 原生 `dialog[open]`；设置打开�
 ## 开发工具：UI intent picker
 
 `dev/ui-intent/` 是开发环境专用检查工具，不新增 `shared/ui/` 组件。组件树复用 Astryx TreeList（展开、选中态、键盘导航），范围切换复用 Button；所有具名 React 组件自动进入可浏览快照，区域术语单独维护于 `regions.ts`。操作方式及源码定位边界见 [开发环境组件选择器](ui-intent-picker.md)。
+
+### Resource Management（#253）
+
+Setup 动作只组合已有 Astryx Dialog、TextInput、Switch、List 和 Button，未新增 `shared/ui/` 自建组件或变体。页面专属安装流程留在 `pages/setup.tsx`；composer 的资源目录改为订阅共享 query，交互约束见 `docs/design/astryx.md`。

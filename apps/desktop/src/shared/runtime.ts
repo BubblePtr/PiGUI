@@ -157,6 +157,11 @@ export function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Pr
       }
       return Promise.resolve(browserSessionDetail(summary) as T);
     }
+    case "select_local_resource":
+      return Promise.resolve(null as T);
+    case "add_local_resource":
+      return Promise.reject(new Error("Local resources require the desktop app"));
+    case "remove_local_resource":
     case "install_package":
     case "update_package":
     case "set_resource_enabled":

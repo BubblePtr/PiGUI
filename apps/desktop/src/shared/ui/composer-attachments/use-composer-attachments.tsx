@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConfigInventory } from "@pace/core";
 import { invoke } from "@/shared/runtime";
@@ -111,36 +112,9 @@ export function useFilePicker(onFiles: (files: File[]) => void) {
 }
 
 export function useComposerInsertCatalog() {
-  const [skills, setSkills] = useState<{ name: string; description?: string }[]>([]);
-  const [plugins, setPlugins] = useState<{ name: string }[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void invoke<ConfigInventory>("get_config_inventory")
-      .then((inventory) => {
-        if (cancelled) {
-          return;
-        }
-
-        setSkills(inventory.skills.filter(skill => skill.enabled));
-        setPlugins(
-          inventory.extensions.filter((extension) => extension.enabled),
-        );
-      })
-      .catch(() => {
-        if (cancelled) {
-          return;
-        }
-
-        setSkills([]);
-        setPlugins([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { skills, plugins };
+  const { data } = useQuery({ queryKey: ["config-inventory"], queryFn: () => invoke<ConfigInventory>("get_config_inventory") });
+  return {
+    skills: data?.skills.filter(skill => skill.enabled) ?? [],
+    plugins: data?.extensions.filter(extension => extension.enabled) ?? [],
+  };
 }

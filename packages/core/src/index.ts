@@ -92,6 +92,8 @@ export {
   CHAT_PROJECT_ID,
   createRuntimeGatewaySequencer,
   type PrepareChatWorkspaceResult,
+  type AddLocalResourceInput,
+  type AddLocalResourceResult,
   type PackageSourceInput,
   type UpdatePackageInput,
   type SetResourceEnabledInput,

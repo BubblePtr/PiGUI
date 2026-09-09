@@ -95,3 +95,9 @@ Settings 是一个 `Dialog purpose="form"` + 左侧 `SideNav` 分类，不是页
 ## 导航与壳
 
 `AppShell variant="elevated"`，侧栏 `SideNav` + `SideNavSection`，宽度 `resizable={{ defaultWidth: 260, minWidth: 240, maxWidth: 320 }}`。页面内跳转走 Astryx `Link` / `useLinkComponent()`，不写裸 `<a>`。分栏面板用 `Layout` + `LayoutPanel`；Session 页右栏不是 `LayoutPanel`，是 `SessionDock`（见 workspace.md）。
+
+## Resource Management（Setup）
+
+安装表单复用 `Dialog purpose="form"`、`TextInput` 和 `Button`，留在 `pages/setup.tsx` 做页面组合。安装期间显示“安装中…”并禁用重复提交，返回后用 `List` 展示后端累计的 progress；错误留在对话框内。包行用 Update / Remove，资源行用 `Switch`；Theme、无 Package Filter 的 top-level 和 CLI 单文件／裸目录包用 `isDisabled` + `disabledMessage` 说明限制，drop-in 不显示开关。
+
+Add local resource 使用系统文件选择器，同名替换、包移除和 drop-in 删除沿用 `window.confirm`。所有写动作完成后提示“将在下一个新 Session 生效，运行中的 Session 不受影响”，并失效共享 `config-inventory` query，composer 插入菜单同步读取启用状态。没有新增组件原语或控件变体，Astryx 组件直接复用。

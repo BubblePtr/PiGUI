@@ -1,14 +1,14 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { CheckPackageUpdatesResult, PackageActionResult, RemovePackageResult } from "@pace/core";
 import { createBackendService } from "../service";
-import { checkPackageUpdates, installPackage, removePackage, setResourceEnabled, updatePackage } from "./resource-management";
+import { addLocalResource, removeLocalResource, checkPackageUpdates, installPackage, removePackage, setResourceEnabled, updatePackage } from "./resource-management";
 
 const roots: string[] = [];
 async function fixture(settings: object = { packages: ["./kit"] }) {
@@ -217,4 +217,56 @@ describe("resource management SDK contract", () => {
     }
   });
 
+});
+
+
+describe("local resources", () => {
+  it("copies a local extension without changing its source and asks before replacing", async () => {
+    const f = await fixture();
+    await f.put("source/foo.ts", "original");
+    const path = join(f.agentDir, "source/foo.ts");
+    const target = join(f.agentDir, "extensions/foo.ts");
+    const backend = createBackendService({ agentDir: f.agentDir, dataDir: join(f.agentDir, "pace") });
+    const added = await backend.handleRequest({ id: "add-local", method: "add_local_resource", params: { path } });
+    expect(added.error).toBeUndefined();
+    expect(added.result).toMatchObject({ path: target, kind: "extension", conflict: false });
+    const inventory = await backend.handleRequest({ id: "inventory", method: "get_config_inventory" });
+    expect(inventory.result).toMatchObject({ extensions: expect.arrayContaining([expect.objectContaining({ path: target, origin: "drop-in" })]) });
+    await f.put("source/foo.ts", "updated");
+    expect(await addLocalResource(f.agentDir, { path })).toMatchObject({ conflict: true });
+    expect(await readFile(target, "utf8")).toBe("original");
+    await addLocalResource(f.agentDir, { path, overwrite: true });
+    expect(await readFile(target, "utf8")).toBe("updated");
+    await removeLocalResource(f.agentDir, { path: target });
+    await expect(readFile(target)).rejects.toThrow();
+    expect(await readFile(path, "utf8")).toBe("updated");
+  });
+});
+
+
+describe("local resource boundaries", () => {
+  it("routes supported files and skill directories and rejects unrelated input", async () => {
+    const f = await fixture();
+    for (const [name, kind, folder] of [["foo.js", "extension", "extensions"], ["plan.md", "prompt", "prompts"], ["night.json", "theme", "themes"]]) {
+      await f.put(`source/${name}`, "content");
+      expect(await addLocalResource(f.agentDir, { path: join(f.agentDir, "source", name) })).toMatchObject({ kind, path: join(f.agentDir, folder, name) });
+    }
+    await f.put("source/review/SKILL.md", "skill");
+    await f.put("source/review/assets/helper.txt", "helper");
+    await addLocalResource(f.agentDir, { path: join(f.agentDir, "source/review") });
+    expect(await readFile(join(f.agentDir, "skills/review/assets/helper.txt"), "utf8")).toBe("helper");
+    await expect(addLocalResource(f.agentDir, { path: join(f.agentDir, "source/review/assets") })).rejects.toThrow();
+    await expect(addLocalResource(f.agentDir, { path: join(f.agentDir, "source/review/assets/helper.txt") })).rejects.toThrow();
+    await removeLocalResource(f.agentDir, { path: join(f.agentDir, "skills/review/SKILL.md") });
+    await expect(readFile(join(f.agentDir, "skills/review/assets/helper.txt"))).rejects.toThrow();
+  });
+  it("never deletes outside drop-in roots or follows linked roots or input", async () => {
+    const f = await fixture();
+    await f.put("source/foo.ts", "keep");
+    await expect(removeLocalResource(f.agentDir, { path: join(f.agentDir, "source/foo.ts") })).rejects.toThrow();
+    await symlink(join(f.agentDir, "source"), join(f.agentDir, "extensions"));
+    await expect(addLocalResource(f.agentDir, { path: join(f.agentDir, "source/foo.ts") })).rejects.toThrow();
+    await expect(removeLocalResource(f.agentDir, { path: join(f.agentDir, "extensions/foo.ts") })).rejects.toThrow();
+    expect(await readFile(join(f.agentDir, "source/foo.ts"), "utf8")).toBe("keep");
+  });
 });
