@@ -7,9 +7,9 @@
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
 <p align="center">
-[![Release](https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag)](https://github.com/BubblePtr/pace/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/pace/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release)](https://github.com/BubblePtr/pace/actions)
+  <a href="https://github.com/BubblePtr/pace/releases/latest"><img src="https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag" alt="Release"></a>
+  <a href="https://github.com/BubblePtr/pace/releases/latest"><img src="https://img.shields.io/badge/platform-macOS%20arm64-black" alt="Platform: macOS arm64"></a>
+  <a href="https://github.com/BubblePtr/pace/actions"><img src="https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release" alt="Release workflow"></a>
 </p>
 
 Pi 是一个终端里的 coding agent，带有类似 VS Code 的扩展体系：Package 贡献 tool、command、skill、prompt 和 theme，我们希望将这种灵活性也拓展到桌面软件上，可以让用户定制专属于自己的桌面 Agent。Pace 这个名字代表的是 move at your own pace，我们希望在 AI 时代个人可以对 Agent 的使用拥有完全自主的权利，定制和控制好自己的节奏。

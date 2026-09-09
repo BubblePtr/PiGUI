@@ -7,9 +7,9 @@
 <p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
 <p align="center">
-[![Release](https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag)](https://github.com/BubblePtr/pace/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/pace/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release)](https://github.com/BubblePtr/pace/actions)
+  <a href="https://github.com/BubblePtr/pace/releases/latest"><img src="https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag" alt="Release"></a>
+  <a href="https://github.com/BubblePtr/pace/releases/latest"><img src="https://img.shields.io/badge/platform-macOS%20arm64-black" alt="Platform: macOS arm64"></a>
+  <a href="https://github.com/BubblePtr/pace/actions"><img src="https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release" alt="Release workflow"></a>
 </p>
 
 Pi is a terminal coding agent with a VS Code-like extension system: packages contribute tools, commands, skills, prompts and themes. We want to bring that same flexibility to the desktop, so that everyone can shape a desktop agent that is truly their own. The name stands for *move at your own pace*: in the age of AI, individuals should keep full ownership of how they use an agent, customizing it and setting their own rhythm.
