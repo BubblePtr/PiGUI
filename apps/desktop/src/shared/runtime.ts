@@ -121,7 +121,7 @@ function browserSessionDetail(summary: SessionSummary): SessionDetail {
   };
 }
 
-function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T> {
+export function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Promise<T> {
   switch (command) {
     case "update:status":
     case "update:check":
