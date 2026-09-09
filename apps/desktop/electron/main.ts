@@ -687,6 +687,11 @@ ipcMain.handle(
       return killBackendForEndToEndTest();
     }
 
+    if (input.command === "select_local_resource") {
+      return dialog.showOpenDialog({ title: "Add local resource", properties: ["openFile", "openDirectory"], filters: [{ name: "Pi resources", extensions: ["ts", "js", "md", "json"] }] })
+        .then(result => result.canceled ? null : result.filePaths[0] ?? null);
+    }
+
     if (input.command === "select_project_directory") {
       return selectProjectDirectory();
     }

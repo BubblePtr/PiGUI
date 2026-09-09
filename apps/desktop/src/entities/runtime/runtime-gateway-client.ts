@@ -1,5 +1,7 @@
 import type {
   PrepareChatWorkspaceResult,
+  AddLocalResourceInput,
+  AddLocalResourceResult,
   PackageSourceInput,
   UpdatePackageInput,
   SetResourceEnabledInput,
@@ -534,6 +536,8 @@ function errorMessage(error: unknown) {
 export function createRuntimeGatewayClient(
   options: RuntimeGatewayClientOptions = {},
 ): PiRuntimeBridge & {
+  addLocalResource(input: AddLocalResourceInput): Promise<AddLocalResourceResult>;
+  removeLocalResource(input: { path: string }): Promise<PackageActionResult>;
   installPackage(input: PackageSourceInput): Promise<PackageActionResult>;
   removePackage(input: PackageSourceInput): Promise<RemovePackageResult>;
   updatePackage(input?: UpdatePackageInput): Promise<PackageActionResult>;
@@ -1051,6 +1055,8 @@ export function createRuntimeGatewayClient(
       };
     },
 
+    addLocalResource: input => invoke<AddLocalResourceResult>("add_local_resource", input),
+    removeLocalResource: input => invoke<PackageActionResult>("remove_local_resource", input),
     installPackage: input => invoke<PackageActionResult>("install_package", input),
     removePackage: input => invoke<RemovePackageResult>("remove_package", input),
     updatePackage: input => invoke<PackageActionResult>("update_package", input),

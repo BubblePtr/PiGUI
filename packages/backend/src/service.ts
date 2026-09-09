@@ -11,6 +11,8 @@ import type {
 import * as piSdk from "@earendil-works/pi-coding-agent";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import {
+  addLocalResource,
+  removeLocalResource,
   installPackage,
   removePackage,
   updatePackage,
@@ -321,6 +323,10 @@ async function dispatchRequest(input: {
         store: input.sessionProjectionStore,
         reader: input.sessionFilesReader,
       });
+    case "add_local_resource":
+      return addLocalResource(input.agentDir, { path: requiredString(params.path, "path"), overwrite: params.overwrite === true });
+    case "remove_local_resource":
+      return removeLocalResource(input.agentDir, { path: requiredString(params.path, "path") });
     case "install_package":
       return installPackage(input.agentDir, { source: requiredString(params.source, "source") });
     case "remove_package":

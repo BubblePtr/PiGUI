@@ -197,3 +197,6 @@ export type RemovePackageResult = PackageActionResult & { removed: boolean };
 export type CheckPackageUpdatesResult = PackageActionResult & {
   updates: Array<{ source: string; displayName: string; type: "npm" | "git"; scope: "user" | "project" }>;
 };
+
+export type AddLocalResourceInput = { path: string; overwrite?: boolean };
+export type AddLocalResourceResult = { path: string; kind: "extension" | "skill" | "prompt" | "theme"; conflict: boolean };
