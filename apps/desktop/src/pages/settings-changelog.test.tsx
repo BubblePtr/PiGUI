@@ -32,14 +32,16 @@ const newerRelease: ChangelogRelease = {
 describe("Changelog timeline", () => {
   beforeEach(() => vi.mocked(invoke).mockReset());
 
-  it("ships v0.0.2 notes offline and preserves the first release", () => {
+  it("ships v0.0.3 notes offline and preserves earlier releases", () => {
     render(<ChangelogSection />);
     const entries = within(screen.getByRole("list", { name: "Release history" })).getAllByRole("article");
-    expect(within(entries[0]).getByRole("heading", { name: "v0.0.2" })).toBeVisible();
-    expect(within(entries[0]).getByText("Projectless Chat")).toBeVisible();
-    expect(within(entries[0]).getByText("In-app updates")).toBeVisible();
-    expect(within(entries[0]).getByRole("link", { name: /View release on GitHub/ })).toHaveAttribute("href", "https://github.com/BubblePtr/pace/releases/tag/v0.0.2");
-    expect(within(entries[1]).getByRole("heading", { name: "v0.0.1" })).toBeVisible();
+    expect(within(entries[0]).getByRole("heading", { name: "v0.0.3" })).toBeVisible();
+    expect(within(entries[0]).getByText("Pace identity")).toBeVisible();
+    expect(within(entries[0]).getByText("Files surface")).toBeVisible();
+    expect(within(entries[0]).getByRole("link", { name: /View release on GitHub/ })).toHaveAttribute("href", "https://github.com/BubblePtr/pace/releases/tag/v0.0.3");
+    expect(within(entries[1]).getByRole("heading", { name: "v0.0.2" })).toBeVisible();
+    expect(within(entries[1]).getByText("Projectless Chat")).toBeVisible();
+    expect(within(entries[2]).getByRole("heading", { name: "v0.0.1" })).toBeVisible();
   });
 
   it("opens release notes in the system browser in the desktop app", async () => {

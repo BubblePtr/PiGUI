@@ -15,6 +15,55 @@ export type ChangelogRelease = {
 // Ship release notes with the app so the history is also available offline.
 export const changelogReleases: readonly ChangelogRelease[] = [
   {
+    version: "0.0.3",
+    date: "2026-09-09",
+    title: "PiGUI becomes Pace",
+    summary: "The app is now called Pace, with a new icon, a Files surface, stacked diffs, and automatic migration of your existing data.",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.3",
+    changes: [
+      {
+        kind: "added",
+        title: "Pace identity",
+        description: "New name, app icon and wordmark. The GitHub repository moved to BubblePtr/pace; old links redirect.",
+      },
+      {
+        kind: "added",
+        title: "Files surface",
+        description: "Browse the Session checkout as a read-only tree with file preview from the dock, next to Changes, Terminal and Browser.",
+      },
+      {
+        kind: "added",
+        title: "Stacked diffs in Changes",
+        description: "Every changed file is stacked in one scrollable view with an outline, collapse and expand controls, and unified diffs.",
+      },
+      {
+        kind: "improved",
+        title: "Data migration",
+        description: "On first launch Pace moves ~/.pigui to ~/.pace and the Electron profile to Application Support/Pace, keeping sessions, project registry and drafts. PIGUI_DATA_DIR still works as a deprecated alias of PACE_DATA_DIR.",
+      },
+      {
+        kind: "improved",
+        title: "Quieter sidebar",
+        description: "Section and row actions appear on hover, and the session header follows the session name with a normal weight.",
+      },
+      {
+        kind: "fixed",
+        title: "Draft to Live handoff",
+        description: "A new session opens as Live as soon as it is created instead of waiting for Pi to accept the first prompt.",
+      },
+      {
+        kind: "fixed",
+        title: "Input method Enter",
+        description: "Confirming a candidate in a CJK input method no longer sends the message.",
+      },
+      {
+        kind: "fixed",
+        title: "Dense trajectory strip",
+        description: "Very long trajectories no longer overflow the strip horizontally.",
+      },
+    ],
+  },
+  {
     version: "0.0.2",
     date: "2026-09-08",
     title: "Chat freely, stay up to date",
