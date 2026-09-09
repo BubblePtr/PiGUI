@@ -142,7 +142,7 @@ Stack: Electron + electron-vite, React 19, TypeScript, TanStack (Query / Router 
 | Data | Installed app | `bun run dev` | Owner |
 | --- | --- | --- | --- |
 | Pi sessions, auth, extensions | `~/.pi/agent` | shared | Pi. Pace only reads. |
-| Session journal, projections, preflight state | `~/.pace` | `~/.pace-dev` | Pace. Override with `PIGUI_DATA_DIR`. |
+| Session journal, projections, preflight state | `~/.pace` | `~/.pace-dev` | Pace. Override with `PACE_DATA_DIR` (`PIGUI_DATA_DIR` is a deprecated alias). |
 | Renderer preferences (project registry, drafts, model choice), Chromium profile | Electron userData | userData `-dev` | Pace. |
 
 Deleting Pace's data directory loses the UI timeline and cost history but never a Pi session: Pi can still resume from its own log. Any change to the journal or projection format must read the previous format or ship a migration ([`docs/dogfooding.md`](docs/dogfooding.md)).

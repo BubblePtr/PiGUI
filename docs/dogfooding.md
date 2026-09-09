@@ -13,7 +13,7 @@
 
 | 数据 | 宿主（打包版） | 被测（`bun run dev`） | 说明 |
 | --- | --- | --- | --- |
-| Pace 后端数据（journal、projections、preflight 状态） | `~/.pace` | `~/.pace-dev` | 主进程按 `app.isPackaged` 决定，见 `apps/desktop/electron/backend-environment.ts`；显式设置 `PIGUI_DATA_DIR` 时以其为准 |
+| Pace 后端数据（journal、projections、preflight 状态） | `~/.pace` | `~/.pace-dev` | 主进程按 `app.isPackaged` 决定，见 `apps/desktop/electron/backend-environment.ts`；显式设置 `PACE_DATA_DIR` 时以其为准（`PIGUI_DATA_DIR` 仍可读一个 MINOR 版本） |
 | Electron userData（renderer 的 localStorage：项目注册表、草稿、模型偏好，以及 Chromium profile） | `~/Library/Application Support/Pace` | `~/Library/Application Support/Pace-dev` | 主进程在未打包时追加 `-dev` 后缀；显式传 `--user-data-dir` 时以其为准（E2E 用法）。这一步同时是 dev 实例能与正式版并存的前提：Chromium 同一 profile 只允许一个进程，第二个会直接退出 |
 | Pi 自己的数据（`~/.pi/agent`：会话、认证、扩展） | 共享 | 共享 | Pi 拥有会话真相，Pace 只读；共享认证避免重复登录 |
 
@@ -23,7 +23,7 @@
 
 首次启动 Pace 时，若新目录不存在而旧目录存在，正式版会将 `~/.pigui` 整体重命名为 `~/.pace`，开发版独立将 `~/.pigui-dev` 迁移为 `~/.pace-dev`。Electron 通过 `app.setName("Pace")` 固定 userData 名称，再分别将 `Application Support/@pigui/desktop`、`Application Support/@pigui/desktop-dev` 迁移到 `Application Support/Pace`、`Application Support/Pace-dev`（其他平台使用各自的 appData 根目录）。
 
-所有迁移都在首次读写前执行：新旧目录同时存在时，新目录优先，旧目录不动；重命名失败时记录警告并继续使用旧目录，不创建空的新目录替代历史数据。显式 `PIGUI_DATA_DIR` 和 `--user-data-dir` 分别跳过对应迁移。任何改动 journal 或 projection 格式的 PR 都必须保持向后兼容读取或附带迁移，否则升级宿主会丢失历史。
+所有迁移都在首次读写前执行：新旧目录同时存在时，新目录优先，旧目录不动；重命名失败时记录警告并继续使用旧目录，不创建空的新目录替代历史数据。显式 `PACE_DATA_DIR`（或已弃用的 `PIGUI_DATA_DIR`）和 `--user-data-dir` 分别跳过对应迁移。任何改动 journal 或 projection 格式的 PR 都必须保持向后兼容读取或附带迁移，否则升级宿主会丢失历史。
 
 ## 发版节奏
 
