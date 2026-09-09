@@ -148,7 +148,7 @@ const resourceGroups = [
 ] as const;
 
 const ActionsContext = createContext<{ pending: boolean; packages: PackageInfo[]; run: (command: string, args: Record<string, unknown>) => Promise<boolean> } | null>(null);
-const nextSessionCopy = "将在下一个新 Session 生效，运行中的 Session 不受影响";
+const nextSessionCopy = "Takes effect in the next new Session. Running Sessions are not affected.";
 
 function ResourceControls({ resource }: { resource: ResourceInfo }) {
   const actions = useContext(ActionsContext);
@@ -156,11 +156,11 @@ function ResourceControls({ resource }: { resource: ResourceInfo }) {
   if (resource.origin === "drop-in") return <HStack gap={2}>
     <Button label="Reveal in Finder" size="sm" variant="ghost" onClick={() => void actions.run("reveal_project_in_finder", { path: resource.path })} />
     <Button label={`Delete ${resource.name}`} size="sm" variant="destructive" isDisabled={actions.pending} onClick={() => {
-      if (window.confirm(`删除 ${resource.path}？移除文件即禁用。Skill 将删除整个目录。`)) void actions.run("remove_local_resource", { path: resource.path });
+      if (window.confirm(`Delete ${resource.path}? Removing the file disables it. A Skill deletes its whole directory.`)) void actions.run("remove_local_resource", { path: resource.path });
     }} />
   </HStack>;
   const pkg = actions.packages.find(pkg => pkg.source === resource.packageSource);
-  const reason = resource.kind === "theme" ? "仅影响 Pi 终端" : !resource.packageSource || resource.packageSource === "auto" || resource.origin === "top-level"
+  const reason = resource.kind === "theme" ? "Only affects the Pi terminal" : !resource.packageSource || resource.packageSource === "auto" || resource.origin === "top-level"
     ? "Drop-in and top-level resources have no package filter; remove the resource file instead"
     : pkg?.installedPath === resource.path ? "Pi ignores Resource Filter toggles for local file or bare-directory packages. Remove the registration or move the resource into a convention directory." : undefined;
   return <Switch label={`Enable ${resource.name}`} isLabelHidden value={resource.enabled} isDisabled={actions.pending || !!reason} disabledMessage={reason} onChange={enabled => void actions.run("set_resource_enabled", { path: resource.path, kind: resource.kind, packageSource: resource.packageSource, enabled })} />;
@@ -185,14 +185,14 @@ export function ResourceManagement({ inventory, selected }: { inventory: ConfigI
         if (!path) return false;
         const imported = await invoke<AddLocalResourceResult>("add_local_resource", { path });
         if (imported.conflict) {
-          if (!window.confirm(`覆盖 ${imported.path}？同名资源将被替换。`)) return false;
+          if (!window.confirm(`Overwrite ${imported.path}? The resource with the same name will be replaced.`)) return false;
           await invoke("add_local_resource", { path, overwrite: true });
         }
       }
       const result = command === "select_local_resource" ? undefined : await invoke<PackageActionResult>(command, args);
       setProgress(result?.progress ?? []);
       await client.invalidateQueries({ queryKey: ["config-inventory"] });
-      setMessage(command === "reveal_project_in_finder" ? "已在 Finder 中显示" : nextSessionCopy);
+      setMessage(command === "reveal_project_in_finder" ? "Revealed in Finder" : nextSessionCopy);
       return true;
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); return false; }
     finally { busy.current = false; setPending(false); }
@@ -204,10 +204,10 @@ export function ResourceManagement({ inventory, selected }: { inventory: ConfigI
     </HStack>
     {installOpen && <Dialog isOpen={installOpen} onOpenChange={open => { if (!pending) setInstallOpen(open); }} purpose="form">
       <Layout header={<DialogHeader title="Install package" onOpenChange={open => { if (!pending) setInstallOpen(open); }} />} content={<LayoutContent><VStack gap={3}>
-        <TextInput label="npm package or git URL" description="npm:, git:, https:// — 本地文件请使用 Add local resource" value={source} onChange={setSource} isDisabled={pending} />
+        <TextInput label="npm package or git URL" description="npm:, git:, or https://. Use Add local resource for local files." value={source} onChange={setSource} isDisabled={pending} />
         <Text type="supporting">{nextSessionCopy}</Text>
         {error && <Text role="alert" style={{ color: "var(--danger)" }}>{error}</Text>}
-        <Button label={pending ? "安装中…" : "Install"} variant="primary" isDisabled={pending || !/^(npm:|git:|https:\/\/)/.test(source.trim())} onClick={() => void run("install_package", { source: source.trim() }).then(ok => { if (ok) { setInstallOpen(false); setSource(""); } })} />
+        <Button label={pending ? "Installing…" : "Install"} variant="primary" isDisabled={pending || !/^(npm:|git:|https:\/\/)/.test(source.trim())} onClick={() => void run("install_package", { source: source.trim() }).then(ok => { if (ok) { setInstallOpen(false); setSource(""); } })} />
       </VStack></LayoutContent>} />
     </Dialog>}
     {pending && <Text role="status">Working…</Text>}
@@ -232,8 +232,8 @@ function ResourceList({ resources }: { resources: ResourceInfo[] }) {
             resource.scope,
             resource.origin,
             resource.packageSource,
-            resource.origin === "drop-in" ? "由约定目录自动加载" : undefined,
-            resource.kind === "theme" ? "仅影响 Pi 终端" : undefined,
+            resource.origin === "drop-in" ? "Auto-loaded from a convention directory" : undefined,
+            resource.kind === "theme" ? "Only affects the Pi terminal" : undefined,
             resource.path,
           ].filter(Boolean).join(" · ")}
         />
@@ -254,7 +254,7 @@ function PackageList({ packages }: { packages: PackageInfo[] }) {
             {actions && <>
               <Button label={`Update ${pkg.source}`} variant="ghost" size="sm" isDisabled={actions.pending} onClick={() => void actions.run("update_package", { source: pkg.source })} />
               <Button label={`Remove ${pkg.source}`} variant="destructive" size="sm" isDisabled={actions.pending} onClick={() => {
-                if (window.confirm(`移除 ${pkg.source}？npm / git 安装目录由 Pi 清理；CLI 登记的本地 Package 只移除登记，不删源文件。`)) void actions.run("remove_package", { source: pkg.source });
+                if (window.confirm(`Remove ${pkg.source}? Pi cleans up npm / git install directories. A local Package registered from the CLI is only unregistered; its source files are kept.`)) void actions.run("remove_package", { source: pkg.source });
               }} />
             </>}
           </HStack>

@@ -70,7 +70,7 @@ describe("ConfigInventoryView", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText(/disabled/)).toBeInTheDocument();
-    expect(screen.getByText(/仅影响 Pi 终端/)).toBeInTheDocument();
+    expect(screen.getByText(/Only affects the Pi terminal/)).toBeInTheDocument();
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -78,14 +78,14 @@ describe("ConfigInventoryView", () => {
   it("shows origin and package ownership in resource views", () => {
     render(<ConfigInventoryView inventory={inventory} selected="extensions" />);
     expect(screen.getByText(/package · @pi\/code/)).toBeInTheDocument();
-    expect(screen.getByText(/drop-in · 由约定目录自动加载/)).toBeInTheDocument();
+    expect(screen.getByText(/drop-in · Auto-loaded from a convention directory/)).toBeInTheDocument();
     expect(screen.getByText(/disabled · user · top-level/)).toBeInTheDocument();
   });
 
   it("explains the terminal-only scope in the themes view", () => {
     render(<ConfigInventoryView inventory={inventory} selected="themes" />);
     expect(screen.getByText("night")).toBeInTheDocument();
-    expect(screen.getByText(/仅影响 Pi 终端/)).toBeInTheDocument();
+    expect(screen.getByText(/Only affects the Pi terminal/)).toBeInTheDocument();
   });
 });
 
@@ -121,7 +121,7 @@ describe("resource actions", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Enable terminal-tools" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("set_resource_enabled", { path: "/kit/tool.ts", kind: "extension", packageSource: "@pi/code", enabled: false }));
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["config-inventory"] }));
-    expect(await screen.findByText(/将在下一个新 Session 生效/)).toBeInTheDocument();
+    expect(await screen.findByText(/Takes effect in the next new Session/)).toBeInTheDocument();
     vi.mocked(invoke).mockRejectedValueOnce(new Error("settings locked"));
     fireEvent.click(screen.getByRole("switch", { name: "Enable terminal-tools" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("settings locked");
@@ -141,7 +141,7 @@ it("validates install sources, prevents duplicate installs and shows returned pr
   expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
   fireEvent.change(input, { target: { value: "git:example.org/kit" } });
   fireEvent.click(screen.getByRole("button", { name: "Install" }));
-  expect(screen.getByRole("button", { name: "安装中…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Installing…" })).toBeDisabled();
   complete({ progress: [{ type: "complete", action: "clone", source: "git:example.org/kit", message: "Cloned" }] });
   expect(await screen.findByText(/Cloned/)).toBeInTheDocument();
 });
@@ -161,7 +161,7 @@ it("confirms local replacement and package removal before writing", async () => 
   confirm.mockReturnValueOnce(true);
   fireEvent.click(screen.getByRole("button", { name: "Remove @pi/code" }));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("remove_package", { source: "@pi/code" }));
-  expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("不删源文件"));
+  expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("source files are kept"));
   confirm.mockRestore();
 });
 
@@ -182,7 +182,7 @@ it("disables terminal themes and CLI bare packages, and confirms drop-in deletio
   fireEvent.click(screen.getByRole("button", { name: "Delete drop" }));
   expect(invoke).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Delete drop" }));
-  expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("移除文件即禁用"));
+  expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("Removing the file disables it"));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("remove_local_resource", { path: "/extensions/drop.ts" }));
   confirm.mockRestore();
 });
