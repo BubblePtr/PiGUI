@@ -852,3 +852,9 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
   flex: 1 1 0;
   min-width: 0;
 }
+
+/* Separate visible tree rows without changing their nesting or hit targets. */
+.pigui-files-tree .astryx-tree-list-item {
+  border-bottom: var(--border-width) solid var(--separator);
+  border-radius: 0;
+}

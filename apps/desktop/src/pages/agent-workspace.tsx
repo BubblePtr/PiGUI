@@ -2345,7 +2345,7 @@ export function SessionChangesPanel({
             isCompact
           />
         ) : (
-          <div className="mt-3 grid min-w-0 gap-3 @xl/changes:grid-cols-[minmax(0,1fr)_13rem]">
+          <div className="grid min-w-0 @xl/changes:grid-cols-[minmax(0,1fr)_13rem]">
             {/* Every diff, top to bottom: the reviewer scrolls instead of
                 switching. Each section is one file; a folded one drops its
                 viewer so a wide tree never keeps hundreds of renderers alive. */}
@@ -2443,12 +2443,12 @@ export function SessionChangesPanel({
                 a second column, regardless of the application's window width. */}
             <nav
               aria-label="Changed files"
-              className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 @xl/changes:sticky @xl/changes:top-2 order-first @xl/changes:order-none"
+              className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 @xl/changes:sticky @xl/changes:top-0 order-first @xl/changes:order-none"
             >
               <p className="px-2 py-1 text-xs font-medium text-muted">
                 {changes.files.length} files
               </p>
-              <div className="max-h-[34rem] space-y-1 overflow-y-auto">
+              <div className="max-h-[34rem] divide-y divide-separator overflow-y-auto">
                 {changes.files.map((file) => (
                   <button
                     key={`${file.previousPath ?? ""}:${file.path}`}

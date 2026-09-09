@@ -296,8 +296,6 @@ function FilesSessionContent({ sessionId }: Props) {
         </p>
       </SessionSurfaceBar>
 
-      {/* px-2 is the flush surface's inset, so the tree border lands on the
-          same column as the bar's leading control. */}
       {rootLoading && rootName === null && !rootError ? (
         <div className="mt-3 grid gap-2 px-2" role="status" aria-label="Loading Session files">
           <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
@@ -318,9 +316,10 @@ function FilesSessionContent({ sessionId }: Props) {
           />
         </div>
       ) : (
-        <div className="mt-3 grid min-h-0 min-w-0 flex-1 gap-3 px-2 md:grid-cols-[14rem_minmax(0,1fr)]">
-          <div className="min-w-0 overflow-y-auto rounded-md border border-default/70 bg-surface p-1.5">
+        <div className="grid min-h-0 min-w-0 flex-1 md:grid-cols-[minmax(0,1fr)_14rem]">
+          <div className="min-w-0 overflow-y-auto rounded-md border border-default/70 bg-surface p-1.5 md:order-last">
             <TreeList
+              className="pigui-files-tree"
               density="compact"
               header={<span className="sr-only">Session files</span>}
               items={treeItems}

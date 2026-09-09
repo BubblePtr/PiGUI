@@ -52,6 +52,8 @@ xterm.js 宿主，对外只有 `ref.write()` / `ref.focus()` 和 `onData` / `onR
 
 堆叠所有文件的 unified diff，文件大纲用于滚动定位与展开（ADR-0035）。响应式布局依据 Changes 的**容器宽度**，不能使用窗口断点：命名容器 `changes` 在 `@xl` 起才左右并排，窄于该档时大纲在上、Diff 在下；截断提示跟随同一断点跨栏。区块标题优先保留文件名与增删计数，状态标签在容器 `@sm` 起显示，完整状态始终可在大纲中查看（#243）。
 
+内容网格紧贴工具条，Diff 与文件大纲之间不留额外 gap；sticky 大纲贴内容区顶部。文件大纲各行之间使用语义 `separator` 分割线，不叠加行间空白。
+
 空态直接复用 Astryx `EmptyState`，与 Terminal / Browser 同样使用居中图标、标题、说明和 `isCompact`，不加边框卡片，不新增自建组件：
 - 干净树：`No changes yet`，说明 staged / unstaged / 新文件会随工作出现。
 - 非 Git：`No Git repository`，解释工作目录不是 Git 仓库，不误报为读取失败。
@@ -61,7 +63,7 @@ xterm.js 宿主，对外只有 `ref.write()` / `ref.focus()` 和 `onData` / `onR
 
 ## Files（SessionFilesPanel）
 
-只读的 checkout 浏览器（ADR-0007 解冻，仅到「读」为止）：第一行 `SessionSurfaceBar` 左槽是选中文件路径（未选中时是 diff root 的目录名），右槽一个刷新 `IconButton`；下方两栏 `md:grid-cols-[14rem_minmax(0,1fr)]`，左树右预览。树用 Astryx `TreeList`（`density="compact"`、`variant="noGuides"`），目录懒加载：未加载的目录挂一个禁用的「Loading…」占位子行，占位行被渲染即触发列目录，失败显示带 `role="alert"` 的 danger 禁用行，折叠再展开会重试；空目录保留展开器并显示禁用的「Empty directory」子行；列表被截断时末尾追加禁用的「Listing truncated」行。首次加载根列表时显示带 `role="status"` 的骨架屏；刷新时保留树实例与展开状态，工具条图标旋转，已展开目录会重新列出内容。文件行 `FileIcon`、目录行 `FolderClosed`，symlink / 其他类型渲染但禁用。预览走 `SessionFileViewer`（`@pierre/diffs` 的 `File`，与 diff viewer 同一套 options），二进制 / 空文件 / 截断各有 notice，读取失败给 alert + Retry。不编辑、不外部打开、不新增 shared/ui 组件。
+只读的 checkout 浏览器（ADR-0007 解冻，仅到「读」为止）：第一行 `SessionSurfaceBar` 左槽是选中文件路径（未选中时是 diff root 的目录名），右槽一个刷新 `IconButton`；下方两栏 `md:grid-cols-[minmax(0,1fr)_14rem]`，左预览右目录；窄窗口保留上目录、下预览。内容网格紧贴工具条与 Dock 两侧，不加顶部 margin、栏间 gap 或外层横向 padding。目录可见行用语义 `separator` 分割线区分，保留层级缩进。树用 Astryx `TreeList`（`density="compact"`、`variant="noGuides"`），目录懒加载：未加载的目录挂一个禁用的「Loading…」占位子行，占位行被渲染即触发列目录，失败显示带 `role="alert"` 的 danger 禁用行，折叠再展开会重试；空目录保留展开器并显示禁用的「Empty directory」子行；列表被截断时末尾追加禁用的「Listing truncated」行。首次加载根列表时显示带 `role="status"` 的骨架屏；刷新时保留树实例与展开状态，工具条图标旋转，已展开目录会重新列出内容。文件行 `FileIcon`、目录行 `FolderClosed`，symlink / 其他类型渲染但禁用。预览走 `SessionFileViewer`（`@pierre/diffs` 的 `File`，与 diff viewer 同一套 options），二进制 / 空文件 / 截断各有 notice，读取失败给 alert + Retry。不编辑、不外部打开、不新增 shared/ui 组件。
 
 ## 轨迹（Trajectory Cockpit）
 
