@@ -1,5 +1,6 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible, CollapsibleGroup } from "@astryxdesign/core/Collapsible";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Popover } from "@astryxdesign/core/Popover";
@@ -77,6 +78,7 @@ import {
   Check,
   ChevronDown,
   Computer,
+  FileDiff,
   FolderClosed,
   GitBranch,
   LayoutAlignLeft,
@@ -2251,7 +2253,7 @@ export function SessionChangesPanel({
     files.length > 0;
 
   return (
-    <section aria-label="Session changes" className="pb-2">
+    <section aria-label="Session changes" className="flex h-full min-h-0 flex-col">
       {/* The surface's first row (ADR-0028): working-tree state on the left,
           actions on the right — the slot Session-scoped checkout / commit /
           push actions (ADR-0008) will land in. A Session without a checkout
@@ -2290,183 +2292,199 @@ export function SessionChangesPanel({
         </SessionSurfaceBar>
       ) : null}
 
-      {stale ? (
-        <p className="mt-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
-          Runtime state is stale. This diff is fresh, but the Session status may be outdated.
-        </p>
-      ) : null}
+      {/* Keep scrolling and size containment below the window's header band.
+          The bar must stay in the root stacking context above its drag region. */}
+      <div className="@container/changes flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
+        {stale ? (
+          <p className="mt-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+            Runtime state is stale. This diff is fresh, but the Session status may be outdated.
+          </p>
+        ) : null}
 
-      {!sessionId ? (
-        <p className="mt-2 text-sm leading-6 text-muted">
-          No changes are attached to this Session.
-        </p>
-      ) : loading && !changes ? (
-        <div className="mt-3 grid gap-2" aria-label="Loading Session changes">
-          <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
-          <div className="h-24 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
-        </div>
-      ) : error ? (
-        <div
-          className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-3 py-3"
-          role="alert"
-        >
-          <p className="text-sm text-danger">{error}</p>
-          <Button
-            className="mt-3"
-            label="Retry"
-            size="sm"
-            variant="secondary"
-            onClick={onRefresh}
+        {!sessionId ? (
+          <EmptyState
+            className="flex-1 justify-center px-4"
+            title="No changes to review"
+            description="Start a session in a project to review its file changes here."
+            icon={<FileDiff className="size-5 text-muted" />}
+            isCompact
           />
-        </div>
-      ) : changes?.state === "non-git" ? (
-        <p className="mt-3 rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-          This Session checkout is not a Git repository.
-        </p>
-      ) : changes?.state === "clean" || !changes?.files.length ? (
-        <p className="mt-3 rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-          Working tree clean. No staged, unstaged, or untracked changes.
-        </p>
-      ) : (
-        <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_13rem]">
-          {/* Every diff, top to bottom: the reviewer scrolls instead of
-              switching. Each section is one file; a folded one drops its
-              viewer so a wide tree never keeps hundreds of renderers alive. */}
-          <CollapsibleGroup
-            className="min-w-0 rounded-md border border-default/70 bg-surface"
-            density="compact"
-            hasDividers
-            type="multiple"
-            value={openPaths}
-            onChange={(value) => {
-              const open = new Set(Array.isArray(value) ? value : [value]);
-              setClosedPaths(
-                new Set(
-                  files.map((file) => file.path).filter((path) => !open.has(path)),
-                ),
-              );
-            }}
+        ) : loading && !changes ? (
+          <div className="mt-3 grid gap-2" aria-label="Loading Session changes">
+            <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
+            <div className="h-24 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
+          </div>
+        ) : error ? (
+          <div
+            className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-3 py-3"
+            role="alert"
           >
-            {changes.files.map((file) => {
-              const isOpen = !closedPaths.has(file.path);
+            <p className="text-sm text-danger">{error}</p>
+            <Button
+              className="mt-3"
+              label="Retry"
+              size="sm"
+              variant="secondary"
+              onClick={onRefresh}
+            />
+          </div>
+        ) : changes?.state === "non-git" ? (
+          <EmptyState
+            className="flex-1 justify-center px-4"
+            title="No Git repository"
+            description="This session’s working directory is not a Git repository. File changes appear here for Git projects."
+            icon={<FileDiff className="size-5 text-muted" />}
+            isCompact
+          />
+        ) : changes?.state === "clean" || !changes?.files.length ? (
+          <EmptyState
+            className="flex-1 justify-center px-4"
+            title="No changes yet"
+            description="Your working tree is clean. Staged, unstaged, and new files will appear here as you work."
+            icon={<FileDiff className="size-5 text-muted" />}
+            isCompact
+          />
+        ) : (
+          <div className="mt-3 grid min-w-0 gap-3 @xl/changes:grid-cols-[minmax(0,1fr)_13rem]">
+            {/* Every diff, top to bottom: the reviewer scrolls instead of
+                switching. Each section is one file; a folded one drops its
+                viewer so a wide tree never keeps hundreds of renderers alive. */}
+            <CollapsibleGroup
+              className="min-w-0 rounded-md border border-default/70 bg-surface"
+              density="compact"
+              hasDividers
+              type="multiple"
+              value={openPaths}
+              onChange={(value) => {
+                const open = new Set(Array.isArray(value) ? value : [value]);
+                setClosedPaths(
+                  new Set(
+                    files.map((file) => file.path).filter((path) => !open.has(path)),
+                  ),
+                );
+              }}
+            >
+              {changes.files.map((file) => {
+                const isOpen = !closedPaths.has(file.path);
 
-              return (
-                <Collapsible
-                  key={`${file.previousPath ?? ""}:${file.path}`}
-                  className="pigui-change-section px-2"
-                  data-testid="session-change-section"
-                  ref={(node) => {
-                    if (node) sectionRefs.current.set(file.path, node);
-                    else sectionRefs.current.delete(file.path);
-                  }}
-                  trigger={
-                    <span className="flex w-full min-w-0 items-center gap-3 text-left">
-                      <span
-                        className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
-                        title={file.path}
-                      >
-                        {file.path}
+                return (
+                  <Collapsible
+                    key={`${file.previousPath ?? ""}:${file.path}`}
+                    className="pigui-change-section px-2"
+                    data-testid="session-change-section"
+                    ref={(node) => {
+                      if (node) sectionRefs.current.set(file.path, node);
+                      else sectionRefs.current.delete(file.path);
+                    }}
+                    trigger={
+                      <span className="flex w-full min-w-0 items-center gap-3 text-left">
+                        <span
+                          className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+                          title={file.path}
+                        >
+                          {file.path}
+                        </span>
+                        <span
+                          className="hidden min-w-0 shrink truncate text-xs text-muted @sm/changes:inline"
+                          title={changeStageLabel(file)}
+                        >
+                          {changeKindLabel(file.kind)} · {changeStageLabel(file)}
+                        </span>
+                        <ChangeCounts file={file} />
                       </span>
-                      <span
-                        className="hidden min-w-0 shrink truncate text-xs text-muted sm:inline"
-                        title={changeStageLabel(file)}
-                      >
+                    }
+                    value={file.path}
+                  >
+                    {isOpen ? (
+                      <div className="pb-2">
+                        {file.kind === "conflicted" ? (
+                          <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                            This file has unresolved merge conflicts. Resolve it in the
+                            checkout before reviewing a normal patch.
+                          </p>
+                        ) : file.binary ? (
+                          <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+                            Binary file changed. A textual diff is not available.
+                          </p>
+                        ) : file.patchTruncated ? (
+                          <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                            This patch exceeds the review limit and was omitted. Open the
+                            checkout for the full diff.
+                          </p>
+                        ) : file.patch ? (
+                          <Suspense
+                            fallback={
+                              <div
+                                className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
+                                aria-label="Loading diff renderer"
+                              />
+                            }
+                          >
+                            <SessionDiffViewer
+                              cacheKey={`${changes.sessionId}:${changes.generatedAt}:${file.path}`}
+                              patch={file.patch}
+                              style="unified"
+                            />
+                          </Suspense>
+                        ) : (
+                          <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
+                            No textual patch is available for this file.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+                  </Collapsible>
+                );
+              })}
+            </CollapsibleGroup>
+
+            {/* The outline: one row per file, in the order of the sections. It
+                comes first in narrow docks; only a wide container can afford
+                a second column, regardless of the application's window width. */}
+            <nav
+              aria-label="Changed files"
+              className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 @xl/changes:sticky @xl/changes:top-2 order-first @xl/changes:order-none"
+            >
+              <p className="px-2 py-1 text-xs font-medium text-muted">
+                {changes.files.length} files
+              </p>
+              <div className="max-h-[34rem] space-y-1 overflow-y-auto">
+                {changes.files.map((file) => (
+                  <button
+                    key={`${file.previousPath ?? ""}:${file.path}`}
+                    data-current={file.path === currentPath ? "true" : undefined}
+                    className={`w-full min-w-0 rounded px-2 py-1.5 text-left transition-colors ${
+                      file.path === currentPath
+                        ? "bg-default/70 text-foreground"
+                        : "text-muted hover:bg-default/40 hover:text-foreground"
+                    }`}
+                    type="button"
+                    onClick={() => navigateTo(file.path)}
+                  >
+                    <span className="block truncate text-sm" title={file.path}>
+                      {file.path}
+                    </span>
+                    <span className="mt-0.5 flex items-center justify-between gap-2 text-xs">
+                      <span className="min-w-0 truncate" title={changeStageLabel(file)}>
                         {changeKindLabel(file.kind)} · {changeStageLabel(file)}
                       </span>
                       <ChangeCounts file={file} />
                     </span>
-                  }
-                  value={file.path}
-                >
-                  {isOpen ? (
-                    <div className="pb-2">
-                      {file.kind === "conflicted" ? (
-                        <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
-                          This file has unresolved merge conflicts. Resolve it in the
-                          checkout before reviewing a normal patch.
-                        </p>
-                      ) : file.binary ? (
-                        <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-                          Binary file changed. A textual diff is not available.
-                        </p>
-                      ) : file.patchTruncated ? (
-                        <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
-                          This patch exceeds the review limit and was omitted. Open the
-                          checkout for the full diff.
-                        </p>
-                      ) : file.patch ? (
-                        <Suspense
-                          fallback={
-                            <div
-                              className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
-                              aria-label="Loading diff renderer"
-                            />
-                          }
-                        >
-                          <SessionDiffViewer
-                            cacheKey={`${changes.sessionId}:${changes.generatedAt}:${file.path}`}
-                            patch={file.patch}
-                            style="unified"
-                          />
-                        </Suspense>
-                      ) : (
-                        <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-                          No textual patch is available for this file.
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                </Collapsible>
-              );
-            })}
-          </CollapsibleGroup>
+                  </button>
+                ))}
+              </div>
+            </nav>
 
-          {/* The outline: one row per file, in the order of the sections. It
-              comes first on narrow widths; md+ restores DOM order so the diffs
-              and outline share a row before the full-width truncated notice. */}
-          <nav
-            aria-label="Changed files"
-            className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 md:sticky md:top-2 order-first md:order-none"
-          >
-            <p className="px-2 py-1 text-xs font-medium text-muted">
-              {changes.files.length} files
-            </p>
-            <div className="max-h-[34rem] space-y-1 overflow-y-auto">
-              {changes.files.map((file) => (
-                <button
-                  key={`${file.previousPath ?? ""}:${file.path}`}
-                  data-current={file.path === currentPath ? "true" : undefined}
-                  className={`w-full min-w-0 rounded px-2 py-1.5 text-left transition-colors ${
-                    file.path === currentPath
-                      ? "bg-default/70 text-foreground"
-                      : "text-muted hover:bg-default/40 hover:text-foreground"
-                  }`}
-                  type="button"
-                  onClick={() => navigateTo(file.path)}
-                >
-                  <span className="block truncate text-sm" title={file.path}>
-                    {file.path}
-                  </span>
-                  <span className="mt-0.5 flex items-center justify-between gap-2 text-xs">
-                    <span className="min-w-0 truncate" title={changeStageLabel(file)}>
-                      {changeKindLabel(file.kind)} · {changeStageLabel(file)}
-                    </span>
-                    <ChangeCounts file={file} />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </nav>
-
-          {changes.truncated ? (
-            <p className="md:col-span-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
-              Review is bounded. {changes.omittedFileCount > 0
-                ? `${changes.omittedFileCount} additional files were omitted.`
-                : "One or more oversized patches were omitted."}
-            </p>
-          ) : null}
-        </div>
-      )}
+            {changes.truncated ? (
+              <p className="@xl/changes:col-span-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+                Review is bounded. {changes.omittedFileCount > 0
+                  ? `${changes.omittedFileCount} additional files were omitted.`
+                  : "One or more oversized patches were omitted."}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
