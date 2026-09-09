@@ -9,6 +9,8 @@
 
 两者角色不互换：不要把 `bun run dev` 当宿主长期使用。
 
+只检查会话排版、Session 列表或 Dock 的 Changes / Files 时，可以运行 `bun run dev:mock` 使用[静态功能场景](dev-static-mocks.md)，无需新开真实对话。
+
 ## 数据目录隔离
 
 | 数据 | 宿主（打包版） | 被测（`bun run dev`） | 说明 |
