@@ -22,6 +22,7 @@ import {
   Delete02Icon,
   File01Icon,
   FileDiffIcon,
+  Files01Icon,
   FlashIcon,
   Folder01Icon,
   Folder02Icon,
@@ -92,6 +93,7 @@ export const Crosshair = iconComponent(CrosshairIcon);
 // and React 19 throws "Cannot read properties of null (reading 'use')".
 export const FileIcon = iconComponent(File01Icon);
 export const FileDiff = iconComponent(FileDiffIcon);
+export const Files = iconComponent(Files01Icon);
 export const Flash = iconComponent(FlashIcon);
 export const FolderClosed = iconComponent(Folder01Icon);
 export const FolderOpen = iconComponent(FolderOpenIcon);
