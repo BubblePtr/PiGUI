@@ -1,3 +1,4 @@
+import { addResourceDiagnostics } from "./workspace/resource-diagnostics";
 import { homedir } from "node:os";
 import type {
   ExecutionCheckoutGitClient,
@@ -344,7 +345,7 @@ async function dispatchRequest(input: {
         enabled: params.enabled,
       });
     case "get_config_inventory":
-      return buildConfigInventory(input.agentDir);
+      return addResourceDiagnostics(await buildConfigInventory(input.agentDir), input.sessionProjectionStore, input.runtimeJournal);
     case "get_chat_workspace_root":
       return { path: resolveChatWorkspaceRoot(input.dataDir) };
     case "run_environment_preflight":
