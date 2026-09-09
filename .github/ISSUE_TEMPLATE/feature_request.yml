@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a change or new capability in Pace
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Check [existing issues](https://github.com/BubblePtr/pace/issues) first.
+        Product terms should match [CONTEXT.md](https://github.com/BubblePtr/pace/blob/main/CONTEXT.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or missing today? Who hits it?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should Pace do instead? Name the surface, event, or setting if you know it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other approaches you considered, including "do nothing".
+    validations:
+      required: false

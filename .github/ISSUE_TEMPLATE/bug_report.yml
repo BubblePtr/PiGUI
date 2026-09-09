@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Pace is broken or unexpected
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Check [existing issues](https://github.com/BubblePtr/pace/issues) first.
+        Pace version is in **Settings → About**.
+  - type: input
+    id: pace-version
+    attributes:
+      label: Pace version
+      description: From Settings → About (for example 0.0.2).
+      placeholder: 0.0.2
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: Apple menu → About This Mac.
+      placeholder: macOS 15.1
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps that start from a launched Pace window.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        Paste relevant output from the first-run preflight page and from files
+        under `~/.pace` (or `~/.pace-dev` if you launched with `bun run dev`).
+        Redact API keys and session contents.
+      render: text
+    validations:
+      required: false
