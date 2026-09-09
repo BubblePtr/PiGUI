@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   resolveBackendEnvironment,
   resolveDevelopmentUserDataPath,
+  resolveUserDataPath,
 } from "./backend-environment";
 
 vi.mock("node:fs", async (importOriginal) => {
@@ -141,4 +142,77 @@ it("prefers existing Pace dev data without modifying either directory", () => {
   for (const name of [".pigui-dev", ".pace-dev"]) {
     expect(readFileSync(join(home, name, "history"), "utf8")).toBe(name);
   }
+});
+
+
+describe.each([true, false])("Electron userData migration (packaged: %s)", (isPackaged) => {
+  function paths() {
+    const appDataPath = join(home, "Application Support");
+    const suffix = isPackaged ? "" : "-dev";
+    return {
+      input: { appDataPath, userDataPath: join(appDataPath, "Pace"), isPackaged, hasUserDataDirSwitch: false },
+      path: join(appDataPath, `Pace${suffix}`),
+      old: join(appDataPath, "@pigui", `desktop${suffix}`),
+    };
+  }
+
+  it("creates the selected profile for a fresh install", () => {
+    const { input, path } = paths();
+    expect(resolveUserDataPath(input)).toBe(path);
+    expect(existsSync(path)).toBe(true);
+  });
+  it("moves profile contents without touching the other mode's profile", () => {
+    const { input, path, old } = paths();
+    const other = join(input.appDataPath, "@pigui", isPackaged ? "desktop-dev" : "desktop");
+    for (const directory of [old, other]) {
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, "Local State"), directory);
+    }
+    expect(resolveUserDataPath(input)).toBe(path);
+    expect(readFileSync(join(path, "Local State"), "utf8")).toBe(old);
+    expect(readFileSync(join(other, "Local State"), "utf8")).toBe(other);
+    expect(existsSync(old)).toBe(false);
+    expect(resolveUserDataPath(input)).toBe(path);
+  });
+
+  it("leaves old and new profile contents intact when both exist", () => {
+    const { input, path, old } = paths();
+    for (const directory of [old, path]) {
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, "Local State"), directory);
+    }
+    expect(resolveUserDataPath(input)).toBe(path);
+    for (const directory of [old, path]) {
+      expect(readFileSync(join(directory, "Local State"), "utf8")).toBe(directory);
+    }
+  });
+
+  it("skips migration and directory creation for an explicit Chromium profile", () => {
+    const { input, path, old } = paths();
+    mkdirSync(old, { recursive: true });
+    writeFileSync(join(old, "Local State"), "preferences");
+    const override = join(home, "e2e-profile");
+    expect(resolveUserDataPath({ ...input, userDataPath: override, hasUserDataDirSwitch: true })).toBe(override);
+    expect(readFileSync(join(old, "Local State"), "utf8")).toBe("preferences");
+    expect(existsSync(path)).toBe(false);
+    expect(existsSync(override)).toBe(false);
+  });
+
+  it.each(["EXDEV", "EACCES"])("keeps the old Chromium profile usable after %s", (code) => {
+    const { input, path, old } = paths();
+    mkdirSync(old, { recursive: true });
+    writeFileSync(join(old, "Local State"), "preferences");
+    const error = Object.assign(new Error("migration failed"), { code });
+    vi.mocked(renameSync).mockImplementationOnce(() => { throw error; });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(resolveUserDataPath(input)).toBe(old);
+      expect(readFileSync(join(old, "Local State"), "utf8")).toBe("preferences");
+      expect(existsSync(path)).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(old), error);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
 });

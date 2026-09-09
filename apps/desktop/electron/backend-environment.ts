@@ -52,3 +52,17 @@ function migrateDirectory(path: string, legacyPath: string): string {
   fs.mkdirSync(path, { recursive: true });
   return path;
 }
+
+export function resolveUserDataPath(input: {
+  appDataPath: string;
+  userDataPath: string;
+  isPackaged: boolean;
+  hasUserDataDirSwitch: boolean;
+}): string {
+  if (input.hasUserDataDirSwitch) {
+    return input.userDataPath;
+  }
+
+  const path = resolveDevelopmentUserDataPath(input) ?? input.userDataPath;
+  return migrateDirectory(path, join(input.appDataPath, "@pigui", input.isPackaged ? "desktop" : "desktop-dev"));
+}

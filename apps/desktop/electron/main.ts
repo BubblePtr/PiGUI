@@ -29,7 +29,7 @@ import {
 } from "./browser-annotation";
 import {
   resolveBackendEnvironment,
-  resolveDevelopmentUserDataPath,
+  resolveUserDataPath,
 } from "./backend-environment";
 import {
   createBrowserHost,
@@ -716,14 +716,14 @@ ipcMain.handle(
 );
 
 // Must run before any session/profile access, so it sits ahead of whenReady.
-const developmentUserDataPath = resolveDevelopmentUserDataPath({
+app.setName("Pace");
+const userDataPath = resolveUserDataPath({
+  appDataPath: app.getPath("appData"),
   isPackaged: app.isPackaged,
   hasUserDataDirSwitch: app.commandLine.hasSwitch("user-data-dir"),
   userDataPath: app.getPath("userData"),
 });
-if (developmentUserDataPath) {
-  app.setPath("userData", developmentUserDataPath);
-}
+app.setPath("userData", userDataPath);
 
 app.whenReady().then(() => {
   if (backgroundWindowForEndToEnd && process.platform === "darwin") {
