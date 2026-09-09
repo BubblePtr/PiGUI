@@ -14,6 +14,8 @@
 
 ## 应用图标
 
+About & Updates 顶部使用同一份 `build/icon-512.png`，配合界面标准字体显示 **Pace Agent** 和版本号，不使用艺术字标。图标与名称相邻，图片使用空 alt 避免重复朗读。
+
 `build/Pace.icon/Assets/P-rounded.svg` 是独立前景层，保留 1024 画布及原始位置；背景和 Liquid Glass 参数保存在 `icon.json`。编辑后运行 `bun run build:icon:mac`，一起提交源工程和三个生成文件：
 
 - `build/Assets.car`：由 Xcode actool 编译，macOS 打包复制到应用 Resources，通过 `CFBundleIconName=Pace` 使用系统渲染。

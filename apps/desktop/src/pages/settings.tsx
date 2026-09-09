@@ -20,6 +20,7 @@ import {
 } from "@/shared/settings-navigation";
 import { Bot, FolderOpen, Globe, RefreshCw, Sparkles } from "@/shared/ui/icons";
 import { ChangelogSection } from "@/pages/settings-changelog";
+import paceIcon from "../../../../build/icon-512.png";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
 import {
   getVisibleModels,
@@ -442,9 +443,15 @@ function AboutUpdatesSection() {
         <Heading level={2} id="settings-about-heading">
           About & Updates
         </Heading>
-        <Text as="p" type="supporting">
-          {status ? `Version ${status.currentVersion}` : "Loading version…"}
-        </Text>
+        <HStack gap={3} vAlign="center">
+          <img src={paceIcon} alt="" className="size-20 shrink-0" />
+          <VStack gap={1}>
+            <Heading level={3}>Pace Agent</Heading>
+            <Text as="p" type="supporting">
+              {status ? `Version ${status.currentVersion}` : "Loading version…"}
+            </Text>
+          </VStack>
+        </HStack>
         {status ? (
           <Text
             as="p"
