@@ -796,7 +796,7 @@ describe("AppFrame", () => {
     await user.click(removeProjectItem);
 
     expect(confirm).toHaveBeenCalledWith(
-      expect.stringContaining("Remove Pig from PiGUI?"),
+      expect.stringContaining("Remove Pig from Pace?"),
     );
     expect(confirm).toHaveBeenCalledWith(
       expect.stringContaining("Local files and historical Sessions will not be deleted."),

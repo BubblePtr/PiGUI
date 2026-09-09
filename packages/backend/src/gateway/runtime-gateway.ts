@@ -571,7 +571,7 @@ function createRuntimeEventProjectionWriter(store?: SessionProjectionStore) {
       })
       .catch((error) => {
         console.error(
-          `PiGUI failed to persist Session Projection "${event.sessionId}":`,
+          `Pace failed to persist Session Projection "${event.sessionId}":`,
           error,
         );
       });

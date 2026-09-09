@@ -97,7 +97,7 @@ test("the shipped backend works without global pi or repository node_modules", a
     const runtimeCheck = result.preflight.result.checks.find(check => check.id === "pi_runtime");
     const appPackage = JSON.parse(await readFile(join(appDir, "package.json"), "utf8"));
     const piPackage = JSON.parse(await readFile(join(repo, "packages/backend/node_modules/@earendil-works/pi-coding-agent/package.json"), "utf8"));
-    assert.equal(runtimeCheck.detail, `PiGUI ${appPackage.version} · Pi ${piPackage.version} · SDK`);
+    assert.equal(runtimeCheck.detail, `Pace ${appPackage.version} · Pi ${piPackage.version} · SDK`);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

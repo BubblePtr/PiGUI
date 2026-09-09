@@ -111,7 +111,7 @@ async function checkPiRuntime(
       status: "pass",
       title: "Pi Runtime",
       summary: "Bundled Pi engine available",
-      detail: `PiGUI ${runtime.appVersion} · Pi ${runtime.piVersion} · ${runtime.mode}`,
+      detail: `Pace ${runtime.appVersion} · Pi ${runtime.piVersion} · ${runtime.mode}`,
     };
   } catch (error) {
     return {
@@ -122,7 +122,7 @@ async function checkPiRuntime(
       summary: "Bundled Pi engine unavailable",
       detail: error instanceof Error ? error.message : String(error),
       remediation: [
-        "Reinstall or update PiGUI to restore its bundled engine",
+        "Reinstall or update Pace to restore its bundled engine",
         "Click Recheck",
       ],
     };
@@ -145,7 +145,7 @@ async function checkDataDirectory(
       severity: "required",
       status: "pass",
       title: "Data directory",
-      summary: "PiGUI data directory is writable",
+      summary: "Pace data directory is writable",
       detail: dataDir,
     };
   } catch (error) {
@@ -157,7 +157,7 @@ async function checkDataDirectory(
       summary: "Not writable",
       detail: `${dataDir}${error instanceof Error ? ` · ${error.message}` : ""}`,
       remediation: [
-        "Ensure the process can create and write files in the PiGUI data directory",
+        "Ensure the process can create and write files in the Pace data directory",
         "Check disk permissions or free space",
         "Click Recheck",
       ],

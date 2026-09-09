@@ -34,7 +34,7 @@ fi
 if [[ "$existing" == true ]]; then
   gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
 else
-  args=(--draft --verify-tag --title "PiGUI $VERSION" --generate-notes)
+  args=(--draft --verify-tag --title "Pace $VERSION" --generate-notes)
   if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
   gh release create "$RELEASE_TAG" "${assets[@]}" "${args[@]}"
 fi

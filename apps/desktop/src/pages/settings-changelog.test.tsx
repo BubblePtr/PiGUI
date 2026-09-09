@@ -15,7 +15,7 @@ const olderRelease: ChangelogRelease = {
   date: "2026-08-01",
   title: "First test release",
   summary: "A test release summary.",
-  url: "https://github.com/BubblePtr/PiGUI/releases/tag/v1.0.0",
+  url: "https://github.com/BubblePtr/pace/releases/tag/v1.0.0",
   changes: [{ kind: "added", title: "Test feature", description: "An available feature." }],
 };
 const newerRelease: ChangelogRelease = {
@@ -38,7 +38,7 @@ describe("Changelog timeline", () => {
     expect(within(entries[0]).getByRole("heading", { name: "v0.0.2" })).toBeVisible();
     expect(within(entries[0]).getByText("Projectless Chat")).toBeVisible();
     expect(within(entries[0]).getByText("In-app updates")).toBeVisible();
-    expect(within(entries[0]).getByRole("link", { name: /View release on GitHub/ })).toHaveAttribute("href", "https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.2");
+    expect(within(entries[0]).getByRole("link", { name: /View release on GitHub/ })).toHaveAttribute("href", "https://github.com/BubblePtr/pace/releases/tag/v0.0.2");
     expect(within(entries[1]).getByRole("heading", { name: "v0.0.1" })).toBeVisible();
   });
 

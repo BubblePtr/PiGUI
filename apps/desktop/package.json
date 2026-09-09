@@ -3,9 +3,9 @@
   "version": "0.0.2",
   "private": true,
   "license": "Apache-2.0",
-  "description": "The missing GUI for Pi Agent.",
+  "description": "The GUI for the Pi coding agent.",
   "author": "BubblePtr",
-  "desktopName": "pigui.desktop",
+  "desktopName": "pace.desktop",
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {

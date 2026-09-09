@@ -227,7 +227,7 @@ export function DesignPageContent() {
   return (
     <VStack gap={6} padding={6} style={{ width: "100%", maxWidth: "calc(var(--spacing-12) * 28)", marginInline: "auto", minWidth: 0 }}>
       <Text type="supporting">
-        PiGUI design system · Foundations and reusable interface components.
+        Pace design system · Foundations and reusable interface components.
       </Text>
       <TabList
         hasDivider

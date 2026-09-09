@@ -259,7 +259,7 @@ export function createFileSessionEventJournal(
         })
         .catch((error) => {
           console.error(
-            `PiGUI session event journal failed to append to "${path}":`,
+            `Pace session event journal failed to append to "${path}":`,
             error,
           );
         });

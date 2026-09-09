@@ -43,7 +43,7 @@ test.describe("M5.2: First-run preflight", () => {
       const continueButton = testApp.window.getByRole("button", { name: /Continue/i });
       await expect(continueButton).toBeEnabled({ timeout: 30_000 });
       await expect(testApp.window.getByText("Bundled Pi engine available")).toBeVisible();
-      await expect(testApp.window.getByText(/PiGUI .* · Pi 0\.84\.3 · SDK/)).toBeVisible();
+      await expect(testApp.window.getByText(/Pace .* · Pi 0\.84\.3 · SDK/)).toBeVisible();
       await testApp.window.screenshot({ path: testInfo.outputPath("bundled-pi-preflight.png"), fullPage: true });
       await continueButton.click();
 

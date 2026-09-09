@@ -198,7 +198,7 @@ describe("buildPromptWithAttachments", () => {
 
   it("exports the reject copy used by intake", () => {
     expect(ATTACHMENT_REJECT_COPY).toBe(
-      "PiGUI can only attach images and text files.",
+      "Pace can only attach images and text files.",
     );
   });
 });

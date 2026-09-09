@@ -282,7 +282,7 @@ const fixtureWorkspace: AgentWorkspaceFixture = {
     {
       id: "timeline-read-context",
       title: "Project context loaded",
-      meta: "PiGUI workspace and recent session evidence",
+      meta: "Pace workspace and recent session evidence",
     },
     {
       id: "timeline-render-shell",
@@ -1996,7 +1996,7 @@ function SessionDraftComposer({
           <h2 className="text-center text-3xl font-normal tracking-tight text-foreground">
             Build something useful with{" "}
             <span className="text-muted">
-              <TextShimmer>PiGUI</TextShimmer>
+              <TextShimmer>Pace</TextShimmer>
             </span>
           </h2>
         </div>
@@ -2117,7 +2117,7 @@ function checkoutModeLabel(mode: string) {
   }
 
   if (mode === "managed-worktree") {
-    return "PiGUI-managed worktree";
+    return "Pace-managed worktree";
   }
 
   return mode;
@@ -3412,13 +3412,13 @@ function LiveSessionColumn({
         ? [
             "Fork this message into a new Session?",
             "",
-            "PiGUI will create a separate Chat Session from this message boundary.",
+            "Pace will create a separate Chat Session from this message boundary.",
             "The selected message text will be pre-filled in the new composer.",
           ].join("\n")
         : [
             "Fork this message into a new Session?",
             "",
-            "PiGUI will create a separate Session from this message boundary.",
+            "Pace will create a separate Session from this message boundary.",
             "Git Projects use a managed worktree; non-Git Projects may reuse the foreground directory.",
             "The selected message text will be pre-filled in the new composer.",
           ].join("\n"),

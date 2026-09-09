@@ -129,7 +129,7 @@ export function PreflightPage() {
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
           <header className="space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-              PiGUI — Environment check
+              Pace — Environment check
             </div>
             <h1 className="text-2xl font-semibold tracking-normal">Before your first session</h1>
             <p className="text-sm text-muted">

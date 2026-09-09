@@ -12,7 +12,7 @@ export type ComposerAttachment = {
 };
 
 export const ATTACHMENT_REJECT_COPY =
-  "PiGUI can only attach images and text files.";
+  "Pace can only attach images and text files.";
 export const TEXT_TOO_LARGE_COPY =
   "A text attachment is too large to inline into the prompt.";
 export const IMAGE_TOO_LARGE_COPY =
