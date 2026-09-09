@@ -17,7 +17,7 @@
 | Electron userData（renderer 的 localStorage：项目注册表、草稿、模型偏好，以及 Chromium profile） | `~/Library/Application Support/Pace` | `~/Library/Application Support/Pace-dev` | 主进程在未打包时追加 `-dev` 后缀；显式传 `--user-data-dir` 时以其为准（E2E 用法）。这一步同时是 dev 实例能与正式版并存的前提：Chromium 同一 profile 只允许一个进程，第二个会直接退出 |
 | Pi 自己的数据（`~/.pi/agent`：会话、认证、扩展） | 共享 | 共享 | Pi 拥有会话真相，Pace 只读；共享认证避免重复登录 |
 
-预检页会显示后端数据目录，可以据此确认当前实例写到哪里。默认数据目录在启动解析路径时创建；迁移失败时预检页显示回退后的旧目录。
+预检页会显示后端数据目录，可以据此确认当前实例写到哪里。默认数据目录由启动入口执行迁移时创建；单纯解析路径不会读写文件系统，迁移失败时预检页显示回退后的旧目录。
 
 ## 兼容约束
 

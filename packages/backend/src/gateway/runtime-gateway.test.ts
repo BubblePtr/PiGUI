@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createRuntimeGatewayService,
   type PiRuntimeDriver,
@@ -9,6 +9,16 @@ import {
 } from "./runtime-gateway";
 import { createInMemorySessionEventJournal } from "../persistence/session-event-journal";
 import { createInMemorySessionProjectionStore } from "../persistence/session-projection-store";
+
+let defaultDataDir: string;
+beforeEach(async () => {
+  defaultDataDir = await mkdtemp(join(tmpdir(), "pace-gateway-default-"));
+  vi.stubEnv("PIGUI_DATA_DIR", defaultDataDir);
+});
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await rm(defaultDataDir, { recursive: true, force: true });
+});
 
 function createFakeRuntimeDriver(): PiRuntimeDriver & {
   emitDriverEvent(event: RuntimeGatewayDriverEvent): void;

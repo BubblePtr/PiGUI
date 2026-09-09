@@ -76,3 +76,5 @@ export {
   type SessionFilesReader,
   type SessionFilesReaderOptions,
 } from "./workspace/session-files";
+
+export { migrateDataDir } from "./persistence/session-event-journal";

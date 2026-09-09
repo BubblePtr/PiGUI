@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type {
   ExecutionCheckoutGitClient,
   PiRpcCommand,
@@ -112,7 +113,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
   // Register the statically bundled flows so the lazy loaders resolve locally.
   registerBunOAuthFlows();
   const agentDir = options.agentDir ?? resolveAgentDir();
-  const dataDir = options.dataDir ?? resolveDataDir();
+  const dataDir = options.dataDir ?? resolveDataDir(process.env, homedir());
   const sessionCache = options.sessionCache ?? createSessionIndexCache();
   const gitClient = options.gitClient ?? createNodeExecutionCheckoutGitClient();
   const piRpc = options.piRpc ?? createNodePiRpcProcess();

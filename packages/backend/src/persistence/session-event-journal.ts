@@ -5,7 +5,6 @@
 
 import * as fs from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   RuntimeGatewayEventEnvelope,
@@ -14,12 +13,16 @@ import type {
 
 // PiGUI's own data lives outside ~/.pi — that directory is Pi's session truth
 // and PiGUI only observes it.
-export function resolveDataDir(env: NodeJS.ProcessEnv = process.env, homeDir = homedir()) {
+export function resolveDataDir(env: NodeJS.ProcessEnv, homeDir: string): string {
+  return env.PIGUI_DATA_DIR || join(homeDir, ".pace");
+}
+
+export function migrateDataDir(env: NodeJS.ProcessEnv, homeDir: string): string {
   if (env.PIGUI_DATA_DIR) {
     return env.PIGUI_DATA_DIR;
   }
 
-  const dataDir = join(homeDir, ".pace");
+  const dataDir = resolveDataDir(env, homeDir);
   const legacyDataDir = join(homeDir, ".pigui");
   if (!fs.existsSync(dataDir) && fs.existsSync(legacyDataDir)) {
     try {

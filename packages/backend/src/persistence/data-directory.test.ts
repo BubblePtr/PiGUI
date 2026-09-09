@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveDataDir } from "./session-event-journal";
+import { migrateDataDir, resolveDataDir } from "./session-event-journal";
 
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs")>();
@@ -20,7 +20,7 @@ afterEach(() => homes.splice(0).forEach((home) => rmSync(home, { recursive: true
 describe("backend data directory migration", () => {
   it("creates a new default directory for a fresh install", () => {
     const home = temporaryHome();
-    const path = resolveDataDir({}, home);
+    const path = migrateDataDir({}, home);
     expect(path).toBe(join(home, ".pace"));
     expect(existsSync(path)).toBe(true);
   });
@@ -29,10 +29,10 @@ describe("backend data directory migration", () => {
     const old = join(home, ".pigui");
     mkdirSync(old);
     writeFileSync(join(old, "journal.jsonl"), "session history");
-    const path = resolveDataDir({}, home);
+    const path = migrateDataDir({}, home);
     expect(readFileSync(join(path, "journal.jsonl"), "utf8")).toBe("session history");
     expect(existsSync(old)).toBe(false);
-    expect(resolveDataDir({}, home)).toBe(path);
+    expect(migrateDataDir({}, home)).toBe(path);
   });
 
   it("keeps both directories intact when the new directory already exists", () => {
@@ -41,7 +41,7 @@ describe("backend data directory migration", () => {
       mkdirSync(join(home, name));
       writeFileSync(join(home, name, "journal.jsonl"), name);
     }
-    expect(resolveDataDir({}, home)).toBe(join(home, ".pace"));
+    expect(migrateDataDir({}, home)).toBe(join(home, ".pace"));
     for (const name of [".pigui", ".pace"]) {
       expect(readFileSync(join(home, name, "journal.jsonl"), "utf8")).toBe(name);
     }
@@ -51,7 +51,7 @@ describe("backend data directory migration", () => {
     const home = temporaryHome();
     mkdirSync(join(home, ".pigui"));
     const override = join(home, "custom");
-    expect(resolveDataDir({ PIGUI_DATA_DIR: override }, home)).toBe(override);
+    expect(migrateDataDir({ PIGUI_DATA_DIR: override }, home)).toBe(override);
     expect(existsSync(join(home, ".pigui"))).toBe(true);
     expect(existsSync(join(home, ".pace"))).toBe(false);
   });
@@ -65,7 +65,7 @@ describe("backend data directory migration", () => {
     vi.mocked(renameSync).mockImplementationOnce(() => { throw error; });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      expect(resolveDataDir({}, home)).toBe(old);
+      expect(migrateDataDir({}, home)).toBe(old);
       expect(readFileSync(join(old, "journal.jsonl"), "utf8")).toBe("session history");
       expect(existsSync(join(home, ".pace"))).toBe(false);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining(old), error);
@@ -74,4 +74,14 @@ describe("backend data directory migration", () => {
     }
   });
 
+});
+
+it("resolves paths without creating or migrating directories", () => {
+  const home = temporaryHome();
+  const legacy = join(home, ".pigui");
+  mkdirSync(legacy);
+  writeFileSync(join(legacy, "history"), "session history");
+  expect(resolveDataDir({}, home)).toBe(join(home, ".pace"));
+  expect(existsSync(join(home, ".pace"))).toBe(false);
+  expect(readFileSync(join(legacy, "history"), "utf8")).toBe("session history");
 });
