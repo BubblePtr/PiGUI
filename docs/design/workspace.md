@@ -52,6 +52,8 @@ xterm.js 宿主，对外只有 `ref.write()` / `ref.focus()` 和 `onData` / `onR
 
 堆叠所有文件的 unified diff，文件大纲用于滚动定位与展开（ADR-0035）。响应式布局依据 Changes 的**容器宽度**，不能使用窗口断点：命名容器 `changes` 在 `@xl` 起才左右并排，窄于该档时大纲在上、Diff 在下；截断提示跟随同一断点跨栏。区块标题优先保留文件名与增删计数，状态标签在容器 `@sm` 起显示，完整状态始终可在大纲中查看（#243）。
 
+内容网格紧贴工具条，Diff 与文件大纲之间不留额外 gap；sticky 大纲贴内容区顶部。文件大纲各行之间使用语义 `separator` 分割线，不叠加行间空白。
+
 空态直接复用 Astryx `EmptyState`，与 Terminal / Browser 同样使用居中图标、标题、说明和 `isCompact`，不加边框卡片，不新增自建组件：
 - 干净树：`No changes yet`，说明 staged / unstaged / 新文件会随工作出现。
 - 非 Git：`No Git repository`，解释工作目录不是 Git 仓库，不误报为读取失败。
