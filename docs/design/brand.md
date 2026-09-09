@@ -24,4 +24,4 @@ About & Updates 顶部使用同一份 `build/icon-512.png`，配合界面标准�
 
 兼容图标来自同一个 Icon Composer 默认外观渲染，不另画一套；透明外沿按 actool 的 macOS 图标比例保留。日常打包使用已提交的生成资源，不要求 Linux 或 CI 安装 Icon Composer。
 
-本次只接入品牌资源；应用标识、数据目录、发布名仍沿用 PiGUI，避免把视觉替换扩大为产品迁移。
+应用标识、界面文案与发布产物统一使用 Pace，macOS bundle id 固定为 `com.bubbleptr.pace`。后端数据目录使用 `~/.pace`（开发版 `~/.pace-dev`），Electron userData 通过 `app.setName("Pace")` 固定并保留开发版 `-dev` 隔离；旧目录的迁移与失败回退规则见 [自举隔离说明](../dogfooding.md)。内部包作用域、环境变量、localStorage、IPC 与 CSS 前缀本轮保留。

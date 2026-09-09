@@ -1,6 +1,6 @@
-# PiGUI
+# Pace
 
-PiGUI 是面向 Pi Agent 的桌面工作台。它把 Pi 的运行记录、用量、配置和工作空间状态组织成可理解、可操作的 GUI。
+Pace 是面向 Pi Agent 的桌面工作台。它把 Pi 的运行记录、用量、配置和工作空间状态组织成可理解、可操作的 GUI。
 
 ## Language
 
@@ -9,35 +9,35 @@ PiGUI 是面向 Pi Agent 的桌面工作台。它把 Pi 的运行记录、用量
 _Avoid_: Session, project, dashboard
 
 **Project**:
-PiGUI UI 中围绕一个用户手动选择的本地工作目录建立的组织单元，不要求该目录是 Git repo。Project 拥有多个 Session，并提供 Analyze、配置、用量和 checkout 管理等视角。它不再是唯一的顶层归属：无代码库的对话走内置的 Chat Workspace，Chat 不是 Project。
+Pace UI 中围绕一个用户手动选择的本地工作目录建立的组织单元，不要求该目录是 Git repo。Project 拥有多个 Session，并提供 Analyze、配置、用量和 checkout 管理等视角。它不再是唯一的顶层归属：无代码库的对话走内置的 Chat Workspace，Chat 不是 Project。
 _Avoid_: Workspace, single session, Git branch, Git-only project, chat-as-project
 
 **Chat Workspace**:
-PiGUI 数据目录下的内置隐藏工作空间根 `<dataDir>/chats/`，不是 Project，不写入 Project Registry，不可 Remove，不经过 `normalizeProjectPath`。identity 用哨兵 `projectId = "chat"`（Registry 的 Project id 都是以 `/` 开头的绝对路径，不会冲突）。每个 Chat Session 在其中拥有独立目录 `<dataDir>/chats/<sessionId>/`，作为 Pi 的 cwd；目录由后端 `prepare_chat_workspace` 创建，渲染层不知道 dataDir。Sidebar 顶部固定 Chats 分组直接列出这些 Session，标题旁提供 New Chat，没有中间的 Chat 父级。
+Pace 数据目录下的内置隐藏工作空间根 `<dataDir>/chats/`，不是 Project，不写入 Project Registry，不可 Remove，不经过 `normalizeProjectPath`。identity 用哨兵 `projectId = "chat"`（Registry 的 Project id 都是以 `/` 开头的绝对路径，不会冲突）。每个 Chat Session 在其中拥有独立目录 `<dataDir>/chats/<sessionId>/`，作为 Pi 的 cwd；目录由后端 `prepare_chat_workspace` 创建，渲染层不知道 dataDir。Sidebar 顶部固定 Chats 分组直接列出这些 Session，标题旁提供 New Chat，没有中间的 Chat 父级。
 _Avoid_: Project, registry project, auto-discovered folder, custom chat root, temporary project
 
 **Project Selector**:
-PiGUI 中选择 Session Draft 提交目标的入口。首项固定为 "No project"（Chat Workspace），其后是 Project Registry 里用户手动添加的 Project。空 Workspace 不必先 Add Project 也能选 Chat 并提交 prompt。用户可见文案对代码目录仍用 Project，对无项目对话用 Chat，而不是 Workspace。选择 Project 时是用户工作的根目录语义，不是临时覆盖某个 Session 的 cwd。首次添加 Project 后，该 Project 立即成为 Current Project。全局 New Chat 和没有历史草稿时的 landing 均默认 Chat，项目旁 New Chat 默认该 Project；允许随时切换，切换目标不清空 draft 文本。Project Selector 不承载 Project Removal。
+Pace 中选择 Session Draft 提交目标的入口。首项固定为 "No project"（Chat Workspace），其后是 Project Registry 里用户手动添加的 Project。空 Workspace 不必先 Add Project 也能选 Chat 并提交 prompt。用户可见文案对代码目录仍用 Project，对无项目对话用 Chat，而不是 Workspace。选择 Project 时是用户工作的根目录语义，不是临时覆盖某个 Session 的 cwd。首次添加 Project 后，该 Project 立即成为 Current Project。全局 New Chat 和没有历史草稿时的 landing 均默认 Chat，项目旁 New Chat 默认该 Project；允许随时切换，切换目标不清空 draft 文本。Project Selector 不承载 Project Removal。
 _Avoid_: Workspace selector, cwd switcher, session picker, auto-discovered project, composer-only project list
 
 **Project Sidebar**:
-PiGUI 左侧导航面：顶部固定 Chats 分组（Chat Session，不属于任何 Project），其下按添加时间倒序展示 Project Registry 中所有 Project。Chats 下直接列出无项目对话。Chats 与 Projects 的标题文字本身就是折叠开关，整组折叠状态在本机保存；标题旁只有一个加号，且与 Project 行、Session 行上的操作按钮一样默认隐藏，鼠标悬停、键盘聚焦或菜单打开时才显示（触屏设备常驻）。Chats 的加号新建 Chat，Projects 的加号打开目录选择器添加 Project；不再显示独立的 Add Project 列表行。两组收起后仍保留加号入口，不改变当前会话。状态标记（运行中、未读结果、Follow-up Draft、时间）不属于操作按钮，始终可见。每个 Project 行还可以独立展开或收起自己的 Session 列表，行点击只切换展开状态，不切换主内容。新添加的 Project 默认展开，展开状态作为 PiGUI 本地 UI state 跨 app 重启保留，但不等同于 Current Project。从外部入口打开某个 Session 时，Sidebar 自动展开该 Session 所属的 Project（如有）。Project 行上的 New Chat 入口会把该 Project 设为 Current Project，并打开全局唯一的 Session Draft；Chats 标题旁的 New Chat 把当前目标设为 Chat，之后仍可通过 Project Selector 更改。Project Removal 只放在 Project 行的更多菜单里，Chats 分组没有 Remove。Sidebar 不为全局 Session Draft 显示 indicator；只有已有 Session 的 Follow-up Draft 需要在对应 Session 行显示轻量 indicator，并可在分组折叠时汇总到分组行。
+Pace 左侧导航面：顶部固定 Chats 分组（Chat Session，不属于任何 Project），其下按添加时间倒序展示 Project Registry 中所有 Project。Chats 下直接列出无项目对话。Chats 与 Projects 的标题文字本身就是折叠开关，整组折叠状态在本机保存；标题旁只有一个加号，且与 Project 行、Session 行上的操作按钮一样默认隐藏，鼠标悬停、键盘聚焦或菜单打开时才显示（触屏设备常驻）。Chats 的加号新建 Chat，Projects 的加号打开目录选择器添加 Project；不再显示独立的 Add Project 列表行。两组收起后仍保留加号入口，不改变当前会话。状态标记（运行中、未读结果、Follow-up Draft、时间）不属于操作按钮，始终可见。每个 Project 行还可以独立展开或收起自己的 Session 列表，行点击只切换展开状态，不切换主内容。新添加的 Project 默认展开，展开状态作为 Pace 本地 UI state 跨 app 重启保留，但不等同于 Current Project。从外部入口打开某个 Session 时，Sidebar 自动展开该 Session 所属的 Project（如有）。Project 行上的 New Chat 入口会把该 Project 设为 Current Project，并打开全局唯一的 Session Draft；Chats 标题旁的 New Chat 把当前目标设为 Chat，之后仍可通过 Project Selector 更改。Project Removal 只放在 Project 行的更多菜单里，Chats 分组没有 Remove。Sidebar 不为全局 Session Draft 显示 indicator；只有已有 Session 的 Follow-up Draft 需要在对应 Session 行显示轻量 indicator，并可在分组折叠时汇总到分组行。
 _Avoid_: Single-current-project-only sidebar, global session list, project tree auto-discovery, current-project state, session ownership, project detail navigation, global draft indicator
 
 **Project Registry**:
-PiGUI 持久保存的用户手动添加 Project 列表，是 Project Selector 中 Project 选项的来源，不是 Chat Workspace 的来源。它属于 PiGUI 本地 app state，不属于项目 repo、Pi Runtime truth 或 Pi session logs；它跨 app 重启保留，并用规范化后的本地绝对路径作为首版 Project identity，按添加时间倒序呈现，默认显示名取目录 basename，但不从 session logs、历史 cwd 或文件系统扫描自动创建 Project。Chat Workspace 不是自动发现，也不写入 registry。用户添加已存在路径时，PiGUI 不创建重复 Project，而是选中已有 Project 并进入全局唯一的 Session Draft。用户可以从 registry/sidebar 移除 Project；该动作不删除本地目录，也不删除已有 Session Projection 或 Session Trajectory。
+Pace 持久保存的用户手动添加 Project 列表，是 Project Selector 中 Project 选项的来源，不是 Chat Workspace 的来源。它属于 Pace 本地 app state，不属于项目 repo、Pi Runtime truth 或 Pi session logs；它跨 app 重启保留，并用规范化后的本地绝对路径作为首版 Project identity，按添加时间倒序呈现，默认显示名取目录 basename，但不从 session logs、历史 cwd 或文件系统扫描自动创建 Project。Chat Workspace 不是自动发现，也不写入 registry。用户添加已存在路径时，Pace 不创建重复 Project，而是选中已有 Project 并进入全局唯一的 Session Draft。用户可以从 registry/sidebar 移除 Project；该动作不删除本地目录，也不删除已有 Session Projection 或 Session Trajectory。
 _Avoid_: Session-derived project list, recent cwd list, auto-discovery cache, display-name identity, project delete, repo config, Pi runtime config, Git-only registry, duplicate project, last-used sorting, project rename, chat-in-registry
 
 **Project Removal**:
-用户从 Project Registry 移除一个 Project 的危险动作，需要二次确认；确认内容应说明 Project 会从 PiGUI 中移除、本地文件和历史 Session 不会删除。如果该 Project 是全局 Session Draft 的提交目标，PiGUI 保留 draft 文本但清空目标，用户需要重新选择目标（Project 或 Chat）后才能提交，不会自动回落到 Chat。如果当前界面正在打开该 Project 下的 Session，PiGUI 跳到 new session 的空状态；如果当前界面不在该 Project 的 Session 中，移除动作不改变当前界面。
+用户从 Project Registry 移除一个 Project 的危险动作，需要二次确认；确认内容应说明 Project 会从 Pace 中移除、本地文件和历史 Session 不会删除。如果该 Project 是全局 Session Draft 的提交目标，Pace 保留 draft 文本但清空目标，用户需要重新选择目标（Project 或 Chat）后才能提交，不会自动回落到 Chat。如果当前界面正在打开该 Project 下的 Session，Pace 跳到 new session 的空状态；如果当前界面不在该 Project 的 Session 中，移除动作不改变当前界面。
 _Avoid_: Delete directory, delete sessions, global navigation reset, silent-fallback-to-chat
 
 **Empty Workspace State**:
-PiGUI 中 Project Registry 为空、没有 Current Project 的状态。此时 Sidebar 仍显示固定的 Chats 分组和 Add Project；全局 New Chat 可用，landing 进入 Chat draft，用户可以直接提交 prompt 而不必先添加 Project。
+Pace 中 Project Registry 为空、没有 Current Project 的状态。此时 Sidebar 仍显示固定的 Chats 分组和 Add Project；全局 New Chat 可用，landing 进入 Chat draft，用户可以直接提交 prompt 而不必先添加 Project。
 _Avoid_: Default project, prompt-blocked-until-project
 
 **Current Project**:
-PiGUI 当前正在操作的 Project，在 Project Registry 非空时决定新建 Session 的默认目标。Registry 为空时默认目标是 Chat，而不是发明一个 Current Project。用户从 composer 入口选择另一个 Project 时，该 Project 也成为 Current Project；选 Chat 则当前提交目标为 Chat Workspace。全局 Session Draft 的文本保留，Project Sidebar 中的展开状态不改变 Current Project。
+Pace 当前正在操作的 Project，在 Project Registry 非空时决定新建 Session 的默认目标。Registry 为空时默认目标是 Chat，而不是发明一个 Current Project。用户从 composer 入口选择另一个 Project 时，该 Project 也成为 Current Project；选 Chat 则当前提交目标为 Chat Workspace。全局 Session Draft 的文本保留，Project Sidebar 中的展开状态不改变 Current Project。
 _Avoid_: Composer-only project, selected session project, cwd override, expanded project
 
 **Session Trajectory**:
@@ -69,7 +69,7 @@ Trajectory Cockpit 中当前被检视的步骤位置：Ledger 中的选中行、
 _Avoid_: Selection, cursor, focus row
 
 **Session**:
-一条已提交、可运行、可恢复、可归档的 Pi 交互工作单元，归属某个 Project 或 Chat Workspace。实现上，一个 Session 对应一个 Agent Run 及其 Execution Checkout，并持续沉淀 Session Trajectory。Session 的运行真相属于 Pi Runtime；PiGUI 保存的是用于 UI、索引和生命周期管理的 Session Projection。`projectId` 仍是必填字符串：Project Session 用规范化绝对路径，Chat Session 用哨兵 `"chat"`。
+一条已提交、可运行、可恢复、可归档的 Pi 交互工作单元，归属某个 Project 或 Chat Workspace。实现上，一个 Session 对应一个 Agent Run 及其 Execution Checkout，并持续沉淀 Session Trajectory。Session 的运行真相属于 Pi Runtime；Pace 保存的是用于 UI、索引和生命周期管理的 Session Projection。`projectId` 仍是必填字符串：Project Session 用规范化绝对路径，Chat Session 用哨兵 `"chat"`。
 _Avoid_: Task, workspace, trace-only session, draft prompt, nullable-projectId
 
 **Chat Session**:
@@ -77,11 +77,11 @@ _Avoid_: Task, workspace, trace-only session, draft prompt, nullable-projectId
 _Avoid_: untitled project, temporary project, projectless-null-session
 
 **Session Draft**:
-用户点击 New Chat 或加号后进入的全局唯一未提交输入状态。它跨 app 重启保留一份 initial prompt、可选的当前提交目标（Project 或 Chat）和少量高级覆盖项，但尚未创建 PiGUI Session、Pi Session State、Agent Run 或 Execution Checkout，也不显示在 Session 列表中。切换目标不清空 Session Draft 文本。如果目标 Project 被移除，draft 文本保留但目标清空，并由 composer 要求重新选择，不自动回落到 Chat；app 启动恢复 draft 时，已不在 Project Registry 中的 Project 目标同样被清空，Chat 目标保持有效。全局新 draft 默认目标为 Chat，与 Registry 是否为空无关。未确定目标时隐藏执行方式；选中 Project 后以 Project folder / Git worktree 说明对文件的影响。草稿不展示上一会话的 Session Dock。提交 draft 后才进入 Session 创建流程；`creating` 状态的 Session Projection 一出现，视图就交给 Live Session View（路由离开 draft、侧栏选中新 Session），不等待 Pi 的事件边界；只有 Pi Runtime 接受 initial prompt 或发出首个 runtime event 后，draft 才清空。创建失败时 Live Session View 展示失败阶段与错误，并提供回到 Session Draft 的入口，draft 文本保持完整。
+用户点击 New Chat 或加号后进入的全局唯一未提交输入状态。它跨 app 重启保留一份 initial prompt、可选的当前提交目标（Project 或 Chat）和少量高级覆盖项，但尚未创建 Pace Session、Pi Session State、Agent Run 或 Execution Checkout，也不显示在 Session 列表中。切换目标不清空 Session Draft 文本。如果目标 Project 被移除，draft 文本保留但目标清空，并由 composer 要求重新选择，不自动回落到 Chat；app 启动恢复 draft 时，已不在 Project Registry 中的 Project 目标同样被清空，Chat 目标保持有效。全局新 draft 默认目标为 Chat，与 Registry 是否为空无关。未确定目标时隐藏执行方式；选中 Project 后以 Project folder / Git worktree 说明对文件的影响。草稿不展示上一会话的 Session Dock。提交 draft 后才进入 Session 创建流程；`creating` 状态的 Session Projection 一出现，视图就交给 Live Session View（路由离开 draft、侧栏选中新 Session），不等待 Pi 的事件边界；只有 Pi Runtime 接受 initial prompt 或发出首个 runtime event 后，draft 才清空。创建失败时 Live Session View 展示失败阶段与错误，并提供回到 Session Draft 的入口，draft 文本保持完整。
 _Avoid_: Per-project draft, Project-scoped draft, follow-up input, Session, Pi session, run, trace
 
 **Follow-up Draft**:
-用户在已有 Session 的 composer 中尚未提交的 follow-up 输入。它按 Session 归属并跨 app 重启保留，一条 Session 最多保留一份 Follow-up Draft；它用于继续该 Session，不允许切换 Project，也不是全局 Session Draft。提交、Queue 或 Steer 成功后，PiGUI 清空对应 Session 的 Follow-up Draft；失败时保留文本并显示错误。
+用户在已有 Session 的 composer 中尚未提交的 follow-up 输入。它按 Session 归属并跨 app 重启保留，一条 Session 最多保留一份 Follow-up Draft；它用于继续该 Session，不允许切换 Project，也不是全局 Session Draft。提交、Queue 或 Steer 成功后，Pace 清空对应 Session 的 Follow-up Draft；失败时保留文本并显示错误。
 _Avoid_: Session Draft, Project draft, new-session draft, queued message
 
 **Unsent Follow-up Indicator**:
@@ -89,19 +89,19 @@ Project Sidebar 中提示已有 Session 存在 Follow-up Draft 的轻量标记�
 _Avoid_: Draft badge, Session Draft indicator, Project draft indicator, status badge
 
 **Session Creation**:
-Session Draft 提交后的创建状态机。PiGUI 先创建 `creating` 状态的 Session Projection，再选择或创建 Execution Checkout，然后启动或 attach Pi Runtime / 创建 Pi Session State，最后发送 initial prompt。每个阶段都要能记录错误和恢复点。Live Session View 从第一阶段起就承接该 Session：initial prompt 以待发送气泡显示，当前阶段以状态行显示，composer 锁定到 initial prompt 被接受为止；UI 的交接时机不依赖 Pi 的 user message 边界，因为扩展可以把该边界推迟任意久。
+Session Draft 提交后的创建状态机。Pace 先创建 `creating` 状态的 Session Projection，再选择或创建 Execution Checkout，然后启动或 attach Pi Runtime / 创建 Pi Session State，最后发送 initial prompt。每个阶段都要能记录错误和恢复点。Live Session View 从第一阶段起就承接该 Session：initial prompt 以待发送气泡显示，当前阶段以状态行显示，composer 锁定到 initial prompt 被接受为止；UI 的交接时机不依赖 Pi 的 user message 边界，因为扩展可以把该边界推迟任意久。
 _Avoid_: Draft editing, single-step create, invisible side effect
 
 **Resume**:
-打开一个当前没有存活 runtime 的 Session 并让它重新可继续对话的能力。它是 Gateway 能力而不是用户动词：用户只有"打开 Session"一个动作，底层走热 attach（runtime 仍存活）还是冷恢复（进程重启后从 Pi 会话记录重新打开）对用户透明。冷恢复时对话上下文永远由 Pi Runtime 从 Pi Session State 的持久记录自行重建，PiGUI 不自行拼装 LLM 上下文；UI 时间线来自 Session Event Journal 的回放，两者分工不可互换。
-_Avoid_: Resume button, reattach-only recovery, PiGUI-rebuilt LLM context, plain session switch
+打开一个当前没有存活 runtime 的 Session 并让它重新可继续对话的能力。它是 Gateway 能力而不是用户动词：用户只有"打开 Session"一个动作，底层走热 attach（runtime 仍存活）还是冷恢复（进程重启后从 Pi 会话记录重新打开）对用户透明。冷恢复时对话上下文永远由 Pi Runtime 从 Pi Session State 的持久记录自行重建，Pace 不自行拼装 LLM 上下文；UI 时间线来自 Session Event Journal 的回放，两者分工不可互换。
+_Avoid_: Resume button, reattach-only recovery, Pace-rebuilt LLM context, plain session switch
 
 **Fork**:
 从已有 Session 的某条 user message 边界分叉出新 Session 的动作。Fork 只复制对话上下文（root 到 fork 点的线性路径），永远产生一个带独立 identity、独立 Execution Checkout、出现在 Session 列表中的新 Session，并保留指回源 Session 的谱系；被选中的 user message 原文预填进新 Session 的 composer 供改写。Fork 不承诺磁盘状态回到 fork 点：Git Project 下新 Session 强制使用新的 managed worktree，非 Git Project 复用前台目录并提示可能存在源 Session 的文件改动。树内分支（同一 Session 内移动 leaf 形成非线性历史）不在产品边界内。
 _Avoid_: In-session branch, tree navigation, disk snapshot, filesystem time travel, checkout copy
 
 **Session Creation Boundary**:
-PiGUI 当前的 Session 列表只包含从 PiGUI 中创建的 Session。当前不自动扫描 Pi 的 session 目录，也不支持把 PiGUI 之外产生的 Pi CLI/TUI session 手动导入或补建 Session Projection。需要在 PiGUI 继续外部工作时，用户在目标 Project 内新建 PiGUI Session，避免把缺少 journal/checkout/status 的外部记录伪装成 PiGUI 原生 Session。这是当前实现范围，不是永久产品原则：会话交接可后续单独设计，GUI 与终端同时操作同一个运行实例不作为当前架构前提，见 [ADR-0031](docs/adr/0031-bundled-pi-runtime-and-extension-compatibility.md)。
+Pace 当前的 Session 列表只包含从 Pace 中创建的 Session。当前不自动扫描 Pi 的 session 目录，也不支持把 Pace 之外产生的 Pi CLI/TUI session 手动导入或补建 Session Projection。需要在 Pace 继续外部工作时，用户在目标 Project 内新建 Pace Session，避免把缺少 journal/checkout/status 的外部记录伪装成 Pace 原生 Session。这是当前实现范围，不是永久产品原则：会话交接可后续单独设计，GUI 与终端同时操作同一个运行实例不作为当前架构前提，见 [ADR-0031](docs/adr/0031-bundled-pi-runtime-and-extension-compatibility.md)。
 _Avoid_: Session Import, auto-discovery, session directory scan, background sync, projection backfill for external sessions
 
 **Session Status**:
@@ -121,7 +121,7 @@ Project 下 Session 列表的默认排序：active run 在前，其次是有 Unr
 _Avoid_: Status taxonomy ordering, alphabetical default, draft ordering
 
 **Live Session View**:
-PiGUI 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trajectory 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Dock 的三栏结构（首版称 Structured Action Surface）；Dock 里的 Terminal / Browser Surface 已由 ADR-0028 / 0029 解冻，只读的 Files Surface 由 ADR-0035 解冻；编辑仍不包含。
+Pace 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trajectory 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Dock 的三栏结构（首版称 Structured Action Surface）；Dock 里的 Terminal / Browser Surface 已由 ADR-0028 / 0029 解冻，只读的 Files Surface 由 ADR-0035 解冻；编辑仍不包含。
 _Avoid_: Trace replay, analyze page, log viewer, IDE
 
 **Steer**:
@@ -141,19 +141,19 @@ Project 中用于复盘和比较历史 Session Trajectory、用量、成本、�
 _Avoid_: Session list, chat, control plane
 
 **Control Plane**:
-PiGUI 中负责创建、启动、切换、管理和观察 Agent Workspace 的产品层。它可以触发 agent 行为，因此不同于只读的飞行记录仪。
+Pace 中负责创建、启动、切换、管理和观察 Agent Workspace 的产品层。它可以触发 agent 行为，因此不同于只读的飞行记录仪。
 _Avoid_: Flight recorder, passive observer
 
 **Pi Runtime**:
-PiGUI 唯一支持的 agent runtime，负责模型调用、工具执行、session 状态、配置加载和 Pi 原生扩展能力。PiGUI 不把其他 agent runtime 纳入产品边界。 Pi 自身的扩展层级（Package、Extension、Skill、Prompt、Theme）词义以 Pi 为准，PiGUI 不重述、不扩展；PiGUI 只命名扩展贡献的东西（如 Surface），不为贡献方另造名词（ADR-0032）。
+Pace 唯一支持的 agent runtime，负责模型调用、工具执行、session 状态、配置加载和 Pi 原生扩展能力。Pace 不把其他 agent runtime 纳入产品边界。 Pi 自身的扩展层级（Package、Extension、Skill、Prompt、Theme）词义以 Pi 为准，Pace 不重述、不扩展；Pace 只命名扩展贡献的东西（如 Surface），不为贡献方另造名词（ADR-0032）。
 _Avoid_: Generic agent runtime, ACP agent, provider
 
 **Runtime Gateway**:
-PiGUI 在客户端/后端与 Pi 接入实现之间固定的产品语义边界。它稳定表达 Session、Prompt、Queue、Steer、Stop、Snapshot 和 Runtime Event，不等同于 Pi SDK API 或 Pi RPC 原始协议。
+Pace 在客户端/后端与 Pi 接入实现之间固定的产品语义边界。它稳定表达 Session、Prompt、Queue、Steer、Stop、Snapshot 和 Runtime Event，不等同于 Pi SDK API 或 Pi RPC 原始协议。
 _Avoid_: AI Gateway, Pi SDK API, Pi RPC protocol, renderer bridge
 
 **Model**:
-由 Pi Runtime 使用的底层 LLM 选择，可以跨 provider 切换并影响 reasoning、成本和上下文能力。它不是 Agent Runtime；PiGUI 支持多模型不等于支持多 agent。
+由 Pi Runtime 使用的底层 LLM 选择，可以跨 provider 切换并影响 reasoning、成本和上下文能力。它不是 Agent Runtime；Pace 支持多模型不等于支持多 agent。
 _Avoid_: Runtime, agent, workspace
 
 **Agent Run**:
@@ -201,15 +201,15 @@ Live Chat 中承载一个 Active Run 全部过程内容的区域：Thinking、To
 _Avoid_: Reasoning, thinking panel, trace, run timeline, CoT rail
 
 **Execution Checkout**:
-Agent Run 操作文件系统时所属的 checkout，可以是前台本地目录，也可以在 Git Project 中是 PiGUI 管理的 Git worktree。它是并发运行的文件隔离边界。非 Git Project 可以使用 foreground local directory 运行 Session，但 Git-only 的 diff、managed worktree、commit、push 和 PR 能力不可用。
+Agent Run 操作文件系统时所属的 checkout，可以是前台本地目录，也可以在 Git Project 中是 Pace 管理的 Git worktree。它是并发运行的文件隔离边界。非 Git Project 可以使用 foreground local directory 运行 Session，但 Git-only 的 diff、managed worktree、commit、push 和 PR 能力不可用。
 _Avoid_: Branch, session, workspace, Git requirement
 
 **Pi Session State**:
-由 Pi Runtime 拥有的 session 真相，包括消息、运行状态、模型配置、队列、fork/follow-up/abort 等 Pi 原生语义。PiGUI 通过 RPC/SDK 观察和驱动它，但不重新定义一套独立 chat 协议。
-_Avoid_: PiGUI database record, trace, UI cache
+由 Pi Runtime 拥有的 session 真相，包括消息、运行状态、模型配置、队列、fork/follow-up/abort 等 Pi 原生语义。Pace 通过 RPC/SDK 观察和驱动它，但不重新定义一套独立 chat 协议。
+_Avoid_: Pace database record, trace, UI cache
 
 **Runtime Event Stream**:
-Pi Runtime 在 Session 运行期间向 PiGUI 暴露的 live 事件流，包括消息增量、工具调用、状态变更、错误、队列变化和 token/cost 增量。它驱动 Live Session View，并同步更新 Session Projection。
+Pi Runtime 在 Session 运行期间向 Pace 暴露的 live 事件流，包括消息增量、工具调用、状态变更、错误、队列变化和 token/cost 增量。它驱动 Live Session View，并同步更新 Session Projection。
 _Avoid_: Historical trace, file log tail, polling-only UI
 
 **Session Event Journal**:
@@ -217,7 +217,7 @@ Runtime Gateway 为每个 Pi session 保存的边界事件日志，只收录归�
 _Avoid_: Pi session file, projection cache, event replay stream, chat history
 
 **Structured Action Surface**:
-PiGUI 首版替代 terminal/file-tree 的结构化操作面，通常位于 Session 页右侧，承载 diff 摘要、checkout 信息、模型/成本摘要、打开外部编辑器、运行预设命令、handoff、commit、push、PR、archive 等明确动作。它不提供任意 shell 交互，也不承担通用文件浏览器职责。这是 ADR-0008 时期的职责边界，Terminal 与 Browser 解冻后区域本身由 Dock + Surface 承载（ADR-0032），词条保留作历史定义。
+Pace 首版替代 terminal/file-tree 的结构化操作面，通常位于 Session 页右侧，承载 diff 摘要、checkout 信息、模型/成本摘要、打开外部编辑器、运行预设命令、handoff、commit、push、PR、archive 等明确动作。它不提供任意 shell 交互，也不承担通用文件浏览器职责。这是 ADR-0008 时期的职责边界，Terminal 与 Browser 解冻后区域本身由 Dock + Surface 承载（ADR-0032），词条保留作历史定义。
 _Avoid_: Terminal emulator, file explorer, IDE panel
 
 **Dock**:
@@ -233,11 +233,11 @@ Dock 里的一个面板，绑定当前 Session（它的 Execution Checkout、she
 _Avoid_: Panel, tab, view, plugin, widget
 
 **Built-in Surface**:
-PiGUI 自带的 Surface：Changes、Files、Terminal、Browser。它们与将来扩展注册的 Surface 走同一套注册表与 Rail，只是 provider 为 `builtin`。Files 是只读的 checkout 目录树加文件预览（ADR-0035）。
+Pace 自带的 Surface：Changes、Files、Terminal、Browser。它们与将来扩展注册的 Surface 走同一套注册表与 Rail，只是 provider 为 `builtin`。Files 是只读的 checkout 目录树加文件预览（ADR-0035）。
 _Avoid_: Core panel, native panel, first-party plugin
 
 **Session Projection**:
-PiGUI 自己保存的查询模型，用来支撑 Session 列表、Analyze、状态索引、成本聚合、checkout 生命周期、恢复入口和 UI 快速渲染。它是从 Pi Session State、Session Trajectory 和 PiGUI checkout 管理事件同步出来的投影，不是 Pi 会话内容的权威来源。
+Pace 自己保存的查询模型，用来支撑 Session 列表、Analyze、状态索引、成本聚合、checkout 生命周期、恢复入口和 UI 快速渲染。它是从 Pi Session State、Session Trajectory 和 Pace checkout 管理事件同步出来的投影，不是 Pi 会话内容的权威来源。
 _Avoid_: Runtime truth, independent chat state, source of record
 
 **Task**:

@@ -7,9 +7,9 @@
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
 <p align="center">
-[![Release](https://img.shields.io/github/v/release/BubblePtr/PiGUI?display_name=tag)](https://github.com/BubblePtr/PiGUI/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/PiGUI/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/PiGUI/release-macos.yml?label=release)](https://github.com/BubblePtr/PiGUI/actions)
+[![Release](https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag)](https://github.com/BubblePtr/pace/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/pace/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release)](https://github.com/BubblePtr/pace/actions)
 </p>
 
 Pi 是一个终端里的 coding agent，带有类似 VS Code 的扩展体系：Package 贡献 tool、command、skill、prompt 和 theme，我们希望将这种灵活性也拓展到桌面软件上，可以让用户定制专属于自己的桌面 Agent。Pace 这个名字代表的是 move at your own pace，我们希望在 AI 时代个人可以对 Agent 的使用拥有完全自主的权利，定制和控制好自己的节奏。
@@ -27,7 +27,7 @@ Pace 不是 Pi 的分叉，也不是第二个运行时。Pi 始终是唯一的�
 
 ## 获取 Pace
 
-**发布版。** 已签名、已公证的 macOS Apple Silicon 构建发布在 [GitHub Releases](https://github.com/BubblePtr/PiGUI/releases)。下载 DMG 拖入 Applications，之后由应用内更新器接管（ADR-0033）。Linux 的 AppImage 与 deb 在打包配置里已存在，但尚未作为发布版提供；不支持 Windows。
+**发布版。** 已签名、已公证的 macOS Apple Silicon 构建发布在 [GitHub Releases](https://github.com/BubblePtr/pace/releases)。下载 DMG 拖入 Applications，之后由应用内更新器接管（ADR-0033）。Linux 的 AppImage 与 deb 在打包配置里已存在，但尚未作为发布版提供；不支持 Windows。
 
 **要求。** macOS 12 及以上。Pi 随应用一起打包（ADR-0031），不需要单独安装 `pi`；若本机已有，Pace 与其共享 `~/.pi/agent` 下的数据、认证和扩展。
 
@@ -36,13 +36,13 @@ Pace 不是 Pi 的分叉，也不是第二个运行时。Pi 始终是唯一的�
 ## 从源码构建
 
 ```sh
-git clone https://github.com/BubblePtr/PiGUI.git pace
+git clone https://github.com/BubblePtr/pace.git pace
 cd pace
 bun install
 bun run dev
 ```
 
-工具链：Bun 1.3.x（workspace 与脚本）、Node 24（Electron 运行时与 vitest）、Electron 42。`bun run dev` 启动带热更新的 electron-vite。开发实例写入 `~/.pigui-dev` 和带 `-dev` 后缀的 userData profile，不会碰已安装版本的数据；用 Pace 开发 Pace 的隔离规则见 [`docs/dogfooding.md`](docs/dogfooding.md)。
+工具链：Bun 1.3.x（workspace 与脚本）、Node 24（Electron 运行时与 vitest）、Electron 42。`bun run dev` 启动带热更新的 electron-vite。开发实例写入 `~/.pace-dev` 和带 `-dev` 后缀的 userData profile，不会碰已安装版本的数据；用 Pace 开发 Pace 的隔离规则见 [`docs/dogfooding.md`](docs/dogfooding.md)。
 
 打包：
 
@@ -142,7 +142,7 @@ CONTEXT.md           领域术语表；每个界面区域和概念在这里都�
 | 数据 | 安装版 | `bun run dev` | 归属 |
 | --- | --- | --- | --- |
 | Pi 会话、认证、扩展 | `~/.pi/agent` | 共享 | Pi。Pace 只读。 |
-| Session journal、projection、预检状态 | `~/.pigui` | `~/.pigui-dev` | Pace。可用 `PIGUI_DATA_DIR` 覆盖。 |
+| Session journal、projection、预检状态 | `~/.pace` | `~/.pace-dev` | Pace。可用 `PIGUI_DATA_DIR` 覆盖。 |
 | 渲染层偏好（项目注册表、草稿、模型选择）、Chromium profile | Electron userData | userData `-dev` | Pace。 |
 
 删掉 Pace 的数据目录会丢失界面时间线和成本历史，但永远不会丢 Pi 会话：Pi 仍能从自己的日志恢复。任何改动 journal 或 projection 格式的变更都必须能读旧格式或附带迁移（[`docs/dogfooding.md`](docs/dogfooding.md)）。
