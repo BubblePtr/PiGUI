@@ -41,7 +41,7 @@ function renderTrajectoryWorkspace() {
   });
   const setupRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/setup",
+    path: "/packages",
     component: () => null,
   });
   const router = createRouter({
@@ -78,7 +78,7 @@ function renderTrajectoryIndexPage() {
   });
   const setupRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/setup",
+    path: "/packages",
     component: () => null,
   });
   const router = createRouter({

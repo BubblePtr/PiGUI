@@ -156,10 +156,19 @@ const projectSessionsRoute = createRoute({
   component: AgentWorkspaceSessionsPage,
 });
 
-const setupRoute = createRoute({
+const packagesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/packages",
+  component: SetupPage,
+});
+
+const legacySetupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
-  component: SetupPage,
+  beforeLoad: () => {
+    // The inventory page was only reachable by URL as /setup; keep those links alive.
+    throw redirect({ to: "/packages", replace: true });
+  },
 });
 
 const settingsRoute = createRoute({
@@ -244,7 +253,8 @@ const router = createRouter({
     sessionDetailRoute,
     usageRoute,
     projectSessionsRoute,
-    setupRoute,
+    packagesRoute,
+    legacySetupRoute,
     settingsRoute,
     preflightRoute,
     ...devOnlyRoutes,

@@ -116,9 +116,9 @@ function renderAppFrame(
     path: "/projects/$projectId/sessions",
     component: () => null,
   });
-  const setupRoute = createRoute({
+  const packagesRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/setup",
+    path: "/packages",
     component: () => null,
   });
   const settingsRoute = createRoute({
@@ -134,7 +134,7 @@ function renderAppFrame(
       usageRoute,
       trajectoryRoute,
       projectSessionsRoute,
-      setupRoute,
+      packagesRoute,
       settingsRoute,
     ]),
   });
@@ -452,6 +452,7 @@ describe("AppFrame", () => {
       "New Chat",
       "Trajectory",
       "Usage",
+      "Packages",
     ]);
     expect(globalNewSessionRow).not.toHaveAttribute("aria-current", "page");
     expect(
@@ -1038,6 +1039,16 @@ describe("AppFrame", () => {
     expect(trajectoryItem).toHaveAttribute("aria-current", "page");
     expect(usageItem).not.toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { level: 1, name: "Trajectory" })).toBeInTheDocument();
+  });
+
+  it("renders Packages as a first-level side nav item with its own page title", async () => {
+    renderAppFrame("/packages");
+
+    expect(await screen.findByText("Main content")).toBeInTheDocument();
+    const navigation = screen.getByRole("group", { name: "Trajectory and usage navigation" });
+    expect(within(navigation).getByRole("button", { name: "Packages" })).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getByRole("button", { name: "Usage" })).not.toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { level: 1, name: "Packages" })).toBeInTheDocument();
   });
 
   it("orders Trajectory and Usage above Projects and pins Settings to the sidenav footer", async () => {

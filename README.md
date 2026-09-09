@@ -112,7 +112,7 @@ flowchart LR
 | Gateway protocol (commands, event contract, identity) | [`packages/core/src/`](packages/core/src/): `runtime-gateway.ts`, `agent-runtime-event.ts` |
 | How Pi is driven | [`packages/backend/src/drivers/`](packages/backend/src/drivers/) |
 | Persistence and replay | [`packages/backend/src/persistence/`](packages/backend/src/persistence/) |
-| Resource Management (Setup): packages, resources, update checks and journal diagnostics | [`apps/desktop/src/pages/setup.tsx`](apps/desktop/src/pages/setup.tsx), [`packages/backend/src/workspace/resource-management.ts`](packages/backend/src/workspace/resource-management.ts), [`resource-diagnostics.ts`](packages/backend/src/workspace/resource-diagnostics.ts) ([ADR-0037](docs/adr/0037-resource-management.md)) |
+| Packages page (sidebar): packages, resources, update checks and journal diagnostics | [`apps/desktop/src/pages/setup.tsx`](apps/desktop/src/pages/setup.tsx), [`packages/backend/src/workspace/resource-management.ts`](packages/backend/src/workspace/resource-management.ts), [`resource-diagnostics.ts`](packages/backend/src/workspace/resource-diagnostics.ts) ([ADR-0037](docs/adr/0037-resource-management.md)) |
 | Sessions on disk, git worktrees, config inventory | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Electron shell and transport | [`apps/desktop/electron/`](apps/desktop/electron/): `main.ts`, `preload.ts`, `backend.ts` |
 | Dock surfaces (Changes, Files, Terminal, Browser) | [`apps/desktop/src/shared/ui/session-dock/surface-registry.ts`](apps/desktop/src/shared/ui/session-dock/surface-registry.ts) |
@@ -121,7 +121,7 @@ flowchart LR
 
 ## Extensibility: where the GUI meets Pi's extension ecosystem
 
-Pi's extension ecosystem is built on the `Package → Extension / Skill / Prompt / Theme` model. Pace follows and reuses that model as is; it only defines what an extension can contribute to the desktop GUI in terms of visuals and interaction. Setup provides **Resource Management**: install, remove and update user packages, toggle their resources, and add local resources to Pi convention directories. Package rows show available updates; resource details show extension errors from the most recently active Session. Settings changes apply to the next new Session ([ADR-0037](docs/adr/0037-resource-management.md)).
+Pi's extension ecosystem is built on the `Package → Extension / Skill / Prompt / Theme` model. Pace follows and reuses that model as is; it only defines what an extension can contribute to the desktop GUI in terms of visuals and interaction. The **Packages** page in the sidebar provides Resource Management: install, remove and update user packages, toggle their resources, and add local resources to Pi convention directories. Package rows show available updates; resource details show extension errors from the most recently active Session. Settings changes apply to the next new Session ([ADR-0037](docs/adr/0037-resource-management.md)).
 
 The extension points that exist today:
 
