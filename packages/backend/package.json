@@ -2,6 +2,7 @@
   "name": "@pigui/backend",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "measure:idle-memory": "bun run scripts/measure-idle-agent-session-memory.ts",

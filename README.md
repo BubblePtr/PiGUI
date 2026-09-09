@@ -187,4 +187,4 @@ Never run the terminal pty driver under Bun; the backend runs on Node in product
 
 ## License
 
-A license file has not been added to this repository yet. Until it is, the code is source-available for reading and evaluation only. Pi is a separate project with its own license.
+Pace is released under the [Apache License 2.0](LICENSE). The Pace name and icon are not covered by that grant. Pi is a separate project with its own license.

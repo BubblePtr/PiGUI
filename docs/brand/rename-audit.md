@@ -90,13 +90,13 @@
 
 对照 Apache Maka 的仓库结构，本仓库缺：
 
-- `LICENSE`：仓库根目录**没有任何许可证文件**。没有它，任何外部贡献在法律上都不成立；README 也无法写 License 段。需先选定（Apache-2.0 / MIT）。
+- `LICENSE`：已在 ADR-0036 选定 Apache-2.0 并补齐。
 - `CONTRIBUTING.md`：现有贡献规则散在 `AGENTS.md`（分支、PR、gh stack）与 `docs/agents/`（issue、triage 标签），面向的是 agent 而非人类贡献者。
 - `CODE_OF_CONDUCT.md`、`SECURITY.md`、`.github/ISSUE_TEMPLATE/`、`.github/PULL_REQUEST_TEMPLATE.md`。
 
 ## 建议的落地顺序
 
-1. **决策 PR**：新增 ADR-0036 记录上表命名决策，补 `LICENSE`。
+1. **决策 PR**：ADR-0036 记录上表命名决策，补 `LICENSE`。已完成。
 2. **改名 PR（第一层 + 三处迁移）**：文案、打包配置、脚本、CI；数据目录与 userData 迁移各带单元测试；`gh repo rename` 在合并后执行。发版前用 0.0.2 安装包实测自动更新能跟到改名后的仓库。
 3. **标识 PR（第二层）**：包作用域、环境变量、类型名的机械替换，`tsc` + 全量测试 + `electron-vite build` 全绿即可。
 4. **文档 PR**：`AGENTS.md`、`CONTEXT.md`、`docs/` 非 ADR 文件、`CONTRIBUTING.md`。

@@ -187,4 +187,4 @@ bun run build            # typecheck + electron-vite build
 
 ## 许可证
 
-本仓库尚未添加许可证文件。在此之前，代码仅供阅读与评估。Pi 是独立项目，有自己的许可证。
+Pace 以 [Apache License 2.0](LICENSE) 发布。Pace 的名称与图标不在该授权范围内。Pi 是独立项目，有自己的许可证。
