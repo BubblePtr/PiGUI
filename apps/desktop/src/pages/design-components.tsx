@@ -3,6 +3,7 @@ import { GallerySection } from "@/pages/design";
 import { DesignComponentBrowser, type ComponentExample } from "@/pages/design-component-browser";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
+import { PaceWordmark } from "@/shared/ui/pace-wordmark";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
@@ -988,6 +989,21 @@ function PiTrajectoryInspectorGallery() {
               onTabChange={() => {}}
             />
           </div>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
+function PaceWordmarkGallery() {
+  return (
+    <GallerySection title="PaceWordmark">
+      <VariantRow>
+        <Variant caption="Small · theme foreground">
+          <PaceWordmark className="h-5" />
+        </Variant>
+        <Variant caption="Large · inherited color">
+          <PaceWordmark className="h-10 text-muted" />
         </Variant>
       </VariantRow>
     </GallerySection>
@@ -2210,6 +2226,7 @@ function ModelSelectorControlGallery() {
 }
 
 export const componentExamples: ComponentExample[] = [
+  { name: "PaceWordmark", category: "Visual primitives", description: "Separated Pace brand lettering with theme-aware color.", Preview: PaceWordmarkGallery },
   { name: "PiKpi", category: "Data & metrics", description: "At-a-glance metrics, totals, deltas, and missing values.", Preview: PiKpiGallery },
   { name: "PiBarChart", category: "Data & metrics", description: "Compare usage across time with single or stacked series.", Preview: PiBarChartGallery },
   { name: "ChatRunFailure", category: "Conversation", description: "Readable failures, provider settings, model changes, and request retries.", Preview: ChatRunFailureGallery },

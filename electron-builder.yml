@@ -37,6 +37,11 @@ publish:
 
 mac:
   icon: build/icon.icns
+  extendInfo:
+    CFBundleIconName: Pace
+  extraResources:
+    - from: build/Assets.car
+      to: Assets.car
   category: public.app-category.developer-tools
   target:
     - target: dmg

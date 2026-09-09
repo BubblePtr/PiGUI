@@ -39,6 +39,7 @@ Astryx 有对应组件吗？(bunx astryx search "<thing>")
 | [astryx.md](astryx.md) | 我们实际采用的 Astryx 组件与选定变体；哪些 Astryx 组件不用 |
 | [chat.md](chat.md) | 对话流、Composer、思维链三类自建组件：何时用哪个、联合类型、正反例 |
 | [workspace.md](workspace.md) | Session Dock、Surface、轨迹台账、图表、图标与视觉原语 |
+| [brand.md](brand.md) | Pace 字标、应用图标源工程、主题规则与生成资源 |
 
 ## 验证方式
 

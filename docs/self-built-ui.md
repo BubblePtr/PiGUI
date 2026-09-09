@@ -11,6 +11,7 @@
 
 | 组件 | 位置 | 说明 |
 | --- | --- | --- |
+| pace-wordmark | `shared/ui/pace-wordmark.tsx` | 项目专属品牌矢量，Astryx 无对应资源；保留已确认的分离式 PACE 路径，随主题继承颜色。Design 展示小尺寸与大尺寸，工作区侧栏不使用，使用规则见 `design/brand.md`。 |
 | chat-chain-of-thought | `shared/ui/chat/` | Astryx 缺口;Compact 皮肤。**只剩 `phase` 一条路径**(#165 接线时删掉了 ADR-0027 的 `isStreaming` / `Live` / `LiveStatus` / `formatThoughtSummary` 一行视口,以及随之失去调用者的 `Trigger` / `Label` / `Content` 复合件):run 期间 step 列表平铺、无头部,底部挂 chat-status-line;`settled` 时整列折进「Worked for Ns」头部(默认折叠,高度过渡吃 Base UI 的 `--collapsible-panel-height`,时长走 `.chain-of-thought` 上的 `--cot-flip-duration: 300ms`——主题的 `--duration-slow-max` 在本仓库是 0.935s,不能拿来当翻页时长);步骤为空时头部退化为纯标签(`hasSteps={false}`,children 对组件不透明,数不出来只能告知);`startedAtMs` 是 run 期间唯一计时入口,组件自己 100ms 走表,没锚点就不显示数字(挂载时刻起表会把「页面开了多久」当成 run 的等待)。两条布局前提写在 chat.css 里且**只能一起成立**:块上 `contain: inline-size` 挡住 nowrap label 往上传的 min-content,`.chat-message__body:has(> .chain-of-thought)` 再把 Astryx 的 fit-content 消息体拉满列宽。Interim Output 行是页面级组合(`.chain-of-thought__interim`),不是组件。见 ADR-0030 |
 | chat-run-failure | `shared/ui/chat/` | 复用 Astryx Banner、Collapsible、Button 和 Stack 的错误恢复组合；认证和限流错误使用可读说明，原始错误默认折叠，支持 Provider settings、模型控件和异步重试。由页面决定最近失败请求是否可重试，组件阻止重复点击并呈现重试失败。Design 展示认证失败、历史错误、重试中和重试失败。 |
 | chat-chain-of-thought-rail | `shared/ui/chat/` | 2026-08-09 原型探索胜出的 Timeline 皮肤(PR #80);接线等 [#81](https://github.com/BubblePtr/PiGUI/issues/81) |
@@ -75,6 +76,8 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 
 ## 维护规则
 
+- **2026-09-09 Pace 品牌字标**：新增 `shared/ui/pace-wordmark.tsx`，直接承载确认后的品牌矢量，Astryx 通用图标没有对应品牌资产。颜色继承 `currentColor`，根 SVG 属性透传；已注册 Design 页的 Visual primitives。侧栏头部继续复用 Astryx Stack 与 SideNav，不新增布局原语。使用规则见 [品牌资源](design/brand.md)。
+
 - **2026-09-08 契约层（#217）**：每个 `shared/ui` 组件接 `className` 并把它和剩余 props 透传到根元素；`PiTrajectoryLedger` 只把显式列出的 Run prop 转给 `Run`。守护测试 `shared/ui/contract.test.tsx`。命名统一见 #218。
 
 - **2026-09-07 New Chat 交互修复**：新增 ChatRunFailure 组合；ChatPromptInput 增加可选 inputRef 并展示建议后的聚焦，ChatChainOfThought 展示失败时的 Failed after Ns；ComposerInsertMenu 展示可搜索技能和可读插件名称。Chats 扁平列表与项目/执行方式选择仍为页面组合。
@@ -89,6 +92,8 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 - 每轮 UI 工作收尾时核对本表,状态漂移当场修。
 
 ## 设置弹窗
+
+About & Updates 的品牌行复用应用图标与 Astryx Stack、Heading、Text，显示 Pace Agent 和版本号；属于页面组合，不新增共享组件。
 
 Settings 参考 Astryx `settings-dialog` 模板，使用原生 `Dialog`、`Layout`、`SideNav` 与 `DialogHeader` 组合，内容仍位于 `pages/settings.tsx`，没有新增自建 UI 原语。桌面显示左侧 Providers / Models / About & Updates 导航，导航项通过 `VStack gap={1}` 保持 4px 间距；窄屏使用全屏弹窗和顶部分类标签。标题栏固定，内容区独立滚动。Models 行使用透明背景，仅由复选框表示可见状态，避免整行强调色与分类导航选中态混淆。现有 API key、订阅登录、可见模型与应用更新功能保持原有保存通道。
 

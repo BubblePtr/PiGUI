@@ -85,13 +85,15 @@ bun run test:e2e:packaged:mac --workers=1
 
 ## 重建应用图标
 
-可编辑母版是 `build/icon.svg`。修改后必须用以下命令重建 `build/icon.icns`：
+可编辑母版是 `build/Pace.icon`，使用 Icon Composer 打开。修改后在安装了 Xcode 26 与 Icon Composer 的 Mac 上重建资源：
 
 ```bash
 bun run build:icon:mac
 ```
 
-脚本使用 macOS `sips` 保留 SVG 画布外沿的透明像素，再由 `iconutil` 生成 16px 到 1024px 的完整 iconset。不要用 `qlmanage` 把 SVG 转成 PNG；Quick Look 会把透明外沿铺成不透明白色，最终在 Dock 中显示成白圈。
+脚本用 actool 编译 `build/Assets.car`，用 ictool 渲染同一工程的默认外观；保留透明安全边距后，再由 `iconutil` 生成 16px 到 1024px 的完整 `build/icon.icns` 和开发版 `build/icon-512.png`。Icon Composer 默认查找 `/Applications/Icon Composer.app`，其次查找所选 Xcode 内置版本，也可通过 `ICON_COMPOSER_APP` 指定。
+
+macOS 包通过 `CFBundleIconName=Pace` 与 Resources 中的 `Assets.car` 启用系统图标，`.icns` 为旧系统提供兼容外观。三个生成文件随源工程一起提交，日常打包直接使用，不在发布流程中临时重绘。详见 [Pace 品牌资源](../design/brand.md)。
 
 ## 本地验证
 
