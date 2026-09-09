@@ -25,7 +25,7 @@
 | 后端数据目录 | `~/.pigui`（dev `~/.pigui-dev`） | `~/.pace`（dev `~/.pace-dev`），带一次性迁移 |
 | Electron userData | 由包名 `@pigui/desktop` 派生 | 通过 `app.setName("Pace")` 固定为 `Pace`（dev：`Pace-dev`），不依赖包名，带一次性迁移 |
 | workspace 包作用域 | `@pigui/*` | `@pace/*` |
-| 环境变量前缀 | `PIGUI_*` | `PACE_*`；`PIGUI_DATA_DIR` 作为文档公开的覆盖入口保留一个 MINOR 版本的兼容读取 |
+| 环境变量前缀 | `PIGUI_*` | `PACE_*`；`PIGUI_DATA_DIR` 作为文档公开的覆盖入口保留到 `0.1.0` 之前的兼容读取 |
 | localStorage 键、IPC channel、CSS 类名前缀 | `pigui.*` / `pigui:*` / `pigui-*` | **不改**。用户不可见，localStorage 改名只会多一段迁移代码 |
 
 ### 2. 仓库留在个人账号
@@ -56,5 +56,5 @@ bundle id 是发布后不可更换的值，因此不编码 organization，固定
 
 - 改名 PR 必须同时落地三处迁移并各带测试，否则 v0.0.1 / v0.0.2 用户会丢数据或断更新：electron-updater 的 feed（旧包永远查 `BubblePtr/PiGUI`，依赖 GitHub 重定向，发版前用 0.0.2 安装包实测）、`~/.pigui` → `~/.pace` 目录迁移、userData 目录迁移。细节见 `docs/brand/rename-audit.md` "破坏性位置"。
 - 改 bundle id 后 macOS 视其为新应用；已安装版本通过 updater 换成新包后，钥匙串里以旧 bundle id 存的条目（若有）不会跟随。
-- 改名后的首个版本升 MINOR（`0.1.0`），Release 说明写明旧名与迁移行为。
+- 改名后的首个版本为 PATCH（`0.0.3`）：此前没有公开发布、没有外部用户，版本号不需要承担"提醒老用户"的信号作用；Release 说明仍写明旧名与迁移行为。
 - 落地顺序沿用盘点文档：本 ADR 与 LICENSE → 第一层改名与迁移 → 第二层内部标识 → 文档与 CONTRIBUTING。
