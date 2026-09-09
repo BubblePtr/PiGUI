@@ -183,7 +183,7 @@ bun run build            # typecheck + electron-vite build
 - **界面。** 可复用组件放 `apps/desktop/src/shared/ui/`，并在同一 PR 里登记到 `/design`。token 走语义桥接层，不写死。
 - **适合的第一个 PR** 是给事件 normalizer 加一条新的 fixture 流：录一段 Pi 会话，加 fixture，断言规范化后的事件。它能走通整条协议而不碰界面。
 
-[`AGENTS.md`](AGENTS.md) 是完整的贡献规则，写给人类和 coding agent 共同遵守。
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)、[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) 和 [SECURITY.md](SECURITY.md)。[`AGENTS.md`](AGENTS.md) 是完整的贡献规则，写给人类和 coding agent 共同遵守。
 
 ## 许可证
 

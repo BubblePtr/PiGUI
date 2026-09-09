@@ -183,7 +183,7 @@ Never run the terminal pty driver under Bun; the backend runs on Node in product
 - **UI.** Reusable components go in `apps/desktop/src/shared/ui/` and are registered on `/design` in the same PR. Tokens come from the semantic bridge, never hard-coded.
 - **A good first PR** is a new fixture stream for the event normalizer: record a Pi session, add the fixture, assert the normalized events. It exercises the whole protocol without touching UI.
 
-[`AGENTS.md`](AGENTS.md) holds the full contributor rules; it is written to be followed by humans and coding agents alike.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md). [`AGENTS.md`](AGENTS.md) holds the full contributor rules; it is written to be followed by humans and coding agents alike.
 
 ## License
 
