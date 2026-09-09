@@ -743,7 +743,7 @@ async function deleteSessionProjection(input: {
     throw new Error("Cannot delete an active Session.");
   }
 
-  // Pi owns Session truth; PiGUI only drops its own projection record.
+  // Pi owns Session truth; Pace only drops its own projection record.
   await store.remove(input.sessionId);
 
   return projection;

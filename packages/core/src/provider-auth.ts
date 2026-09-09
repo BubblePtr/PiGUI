@@ -1,4 +1,4 @@
-// Provider auth contracts for PiGUI Settings (DF-002 / S3).
+// Provider auth contracts for Pace Settings (DF-002 / S3).
 // Credentials live in Pi's auth.json via AuthStorage; this package only
 // defines the IPC-facing status shape (never raw secrets).
 

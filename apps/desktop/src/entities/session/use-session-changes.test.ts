@@ -18,8 +18,8 @@ function changes(overrides: Partial<SessionChanges> = {}): SessionChanges {
   return {
     sessionId: "session-1",
     state: "ready",
-    checkoutRoot: "/work/PiGUI",
-    repositoryRoot: "/work/PiGUI",
+    checkoutRoot: "/work/Pace",
+    repositoryRoot: "/work/Pace",
     generatedAt: "2026-09-02T00:00:00.000Z",
     files: [
       {

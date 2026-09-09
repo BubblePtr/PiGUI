@@ -8,11 +8,11 @@ import type { SessionSummary } from "@/entities/session/sessions";
 
 declare global {
   interface Window {
-    pigui?: PiGUIRendererApi;
+    pace?: PaceRendererApi;
   }
 }
 
-export type PiGUIRendererApi = {
+export type PaceRendererApi = {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
   onBackendEvent(listener: (event: BackendRpcEvent) => void): () => void;
   /** Embedded browser view events; main-process only, never the backend. */
@@ -33,7 +33,7 @@ const emptyConfigInventory = {
 const browserSessionSummaryFixture: SessionSummary[] = browserSessionSummaries;
 
 export function isElectronRuntime() {
-  return typeof window !== "undefined" && window.pigui !== undefined;
+  return typeof window !== "undefined" && window.pace !== undefined;
 }
 
 function browserSessionDetail(summary: SessionSummary): SessionDetail {
@@ -295,7 +295,7 @@ function unwrapInvokeError(error: unknown) {
 
 export function invoke<T>(command: string, args?: InvokeArgs) {
   if (isElectronRuntime()) {
-    return window.pigui!.invoke<T>(command, args).catch((error: unknown) => {
+    return window.pace!.invoke<T>(command, args).catch((error: unknown) => {
       throw unwrapInvokeError(error);
     });
   }
@@ -319,7 +319,7 @@ export function revealProjectInFinder(
 
 export async function onWindowFocusChanged(refetch: () => unknown) {
   if (isElectronRuntime()) {
-    return window.pigui!.onWindowFocusChanged(() => {
+    return window.pace!.onWindowFocusChanged(() => {
       void refetch();
     });
   }
@@ -343,7 +343,7 @@ export function onBackendEvent(listener: (event: BackendRpcEvent) => void) {
     return () => {};
   }
 
-  return window.pigui!.onBackendEvent(listener);
+  return window.pace!.onBackendEvent(listener);
 }
 
 export function onBrowserEvent(listener: (event: BrowserEvent) => void) {
@@ -351,7 +351,7 @@ export function onBrowserEvent(listener: (event: BrowserEvent) => void) {
     return () => {};
   }
 
-  return window.pigui!.onBrowserEvent(listener);
+  return window.pace!.onBrowserEvent(listener);
 }
 
 export function onUpdateEvent(listener: (event: UpdateStatus) => void) {
@@ -359,7 +359,7 @@ export function onUpdateEvent(listener: (event: UpdateStatus) => void) {
     return () => {};
   }
 
-  return window.pigui!.onUpdateEvent(listener);
+  return window.pace!.onUpdateEvent(listener);
 }
 
 export function onNavigateRequest(listener: (request: NavigateRequest) => void) {
@@ -367,5 +367,5 @@ export function onNavigateRequest(listener: (request: NavigateRequest) => void) 
     return () => {};
   }
 
-  return window.pigui!.onNavigateRequest(listener);
+  return window.pace!.onNavigateRequest(listener);
 }

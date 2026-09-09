@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { launchPiGUI } from "../fixtures/electron-app";
+import { launchPace } from "../fixtures/electron-app";
 
 /**
  * Terminal surface smoke: drives a real zsh through the utilityProcess backend
@@ -9,7 +9,7 @@ import { launchPiGUI } from "../fixtures/electron-app";
  * needed.
  */
 test("Terminal surface runs a real shell, multi-instance, with replay", async () => {
-  const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
+  const testApp = await launchPace({ seedSession: true, seedPreflightAuth: true });
 
   try {
     await testApp.resizeWindow(1440, 900);

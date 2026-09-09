@@ -91,7 +91,7 @@ describe("definitionSite", () => {
 
 describe("relativeSourcePath", () => {
   it("relativizes repo paths", () => {
-    expect(relativeSourcePath("/Users/someone/PiGUI/apps/desktop/src/app/main.tsx")).toEqual({
+    expect(relativeSourcePath("/Users/someone/Pace/apps/desktop/src/app/main.tsx")).toEqual({
       path: "apps/desktop/src/app/main.tsx",
       library: false,
     });
@@ -99,7 +99,7 @@ describe("relativeSourcePath", () => {
 
   it("flags node_modules sources as library", () => {
     const result = relativeSourcePath(
-      "/Users/someone/PiGUI/node_modules/@astryxdesign/core/Button.tsx",
+      "/Users/someone/Pace/node_modules/@astryxdesign/core/Button.tsx",
     );
     expect(result).toEqual({ path: "@astryxdesign/core/Button.tsx", library: true });
   });

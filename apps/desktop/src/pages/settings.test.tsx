@@ -16,7 +16,7 @@ import {
   saveVisibleModels,
 } from "@/entities/model/visible-models";
 import { resetUpdateStatusStore } from "@/entities/update/use-update-status";
-import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { PaceRendererApi } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 
 const providerAuthStatus = {
@@ -120,8 +120,8 @@ function renderSettings(
     throw new Error(`unexpected backend command ${command}`);
   });
 
-  window.pigui = {
-    invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+  window.pace = {
+    invoke: invoke as unknown as PaceRendererApi["invoke"],
     onBackendEvent: vi.fn(() => vi.fn()),
     onBrowserEvent: vi.fn(() => vi.fn()),
     onUpdateEvent: vi.fn(() => vi.fn()),
@@ -322,7 +322,7 @@ describe("Settings — chats", () => {
     await user.click(within(section).getByRole("button", { name: "Open folder" }));
 
     expect(countCalls("reveal_project_in_finder")).toBe(1);
-    expect(window.pigui!.invoke).toHaveBeenCalledWith("reveal_project_in_finder", {
+    expect(window.pace!.invoke).toHaveBeenCalledWith("reveal_project_in_finder", {
       path: "/tmp/pigui-dev/chats",
       ensure: true,
     });

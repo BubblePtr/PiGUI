@@ -6,8 +6,8 @@ import {
 } from "@playwright/test";
 import { createServer, type Server } from "node:http";
 import {
-  launchPiGUI,
-  type PiGUITestApplication,
+  launchPace,
+  type PaceTestApplication,
 } from "../fixtures/electron-app";
 
 /**
@@ -29,13 +29,13 @@ import {
 const pageBody = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Preview target</title></head>
 <body>
-  <h1 id="home">PiGUI preview home</h1>
+  <h1 id="home">Pace preview home</h1>
   <a href="/next" id="popup" target="_blank">Open next</a>
 </body></html>`;
 
 const nextBody = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Preview next</title></head>
-<body><h1 id="next">PiGUI preview next</h1></body></html>`;
+<body><h1 id="next">Pace preview next</h1></body></html>`;
 
 /**
  * Replaces itself while still parsing, which is what baidu.com does on load:
@@ -120,7 +120,7 @@ async function readBrowserViewWidth(app: ElectronApplication) {
 }
 
 /** Opens the dock on the Browser surface, with no page loaded yet. */
-async function openBrowserSurface(testApp: PiGUITestApplication) {
+async function openBrowserSurface(testApp: PaceTestApplication) {
   const { window } = testApp;
 
   await testApp.resizeWindow(1440, 900);
@@ -151,7 +151,7 @@ async function openBrowserSurface(testApp: PiGUITestApplication) {
 
 test("Browser surface loads a page, follows the panel, and keeps popups in place", async () => {
   const { server, origin } = await startPreviewServer();
-  const testApp = await launchPiGUI({
+  const testApp = await launchPace({
     seedSession: true,
     seedPreflightAuth: true,
   });
@@ -167,7 +167,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
 
     const embedded: Page = await viewPage;
 
-    await expect(embedded.locator("#home")).toHaveText("PiGUI preview home");
+    await expect(embedded.locator("#home")).toHaveText("Pace preview home");
 
     // Resizing the panel moves the native view: its bounds are the renderer
     // placeholder's rect, so the two must still agree afterwards.
@@ -231,7 +231,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
     await expect(window).toHaveURL(workspaceUrl);
     await expect(window.getByTestId("browser-snapshot")).toHaveCount(0);
     await expect.poll(() => readBrowserViewVisible(testApp.app)).toBe(true);
-    await expect(embedded.locator("#home")).toHaveText("PiGUI preview home");
+    await expect(embedded.locator("#home")).toHaveText("Pace preview home");
 
     // A page that replaces itself mid-load aborts the request the address bar
     // asked for. The page is fine, so the surface must not flip to its error
@@ -240,13 +240,13 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
       .getByRole("textbox", { name: "Address" })
       .fill(`${origin}/replacing`);
     await window.keyboard.press("Enter");
-    await expect(embedded.locator("#next")).toHaveText("PiGUI preview next");
+    await expect(embedded.locator("#next")).toHaveText("Pace preview next");
     await expect(window.getByTestId("browser-viewport")).toBeVisible();
     await expect(window.getByText("The page did not load")).toHaveCount(0);
 
     await aside.getByRole("textbox", { name: "Address" }).fill(origin);
     await window.keyboard.press("Enter");
-    await expect(embedded.locator("#home")).toHaveText("PiGUI preview home");
+    await expect(embedded.locator("#home")).toHaveText("Pace preview home");
 
     // `_blank` never opens a window; it loads in this same view.
     await embedded
@@ -254,7 +254,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
       // The click's own round-trip dies with the execution context the
       // navigation replaces; the assertion below is the real wait.
       .catch(() => undefined);
-    await expect(embedded.locator("#next")).toHaveText("PiGUI preview next");
+    await expect(embedded.locator("#next")).toHaveText("Pace preview next");
     expect(testApp.app.windows()).toHaveLength(2);
   } finally {
     await testApp.close();
@@ -264,7 +264,7 @@ test("Browser surface loads a page, follows the panel, and keeps popups in place
 
 test("Design mode marks a strict-CSP page, keeps the overlay to itself, and sends the marks to the composer", async () => {
   const { server, origin } = await startPreviewServer();
-  const testApp = await launchPiGUI({
+  const testApp = await launchPace({
     seedSession: true,
     seedPreflightAuth: true,
   });
@@ -385,7 +385,7 @@ async function readBrowserViews(app: ElectronApplication) {
 
 test("Browser tabs isolate views and marks, restore the Project group, and close to empty", async () => {
   const { server, origin } = await startPreviewServer();
-  const testApp = await launchPiGUI({
+  const testApp = await launchPace({
     seedSession: true,
     seedPreflightAuth: true,
   });
@@ -421,7 +421,7 @@ test("Browser tabs isolate views and marks, restore the Project group, and close
       .fill(`${origin}/next`);
     await window.keyboard.press("Enter");
     const second = await secondPage;
-    await expect(second.locator("#next")).toHaveText("PiGUI preview next");
+    await expect(second.locator("#next")).toHaveText("Pace preview next");
     await expect(aside.getByRole("tab")).toHaveCount(2);
     await expect(
       aside.getByRole("button", { name: "Browser", exact: true }),

@@ -52,17 +52,17 @@ import {
   WrenchIcon,
 } from "@hugeicons/core-free-icons";
 
-type PiGUIIconProps = Omit<HugeiconsIconProps, "icon" | "altIcon">;
+type PaceIconProps = Omit<HugeiconsIconProps, "icon" | "altIcon">;
 
-const piguiIconStrokeWidth = 1.5;
+const paceIconStrokeWidth = 1.5;
 
 function iconComponent(icon: IconSvgElement) {
-  return function PiGUIIcon(props: PiGUIIconProps) {
+  return function PaceIcon(props: PaceIconProps) {
     return (
       <HugeiconsIcon
         color="currentColor"
         icon={icon}
-        strokeWidth={piguiIconStrokeWidth}
+        strokeWidth={paceIconStrokeWidth}
         {...props}
       />
     );

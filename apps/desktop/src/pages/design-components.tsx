@@ -73,7 +73,7 @@ import * as Icons from "@/shared/ui/icons";
 import type { RuntimeModelControls } from "@pace/core";
 
 /**
- * Layer 3 of the design gallery: every reusable PiGUI component in
+ * Layer 3 of the design gallery: every reusable Pace component in
  * shared/ui, all variants and typical states, fed with inline fixtures.
  * AGENTS.md requires every new shared/ui component to register here.
  */

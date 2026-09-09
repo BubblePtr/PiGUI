@@ -43,7 +43,7 @@ describe("Electron shell", () => {
     expect(preload).toContain('data-pigui-vibrancy');
   });
 
-  it("sets the PiGUI Dock icon during electron-vite dev", () => {
+  it("sets the Pace Dock icon during electron-vite dev", () => {
     const main = readProjectFile("apps/desktop/electron/main.ts");
 
     expect(main).toContain("applyDevelopmentDockIcon");
@@ -70,13 +70,14 @@ describe("Electron shell", () => {
     expect(config).toMatch(/"react-dom":\s*reactDomPackage/);
   });
 
-  it("exposes only a typed PiGUI API from preload", () => {
+  it("exposes only a typed Pace API from preload", () => {
     const preload = readProjectFile("apps/desktop/electron/preload.ts");
 
-    expect(preload).toContain('contextBridge.exposeInMainWorld("pigui"');
+    expect(preload).toContain('contextBridge.exposeInMainWorld("pace"');
     expect(preload).toContain('ipcRenderer.invoke("pigui:invoke"');
     expect(preload).toContain('ipcRenderer.on("pigui:backend-event"');
     expect(preload).toContain('ipcRenderer.on("pigui:window-focus"');
+    expect(preload).not.toContain('contextBridge.exposeInMainWorld("pigui",');
     expect(preload).not.toContain('contextBridge.exposeInMainWorld("pig",');
     expect(preload).not.toContain('ipcRenderer.invoke("pig:invoke"');
     expect(preload).not.toContain('ipcRenderer.on("pig:backend-event"');

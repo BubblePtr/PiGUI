@@ -383,7 +383,7 @@ async function revealProjectInFinder(args?: Record<string, unknown>) {
 /**
  * Embedded browser surface. The view is a native child of the window, kept
  * out of the utilityProcess entirely, and its session is isolated from the
- * PiGUI renderer's so a dev site's cookies and storage never mix with ours.
+ * Pace renderer's so a dev site's cookies and storage never mix with ours.
  * `persist:` keeps a local dev login across restarts.
  */
 const browserPartition = "persist:pigui-browser";

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   assertNoFixtureData,
-  launchPiGUI,
+  launchPace,
   type E2EProject,
   type E2ESessionProjection,
 } from "../fixtures/electron-app";
@@ -48,7 +48,7 @@ async function openSession(
 
 test.describe("M1: Real-data-only", () => {
   test("starts from an isolated fixture-free state", async () => {
-    const testApp = await launchPiGUI();
+    const testApp = await launchPace();
 
     try {
       await expect(testApp.window).toHaveTitle(/Pace/);
@@ -62,7 +62,7 @@ test.describe("M1: Real-data-only", () => {
   });
 
   test("opens a real registered Project with an empty Session draft", async () => {
-    const testApp = await launchPiGUI({ seedProject: true, seedPreflightAuth: true });
+    const testApp = await launchPace({ seedProject: true, seedPreflightAuth: true });
 
     try {
       await openProjectDraft(testApp.window, testApp.project!);
@@ -76,7 +76,7 @@ test.describe("M1: Real-data-only", () => {
 
 test.describe("M2: Reliable lifecycle", () => {
   test("archives a persisted Session through the real UI", async () => {
-    const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
+    const testApp = await launchPace({ seedSession: true, seedPreflightAuth: true });
 
     try {
       await openSession(
@@ -109,7 +109,7 @@ test.describe("M2: Reliable lifecycle", () => {
   });
 
   test("restarts the killed backend and reloads persisted projections", async () => {
-    const testApp = await launchPiGUI({ seedSession: true, seedPreflightAuth: true });
+    const testApp = await launchPace({ seedSession: true, seedPreflightAuth: true });
 
     try {
       await openSession(
@@ -119,7 +119,7 @@ test.describe("M2: Reliable lifecycle", () => {
       );
       await testApp.window.evaluate(() => {
         window.__piguiE2EBackendLifecycle = [];
-        window.pigui!.onBackendEvent((event) => {
+        window.pace!.onBackendEvent((event) => {
           if (event.event.sessionId !== "__backend__") {
             return;
           }
@@ -139,7 +139,7 @@ test.describe("M2: Reliable lifecycle", () => {
 
       await testApp.writeProjection(reloadedProjection);
       const killedGeneration = await testApp.window.evaluate(() =>
-        window.pigui!.invoke<{ generation: number }>("__e2e_kill_backend"),
+        window.pace!.invoke<{ generation: number }>("__e2e_kill_backend"),
       );
 
       await expect
@@ -173,7 +173,7 @@ test.describe("M2: Reliable lifecycle", () => {
 
 test.describe("M3: Real diff action surface", () => {
   test("renders Git changes from the Session checkout", async () => {
-    const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
+    const testApp = await launchPace({ seedGitChanges: true, seedPreflightAuth: true });
 
     try {
       await openSession(
@@ -222,7 +222,7 @@ test.describe("M3: Real diff action surface", () => {
   });
 
   test("puts the Session dock beside Chat in a wide Electron window", async () => {
-    const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
+    const testApp = await launchPace({ seedGitChanges: true, seedPreflightAuth: true });
 
     try {
       await testApp.resizeWindow(1440, 900);
@@ -326,7 +326,7 @@ test.describe("M3: Real diff action surface", () => {
 
 test.describe("M4: Model and Thinking controls", () => {
   test("switches a capability-driven model pair and restores it after backend restart", async () => {
-    const testApp = await launchPiGUI({ seedModelControls: true });
+    const testApp = await launchPace({ seedModelControls: true });
 
     try {
       await openSession(
@@ -351,7 +351,7 @@ test.describe("M4: Model and Thinking controls", () => {
 
       await testApp.window.evaluate(() => {
         window.__piguiE2EBackendLifecycle = [];
-        window.pigui!.onBackendEvent((event) => {
+        window.pace!.onBackendEvent((event) => {
           if (event.event.sessionId !== "__backend__") {
             return;
           }
@@ -363,7 +363,7 @@ test.describe("M4: Model and Thinking controls", () => {
         });
       });
       const killedGeneration = await testApp.window.evaluate(() =>
-        window.pigui!.invoke<{ generation: number }>("__e2e_kill_backend"),
+        window.pace!.invoke<{ generation: number }>("__e2e_kill_backend"),
       );
 
       await expect

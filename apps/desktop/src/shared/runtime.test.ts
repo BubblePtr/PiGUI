@@ -7,19 +7,19 @@ import {
   onNavigateRequest,
   onWindowFocusChanged,
   revealProjectInFinder,
-  type PiGUIRendererApi,
+  type PaceRendererApi,
 } from "@/shared/runtime";
 
 describe("renderer runtime bridge", () => {
   afterEach(() => {
-    delete window.pigui;
+    delete window.pace;
     vi.clearAllMocks();
   });
 
   it("detects the Electron preload API", () => {
     expect(isElectronRuntime()).toBe(false);
 
-    window.pigui = {
+    window.pace = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
@@ -33,8 +33,8 @@ describe("renderer runtime bridge", () => {
 
   it("delegates invoke calls to Electron when preload is available", async () => {
     const electronInvoke = vi.fn(async (command: string) => `electron:${command}`);
-    window.pigui = {
-      invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: electronInvoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
@@ -49,8 +49,8 @@ describe("renderer runtime bridge", () => {
 
   it("reveals a Project in Finder through Electron when preload is available", async () => {
     const electronInvoke = vi.fn(async () => undefined);
-    window.pigui = {
-      invoke: electronInvoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: electronInvoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
@@ -127,7 +127,7 @@ describe("renderer runtime bridge", () => {
       handler();
       return unlisten;
     });
-    window.pigui = {
+    window.pace = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
@@ -146,13 +146,13 @@ describe("renderer runtime bridge", () => {
   it("strips Electron's remote-method wrapper from invoke errors", async () => {
     // Electron re-throws a handler's error wrapped in its own channel prefix,
     // which would otherwise be read out verbatim in surface error states.
-    window.pigui = {
+    window.pace = {
       invoke: (() =>
         Promise.reject(
           new Error(
             "Error invoking remote method 'pigui:invoke': Error: The browser surface only opens http and https pages.",
           ),
-        )) as unknown as PiGUIRendererApi["invoke"],
+        )) as unknown as PaceRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
@@ -166,11 +166,11 @@ describe("renderer runtime bridge", () => {
   });
 
   it("leaves an error that carries no wrapper untouched", async () => {
-    window.pigui = {
+    window.pace = {
       invoke: (() =>
         Promise.reject(
           new Error("Pace backend utility process is not connected."),
-        )) as unknown as PiGUIRendererApi["invoke"],
+        )) as unknown as PaceRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
       onUpdateEvent: vi.fn(),
@@ -199,7 +199,7 @@ describe("renderer runtime bridge", () => {
       handler({ to: "/settings" });
       return unlisten;
     });
-    window.pigui = {
+    window.pace = {
       invoke: vi.fn(),
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),

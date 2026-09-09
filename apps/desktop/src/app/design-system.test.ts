@@ -83,7 +83,7 @@ describe("Design system integration", () => {
     expect(styles).not.toContain(["fonts", "gstatic", "com"].join("."));
   });
 
-  it("bridges the PiGUI semantic tokens onto Astryx first-level tokens", () => {
+  it("bridges the Pace semantic tokens onto Astryx first-level tokens", () => {
     const styles = readFileSync(
       join(repoRoot, "apps/desktop/src/app/styles.css"),
       "utf8",
@@ -166,14 +166,14 @@ describe("Design system integration", () => {
     expect(packageJson).not.toContain(previousIconPackage);
   });
 
-  it("renders Hugeicons with the PiGUI stroke weight", () => {
+  it("renders Hugeicons with the Pace stroke weight", () => {
     const source = readFileSync(
       join(repoRoot, "apps/desktop/src/shared/ui/icons.tsx"),
       "utf8",
     );
 
-    expect(source).toContain("const piguiIconStrokeWidth = 1.5;");
-    expect(source).toContain("strokeWidth={piguiIconStrokeWidth}");
+    expect(source).toContain("const paceIconStrokeWidth = 1.5;");
+    expect(source).toContain("strokeWidth={paceIconStrokeWidth}");
     expect(source).not.toContain("strokeWidth={2}");
   });
 });

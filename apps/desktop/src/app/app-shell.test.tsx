@@ -20,7 +20,7 @@ import { addProjectToRegistry, getProjectRegistry } from "@/entities/project/pro
 import { saveFollowUpDraft } from "@/entities/session/follow-up-drafts";
 import { getSessionDraft, saveSessionDraft } from "@/entities/session/session-drafts";
 import { resetUpdateStatusStore } from "@/entities/update/use-update-status";
-import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { PaceRendererApi } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 
 const pigProjectPath = "/Users/void/code/opensource/Pig";
@@ -41,8 +41,8 @@ function mockUpdateBridge(initial: UpdateStatus) {
     return null;
   });
 
-  window.pigui = {
-    invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+  window.pace = {
+    invoke: invoke as unknown as PaceRendererApi["invoke"],
     onBackendEvent: () => () => {},
     onBrowserEvent: () => () => {},
     onUpdateEvent: (listener) => {
@@ -219,7 +219,7 @@ function sessionRowLabel(row: HTMLElement) {
 describe("AppFrame", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    delete window.pigui;
+    delete window.pace;
     resetUpdateStatusStore();
   });
 
@@ -382,8 +382,8 @@ describe("AppFrame", () => {
       return null;
     });
 
-    window.pigui = {
-      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
@@ -833,7 +833,7 @@ describe("AppFrame", () => {
 
   it("renames a Project from the sidebar action menu", async () => {
     const user = userEvent.setup();
-    const prompt = vi.spyOn(window, "prompt").mockReturnValue("PiGUI Desktop");
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Pace Desktop");
 
     renderAppFrame("/projects/pig/sessions");
     const projectGroup = await screen.findByTestId("sidebar-projects");
@@ -843,18 +843,18 @@ describe("AppFrame", () => {
 
     expect(prompt).toHaveBeenCalledWith("Rename Project", "Pig");
     expect(findProjectHeaderButton(projectGroup, "Pig")).toBeUndefined();
-    expect(getProjectHeaderButton(projectGroup, "PiGUI Desktop")).toBeInTheDocument();
+    expect(getProjectHeaderButton(projectGroup, "Pace Desktop")).toBeInTheDocument();
     expect(getProjectRegistry()[0]).toMatchObject({
       id: pigProjectPath,
-      displayName: "PiGUI Desktop",
+      displayName: "Pace Desktop",
     });
   });
 
   it("reveals a Project in Finder from the sidebar action menu", async () => {
     const user = userEvent.setup();
     const invoke = vi.fn(async () => undefined);
-    window.pigui = {
-      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
@@ -880,8 +880,8 @@ describe("AppFrame", () => {
       .mockReturnValue("  Boundary follow-up  ");
     const alert = vi.spyOn(window, "alert").mockReturnValue(undefined);
     const invoke = vi.fn(async () => ({}));
-    window.pigui = {
-      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
@@ -909,8 +909,8 @@ describe("AppFrame", () => {
 
   it("opens a Session's Trajectory from the row action menu", async () => {
     const user = userEvent.setup();
-    window.pigui = {
-      invoke: vi.fn(async () => null) as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: vi.fn(async () => null) as unknown as PaceRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
@@ -947,8 +947,8 @@ describe("AppFrame", () => {
       archivedAt: "2026-06-26T09:00:00.000Z",
       updatedAt: "2026-06-26T09:00:00.000Z",
     }));
-    window.pigui = {
-      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
@@ -977,8 +977,8 @@ describe("AppFrame", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     const alert = vi.spyOn(window, "alert").mockReturnValue(undefined);
     const invoke = vi.fn(async () => ({}));
-    window.pigui = {
-      invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as PaceRendererApi["invoke"],
       onBackendEvent: () => () => {},
       onBrowserEvent: () => () => {},
       onUpdateEvent: () => () => {},
@@ -1767,7 +1767,7 @@ describe("AppFrame", () => {
 
       const settingsRow = await screen.findByRole("button", { name: /Settings/ });
       await waitFor(() => {
-        expect(window.pigui!.invoke).toHaveBeenCalledWith("update:status", undefined);
+        expect(window.pace!.invoke).toHaveBeenCalledWith("update:status", undefined);
       });
       expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
     },
@@ -1780,7 +1780,7 @@ describe("AppFrame", () => {
 
     const settingsRow = await screen.findByRole("button", { name: /Settings/ });
     await waitFor(() => {
-      expect(window.pigui!.invoke).toHaveBeenCalledWith("update:status", undefined);
+      expect(window.pace!.invoke).toHaveBeenCalledWith("update:status", undefined);
     });
     expect(within(settingsRow).queryByLabelText("Update ready")).not.toBeInTheDocument();
 

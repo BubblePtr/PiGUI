@@ -34,7 +34,7 @@ async function repository() {
   const root = await tempDirectory();
 
   await git(root, "init");
-  await git(root, "config", "user.name", "PiGUI Tests");
+  await git(root, "config", "user.name", "Pace Tests");
   await git(root, "config", "user.email", "pigui@example.test");
   await writeFile(join(root, "tracked.txt"), "before\n", "utf8");
   await writeFile(join(root, "old name.txt"), "rename me\n", "utf8");

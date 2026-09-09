@@ -3,7 +3,7 @@ import { createDefaultPiRuntimeBridge } from "@/entities/runtime/pi-runtime-fact
 
 describe("default Pi runtime bridge factory", () => {
   afterEach(() => {
-    delete window.pigui;
+    delete window.pace;
   });
 
   it("uses an in-browser fake bridge outside Electron so dev-server sessions stay interactive", async () => {
@@ -53,7 +53,7 @@ describe("default Pi runtime bridge factory", () => {
       } as T;
     };
 
-    window.pigui = {
+    window.pace = {
       invoke,
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),

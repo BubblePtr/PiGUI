@@ -238,7 +238,7 @@ function agentEvent(
 }
 
 describe("Runtime Gateway service", () => {
-  it("dispatches PiGUI runtime methods and emits product event envelopes", async () => {
+  it("dispatches Pace runtime methods and emits product event envelopes", async () => {
     const service = createRuntimeGatewayService({
       driver: createFakeRuntimeDriver(),
       now: () => "2026-06-29T12:00:00.000Z",

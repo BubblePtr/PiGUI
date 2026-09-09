@@ -156,7 +156,7 @@ function renderProjectSessions(
     addProjectToRegistry(pigProjectPath, {
       now: () => "2026-06-30T08:00:00.000Z",
     });
-    if (!window.pigui) {
+    if (!window.pace) {
       window.__PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ = true;
     }
   }
@@ -263,7 +263,7 @@ describe("AgentWorkspaceSessionsPage", () => {
   beforeEach(() => {
     setDockedLayout(false);
     window.localStorage.clear();
-    delete window.pigui;
+    delete window.pace;
     delete (
       window as typeof window & {
         __PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
@@ -732,8 +732,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -838,8 +838,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -877,8 +877,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -902,8 +902,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -944,8 +944,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -994,8 +994,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn((listener) => {
         backendListeners.push(listener);
         return vi.fn();
@@ -1095,8 +1095,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -1143,8 +1143,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -1214,8 +1214,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -3783,8 +3783,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -3856,8 +3856,8 @@ describe("AgentWorkspaceSessionsPage", () => {
 
       throw new Error(`unexpected backend command ${command}`);
     });
-    window.pigui = {
-      invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+    window.pace = {
+      invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
       onBackendEvent: vi.fn(() => vi.fn()),
       onBrowserEvent: vi.fn(() => vi.fn()),
       onUpdateEvent: vi.fn(() => vi.fn()),
@@ -7061,8 +7061,8 @@ describe("Context usage placement", () => {
     return {
       sessionId: "session-context",
       state: "clean",
-      checkoutRoot: "/work/PiGUI",
-      repositoryRoot: "/work/PiGUI",
+      checkoutRoot: "/work/Pace",
+      repositoryRoot: "/work/Pace",
       generatedAt: "2026-09-04T00:00:00.000Z",
       head: {
         oid: "abc1234deadbeef",
@@ -7199,7 +7199,7 @@ describe("Context usage placement", () => {
           occupiedBranches: [
             {
               branch: "main",
-              path: "/work/.pig-worktrees/PiGUI/session-other",
+              path: "/work/.pig-worktrees/Pace/session-other",
             },
           ],
         }),
@@ -7313,13 +7313,13 @@ describe("Session changes action surface", () => {
       stage: "preparing checkout",
       checkout: {
         mode: "foreground-local",
-        root: "/work/PiGUI",
-        repoRoot: "/work/PiGUI",
-        projectRoot: "/work/PiGUI",
+        root: "/work/Pace",
+        repoRoot: "/work/Pace",
+        projectRoot: "/work/Pace",
         projectRelativePath: ".",
-        executionCheckoutRoot: "/work/PiGUI",
-        diffRoot: "/work/PiGUI",
-        runtimeCwd: "/work/PiGUI",
+        executionCheckoutRoot: "/work/Pace",
+        diffRoot: "/work/Pace",
+        runtimeCwd: "/work/Pace",
       },
       occurredAt: "2026-07-19T00:00:00.000Z",
     },
@@ -7329,8 +7329,8 @@ describe("Session changes action surface", () => {
     return {
       sessionId: "session-changes",
       state: "ready",
-      checkoutRoot: "/work/PiGUI",
-      repositoryRoot: "/work/PiGUI",
+      checkoutRoot: "/work/Pace",
+      repositoryRoot: "/work/Pace",
       generatedAt: "2026-07-19T00:01:00.000Z",
       files: [
         {

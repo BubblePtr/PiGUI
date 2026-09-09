@@ -24,7 +24,7 @@ describe("renderer preload", () => {
     rootGetter.mockReturnValue(null as unknown as HTMLElement);
 
     await expect(import("./preload")).resolves.toBeDefined();
-    expect(exposeInMainWorld).toHaveBeenCalledWith("pigui", expect.any(Object));
+    expect(exposeInMainWorld).toHaveBeenCalledWith("pace", expect.any(Object));
 
     rootGetter.mockReturnValue(root);
     window.dispatchEvent(new Event("DOMContentLoaded"));

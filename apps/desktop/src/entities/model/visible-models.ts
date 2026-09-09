@@ -1,6 +1,6 @@
 // Which catalog models the composer selector may list (issue #102). Managed
 // on the Settings page, read by the selector. Same renderer-local settings
-// channel as the other PiGUI preferences (localStorage, `pigui.*` keys) —
+// channel as the other Pace preferences (localStorage, `pigui.*` keys) —
 // Pi's own settings.json stays Pi's.
 //
 // Known boundary: this is an explicit allowlist (the Cursor semantics the

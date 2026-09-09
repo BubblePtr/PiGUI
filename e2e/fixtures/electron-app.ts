@@ -61,7 +61,7 @@ export type E2ESessionProjection = {
   };
 };
 
-export type PiGUITestApplication = {
+export type PaceTestApplication = {
   app: ElectronApplication;
   window: Page;
   project: E2EProject | null;
@@ -72,7 +72,7 @@ export type PiGUITestApplication = {
   close(): Promise<void>;
 };
 
-type LaunchPiGUIOptions = {
+type LaunchPaceOptions = {
   seedProject?: boolean;
   seedSession?: boolean;
   seedGitChanges?: boolean;
@@ -100,7 +100,7 @@ async function seedChangedGitRepository(projectDirectory: string) {
   const sourceDirectory = path.join(projectDirectory, "src");
   await mkdir(sourceDirectory, { recursive: true });
   await git(projectDirectory, "init");
-  await git(projectDirectory, "config", "user.name", "PiGUI E2E");
+  await git(projectDirectory, "config", "user.name", "Pace E2E");
   await git(projectDirectory, "config", "user.email", "pigui-e2e@example.test");
   await writeFile(
     path.join(sourceDirectory, "app.ts"),
@@ -150,7 +150,7 @@ async function seedPiRuntimeFixture(input: {
   await mkdir(path.dirname(input.sessionFile), { recursive: true });
   await Promise.all([
     writeJson(path.join(input.agentDirectory, "auth.json"), {
-      openai: { type: "api_key", key: "pigui-e2e-placeholder" },
+      openai: { type: "api_key", key: "pace-e2e-placeholder" },
     }),
     writeFile(
       input.sessionFile,
@@ -166,10 +166,10 @@ async function seedPiRuntimeFixture(input: {
   ]);
 }
 
-export async function launchPiGUI(
-  options: LaunchPiGUIOptions = {},
-): Promise<PiGUITestApplication> {
-  const testRoot = await mkdtemp(path.join(tmpdir(), "pigui-e2e-"));
+export async function launchPace(
+  options: LaunchPaceOptions = {},
+): Promise<PaceTestApplication> {
+  const testRoot = await mkdtemp(path.join(tmpdir(), "pace-e2e-"));
   const profileDirectory = path.join(testRoot, "profile");
   const dataDirectory = path.join(testRoot, "data");
   const agentDirectory = path.join(testRoot, "agent");
@@ -254,7 +254,7 @@ export async function launchPiGUI(
 
   if (options.seedPreflightAuth || options.seedModelControls) {
     await writeJson(path.join(agentDirectory, "auth.json"), {
-      openai: { type: "api_key", key: "pigui-e2e-placeholder" },
+      openai: { type: "api_key", key: "pace-e2e-placeholder" },
     });
   }
 

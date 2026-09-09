@@ -10,7 +10,7 @@ const FAST_SUFFIX = "-fast";
 
 /**
  * Fast siblings are separate catalog entries in Pi (`grok-3` / `grok-3-fast`),
- * not a model parameter. This `-fast` id-suffix pairing is PiGUI's own
+ * not a model parameter. This `-fast` id-suffix pairing is Pace's own
  * grouping so the list can show one row per family plus a Fast Mode switch.
  */
 export function fastSiblingOf(

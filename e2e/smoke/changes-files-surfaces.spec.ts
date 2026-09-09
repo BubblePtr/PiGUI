@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { launchPiGUI } from "../fixtures/electron-app";
+import { launchPace } from "../fixtures/electron-app";
 
 /**
  * Changes + Files surface smoke (ADR-0035): the real backend reads the seeded
@@ -18,7 +18,7 @@ async function openSeededSession(window: Page, title: string) {
 }
 
 test("Changes stacks every diff; Files browses and previews the checkout", async ({}, testInfo) => {
-  const testApp = await launchPiGUI({ seedGitChanges: true, seedPreflightAuth: true });
+  const testApp = await launchPace({ seedGitChanges: true, seedPreflightAuth: true });
 
   try {
     await testApp.resizeWindow(1440, 900);
