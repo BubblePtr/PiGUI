@@ -14,29 +14,23 @@
 
 Pi is a coding agent that runs in the terminal, with a highly extensible system in the spirit of VS Code: packages contribute tools, commands, skills, prompts and themes. We want to bring that flexibility to a desktop application, so that developers can freely shape a desktop agent that is truly their own. The name comes from *move at your own pace*: in the age of AI, developers should keep full ownership of their agent, and set their own rhythm for how they build and collaborate.
 
-Pace is not a fork of Pi, and it is not a second, independent runtime. Pi remains the true host of every session and its context; Pi is always the only underlying engine and the single source of truth. Pace observes Pi, interacts with it and presents its state through a stable, standardized Runtime Gateway.
+> [!NOTE]
+> Pace is in early `0.y.z` development. Only the latest version on GitHub Releases is supported. Journal and projection formats may change between minor versions; the in-app updater handles upgrades. Pi's session data is unaffected (see [Local data and recovery](#local-data-and-recovery)).
 
-## What Pace is
+## Highlights
 
-- **Pace is a projection of session events; it never intrudes on the core context.** Pi's local session log (`~/.pi`) is the single source of truth, and Pi is always the real host of the session and its context. On resume, Pi rebuilds the LLM context from that log on its own. Pace never assembles a prompt and never modifies that log. Everything Pace persists is only a projection of Pi's event stream, kept in Pace's own directory.
+- **Session timeline**: follow the agent's chain of thought and tool calls in order, alongside token usage and cost for each turn. Watch execution live or replay recorded sessions to see what happened at each step and what it cost.
+- **Session Dock panels**: Changes, Files, Terminal and the embedded Browser share one sidebar. Pi extensions can also contribute their own panels.
+- **A consistent, customizable interface**: [Astryx](https://github.com/facebook/astryx) components and open design tokens give built-in views and custom components shared colors, spacing and interaction conventions. Astryx's component styles are precompiled by [StyleX](https://engineering.fb.com/2025/11/11/web/stylex-a-styling-library-for-css-at-scale/) into reusable atomic CSS, reducing duplicate rules without generating stylesheets at runtime. Developers and agents can use the Astryx CLI to look up components and choose templates, following the same design conventions when building new views.
+- **Pi remains the only engine**: Pace is not a fork of Pi or a separate runtime. Pi's local logs remain the source of truth for sessions; uninstalling Pace does not delete Pi sessions.
 
-- **The UI is driven entirely by the event journal.** Every raw event Pi emits is normalized into an `AgentRuntimeEvent`, assigned a monotonically increasing sequence number and deterministic run / turn / message ids, and persisted to a journal. The live timeline, history replay, and token and cost accounting are all derived from that journal, never from volatile renderer state.
+## Quick start
 
-- **Panels and behavior are decoupled from the client, and both can come from extensions.** The Pace client itself ships only a small set of core panels (Surfaces). The underlying event routing, the Session Dock registry and the Runtime Gateway capability model all follow a plugin-oriented design: a Pi extension can register its own panels, controls or workflow visualizations without waiting for a Pace release. This follows the same "everything is a plugin" idea as [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness); as their plugin model matures, Pace intends to borrow from it heavily.
+### Install
 
-- **Monitoring and interaction never block the engine.** The backend runs in a separate Electron `utilityProcess`: heavy log parsing and driver crashes cannot make the GUI window stutter or hang. The backend protocol is decoupled from any specific transport, so it can later move behind a remote socket service without a rewrite.
+**Prebuilt installers (recommended).** Signed and notarized installers for Apple Silicon Macs are available on [GitHub Releases](https://github.com/BubblePtr/pace/releases). Open the downloaded DMG and drag Pace into Applications. Subsequent updates are available in the app (ADR-0033).
 
-In day-to-day use, Pace surfaces what is hard to see in a terminal: what a session cost in tokens and money, which step was the most expensive, and what the agent was actually thinking at each step.
-
-## Get Pace
-
-**Prebuilt installers.** Signed and notarized macOS Apple Silicon builds are published on [GitHub Releases](https://github.com/BubblePtr/pace/releases). Download the DMG, drag it into Applications, and the in-app updater takes over from there (ADR-0033). Linux AppImage and deb packaging scripts are in place but not yet shipped as official releases; Windows is not supported yet.
-
-**Requirements.** macOS 12 or later. The Pi runtime is bundled with the app (ADR-0031), so no separate `pi` install is needed. If Pi is already installed on the machine, Pace automatically shares the session data, auth configuration and extensions under `~/.pi/agent`.
-
-**First run.** On first launch, Pace opens an environment preflight (ADR-0025) that checks the bundled Pi runtime, the local data directory and the auth state of each model provider, and shows exactly where files will be written. Provider logins completed in the terminal or the Pi UI while Pace is running take effect immediately, with no restart.
-
-## Build from source
+**Run from source.** Requires Bun 1.3.x and Node 24:
 
 ```bash
 git clone https://github.com/BubblePtr/pace.git pace
@@ -45,17 +39,30 @@ bun install
 bun run dev
 ```
 
-Toolchain: Bun 1.3.x (workspaces and scripts), Node 24 (Electron's runtime and vitest), Electron 42. `bun run dev` starts electron-vite with hot reload. The dev instance writes to `~/.pace-dev` and a `-dev` suffixed userData profile, so it never touches the data of an installed copy; the isolation rules that let you develop Pace with Pace are in [`docs/dogfooding.md`](docs/dogfooding.md).
+**Requirements.** An Apple Silicon Mac running macOS 12 or later. The Pi runtime is bundled with the app (ADR-0031), so no separate `pi` install is needed. If Pi is already installed, Pace shares the sessions, auth configuration and extensions under `~/.pi/agent`. Linux AppImage and deb packaging scripts are available but have not shipped as official releases; Windows is not supported yet.
 
-Packaging:
+### Start your first session
 
-```bash
-bun run package:mac:unsigned   # unsigned .app + zip, for local testing
-bun run dist:mac               # signed + notarized DMG (needs Apple credentials)
-bun run dist:linux             # AppImage + deb (x64)
-```
+1. On first launch, Pace checks the bundled Pi runtime, data directory and model provider login status, and shows where data will be saved (ADR-0025). If you have not signed in to a model provider, you can do so through `pi` in the terminal. Pace detects the new login state without a restart.
+2. After preflight passes, select a project directory and create a session.
+3. Send your first message, such as asking the agent to explain the repository's structure.
+4. Read the conversation in Live Chat, inspect the chain of thought and tool calls in Trajectory, and check the turn's token usage and cost in the status bar.
 
-The full signing, notarization and release pipeline is documented in [`docs/release/macos.md`](docs/release/macos.md).
+## When Pace is not a fit
+
+- You use Pi in the terminal and do not need a graphical view of costs, chain of thought or tool calls.
+- You use Windows or an Intel Mac. Installers are currently available only for Apple Silicon Macs.
+- You want a standalone agent client that does not depend on Pi. Pace does not implement an agent loop; Pi handles inference and context management.
+
+## Design principles
+
+- **Pace is a projection of session events; it never intrudes on the core context.** Pi's local session log (`~/.pi`) is the single source of truth, and Pi is always the real host of the session and its context. On resume, Pi rebuilds the LLM context from that log on its own. Pace never assembles a prompt and never modifies that log. Everything Pace persists is only a projection of Pi's event stream, kept in Pace's own directory.
+
+- **The UI is driven entirely by the event journal.** Every raw event Pi emits is normalized into an `AgentRuntimeEvent`, assigned a monotonically increasing sequence number and deterministic run / turn / message ids, and persisted to a journal. The live timeline, history replay, and token and cost accounting are all derived from that journal, never from volatile renderer state.
+
+- **Panels and behavior are decoupled from the client, and both can come from extensions.** The Pace client itself ships only a small set of core panels (Surfaces). The underlying event routing, the Session Dock registry and the Runtime Gateway capability model all follow a plugin-oriented design: a Pi extension can register its own panels, controls or workflow visualizations without waiting for a Pace release. This follows the same "everything is a plugin" idea as [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness); as their plugin model matures, Pace intends to borrow from it heavily.
+
+- **Monitoring and interaction never block the engine.** The backend runs in a separate Electron `utilityProcess`: heavy log parsing and driver crashes cannot make the GUI window stutter or hang. The backend protocol is decoupled from any specific transport, so it can later move behind a remote socket service without a rewrite.
 
 ## Architecture
 
@@ -156,7 +163,7 @@ docs/                ADRs, design system rules, release and dogfooding guides
 CONTEXT.md           the domain glossary; every UI region and concept has a term here
 ```
 
-Stack: Electron + electron-vite, React 19, TypeScript, TanStack (Query / Router / Virtual), Tailwind v4 over the Astryx design system, Bun workspaces, Vitest, Playwright.
+Stack: Electron + electron-vite, React 19, TypeScript, TanStack (Query / Router / Virtual), the Astryx design system (component styles precompiled by StyleX) and Tailwind v4, Bun workspaces, Vitest, Playwright.
 
 ## Local data and recovery
 
@@ -170,6 +177,8 @@ Deleting Pace's local data directory only loses the UI history and cost statisti
 
 ## Development and verification
 
+Toolchain: Bun 1.3.x (workspaces and scripts), Node 24 (Electron's runtime and Vitest), Electron 42. `bun run dev` starts electron-vite with hot reload. The dev instance writes to `~/.pace-dev` and a userData directory with a `-dev` suffix, keeping installed-app data separate. See [`docs/dogfooding.md`](docs/dogfooding.md) for the isolation rules when developing Pace with Pace.
+
 ```bash
 bun run typecheck        # tsc --noEmit across the workspace
 bun run test             # vitest: unit + contract tests (normalizer fixtures, gateway, persistence)
@@ -179,6 +188,16 @@ bun run build            # typecheck + electron-vite build
 ```
 
 Before opening a PR, `typecheck`, `test` and `build` must be green; the manual `Validate macOS ARM64` workflow runs packaging and the packaged-app E2E on demand.
+
+Packaging:
+
+```bash
+bun run package:mac:unsigned   # unsigned .app + zip, for local testing
+bun run dist:mac               # signed + notarized DMG (needs Apple credentials)
+bun run dist:linux             # AppImage + deb (x64)
+```
+
+The signing, notarization and release pipeline is documented in [`docs/release/macos.md`](docs/release/macos.md).
 
 Two dev-only tools help when working on the UI locally:
 
@@ -201,6 +220,12 @@ Two dev-only tools help when working on the UI locally:
 - [`docs/agents/`](docs/agents/): how issues, triage labels and domain docs are organized for both human and agent contributors.
 
 - [`.scratch/<feature>/PRD.md`](.scratch/): point-in-time product requirement records.
+
+## Support and security
+
+- **Bugs and feature requests**: submit them to [GitHub Issues](https://github.com/BubblePtr/pace/issues).
+- **Security vulnerabilities**: do not open a public issue. Follow [SECURITY.md](SECURITY.md) to report vulnerabilities privately through GitHub. Only the latest release is supported.
+- **Release notes**: see [GitHub Releases](https://github.com/BubblePtr/pace/releases) for changes in each version.
 
 ## Contributing
 
