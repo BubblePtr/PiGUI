@@ -159,7 +159,7 @@ async function tempDataDir() {
 
 describe("backend service", () => {
   beforeEach(async () => {
-    vi.stubEnv("PIGUI_DATA_DIR", await tempDataDir());
+    vi.stubEnv("PACE_DATA_DIR", await tempDataDir());
     createAgentSession.mockReset();
     sessionManagerOpen.mockReset();
     sessionManagerListAll.mockReset();

@@ -135,7 +135,7 @@ describe("Electron shell", () => {
     const main = readProjectFile("apps/desktop/electron/main.ts");
 
     expect(main).toContain('const e2eKillBackendCommand = "__e2e_kill_backend"');
-    expect(main).toContain('process.env.PIGUI_E2E !== "1"');
+    expect(main).toContain('process.env.PACE_E2E !== "1"');
     expect(main).toContain("killBackendForEndToEndTest");
   });
 

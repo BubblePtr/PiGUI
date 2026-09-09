@@ -63,9 +63,33 @@ describe("backend data directory migration", () => {
     const home = temporaryHome();
     mkdirSync(join(home, ".pigui"));
     const override = join(home, "custom");
-    expect(migrateDataDir({ PIGUI_DATA_DIR: override }, home)).toBe(override);
+    expect(migrateDataDir({ PACE_DATA_DIR: override }, home)).toBe(override);
     expect(existsSync(join(home, ".pigui"))).toBe(true);
     expect(existsSync(join(home, ".pace"))).toBe(false);
+  });
+
+  it("falls back to PIGUI_DATA_DIR and warns that it is deprecated", () => {
+    const home = temporaryHome();
+    mkdirSync(join(home, ".pigui"));
+    const override = join(home, "legacy-custom");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(migrateDataDir({ PIGUI_DATA_DIR: override }, home)).toBe(override);
+      expect(resolveDataDir({ PIGUI_DATA_DIR: override }, home)).toBe(override);
+      expect(existsSync(join(home, ".pigui"))).toBe(true);
+      expect(existsSync(join(home, ".pace"))).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("PIGUI_DATA_DIR"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("prefers PACE_DATA_DIR when both overrides are set", () => {
+    const home = temporaryHome();
+    const pace = join(home, "pace-custom");
+    const legacy = join(home, "legacy-custom");
+    expect(resolveDataDir({ PACE_DATA_DIR: pace, PIGUI_DATA_DIR: legacy }, home)).toBe(pace);
+    expect(migrateDataDir({ PACE_DATA_DIR: pace, PIGUI_DATA_DIR: legacy }, home)).toBe(pace);
   });
 
   it.each(["EXDEV", "EACCES"])("uses old data and warns if rename fails with %s", (code) => {

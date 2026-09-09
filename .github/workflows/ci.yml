@@ -35,7 +35,7 @@ jobs:
       - run: bun run test:release
       - run: bun run test --maxWorkers=2
         env:
-          PIGUI_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
+          PACE_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
       - name: Build unsigned app and validate the bundled runtime
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'

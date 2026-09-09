@@ -11,15 +11,24 @@ import type {
   RuntimeGatewayEventInput,
 } from "@pace/core";
 
-// PiGUI's own data lives outside ~/.pi — that directory is Pi's session truth
-// and PiGUI only observes it.
+// Pace's own data lives outside ~/.pi — that directory is Pi's session truth
+// and Pace only observes it. PIGUI_DATA_DIR remains a one-minor-version alias.
+function resolveDataDirOverride(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.PACE_DATA_DIR) return env.PACE_DATA_DIR;
+  if (env.PIGUI_DATA_DIR) {
+    console.warn("PIGUI_DATA_DIR is deprecated; use PACE_DATA_DIR.");
+    return env.PIGUI_DATA_DIR;
+  }
+}
+
 export function resolveDataDir(env: NodeJS.ProcessEnv, homeDir: string): string {
-  return env.PIGUI_DATA_DIR || join(homeDir, ".pace");
+  return resolveDataDirOverride(env) || join(homeDir, ".pace");
 }
 
 export function migrateDataDir(env: NodeJS.ProcessEnv, homeDir: string): string {
-  if (env.PIGUI_DATA_DIR) {
-    return env.PIGUI_DATA_DIR;
+  const override = resolveDataDirOverride(env);
+  if (override) {
+    return override;
   }
 
   const dataDir = resolveDataDir(env, homeDir);

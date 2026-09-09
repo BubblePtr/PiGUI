@@ -1,22 +1,31 @@
 import * as fs from "node:fs";
 import { join } from "node:path";
 
-// PiGUI is dogfooded: the packaged app is the daily driver while `bun run dev`
-// runs a second instance from a checkout. Both would otherwise share ~/.pigui
+// Pace is dogfooded: the packaged app is the daily driver while `bun run dev`
+// runs a second instance from a checkout. Both would otherwise share ~/.pace
 // (journal, projections, preflight status), so an unpackaged app defaults to a
-// sibling directory. An explicit PIGUI_DATA_DIR (E2E, manual override) wins.
+// sibling directory. An explicit PACE_DATA_DIR (E2E, manual override) wins;
+// PIGUI_DATA_DIR remains a one-minor-version alias.
+function resolveDataDirOverride(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.PACE_DATA_DIR) return env.PACE_DATA_DIR;
+  if (env.PIGUI_DATA_DIR) {
+    console.warn("PIGUI_DATA_DIR is deprecated; use PACE_DATA_DIR.");
+    return env.PIGUI_DATA_DIR;
+  }
+}
+
 export function resolveBackendEnvironment(input: {
   env: NodeJS.ProcessEnv;
   isPackaged: boolean;
   homeDir: string;
 }): NodeJS.ProcessEnv {
-  if (input.env.PIGUI_DATA_DIR || input.isPackaged) {
+  if (resolveDataDirOverride(input.env) || input.isPackaged) {
     return { ...input.env };
   }
 
   return {
     ...input.env,
-    PIGUI_DATA_DIR: migrateDirectory(
+    PACE_DATA_DIR: migrateDirectory(
       join(input.homeDir, ".pace-dev"),
       join(input.homeDir, ".pigui-dev"),
     ),

@@ -44,7 +44,7 @@ function forceGc() {
 async function settle() {
   forceGc();
   await new Promise((resolve) => {
-    setTimeout(resolve, numberFromEnv("PIGUI_IDLE_MEMORY_SETTLE_MS", 50));
+    setTimeout(resolve, numberFromEnv("PACE_IDLE_MEMORY_SETTLE_MS", 50));
   });
   forceGc();
 }
@@ -73,9 +73,9 @@ async function openAgentSession(info: IdleMemorySessionInfo) {
   };
 }
 
-const sampleSize = numberFromEnv("PIGUI_IDLE_MEMORY_SAMPLE_SIZE", 50);
-const thresholdBytes = numberFromEnv("PIGUI_IDLE_MEMORY_THRESHOLD_MB", 20) * mib;
-const minExpectedSamples = numberFromEnv("PIGUI_IDLE_MEMORY_MIN_SAMPLES", 20);
+const sampleSize = numberFromEnv("PACE_IDLE_MEMORY_SAMPLE_SIZE", 50);
+const thresholdBytes = numberFromEnv("PACE_IDLE_MEMORY_THRESHOLD_MB", 20) * mib;
+const minExpectedSamples = numberFromEnv("PACE_IDLE_MEMORY_MIN_SAMPLES", 20);
 const listedSessions = (await SessionManager.listAll()).map(toIdleMemorySessionInfo);
 const warmupSession = selectIdleMemorySessionSamples(listedSessions, {
   sampleSize: 1,

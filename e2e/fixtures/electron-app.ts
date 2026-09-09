@@ -11,13 +11,13 @@ const currentDirectory = path.dirname(currentFile);
 const repositoryRoot = path.resolve(currentDirectory, "..", "..");
 const projectRegistryStorageKey = "pigui.projectRegistry.v1";
 const execFileAsync = promisify(execFile);
-const packagedExecutable = process.env.PIGUI_E2E_EXECUTABLE;
+const packagedExecutable = process.env.PACE_E2E_EXECUTABLE;
 /**
  * Extra Electron switches, space separated. Needed on Linux to run under Xvfb:
  * `ELECTRON_OZONE_PLATFORM_HINT` is ignored, only `--ozone-platform=x11` works,
  * and a tiling Wayland compositor otherwise overrides every setSize() call.
  */
-const extraElectronArgs = (process.env.PIGUI_E2E_ELECTRON_ARGS ?? "")
+const extraElectronArgs = (process.env.PACE_E2E_ELECTRON_ARGS ?? "")
   .split(" ")
   .filter(Boolean);
 
@@ -282,11 +282,11 @@ export async function launchPiGUI(
     ],
     env: {
       ...stringEnvironment(),
-      PIGUI_DATA_DIR: dataDirectory,
-      PIGUI_E2E: "1",
+      PACE_DATA_DIR: dataDirectory,
+      PACE_E2E: "1",
       PI_CODING_AGENT_DIR: agentDirectory,
       ...(options.emptyPath ? { PATH: "" } : {}),
-      ...(options.forceGitMissing ? { PIGUI_E2E_FORCE_GIT_MISSING: "1" } : {}),
+      ...(options.forceGitMissing ? { PACE_E2E_FORCE_GIT_MISSING: "1" } : {}),
     },
   });
   const window = await app.firstWindow();

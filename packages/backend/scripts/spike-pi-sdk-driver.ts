@@ -46,7 +46,7 @@ function cliReport(report: PiSdkSpikeReport) {
 
 const report = await runPiSdkDriverSpike({
   env: process.env,
-  cwd: process.env.PIGUI_SDK_SPIKE_CWD ?? process.cwd(),
+  cwd: process.env.PACE_SDK_SPIKE_CWD ?? process.cwd(),
   runtimeFactory: createPublicPiSdkRuntimeFactory({ sdk }),
 });
 

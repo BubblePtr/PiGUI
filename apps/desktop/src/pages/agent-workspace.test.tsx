@@ -157,7 +157,7 @@ function renderProjectSessions(
       now: () => "2026-06-30T08:00:00.000Z",
     });
     if (!window.pigui) {
-      window.__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ = true;
+      window.__PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ = true;
     }
   }
 
@@ -266,9 +266,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     delete window.pigui;
     delete (
       window as typeof window & {
-        __PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
+        __PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
       }
-    ).__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__;
+    ).__PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__;
   });
 
   it("retries only the latest failed request and preserves the unsent draft", async () => {
@@ -1241,9 +1241,9 @@ describe("AgentWorkspaceSessionsPage", () => {
   it("uses browser development Project data for plain-browser draft debugging", async () => {
     (
       window as typeof window & {
-        __PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
+        __PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
       }
-    ).__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ = true;
+    ).__PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ = true;
 
     renderProjectSessions("/projects/pig/sessions?view=draft", {
       seedProjects: false,
@@ -1261,9 +1261,9 @@ describe("AgentWorkspaceSessionsPage", () => {
 
     delete (
       window as typeof window & {
-        __PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
+        __PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
       }
-    ).__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__;
+    ).__PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__;
   });
 
   it("exposes the Terminal surface on the rail, without file tree or abort placeholders", async () => {

@@ -103,8 +103,8 @@ export default defineConfig({
     // exist after electron-vite bundles the SDK into the backend.
     define: {
       PI_BUNDLED_NODE: "true",
-      __PIGUI_APP_VERSION__: JSON.stringify(appPackage.version),
-      __PIGUI_PI_VERSION__: JSON.stringify(piPackage.version),
+      __PACE_APP_VERSION__: JSON.stringify(appPackage.version),
+      __PACE_PI_VERSION__: JSON.stringify(piPackage.version),
     },
     plugins: [
       externalizeDepsPlugin({ exclude: [...internalPackages, "electron-updater"] }),

@@ -126,7 +126,7 @@ function applyDevelopmentDockIcon() {
 // E2E launches one Electron per test; a normal show() would activate the app
 // and steal the developer's focus every time. Keep those windows in the
 // background: no Dock presence, shown without activation.
-const backgroundWindowForEndToEnd = process.env.PIGUI_E2E === "1";
+const backgroundWindowForEndToEnd = process.env.PACE_E2E === "1";
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -665,7 +665,7 @@ function getBrowserHost() {
 }
 
 function killBackendForEndToEndTest() {
-  if (process.env.PIGUI_E2E !== "1") {
+  if (process.env.PACE_E2E !== "1") {
     throw new Error("The Pace E2E backend control is disabled.");
   }
 
@@ -741,7 +741,7 @@ app.whenReady().then(() => {
     currentVersion: app.getVersion(),
     // Packaged E2E is still isPackaged; without this it would hit GitHub after 10s.
     disabledReason:
-      process.env.PIGUI_E2E === "1"
+      process.env.PACE_E2E === "1"
         ? "Updates are disabled during end-to-end tests."
         : undefined,
   });

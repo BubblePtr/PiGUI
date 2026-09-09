@@ -13,7 +13,7 @@ import { createInMemorySessionProjectionStore } from "../persistence/session-pro
 let defaultDataDir: string;
 beforeEach(async () => {
   defaultDataDir = await mkdtemp(join(tmpdir(), "pace-gateway-default-"));
-  vi.stubEnv("PIGUI_DATA_DIR", defaultDataDir);
+  vi.stubEnv("PACE_DATA_DIR", defaultDataDir);
 });
 afterEach(async () => {
   vi.unstubAllEnvs();

@@ -35,7 +35,7 @@ describe("Pi SDK public runtime adapter", () => {
       messages: [
         {
           role: "assistant",
-          content: [{ type: "text", text: "PIGUI_SDK_SPIKE_OK" }],
+          content: [{ type: "text", text: "PACE_SDK_SPIKE_OK" }],
         },
       ],
       prompt,
@@ -59,7 +59,7 @@ describe("Pi SDK public runtime adapter", () => {
       cwd: "/Users/void/code/opensource/Pig",
     });
 
-    await runtime.sendPrompt("Reply with exactly: PIGUI_SDK_SPIKE_OK");
+    await runtime.sendPrompt("Reply with exactly: PACE_SDK_SPIKE_OK");
 
     await expect(runtime.getSnapshot?.()).resolves.toMatchObject({
       status: "completed",
@@ -76,7 +76,7 @@ describe("Pi SDK public runtime adapter", () => {
         noTools: expect.anything(),
       }),
     );
-    expect(prompt).toHaveBeenCalledWith("Reply with exactly: PIGUI_SDK_SPIKE_OK");
+    expect(prompt).toHaveBeenCalledWith("Reply with exactly: PACE_SDK_SPIKE_OK");
     expect(session.dispose).toHaveBeenCalledTimes(1);
   });
 
