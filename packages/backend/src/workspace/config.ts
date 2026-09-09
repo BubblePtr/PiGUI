@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { DefaultPackageManager, loadSkills, SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { ConfigInventory } from "@pace/core";
+import type { ConfigInventory, ResourceInfo } from "@pace/core";
 
 export async function buildConfigInventory(dir: string): Promise<ConfigInventory> {
   const agentDir = resolve(dir);
@@ -13,35 +13,45 @@ export async function buildConfigInventory(dir: string): Promise<ConfigInventory
   // Resolve native manifests and filters without installing missing packages
   // or evaluating extension modules just to display configuration.
   const resources = await packages.resolve(async () => "skip");
-  const skillResources = resources.skills.filter(resource => resource.enabled);
-  const skills = loadSkills({
-    cwd: agentDir,
-    agentDir,
-    skillPaths: skillResources.map(resource => resource.path),
-    includeDefaults: false,
-  }).skills;
-  const source = (metadata: { scope: string; source: string }) => `${metadata.scope}:${metadata.source}`;
+  const mapResources = (entries: typeof resources.extensions, kind: ResourceInfo["kind"]): ResourceInfo[] =>
+    entries.map((resource): ResourceInfo => {
+      // Load metadata per path so duplicate skill names and disabled skills remain visible.
+      const skill = kind === "skill" ? loadSkills({
+        cwd: agentDir,
+        agentDir,
+        skillPaths: [resource.path],
+        includeDefaults: false,
+      }).skills[0] : undefined;
+      return {
+        kind,
+        name: skill?.name ?? relative(resource.metadata.baseDir ?? agentDir, resource.path),
+        description: skill?.description,
+        path: resource.path,
+        enabled: resource.enabled,
+        origin: resource.metadata.source === "auto" ? "drop-in" : resource.metadata.origin,
+        scope: resource.metadata.scope === "project" ? "project" : "user",
+        packageSource: resource.metadata.origin === "package" ? resource.metadata.source : undefined,
+      };
+    }).sort((left, right) => left.name.localeCompare(right.name));
+  const extensions = mapResources(resources.extensions, "extension");
+  const skills = mapResources(resources.skills, "skill");
+  const promptTemplates = mapResources(resources.prompts, "prompt");
+  const themes = mapResources(resources.themes, "theme");
+  const allResources = [...extensions, ...skills, ...promptTemplates, ...themes];
 
   return {
     defaultModel: settingsManager.getDefaultModel(),
     defaultProvider: settingsManager.getDefaultProvider(),
     defaultThinkingLevel: settingsManager.getDefaultThinkingLevel(),
     theme: settingsManager.getTheme(),
-    packages: [...new Set((settingsManager.getGlobalSettings().packages ?? [])
-      .map(pkg => typeof pkg === "string" ? pkg : pkg.source))].sort(),
-    extensions: resources.extensions.map(resource => ({
-      name: resource.metadata.origin === "package"
-        ? `${resource.metadata.source}/${relative(resource.metadata.baseDir ?? agentDir, resource.path)}`
-        : relative(agentDir, resource.path),
-      source: source(resource.metadata),
-      enabled: resource.enabled,
-    })).sort((left, right) => left.name.localeCompare(right.name)),
-    skills: skills.map(skill => ({
-      name: skill.name,
-      description: skill.description,
-      source: source(skillResources.find(resource => resource.path === skill.filePath)?.metadata ?? { scope: "user", source: "local" }),
-    })).sort((left, right) => left.name.localeCompare(right.name)),
-    promptTemplates: [],
+    packages: packages.listConfiguredPackages().map(pkg => ({
+      ...pkg,
+      resources: allResources.filter(resource => resource.packageSource === pkg.source && resource.scope === pkg.scope),
+    })).sort((left, right) => left.source.localeCompare(right.source)),
+    extensions,
+    skills,
+    promptTemplates,
+    themes,
   };
 }
 

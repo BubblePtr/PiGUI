@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Text } from "@astryxdesign/core/Text";
 import { Card } from "@astryxdesign/core/Card";
 import { EmptyState as AstryxEmptyState } from "@astryxdesign/core/EmptyState";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -15,11 +18,11 @@ import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "@/shared/ui
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import { invoke } from "@/shared/runtime";
 
-import type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pace/core";
+import type { ConfigInventory, ResourceInfo, PackageInfo } from "@pace/core";
 
-export type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pace/core";
+export type { ConfigInventory, ResourceInfo, PackageInfo } from "@pace/core";
 
-type SetupCategory = "models" | "packages" | "extensions" | "skills" | "templates";
+type SetupCategory = "models" | "packages" | "extensions" | "skills" | "templates" | "themes";
 
 const categoryMeta = {
   models: { label: "Models", icon: Settings2 },
@@ -27,6 +30,7 @@ const categoryMeta = {
   extensions: { label: "Extensions", icon: Wrench },
   skills: { label: "Skills", icon: Puzzle },
   templates: { label: "Prompt Templates", icon: Sparkles },
+  themes: { label: "Themes", icon: Sparkles },
 } as const;
 
 async function getConfigInventory() {
@@ -51,6 +55,8 @@ function categoryCount(category: SetupCategory, inventory?: ConfigInventory) {
       return String(inventory.extensions.length);
     case "skills":
       return String(inventory.skills.length);
+    case "themes":
+      return String(inventory.themes.length);
     case "templates":
       return String(inventory.promptTemplates.length);
   }
@@ -129,35 +135,53 @@ function EmptyState({ children }: { children: string }) {
   return <AstryxEmptyState isCompact title={children} />;
 }
 
-function NameList({ items }: { items: string[] }) {
-  if (items.length === 0) {
-    return <EmptyState>Not installed</EmptyState>;
-  }
+const resourceGroups = [
+  { kind: "extension", label: "Extensions" },
+  { kind: "skill", label: "Skills" },
+  { kind: "prompt", label: "Prompt Templates" },
+  { kind: "theme", label: "Themes" },
+] as const;
 
+function ResourceList({ resources }: { resources: ResourceInfo[] }) {
+  if (resources.length === 0) return <EmptyState>Not installed</EmptyState>;
   return (
-    <List data-testid="installed-items-list" hasDividers>
-      {items.map((item) => (
-        <ListItem key={item} label={item} />
+    <List hasDividers>
+      {resources.map(resource => (
+        <ListItem
+          key={`${resource.kind}:${resource.path}`}
+          label={resource.name}
+          description={[
+            resource.enabled ? "enabled" : "disabled",
+            resource.scope,
+            resource.origin,
+            resource.packageSource,
+            resource.origin === "drop-in" ? "由约定目录自动加载" : undefined,
+            resource.kind === "theme" ? "仅影响 Pi 终端" : undefined,
+            resource.path,
+          ].filter(Boolean).join(" · ")}
+        />
       ))}
     </List>
   );
 }
 
-function ExtensionList({ extensions }: { extensions: ExtensionInfo[] }) {
-  if (extensions.length === 0) {
-    return <EmptyState>Not installed</EmptyState>;
-  }
-
+function PackageList({ packages }: { packages: PackageInfo[] }) {
+  if (packages.length === 0) return <EmptyState>Not installed</EmptyState>;
   return (
-    <List data-testid="installed-extensions-list" hasDividers>
-      {extensions.map((extension) => (
-        <ListItem
-          key={extension.name}
-          label={extension.name}
-          description={`${extension.enabled ? "enabled" : "disabled"} · ${extension.source}`}
-        />
+    <VStack gap={6}>
+      {packages.map(pkg => (
+        <VStack key={`${pkg.scope}:${pkg.source}`} gap={3}>
+          <Heading level={3}>{pkg.source}</Heading>
+          <Text type="supporting">{pkg.scope} · {pkg.filtered ? "Filtered" : "Unfiltered"} · {pkg.installedPath ?? "Not installed"}</Text>
+          {resourceGroups.map(group => (
+            <VStack key={group.kind} gap={1}>
+              <Heading level={4}>{group.label}</Heading>
+              <ResourceList resources={pkg.resources.filter(resource => resource.kind === group.kind)} />
+            </VStack>
+          ))}
+        </VStack>
       ))}
-    </List>
+    </VStack>
   );
 }
 
@@ -189,13 +213,15 @@ export function ConfigInventoryView({
             <KeyValue label="Theme" value={valueOrMissing(inventory.theme)} />
           </div>
         ) : selected === "packages" ? (
-          <NameList items={inventory.packages} />
+          <PackageList packages={inventory.packages} />
         ) : selected === "extensions" ? (
-          <ExtensionList extensions={inventory.extensions} />
+          <ResourceList resources={inventory.extensions} />
         ) : selected === "skills" ? (
-          <NameList items={inventory.skills.map((skill) => skill.name)} />
+          <ResourceList resources={inventory.skills} />
+        ) : selected === "themes" ? (
+          <ResourceList resources={inventory.themes} />
         ) : (
-          <NameList items={inventory.promptTemplates.map((template) => template.name)} />
+          <ResourceList resources={inventory.promptTemplates} />
         )}
       </div>
     </Card>
@@ -215,7 +241,8 @@ export function SetupPage() {
 
     return {
       ...inventory.data,
-      packages: [...inventory.data.packages].sort((a, b) => a.localeCompare(b)),
+      packages: [...inventory.data.packages].sort((a, b) => a.source.localeCompare(b.source)),
+      themes: [...inventory.data.themes].sort((a, b) => a.name.localeCompare(b.name)),
       extensions: [...inventory.data.extensions].sort((a, b) => a.name.localeCompare(b.name)),
       skills: [...inventory.data.skills].sort((a, b) => a.name.localeCompare(b.name)),
       promptTemplates: [...inventory.data.promptTemplates].sort((a, b) =>

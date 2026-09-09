@@ -29,6 +29,7 @@ const emptyConfigInventory = {
   extensions: [],
   skills: [],
   promptTemplates: [],
+  themes: [],
 };
 const browserSessionSummaryFixture: SessionSummary[] = browserSessionSummaries;
 

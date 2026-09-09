@@ -1,9 +1,22 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { invoke } from "@/shared/runtime";
+import { useComposerInsertCatalog } from "./use-composer-attachments";
 import { ComposerInsertMenu } from "./composer-insert-menu";
 
+vi.mock("@/shared/runtime", () => ({ invoke: vi.fn() }));
+
 describe("ComposerInsertMenu", () => {
+  it("omits disabled skills from the insertion catalog", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({
+      skills: [{ name: "enabled", enabled: true }, { name: "disabled", enabled: false }],
+      extensions: [],
+    });
+    const { result } = renderHook(() => useComposerInsertCatalog());
+    await waitFor(() => expect(result.current.skills).toEqual([{ name: "enabled", enabled: true }]));
+  });
+
   it("keeps the first menu short even with many installed skills", async () => {
     const onAttach = vi.fn();
     const user = userEvent.setup();

@@ -18,9 +18,8 @@ export type {
 
 export type {
   ConfigInventory,
-  ExtensionInfo,
-  SkillInfo,
-  TemplateInfo,
+  ResourceInfo,
+  PackageInfo,
 } from "./config";
 
 export {
