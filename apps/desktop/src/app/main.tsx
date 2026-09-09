@@ -19,7 +19,7 @@ import { SettingsDialog } from "@/pages/settings";
 import { SetupPage } from "@/pages/setup";
 import { TrajectoryIndexPage, TrajectorySessionPage } from "@/pages/trajectory";
 import { UsagePage } from "@/pages/usage";
-import type { EnvironmentPreflightStatus } from "@pigui/core";
+import type { EnvironmentPreflightStatus } from "@pace/core";
 import { SessionProjectionsProvider } from "@/entities/session/use-session-projections";
 import { invoke, isElectronRuntime, onNavigateRequest } from "@/shared/runtime";
 import { Theme } from "@astryxdesign/core";

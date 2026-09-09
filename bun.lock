@@ -43,7 +43,7 @@
       },
     },
     "apps/desktop": {
-      "name": "@pigui/desktop",
+      "name": "@pace/desktop",
       "version": "0.0.2",
       "dependencies": {
         "@astryxdesign/cli": "^0.3.0",
@@ -56,36 +56,36 @@
         "electron-updater": "^6.8.9",
       },
       "devDependencies": {
-        "@pigui/backend": "workspace:*",
-        "@pigui/core": "workspace:*",
+        "@pace/backend": "workspace:*",
+        "@pace/core": "workspace:*",
       },
     },
     "apps/server": {
-      "name": "@pigui/server",
+      "name": "@pace/server",
       "version": "0.1.0",
       "dependencies": {
-        "@pigui/backend": "workspace:*",
-        "@pigui/core": "workspace:*",
+        "@pace/backend": "workspace:*",
+        "@pace/core": "workspace:*",
       },
     },
     "apps/web": {
-      "name": "@pigui/web",
+      "name": "@pace/web",
       "version": "0.1.0",
       "dependencies": {
-        "@pigui/core": "workspace:*",
+        "@pace/core": "workspace:*",
       },
     },
     "packages/backend": {
-      "name": "@pigui/backend",
+      "name": "@pace/backend",
       "version": "0.1.0",
       "dependencies": {
         "@earendil-works/pi-ai": "0.84.3",
         "@earendil-works/pi-coding-agent": "0.84.3",
-        "@pigui/core": "workspace:*",
+        "@pace/core": "workspace:*",
       },
     },
     "packages/core": {
-      "name": "@pigui/core",
+      "name": "@pace/core",
       "version": "0.1.0",
     },
   },
@@ -574,6 +574,16 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.133.0", "", {}, "sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA=="],
 
+    "@pace/backend": ["@pace/backend@workspace:packages/backend"],
+
+    "@pace/core": ["@pace/core@workspace:packages/core"],
+
+    "@pace/desktop": ["@pace/desktop@workspace:apps/desktop"],
+
+    "@pace/server": ["@pace/server@workspace:apps/server"],
+
+    "@pace/web": ["@pace/web@workspace:apps/web"],
+
     "@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.8.0", "", { "dependencies": { "@peculiar/utils": "^2.0.2", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-7YT0U/ze0tF2QOBbE15gKZwy5tvgGyLRiRHLzhlbOpf7BT032oBSd0haZqXn5W6l26WLlu3dyxzjM+2638/z2Q=="],
 
     "@peculiar/json-schema": ["@peculiar/json-schema@1.1.12", "", { "dependencies": { "tslib": "^2.0.0" } }, "sha512-coUfuoMeIB7B8/NMekxaDzLhaYmp0HZNPEjYRm9goRou8UZIC3z21s0sL9AWoCw4EG876QyO3kYrc61WNF9B/w=="],
@@ -587,16 +597,6 @@
     "@pierre/theme": ["@pierre/theme@1.1.0", "", {}, "sha512-GC2OWTAfTIIWWYhPCygwG8t2EtePQkRfON4MI2rwIkJylmiyqIttJID2dCL8sUD8cNdEvYkEyfEHHKMeCiDLoQ=="],
 
     "@pierre/theming": ["@pierre/theming@0.0.2", "", { "peerDependencies": { "@pierre/theme": "^1.1.0", "@shikijs/themes": "^3.0.0 || ^4.0.0", "react": "^18.3.1 || ^19.0.0", "react-dom": "^18.3.1 || ^19.0.0", "shiki": "^3.0.0 || ^4.0.0" }, "optionalPeers": ["@pierre/theme", "@shikijs/themes", "react", "react-dom", "shiki"] }, "sha512-QM1M4stXfnzfaE8I8YbjXSApV8c+2dBsXJj8eYg9WTpBR/cTmCZIcfGnN4p13iRrYu2Br/R/OJfEL7uR8Qjctw=="],
-
-    "@pigui/backend": ["@pigui/backend@workspace:packages/backend"],
-
-    "@pigui/core": ["@pigui/core@workspace:packages/core"],
-
-    "@pigui/desktop": ["@pigui/desktop@workspace:apps/desktop"],
-
-    "@pigui/server": ["@pigui/server@workspace:apps/server"],
-
-    "@pigui/web": ["@pigui/web@workspace:apps/web"],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 

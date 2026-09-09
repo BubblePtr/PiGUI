@@ -1,5 +1,5 @@
 import { browserSessionSummaries } from "@/fixtures/browser-session-summaries";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import type { BrowserEvent } from "@/shared/browser-protocol";
 import type { NavigateRequest } from "@/shared/navigate-protocol";
 import type { UpdateStatus } from "@/shared/update-protocol";

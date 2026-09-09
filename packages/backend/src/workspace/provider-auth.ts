@@ -12,7 +12,7 @@ import {
   type ProviderAuthMode,
   type ProviderAuthStatusItem,
   type ProviderAuthStatusReport,
-} from "@pigui/core";
+} from "@pace/core";
 
 type RuntimeInstance = Awaited<ReturnType<typeof ModelRuntime.create>>;
 type AuthInteraction = Parameters<RuntimeInstance["login"]>[2];

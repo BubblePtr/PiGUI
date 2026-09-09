@@ -1,12 +1,12 @@
 import { invoke } from "@/shared/runtime";
-import type { SessionDirectoryListing, SessionFileContent } from "@pigui/core";
+import type { SessionDirectoryListing, SessionFileContent } from "@pace/core";
 
 export type {
   SessionDirectoryEntry,
   SessionDirectoryEntryKind,
   SessionDirectoryListing,
   SessionFileContent,
-} from "@pigui/core";
+} from "@pace/core";
 
 /** Paths are diff-root-relative; "" lists the root itself. */
 export async function listSessionDirectory(sessionId: string, path = "") {

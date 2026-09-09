@@ -1,5 +1,5 @@
-import type { RuntimeGatewayEventEnvelope, RuntimeGatewaySnapshot } from "@pigui/core";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { RuntimeGatewayEventEnvelope, RuntimeGatewaySnapshot } from "@pace/core";
+import type { BackendRpcEvent } from "@pace/backend";
 import { describe, expect, it, vi } from "vitest";
 import {
   createRuntimeGatewayClient,

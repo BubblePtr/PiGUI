@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import { SessionTerminalPanel } from "@/pages/session-terminal-panel";
 
 type TerminalBridge = {

@@ -17,7 +17,7 @@ import type {
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimeThinkingLevel,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   Check,
   ChevronDown,

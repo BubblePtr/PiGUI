@@ -6,7 +6,7 @@ import type {
   PiRpcResponse,
   PiRpcTransport,
   PiRpcTransportStartInput,
-} from "@pigui/core";
+} from "@pace/core";
 
 export type NodePiRpcProcessOptions = {
   responseTimeoutMs?: number;

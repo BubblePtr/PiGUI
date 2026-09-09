@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SessionChanges } from "@pigui/core";
+import type { SessionChanges } from "@pace/core";
 import { getSessionChanges, checkoutSessionBranch } from "@/entities/session/sessions";
 
 /**

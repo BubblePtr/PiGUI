@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type {
   RuntimeGatewayEventEnvelope,
   RuntimeGatewayEventInput,
-} from "@pigui/core";
+} from "@pace/core";
 
 // PiGUI's own data lives outside ~/.pi — that directory is Pi's session truth
 // and PiGUI only observes it.

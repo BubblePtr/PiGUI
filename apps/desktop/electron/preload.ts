@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
 import type { PiGUIRendererApi } from "@/shared/runtime";
 import { navigateRequestChannel, type NavigateRequest } from "@/shared/navigate-protocol";

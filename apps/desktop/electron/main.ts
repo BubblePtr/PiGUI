@@ -18,7 +18,7 @@ import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { autoUpdater } from "electron-updater";
-import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
+import type { BackendRpcEvent, BackendRpcResponse } from "@pace/backend";
 import { browserEventChannel, type BrowserEvent, type BrowserTabTarget } from "@/shared/browser-protocol";
 import { updateEventChannel } from "@/shared/update-protocol";
 import {

@@ -7,7 +7,7 @@ import type {
   RuntimeModelSelection,
   RuntimePromptImage,
   RuntimeToolSchemas,
-} from "@pigui/core";
+} from "@pace/core";
 import type {
   CreateRuntimeSessionInput,
   ForkRuntimeSessionInput,

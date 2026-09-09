@@ -1,4 +1,4 @@
-import type { SessionSummary } from "@pigui/core";
+import type { SessionSummary } from "@pace/core";
 
 // Browser-only dev fixture for the Trajectory finder (no Electron bridge).
 // `satisfies` keeps every entry type-checked against SessionSummary, so a new

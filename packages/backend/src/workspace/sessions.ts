@@ -10,7 +10,7 @@ import type {
   SessionPresence,
   SessionSummary,
   Title,
-} from "@pigui/core";
+} from "@pace/core";
 import { isChatWorkspaceCwd } from "./chat-workspace";
 
 const maxTextTitleChars = 96;

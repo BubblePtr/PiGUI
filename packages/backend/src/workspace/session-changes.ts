@@ -5,7 +5,7 @@ import type {
   SessionChangedFile,
   SessionChangedFileKind,
   SessionChanges,
-} from "@pigui/core";
+} from "@pace/core";
 
 const MAX_FILES = 200;
 const MAX_PATCH_BYTES = 512 * 1024;

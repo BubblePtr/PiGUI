@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionDirectoryListing, SessionFileContent } from "@pigui/core";
+import type { SessionDirectoryListing, SessionFileContent } from "@pace/core";
 import { SessionFilesPanel } from "@/pages/session-files-panel";
 
 const listSessionDirectory = vi.fn<

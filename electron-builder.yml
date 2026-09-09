@@ -71,7 +71,7 @@ linux:
   # (16→512); a single PNG would install only that one size.
   icon: build/icon.icns
   # Without this, electron-builder falls back to the workspace package name
-  # (`@pigui/desktop` → `@piguidesktop`); see app-builder-lib linuxPackager.
+  # (`@pace/desktop` → `@pacedesktop`); see app-builder-lib linuxPackager.
   executableName: pace
   # Electron derives app_id / WM_CLASS from `desktopName` in the app package.json;
   # syncing keeps the installed .desktop filename and StartupWMClass matching, so

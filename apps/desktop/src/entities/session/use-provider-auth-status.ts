@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ProviderAuthStatusReport } from "@pigui/core";
+import type { ProviderAuthStatusReport } from "@pace/core";
 import { invoke } from "@/shared/runtime";
 
 /**

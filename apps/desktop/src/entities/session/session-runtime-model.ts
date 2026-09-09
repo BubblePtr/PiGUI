@@ -10,8 +10,8 @@ import type {
   AgentRunTrigger,
   AgentStatusCode,
   RuntimePromptImage,
-} from "@pigui/core";
-import { promptImageDataUrl } from "@pigui/core";
+} from "@pace/core";
+import { promptImageDataUrl } from "@pace/core";
 import type { SessionStatus } from "./session-projection";
 
 export type SessionRuntimeRun = {

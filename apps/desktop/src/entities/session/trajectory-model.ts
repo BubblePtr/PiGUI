@@ -1,8 +1,8 @@
 // Trajectory Cockpit read model. Hierarchy per CONTEXT.md: Run (Active Run,
 // bounded by user inputs) > Turn (one assistant message = one model call +
-// its tools) > Step (one ledger row). Pure mapping from @pigui/core session
+// its tools) > Step (one ledger row). Pure mapping from @pace/core session
 // turns — no rendering concerns here.
-import type { SessionContentPart, SessionTurn } from "@pigui/core";
+import type { SessionContentPart, SessionTurn } from "@pace/core";
 import { toolTargetFromArgs } from "@/shared/ui/chat/chat-tool";
 
 export type TrajectoryRole = "user" | "assistant" | "toolResult" | "annotation" | "unknown";

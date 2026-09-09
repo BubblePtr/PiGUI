@@ -31,7 +31,7 @@ import {
   type StripWidthMode,
 } from "@/shared/ui/pi-trajectory-strip";
 import { buildTrajectoryRuns, buildTrajectoryTurns } from "@/entities/session/trajectory-model";
-import type { SessionTurn } from "@pigui/core";
+import type { SessionTurn } from "@pace/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
 import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
@@ -70,7 +70,7 @@ import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-in
 import { Button } from "@astryxdesign/core/Button";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import * as Icons from "@/shared/ui/icons";
-import type { RuntimeModelControls } from "@pigui/core";
+import type { RuntimeModelControls } from "@pace/core";
 
 /**
  * Layer 3 of the design gallery: every reusable PiGUI component in

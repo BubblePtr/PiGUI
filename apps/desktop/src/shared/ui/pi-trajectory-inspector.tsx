@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { formatToolDuration } from "@/shared/ui/chat/chat-tool";
-import type { RuntimeToolSchema } from "@pigui/core";
+import type { RuntimeToolSchema } from "@pace/core";
 import type { TrajectoryStep, TrajectoryTurn } from "@/entities/session/trajectory-model";
 import { TrajectoryStepBadge, trajectoryStepStatus, trajectoryStepType } from "@/shared/ui/pi-trajectory-ledger";
 

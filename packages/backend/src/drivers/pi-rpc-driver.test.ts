@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createFakePiRpcTransport } from "@pigui/core/testing";
+import { createFakePiRpcTransport } from "@pace/core/testing";
 import { createPiRpcProcessDriver } from "./pi-rpc-driver";
 
 describe("Pi RPC process driver", () => {

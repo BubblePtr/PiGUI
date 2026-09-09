@@ -1,7 +1,7 @@
 import type { ExecutionCheckout } from "@/entities/runtime/pi-runtime-bridge";
-import type { ExecutionCheckoutGitClient } from "@pigui/core";
+import type { ExecutionCheckoutGitClient } from "@pace/core";
 
-export type { ExecutionCheckoutGitClient } from "@pigui/core";
+export type { ExecutionCheckoutGitClient } from "@pace/core";
 
 export type ProjectExecutionTarget = {
   id: string;

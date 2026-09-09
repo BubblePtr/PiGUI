@@ -11,13 +11,13 @@ import type {
   RuntimeModelSelection,
   RuntimePromptImage,
   RuntimeToolSchemas,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   CHAT_PROJECT_ID,
   createRuntimeGatewaySequencer,
   parseRuntimePromptImages,
   shouldJournalRuntimeEvent,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   copiedSessionEventInputsForFork,
   forkMarkerEventInput,

@@ -1,4 +1,4 @@
-import type { RuntimePromptImage } from "@pigui/core";
+import type { RuntimePromptImage } from "@pace/core";
 
 export type AttachmentKind = "image" | "text";
 

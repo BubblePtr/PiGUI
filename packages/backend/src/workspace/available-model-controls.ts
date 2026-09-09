@@ -8,7 +8,7 @@ import type {
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimeThinkingLevel,
-} from "@pigui/core";
+} from "@pace/core";
 
 const thinkingLevelOrder: RuntimeThinkingLevel[] = [
   "off",

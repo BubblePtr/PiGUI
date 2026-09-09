@@ -8,8 +8,8 @@ import {
   resolveDataDir,
 } from "./persistence/session-event-journal";
 import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
-import { createFakePiRpcTransport } from "@pigui/core/testing";
-import type { SessionSummary } from "@pigui/core";
+import { createFakePiRpcTransport } from "@pace/core/testing";
+import type { SessionSummary } from "@pace/core";
 import type { PiRuntimeDriver } from "./gateway/runtime-gateway";
 import type {
   TerminalManager,

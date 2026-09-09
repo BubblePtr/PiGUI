@@ -1,14 +1,14 @@
 {
-  "name": "@pigui/server",
+  "name": "@pace/server",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "echo \"@pigui/server is the planned headless backend (wraps @pigui/backend over a WebSocket transport). Not yet implemented.\""
+    "build": "echo \"@pace/server is the planned headless backend (wraps @pace/backend over a WebSocket transport). Not yet implemented.\""
   },
   "dependencies": {
-    "@pigui/backend": "workspace:*",
-    "@pigui/core": "workspace:*"
+    "@pace/backend": "workspace:*",
+    "@pace/core": "workspace:*"
   }
 }

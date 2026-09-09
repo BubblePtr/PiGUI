@@ -7,7 +7,7 @@ import type {
   EnvironmentPreflightCheck,
   EnvironmentPreflightReport,
   EnvironmentPreflightStatus,
-} from "@pigui/core";
+} from "@pace/core";
 import { inspectPiRuntime, type PiRuntimeInfo } from "../drivers/pi-runtime-info";
 
 const execFileAsync = promisify(execFile);

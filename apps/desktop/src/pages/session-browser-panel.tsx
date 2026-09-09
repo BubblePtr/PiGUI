@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatBrowserAnnotationPrompt } from "@pigui/core";
+import { formatBrowserAnnotationPrompt } from "@pace/core";
 import {
   activateBrowserTab,
   attachBrowserSession,

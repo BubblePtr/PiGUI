@@ -4,7 +4,7 @@ import type {
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
   RuntimeModelSelection,
-} from "@pigui/core";
+} from "@pace/core";
 
 export type PersistedSessionProjection = {
   sessionId: string;

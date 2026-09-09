@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { SessionTurn } from "@pigui/core";
+import type { SessionTurn } from "@pace/core";
 import { buildTrajectoryTurns } from "@/entities/session/trajectory-model";
 import { PiTrajectoryStrip, stripSegmentsFromTurns } from "@/shared/ui/pi-trajectory-strip";
 

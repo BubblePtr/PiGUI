@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConfigInventory } from "@pigui/core";
+import type { ConfigInventory } from "@pace/core";
 import { invoke } from "@/shared/runtime";
 import {
   ATTACHMENT_REJECT_COPY,

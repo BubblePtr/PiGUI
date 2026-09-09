@@ -8,9 +8,9 @@ export default defineConfig({
   clearScreen: false,
   resolve: {
     alias: {
-      "@pigui/core/testing": resolve(__dirname, "packages/core/src/testing.ts"),
-      "@pigui/core": resolve(__dirname, "packages/core/src/index.ts"),
-      "@pigui/backend": resolve(__dirname, "packages/backend/src/index.ts"),
+      "@pace/core/testing": resolve(__dirname, "packages/core/src/testing.ts"),
+      "@pace/core": resolve(__dirname, "packages/core/src/index.ts"),
+      "@pace/backend": resolve(__dirname, "packages/backend/src/index.ts"),
       "@": resolve(__dirname, "apps/desktop/src"),
     },
   },

@@ -8,7 +8,7 @@ import type {
   EnvironmentPreflightCheck,
   EnvironmentPreflightReport,
   EnvironmentPreflightStatus,
-} from "@pigui/core";
+} from "@pace/core";
 import { AppFrame } from "@/app/app-shell";
 import { invoke } from "@/shared/runtime";
 

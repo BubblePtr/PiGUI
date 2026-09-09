@@ -12,12 +12,12 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import type {
   AgentMessagePartSnapshot,
   AgentMessagePartType,
   SessionChanges,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   AgentWorkspaceSessionsPage,
   AgentWorkspaceSessionsView,

@@ -1,6 +1,6 @@
 import type { ComponentType, CSSProperties } from "react";
 import { Anthropic, DeepSeek, Grok, OpenAI } from "@lobehub/icons";
-import type { ProviderAuthId } from "@pigui/core";
+import type { ProviderAuthId } from "@pace/core";
 
 type GlyphIcon = ComponentType<{
   size?: number | string;

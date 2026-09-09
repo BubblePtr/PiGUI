@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { RuntimeModelControls, RuntimeModelSelection } from "@pigui/core";
+import type { RuntimeModelControls, RuntimeModelSelection } from "@pace/core";
 import {
   getLastModelSelection,
   mostRecentSessionModelSelection,

@@ -4,7 +4,7 @@
 import type {
   RuntimeModelCapability,
   RuntimeThinkingLevel,
-} from "@pigui/core";
+} from "@pace/core";
 
 const FAST_SUFFIX = "-fast";
 

@@ -1,5 +1,5 @@
-import type { RuntimeModelSelection, RuntimePromptImage } from "@pigui/core";
-import { CHAT_PROJECT_ID } from "@pigui/core";
+import type { RuntimeModelSelection, RuntimePromptImage } from "@pace/core";
+import { CHAT_PROJECT_ID } from "@pace/core";
 import { isChatProjectId } from "@/entities/project/chat-workspace";
 import type { SessionDraft } from "@/entities/session/session-drafts";
 import { PiRuntimeBridgeError, type PiRuntimeBridge } from "@/entities/runtime/pi-runtime-bridge";

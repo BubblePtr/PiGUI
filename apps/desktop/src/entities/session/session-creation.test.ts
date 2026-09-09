@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createInMemoryPiRuntimeBridge } from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import { createPiRpcRuntimeBridge } from "@/entities/runtime/pi-rpc-runtime-bridge";
-import { createFakePiRpcTransport } from "@pigui/core/testing";
+import { createFakePiRpcTransport } from "@pace/core/testing";
 import { createExecutionCheckoutManager } from "@/entities/checkout/execution-checkout";
 import type {
   AgentRuntimeEventEntry,

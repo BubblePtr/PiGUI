@@ -5,7 +5,7 @@ import type {
   AgentRunOutcome,
   AgentRuntimeEvent,
   AgentStatusCode,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   applyAgentRuntimeEvent,
   createSessionRuntimeModel,
