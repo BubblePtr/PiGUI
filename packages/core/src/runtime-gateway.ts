@@ -175,3 +175,25 @@ export function createRuntimeGatewaySequencer(
 
   return nextEvent;
 }
+
+export type PackageSourceInput = { source: string };
+export type UpdatePackageInput = { source?: string };
+export type SetResourceEnabledInput = {
+  packageSource?: string;
+  kind: "extension" | "skill" | "prompt" | "theme";
+  /** Absolute resource path from ConfigInventory. */
+  path: string;
+  enabled: boolean;
+};
+
+export type PackageProgressEvent = {
+  type: "start" | "progress" | "complete" | "error";
+  action: "install" | "remove" | "update" | "clone" | "pull";
+  source: string;
+  message?: string;
+};
+export type PackageActionResult = { progress: PackageProgressEvent[] };
+export type RemovePackageResult = PackageActionResult & { removed: boolean };
+export type CheckPackageUpdatesResult = PackageActionResult & {
+  updates: Array<{ source: string; displayName: string; type: "npm" | "git"; scope: "user" | "project" }>;
+};

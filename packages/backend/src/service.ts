@@ -5,10 +5,18 @@ import type {
   PiRpcTransport,
   PiRpcTransportStartInput,
   ProviderAuthId,
+  SetResourceEnabledInput,
   RuntimeGatewayEventEnvelope,
 } from "@pace/core";
 import * as piSdk from "@earendil-works/pi-coding-agent";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import {
+  installPackage,
+  removePackage,
+  updatePackage,
+  setResourceEnabled,
+  checkPackageUpdates,
+} from "./workspace/resource-management";
 import { buildConfigInventory } from "./workspace/config";
 import {
   createEnvironmentPreflightReader,
@@ -312,6 +320,22 @@ async function dispatchRequest(input: {
         path: requiredString(params.path, "path"),
         store: input.sessionProjectionStore,
         reader: input.sessionFilesReader,
+      });
+    case "install_package":
+      return installPackage(input.agentDir, { source: requiredString(params.source, "source") });
+    case "remove_package":
+      return removePackage(input.agentDir, { source: requiredString(params.source, "source") });
+    case "update_package":
+      return updatePackage(input.agentDir, { source: params.source === undefined ? undefined : requiredString(params.source, "source") });
+    case "check_package_updates":
+      return checkPackageUpdates(input.agentDir);
+    case "set_resource_enabled":
+      if (typeof params.enabled !== "boolean") throw new Error("enabled must be a boolean");
+      return setResourceEnabled(input.agentDir, {
+        packageSource: params.packageSource === undefined ? undefined : requiredString(params.packageSource, "packageSource"),
+        kind: requiredString(params.kind, "kind") as SetResourceEnabledInput["kind"],
+        path: requiredString(params.path, "path"),
+        enabled: params.enabled,
       });
     case "get_config_inventory":
       return buildConfigInventory(input.agentDir);
