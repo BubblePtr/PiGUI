@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import { SessionTerminalPanel } from "@/pages/session-terminal-panel";
 
 type TerminalBridge = {
@@ -35,7 +35,7 @@ function runningTerminal(terminalId: string) {
   };
 }
 
-/** Stands up window.pigui with a scripted terminal backend. */
+/** Stands up window.pace with a scripted terminal backend. */
 function setupTerminalBridge(
   existing: ReturnType<typeof runningTerminal>[] = [],
   options: { attachScrollback?: string; attachEnd?: number; deferAttach?: boolean } = {},
@@ -73,8 +73,8 @@ function setupTerminalBridge(
     }
   });
 
-  window.pigui = {
-    invoke: invoke as unknown as NonNullable<typeof window.pigui>["invoke"],
+  window.pace = {
+    invoke: invoke as unknown as NonNullable<typeof window.pace>["invoke"],
     onBackendEvent: (listener) => {
       listeners.add(listener);
 
@@ -107,7 +107,7 @@ function setupTerminalBridge(
 
 describe("SessionTerminalPanel", () => {
   beforeEach(() => {
-    delete window.pigui;
+    delete window.pace;
   });
 
   it("shows a calm empty state outside the desktop app", () => {

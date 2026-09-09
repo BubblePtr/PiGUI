@@ -7,10 +7,10 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import type { Plugin } from "vite";
 
-// The @pigui/* workspace packages are internal TS source, not external runtime
+// The @pace/* workspace packages are internal TS source, not external runtime
 // deps — bundle them into the main/preload output so the utilityProcess can find
 // the backend service. Node builtins stay externalized by the plugin default.
-const internalPackages = ["@pigui/core", "@pigui/backend"];
+const internalPackages = ["@pace/core", "@pace/backend"];
 const piPackageDirectory = realpathSync(
   resolve(
     __dirname,
@@ -79,9 +79,9 @@ const rendererBuild = {
 };
 
 const coreAlias = {
-  "@pigui/core/testing": resolve(__dirname, "../../packages/core/src/testing.ts"),
-  "@pigui/core": resolve(__dirname, "../../packages/core/src/index.ts"),
-  "@pigui/backend": resolve(__dirname, "../../packages/backend/src/index.ts"),
+  "@pace/core/testing": resolve(__dirname, "../../packages/core/src/testing.ts"),
+  "@pace/core": resolve(__dirname, "../../packages/core/src/index.ts"),
+  "@pace/backend": resolve(__dirname, "../../packages/backend/src/index.ts"),
   "@": resolve(__dirname, "src"),
 };
 
@@ -103,8 +103,8 @@ export default defineConfig({
     // exist after electron-vite bundles the SDK into the backend.
     define: {
       PI_BUNDLED_NODE: "true",
-      __PIGUI_APP_VERSION__: JSON.stringify(appPackage.version),
-      __PIGUI_PI_VERSION__: JSON.stringify(piPackage.version),
+      __PACE_APP_VERSION__: JSON.stringify(appPackage.version),
+      __PACE_PI_VERSION__: JSON.stringify(piPackage.version),
     },
     plugins: [
       externalizeDepsPlugin({ exclude: [...internalPackages, "electron-updater"] }),

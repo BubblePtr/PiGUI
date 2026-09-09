@@ -83,8 +83,8 @@ describe("environment preflight", () => {
       dataDir,
       env: {
         ...process.env,
-        PIGUI_E2E: "1",
-        PIGUI_E2E_FORCE_GIT_MISSING: "1",
+        PACE_E2E: "1",
+        PACE_E2E_FORCE_GIT_MISSING: "1",
       },
       whichCommand: async (command) => (command === "pi" ? "/bin/pi" : "/usr/bin/git"),
       runVersion: async () => "ok",

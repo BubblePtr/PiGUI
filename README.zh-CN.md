@@ -142,7 +142,7 @@ CONTEXT.md           领域术语表；每个界面区域和概念在这里都�
 | 数据 | 安装版 | `bun run dev` | 归属 |
 | --- | --- | --- | --- |
 | Pi 会话、认证、扩展 | `~/.pi/agent` | 共享 | Pi。Pace 只读。 |
-| Session journal、projection、预检状态 | `~/.pace` | `~/.pace-dev` | Pace。可用 `PIGUI_DATA_DIR` 覆盖。 |
+| Session journal、projection、预检状态 | `~/.pace` | `~/.pace-dev` | Pace。可用 `PACE_DATA_DIR` 覆盖（`PIGUI_DATA_DIR` 为已弃用别名）。 |
 | 渲染层偏好（项目注册表、草稿、模型选择）、Chromium profile | Electron userData | userData `-dev` | Pace。 |
 
 删掉 Pace 的数据目录会丢失界面时间线和成本历史，但永远不会丢 Pi 会话：Pi 仍能从自己的日志恢复。任何改动 journal 或 projection 格式的变更都必须能读旧格式或附带迁移（[`docs/dogfooding.md`](docs/dogfooding.md)）。

@@ -12,8 +12,8 @@ import type {
   RuntimePromptImage,
   RuntimeThinkingLevel,
   RuntimeToolSchema,
-} from "@pigui/core";
-import { toPiImageContent } from "@pigui/core";
+} from "@pace/core";
+import { toPiImageContent } from "@pace/core";
 import type {
   PiSdkRuntimeFactory,
   PiSdkRuntimeForker,

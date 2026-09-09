@@ -1,5 +1,5 @@
 {
-  "name": "pigui",
+  "name": "pace",
   "private": true,
   "license": "Apache-2.0",
   "version": "0.0.2",
@@ -10,16 +10,16 @@
   ],
   "scripts": {
     "postinstall": "install-electron",
-    "dev": "bun --filter @pigui/desktop dev",
+    "dev": "bun --filter @pace/desktop dev",
     "test": "vitest run",
     "test:release": "node --test scripts/test-release-macos.mjs scripts/test-release-publish.mjs",
     "test:bundled-runtime": "node --test scripts/test-bundled-runtime.mjs",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
-    "test:e2e:linux": "env -u WAYLAND_DISPLAY PIGUI_E2E_ELECTRON_ARGS=--ozone-platform=x11 xvfb-run -s \"-screen 0 1920x1080x24\" playwright test --config e2e/playwright.config.ts",
-    "test:e2e:packaged:mac": "PIGUI_E2E_EXECUTABLE=dist/mac-arm64/Pace.app/Contents/MacOS/Pace playwright test --config e2e/playwright.config.ts",
-    "test:e2e:packaged:linux": "PIGUI_E2E_EXECUTABLE=dist/linux-unpacked/pace env -u WAYLAND_DISPLAY PIGUI_E2E_ELECTRON_ARGS=--ozone-platform=x11 xvfb-run -s \"-screen 0 1920x1080x24\" playwright test --config e2e/playwright.config.ts",
+    "test:e2e:linux": "env -u WAYLAND_DISPLAY PACE_E2E_ELECTRON_ARGS=--ozone-platform=x11 xvfb-run -s \"-screen 0 1920x1080x24\" playwright test --config e2e/playwright.config.ts",
+    "test:e2e:packaged:mac": "PACE_E2E_EXECUTABLE=dist/mac-arm64/Pace.app/Contents/MacOS/Pace playwright test --config e2e/playwright.config.ts",
+    "test:e2e:packaged:linux": "PACE_E2E_EXECUTABLE=dist/linux-unpacked/pace env -u WAYLAND_DISPLAY PACE_E2E_ELECTRON_ARGS=--ozone-platform=x11 xvfb-run -s \"-screen 0 1920x1080x24\" playwright test --config e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit && bun --filter @pigui/desktop build",
+    "build": "tsc --noEmit && bun --filter @pace/desktop build",
     "build:release": "bun install --frozen-lockfile && bun run build && bun run test:bundled-runtime",
     "build:icon:mac": "bash scripts/build-macos-icon.sh",
     "package:mac:unsigned": "bun run build:release && bun run stage:node-pty && electron-builder --config electron-builder.yml --mac dir zip --arm64 --publish never -c.forceCodeSigning=false -c.mac.identity=null -c.mac.notarize=false",
@@ -28,7 +28,7 @@
     "package:linux": "bun run build:release && bun run stage:node-pty && electron-builder --config electron-builder.yml --linux dir --x64 --publish never",
     "dist:linux": "bun run build:release && bun run stage:node-pty && electron-builder --config electron-builder.yml --linux --x64 --publish never",
     "stage:node-pty": "node scripts/stage-node-pty.mjs",
-    "preview": "bun --filter @pigui/desktop preview"
+    "preview": "bun --filter @pace/desktop preview"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.2",

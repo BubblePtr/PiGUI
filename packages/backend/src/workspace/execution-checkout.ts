@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
-import type { ExecutionCheckoutGitClient } from "@pigui/core";
+import type { ExecutionCheckoutGitClient } from "@pace/core";
 
 const execFileAsync = promisify(execFile);
 

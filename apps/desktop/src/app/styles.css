@@ -6,7 +6,7 @@
 @import "../shared/ui/chat/chat.css";
 @import "../shared/ui/primitives.css";
 
-/* Montserrat is the PiGUI body/heading family, overriding the Astryx neutral
+/* Montserrat is the Pace body/heading family, overriding the Astryx neutral
    theme's default stack via --font-family-body/heading below. Fontsource
    registers the file as "Montserrat Variable", so the face is declared here
    under the plain name the token stack asks for. Vite emits the woff2 into
@@ -37,7 +37,7 @@
 
 @source "./**/*.{ts,tsx}";
 
-/* —— PiGUI font override ——
+/* —— Pace font override ——
    theme-neutral declares --font-family-* on :scope inside
    @scope ([data-astryx-theme="neutral"]); at equal specificity a scoped
    declaration beats an unscoped one on scope proximity, so the doubled
@@ -50,7 +50,7 @@
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* —— PiGUI semantic token bridge ——
+/* —— Pace semantic token bridge ——
    Composes Astryx first-level tokens into the app-level semantic vocabulary.
    Declared on both :root and the
    Astryx theme scope: custom properties resolve chained var() references at

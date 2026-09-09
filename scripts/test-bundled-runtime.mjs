@@ -79,7 +79,7 @@ test("the shipped backend works without global pi or repository node_modules", a
         PATH: "",
         HOME: root,
         PI_CODING_AGENT_DIR: agentDir,
-        PIGUI_DATA_DIR: join(root, "data"),
+        PACE_DATA_DIR: join(root, "data"),
         PROBE_BACKEND: join(appDir, "out/main/backend.js"),
         PROBE_CWD: cwd,
       },

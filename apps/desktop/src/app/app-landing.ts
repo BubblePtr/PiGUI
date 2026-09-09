@@ -1,4 +1,4 @@
-import { CHAT_PROJECT_ID } from "@pigui/core";
+import { CHAT_PROJECT_ID } from "@pace/core";
 import { isChatProjectId } from "@/entities/project/chat-workspace";
 import type { ProjectRegistryEntry } from "@/entities/project/project-registry";
 

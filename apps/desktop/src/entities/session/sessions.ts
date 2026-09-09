@@ -1,9 +1,9 @@
 import { invoke } from "@/shared/runtime";
-import type { PersistedSessionProjection } from "@pigui/backend";
-import type { SessionChanges, SessionSummary } from "@pigui/core";
+import type { PersistedSessionProjection } from "@pace/backend";
+import type { SessionChanges, SessionSummary } from "@pace/core";
 
-export type { SessionPresence, SessionSummary, ModelUsage, NamedCount, Title } from "@pigui/core";
-export type { PersistedSessionProjection } from "@pigui/backend";
+export type { SessionPresence, SessionSummary, ModelUsage, NamedCount, Title } from "@pace/core";
+export type { PersistedSessionProjection } from "@pace/backend";
 
 export async function listSessions() {
   return invoke<SessionSummary[]>("list_sessions");

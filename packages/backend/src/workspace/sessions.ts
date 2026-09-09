@@ -10,7 +10,7 @@ import type {
   SessionPresence,
   SessionSummary,
   Title,
-} from "@pigui/core";
+} from "@pace/core";
 import { isChatWorkspaceCwd } from "./chat-workspace";
 
 const maxTextTitleChars = 96;
@@ -129,7 +129,7 @@ export function annotateSessionPresence(
     const presence = archived ? "archived" : "active";
 
     // Duplicate projections of one Pi session should not exist, but if they do,
-    // a live one wins: the Session is still visible somewhere in PiGUI.
+    // a live one wins: the Session is still visible somewhere in Pace.
     if (presence === "active" || !presenceByPiSessionId.has(projection.piSessionId)) {
       presenceByPiSessionId.set(projection.piSessionId, presence);
     }
@@ -532,7 +532,7 @@ async function readSessionSummary(
       modelBreakdown: modelBreakdown(metrics),
       toolCounts: sortedNamedCounts(metrics.toolCounts),
       skillCounts: sortedNamedCounts(metrics.skillCounts),
-      // Pi's JSONL cannot say whether PiGUI knows this session; annotateSessionPresence
+      // Pi's JSONL cannot say whether Pace knows this session; annotateSessionPresence
       // resolves it per request, so the cached summary never holds a stale presence.
       presence: "external",
     },

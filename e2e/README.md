@@ -1,4 +1,4 @@
-# PiGUI E2E 测试
+# Pace E2E 测试
 
 Playwright 启动真实 Electron 桌面应用，通过 UI 和持久化文件验证关键产品流程。
 
@@ -26,11 +26,11 @@ bun run test:e2e:packaged:linux
 bun run test:e2e -- e2e/smoke/m1-fixture-free.spec.ts
 ```
 
-`PIGUI_E2E=1` 下主进程会隐藏 Dock 图标、把窗口透明度设为 0 并用 `showInactive()` 显示，所以每条用例启动的 Electron 既不抢焦点也不遮挡屏幕；CDP 截图不受窗口透明度影响，照常渲染。开发者可以在 e2e 跑的时候继续做别的事。注意 e2e 跑的是 `apps/desktop/out` 构建产物，改了主进程代码要先 `bun run build`。
+`PACE_E2E=1` 下主进程会隐藏 Dock 图标、把窗口透明度设为 0 并用 `showInactive()` 显示，所以每条用例启动的 Electron 既不抢焦点也不遮挡屏幕；CDP 截图不受窗口透明度影响，照常渲染。开发者可以在 e2e 跑的时候继续做别的事。注意 e2e 跑的是 `apps/desktop/out` 构建产物，改了主进程代码要先 `bun run build`。
 
-当前 smoke 不调用真实 LLM。每条测试都会创建独立的 Electron user data、PiGUI data 和 Project 目录，并在结束后清理，避免读取开发者机器上的 localStorage 或 `~/.pigui`。
+当前 smoke 不调用真实 LLM。每条测试都会创建独立的 Electron user data、Pace data 和 Project 目录，并在结束后清理，避免读取开发者机器上的 localStorage 或 `~/.pace`。
 
-`test:e2e:packaged:*` 不使用源码入口，而是直接启动打包产物（macOS `dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI`，Linux `dist/linux-unpacked/pigui`），用于发现 ASAR、运行时资产和 utility process 路径只在安装包中出现的问题。
+`test:e2e:packaged:*` 不使用源码入口，而是直接启动打包产物（macOS `dist/mac-arm64/Pace.app/Contents/MacOS/Pace`，Linux `dist/linux-unpacked/pace`），用于发现 ASAR、运行时资产和 utility process 路径只在安装包中出现的问题。
 
 ## Linux 显示环境
 
@@ -44,7 +44,7 @@ sudo pacman -S xorg-server-xvfb        # Arch；Debian/Ubuntu 是 xvfb
 
 两个脚本会 `env -u WAYLAND_DISPLAY` 并给 Electron 传 `--ozone-platform=x11`。注意 `ELECTRON_OZONE_PLATFORM_HINT=x11` 无效——Electron 仍会去连 Wayland，必须用命令行开关。
 
-fixture 通过 `PIGUI_E2E_ELECTRON_ARGS`（空格分隔）接收额外 Electron 开关，需要临时加参数时可直接用这个变量。
+fixture 通过 `PACE_E2E_ELECTRON_ARGS`（空格分隔）接收额外 Electron 开关，需要临时加参数时可直接用这个变量。
 
 ## 覆盖范围
 
@@ -54,7 +54,7 @@ fixture 通过 `PIGUI_E2E_ELECTRON_ARGS`（空格分隔）接收额外 Electron 
 - test-only kill command 会真实终止 backend utility process；测试随后验证 disconnected/connected generation 和 Projection 重新加载
 - M4 Model / Thinking 使用真实 Pi SDK runtime 和隔离的 Pi session/auth fixture，验证 capability-driven 切换、slider、持久化和 backend restart 恢复；不发送 LLM 请求
 
-backend kill command 仅在 `PIGUI_E2E=1` 时启用，生产运行不可调用。
+backend kill command 仅在 `PACE_E2E=1` 时启用，生产运行不可调用。
 
 ## 目录
 

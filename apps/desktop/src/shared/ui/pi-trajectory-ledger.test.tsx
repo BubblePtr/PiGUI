@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { SessionTurn } from "@pigui/core";
+import type { SessionTurn } from "@pace/core";
 import type { TrajectoryRole, TrajectoryStep } from "@/entities/session/trajectory-model";
 import { buildTrajectoryRuns, buildTrajectoryTurns } from "@/entities/session/trajectory-model";
 import { PiTrajectoryLedger, trajectoryStepType } from "@/shared/ui/pi-trajectory-ledger";

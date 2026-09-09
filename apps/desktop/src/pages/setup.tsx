@@ -15,9 +15,9 @@ import { Box, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "@/shared/ui
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import { invoke } from "@/shared/runtime";
 
-import type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pigui/core";
+import type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pace/core";
 
-export type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pigui/core";
+export type { ConfigInventory, ExtensionInfo, SkillInfo, TemplateInfo } from "@pace/core";
 
 type SetupCategory = "models" | "packages" | "extensions" | "skills" | "templates";
 

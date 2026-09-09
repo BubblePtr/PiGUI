@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { launchPiGUI } from "../fixtures/electron-app";
+import { launchPace } from "../fixtures/electron-app";
 
 test.describe("DF-011 draft model trigger screenshots", () => {
   test("capture draft composer model trigger and popover", async () => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       seedProject: true,
       seedPreflightAuth: true,
       seedModelControls: true,

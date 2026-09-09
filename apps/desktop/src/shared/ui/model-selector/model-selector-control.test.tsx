@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { RuntimeModelControls } from "@pigui/core";
+import type { RuntimeModelControls } from "@pace/core";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 
 const controls: RuntimeModelControls = {

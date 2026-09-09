@@ -4,9 +4,9 @@ import { TextShimmer } from "@/shared/ui/chat/text-shimmer";
 
 describe("TextShimmer", () => {
   it("renders its text with the shimmer slot and class", () => {
-    render(<TextShimmer>PiGUI</TextShimmer>);
+    render(<TextShimmer>Pace</TextShimmer>);
 
-    const shimmer = screen.getByText("PiGUI");
+    const shimmer = screen.getByText("Pace");
 
     expect(shimmer).toHaveAttribute("data-slot", "text-shimmer");
     expect(shimmer).toHaveClass("text-shimmer");

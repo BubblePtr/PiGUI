@@ -6,7 +6,7 @@ import type {
   SessionDirectoryEntryKind,
   SessionDirectoryListing,
   SessionFileContent,
-} from "@pigui/core";
+} from "@pace/core";
 
 const DEFAULT_MAX_ENTRIES = 2000;
 const DEFAULT_MAX_FILE_BYTES = 1024 * 1024;

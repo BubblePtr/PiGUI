@@ -31,7 +31,7 @@ import {
   type StripWidthMode,
 } from "@/shared/ui/pi-trajectory-strip";
 import { buildTrajectoryRuns, buildTrajectoryTurns } from "@/entities/session/trajectory-model";
-import type { SessionTurn } from "@pigui/core";
+import type { SessionTurn } from "@pace/core";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";
 import { ChatInlinePager } from "@/shared/ui/chat/chat-inline-pager";
 import { ChatPixelLoader } from "@/shared/ui/chat/chat-pixel-loader";
@@ -70,10 +70,10 @@ import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-in
 import { Button } from "@astryxdesign/core/Button";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import * as Icons from "@/shared/ui/icons";
-import type { RuntimeModelControls } from "@pigui/core";
+import type { RuntimeModelControls } from "@pace/core";
 
 /**
- * Layer 3 of the design gallery: every reusable PiGUI component in
+ * Layer 3 of the design gallery: every reusable Pace component in
  * shared/ui, all variants and typical states, fed with inline fixtures.
  * AGENTS.md requires every new shared/ui component to register here.
  */
@@ -1102,7 +1102,7 @@ const markdownFixture = [
   "",
   "Wrapped prose with code on every line: pass `--filter` to `bun run` and the " +
     "`packages/backend` build honours `NODE_ENV`; `service.ts` then reads " +
-    "`PIGUI_HOME` before `drivers/terminal.ts` spawns `pi` with `--rpc`.",
+    "`PACE_HOME` before `drivers/terminal.ts` spawns `pi` with `--rpc`.",
   "",
   "| Col A | Col B |",
   "| ----- | ----- |",

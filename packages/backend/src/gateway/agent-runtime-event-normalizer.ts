@@ -15,7 +15,7 @@ import {
   type AgentRunTrigger,
   type AgentStatusCode,
   type RuntimeContextUsage,
-} from "@pigui/core";
+} from "@pace/core";
 
 export type AgentRuntimeEventNormalizerInput = {
   piSessionId: string;

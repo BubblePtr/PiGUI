@@ -12,7 +12,7 @@ import { createAnnotationOverlay } from "./browser-annotation-overlay";
  * A preload already runs in an isolated world, so the overlay it builds is
  * invisible to page script without any bridging. That is the whole design:
  * **nothing is exposed to the page**. There is no `contextBridge` call here,
- * because a hostile page with a handle on any PiGUI API is exactly what the
+ * because a hostile page with a handle on any Pace API is exactly what the
  * annotation layer must not create. Traffic goes one way, over a channel of
  * its own that main re-validates on arrival (PRD S2 constraint 2) — never over
  * `pigui:invoke`, which has no sender check at all.

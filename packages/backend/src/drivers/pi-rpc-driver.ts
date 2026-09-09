@@ -4,8 +4,8 @@ import type {
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
   RuntimePromptImage,
-} from "@pigui/core";
-import { toPiImageContent } from "@pigui/core";
+} from "@pace/core";
+import { toPiImageContent } from "@pace/core";
 import {
   createAgentRuntimeEventNormalizer,
   type AgentRuntimeEventNormalizer,

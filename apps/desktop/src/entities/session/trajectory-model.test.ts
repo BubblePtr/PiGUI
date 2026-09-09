@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SessionTurn } from "@pigui/core";
+import type { SessionTurn } from "@pace/core";
 import { buildTrajectoryRuns, buildTrajectoryTurns } from "./trajectory-model";
 
 function userTurn(text: string, timestamp = "2026-08-17T14:00:00.000Z"): SessionTurn {

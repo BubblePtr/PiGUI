@@ -10,7 +10,7 @@
 import type {
   BrowserAnnotationElement,
   BrowserAnnotationViewport,
-} from "@pigui/core";
+} from "@pace/core";
 
 export type BrowserViewRect = {
   x: number;
@@ -32,7 +32,7 @@ export type BrowserViewState = BrowserViewSnapshot & {
 };
 
 /**
- * What the user marked in design mode lives in `@pigui/core`: the shapes
+ * What the user marked in design mode lives in `@pace/core`: the shapes
  * outgrew the wire — the renderer assembles a payload out of them and core's
  * `formatBrowserAnnotationPrompt` renders it for Pi. They are re-exported here
  * so main, the annotation preload and the renderer keep reading one protocol

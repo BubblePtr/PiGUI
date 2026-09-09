@@ -6,7 +6,7 @@ import type {
   PiRpcTransportStartInput,
   ProviderAuthId,
   RuntimeGatewayEventEnvelope,
-} from "@pigui/core";
+} from "@pace/core";
 import * as piSdk from "@earendil-works/pi-coding-agent";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { buildConfigInventory } from "./workspace/config";

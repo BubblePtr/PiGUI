@@ -59,7 +59,7 @@ Object.values(astryxCore).forEach(registerGenericType);
 function markLibraryComponents(stack: ComponentStackEntry[]) {
   for (const entry of stack) {
     if (genericComponentTypes.has(entry.fiber?.type) ||
-        entry.name === "HugeiconsIcon" || entry.name === "PiGUIIcon") {
+        entry.name === "HugeiconsIcon" || entry.name === "PaceIcon") {
       entry.library = true;
     }
   }

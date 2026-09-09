@@ -36,7 +36,7 @@ import type {
   ProviderAuthStatusReport,
   RuntimeModelCapability,
   RuntimeModelControls,
-} from "@pigui/core";
+} from "@pace/core";
 
 export const providerAuthStatusQueryKey = ["provider-auth-status"] as const;
 const availableModelControlsQueryKey = ["available-model-controls"] as const;

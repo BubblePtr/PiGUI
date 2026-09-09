@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_PROJECT_ID } from "@pigui/core";
+import { CHAT_PROJECT_ID } from "@pace/core";
 import {
   CHAT_PICKER_LABEL,
   CHAT_WORKSPACE_DISPLAY_NAME,

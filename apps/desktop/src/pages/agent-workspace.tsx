@@ -64,8 +64,8 @@ import {
   useRef,
   useState,
 } from "react";
-import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pigui/core";
-import { promptImageDataUrl } from "@pigui/core";
+import type { RuntimePromptImage, SessionChangedFile, SessionChanges } from "@pace/core";
+import { promptImageDataUrl } from "@pace/core";
 import { Thumbnail } from "@astryxdesign/core/Thumbnail";
 import { AppFrame, defaultSidebarProjectSessionProjections } from "@/app/app-shell";
 import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-state";

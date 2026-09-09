@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { launchPiGUI } from "../fixtures/electron-app";
+import { launchPace } from "../fixtures/electron-app";
 
 test("macOS E2E windows can exceed the runner display height", async () => {
   test.skip(process.platform !== "darwin", "macOS constrains native window sizes");
-  const application = await launchPiGUI();
+  const application = await launchPace();
 
   try {
     const requestedHeight = await application.app.evaluate(

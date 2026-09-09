@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { RuntimeModelControls } from "@pigui/core";
+import type { RuntimeModelControls } from "@pace/core";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import { buildIntentTarget, UiIntentPicker } from "./ui-intent-picker";
 

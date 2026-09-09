@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import { browserEventChannel, type BrowserEvent } from "@/shared/browser-protocol";
-import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { PaceRendererApi } from "@/shared/runtime";
 import { navigateRequestChannel, type NavigateRequest } from "@/shared/navigate-protocol";
 import { updateEventChannel, type UpdateStatus } from "@/shared/update-protocol";
 
-const api: PiGUIRendererApi = {
+const api: PaceRendererApi = {
   invoke(command, args) {
     return ipcRenderer.invoke("pigui:invoke", { command, args });
   },
@@ -66,7 +66,7 @@ const api: PiGUIRendererApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("pigui", api);
+contextBridge.exposeInMainWorld("pace", api);
 
 function markMacVibrancyDocument() {
   if (process.platform === "darwin") {

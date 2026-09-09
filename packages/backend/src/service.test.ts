@@ -8,8 +8,8 @@ import {
   resolveDataDir,
 } from "./persistence/session-event-journal";
 import { createInMemorySessionProjectionStore } from "./persistence/session-projection-store";
-import { createFakePiRpcTransport } from "@pigui/core/testing";
-import type { SessionSummary } from "@pigui/core";
+import { createFakePiRpcTransport } from "@pace/core/testing";
+import type { SessionSummary } from "@pace/core";
 import type { PiRuntimeDriver } from "./gateway/runtime-gateway";
 import type {
   TerminalManager,
@@ -159,7 +159,7 @@ async function tempDataDir() {
 
 describe("backend service", () => {
   beforeEach(async () => {
-    vi.stubEnv("PIGUI_DATA_DIR", await tempDataDir());
+    vi.stubEnv("PACE_DATA_DIR", await tempDataDir());
     createAgentSession.mockReset();
     sessionManagerOpen.mockReset();
     sessionManagerListAll.mockReset();

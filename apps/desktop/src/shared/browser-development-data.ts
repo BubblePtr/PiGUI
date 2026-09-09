@@ -4,7 +4,7 @@ import { isElectronRuntime } from "@/shared/runtime";
 
 declare global {
   interface Window {
-    __PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
+    __PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__?: boolean;
   }
 }
 
@@ -36,7 +36,7 @@ export function shouldUseBrowserDevelopmentData() {
     return false;
   }
 
-  if (window.__PIGUI_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ === true) {
+  if (window.__PACE_ENABLE_BROWSER_DEVELOPMENT_MOCKS__ === true) {
     return true;
   }
 

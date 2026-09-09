@@ -18,7 +18,7 @@ import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { autoUpdater } from "electron-updater";
-import type { BackendRpcEvent, BackendRpcResponse } from "@pigui/backend";
+import type { BackendRpcEvent, BackendRpcResponse } from "@pace/backend";
 import { browserEventChannel, type BrowserEvent, type BrowserTabTarget } from "@/shared/browser-protocol";
 import { updateEventChannel } from "@/shared/update-protocol";
 import {
@@ -126,7 +126,7 @@ function applyDevelopmentDockIcon() {
 // E2E launches one Electron per test; a normal show() would activate the app
 // and steal the developer's focus every time. Keep those windows in the
 // background: no Dock presence, shown without activation.
-const backgroundWindowForEndToEnd = process.env.PIGUI_E2E === "1";
+const backgroundWindowForEndToEnd = process.env.PACE_E2E === "1";
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -383,7 +383,7 @@ async function revealProjectInFinder(args?: Record<string, unknown>) {
 /**
  * Embedded browser surface. The view is a native child of the window, kept
  * out of the utilityProcess entirely, and its session is isolated from the
- * PiGUI renderer's so a dev site's cookies and storage never mix with ours.
+ * Pace renderer's so a dev site's cookies and storage never mix with ours.
  * `persist:` keeps a local dev login across restarts.
  */
 const browserPartition = "persist:pigui-browser";
@@ -665,7 +665,7 @@ function getBrowserHost() {
 }
 
 function killBackendForEndToEndTest() {
-  if (process.env.PIGUI_E2E !== "1") {
+  if (process.env.PACE_E2E !== "1") {
     throw new Error("The Pace E2E backend control is disabled.");
   }
 
@@ -741,7 +741,7 @@ app.whenReady().then(() => {
     currentVersion: app.getVersion(),
     // Packaged E2E is still isPackaged; without this it would hit GitHub after 10s.
     disabledReason:
-      process.env.PIGUI_E2E === "1"
+      process.env.PACE_E2E === "1"
         ? "Updates are disabled during end-to-end tests."
         : undefined,
   });

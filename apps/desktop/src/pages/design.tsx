@@ -9,7 +9,7 @@ import { DesignComponentsLayer } from "@/pages/design-components";
  * Dev-only design gallery (/design). Layer 1: tokens.
  *
  * Swatches render straight from the live CSS custom properties (the Astryx
- * first-level tokens plus the PiGUI semantic bridge in styles.css), so this
+ * first-level tokens plus the Pace semantic bridge in styles.css), so this
  * page can never drift from what the app actually ships.
  */
 

@@ -2,7 +2,7 @@
 // Runtime Gateway; this adapter remains for injected transport tests and RPC
 // driver compatibility checks.
 
-import type { PiRpcRawEvent, PiRpcResponse, PiRpcTransport } from "@pigui/core";
+import type { PiRpcRawEvent, PiRpcResponse, PiRpcTransport } from "@pace/core";
 import {
   PiRuntimeBridgeError,
   cloneSessionState,

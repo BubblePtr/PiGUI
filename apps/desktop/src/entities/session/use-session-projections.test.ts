@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PersistedSessionProjection } from "@pigui/backend";
+import type { PersistedSessionProjection } from "@pace/backend";
 import { getSessionProjectionListItems } from "@/entities/session/session-projection";
 import { sessionProjectionFromPersistedProjection } from "@/entities/session/use-session-projections";
 

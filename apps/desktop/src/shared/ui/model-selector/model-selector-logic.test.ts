@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeModelCapability } from "@pigui/core";
+import type { RuntimeModelCapability } from "@pace/core";
 import {
   baseModelOf,
   fastSiblingOf,

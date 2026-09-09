@@ -37,7 +37,7 @@ describe("Pi SDK spike runner", () => {
           payload: {
             kind: "message",
             role: "assistant",
-            body: "PIGUI_SDK_SPIKE_OK",
+            body: "PACE_SDK_SPIKE_OK",
             bodyFormat: "full",
             messageId: "pi-sdk:sdk-session-1:assistant:0",
           },
@@ -65,7 +65,7 @@ describe("Pi SDK spike runner", () => {
 
     await expect(
       runPiSdkDriverSpike({
-        env: { PIGUI_RUN_PI_SDK_SPIKE: "1" },
+        env: { PACE_RUN_PI_SDK_SPIKE: "1" },
         cwd: "/Users/void/code/opensource/Pig",
         runtimeFactory,
         now: () => "2026-07-01T00:00:00.000Z",
@@ -92,7 +92,7 @@ describe("Pi SDK spike runner", () => {
       runtimeId: "pi-sdk:app-session-1",
       status: "idle",
       async sendPrompt() {
-        for (const body of ["PIGUI_", "SDK_SPIKE_OK"]) {
+        for (const body of ["PACE_", "SDK_SPIKE_OK"]) {
           listeners[0]?.({
             piSessionId: "sdk-session-1",
             type: "message_update",
@@ -128,7 +128,7 @@ describe("Pi SDK spike runner", () => {
 
     await expect(
       runPiSdkDriverSpike({
-        env: { PIGUI_RUN_PI_SDK_SPIKE: "1" },
+        env: { PACE_RUN_PI_SDK_SPIKE: "1" },
         cwd: "/Users/void/code/opensource/Pig",
         runtimeFactory,
       }),
@@ -153,7 +153,7 @@ describe("Pi SDK spike runner", () => {
           payload: {
             kind: "message",
             role: "assistant",
-            body: "PIGUI_SDK_SPIKE_OK",
+            body: "PACE_SDK_SPIKE_OK",
             bodyFormat: "full",
             messageId: "pi-sdk:sdk-session-1:assistant:0",
           },
@@ -187,7 +187,7 @@ describe("Pi SDK spike runner", () => {
 
     await expect(
       runPiSdkDriverSpike({
-        env: { PIGUI_RUN_PI_SDK_SPIKE: "1" },
+        env: { PACE_RUN_PI_SDK_SPIKE: "1" },
         cwd: "/Users/void/code/opensource/Pig",
         runtimeFactory,
       }),
@@ -228,7 +228,7 @@ describe("Pi SDK spike runner", () => {
 
     await expect(
       runPiSdkDriverSpike({
-        env: { PIGUI_RUN_PI_SDK_SPIKE: "1" },
+        env: { PACE_RUN_PI_SDK_SPIKE: "1" },
         cwd: "/Users/void/code/opensource/Pig",
         runtimeFactory,
         waitTimeoutMs: 1,

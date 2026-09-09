@@ -8,7 +8,7 @@ import type {
   BrowserEvent,
   BrowserTabTarget,
 } from "@/shared/browser-protocol";
-import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { PaceRendererApi } from "@/shared/runtime";
 import {
   getProjectBrowserTabs,
   rememberProjectBrowserTabs,
@@ -79,7 +79,7 @@ function installPreload(
       listeners.forEach((listener) => listener(event));
     },
   });
-  window.pigui = {
+  window.pace = {
     invoke: (async (command, args) => {
       invocations.push({ command, args });
       if (command === "browser_open") {
@@ -98,7 +98,7 @@ function installPreload(
       const answer = await host.invoke(command, args);
       if (command === "browser_activate") await options.activateGate;
       return answer;
-    }) as PiGUIRendererApi["invoke"],
+    }) as PaceRendererApi["invoke"],
     onBackendEvent: () => () => {},
     onWindowFocusChanged: () => () => {},
     onNavigateRequest: () => () => {},
@@ -140,7 +140,7 @@ async function restored() {
 describe("SessionBrowserPanel multi-instance", () => {
   beforeEach(() => window.localStorage.clear());
   afterEach(() => {
-    delete window.pigui;
+    delete window.pace;
     vi.restoreAllMocks();
   });
 

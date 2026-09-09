@@ -1,4 +1,4 @@
-import type { BackendRpcEvent } from "@pigui/backend";
+import type { BackendRpcEvent } from "@pace/backend";
 import {
   invoke as invokeRuntime,
   onBackendEvent as onRuntimeBackendEvent,

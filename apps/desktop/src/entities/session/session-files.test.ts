@@ -3,11 +3,11 @@ import {
   listSessionDirectory,
   readSessionFile,
 } from "@/entities/session/session-files";
-import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { PaceRendererApi } from "@/shared/runtime";
 
 function installInvoke(invoke: ReturnType<typeof vi.fn>) {
-  window.pigui = {
-    invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+  window.pace = {
+    invoke: invoke as unknown as PaceRendererApi["invoke"],
     onBackendEvent: vi.fn(),
     onBrowserEvent: vi.fn(),
     onUpdateEvent: vi.fn(),
@@ -18,7 +18,7 @@ function installInvoke(invoke: ReturnType<typeof vi.fn>) {
 
 describe("session file queries", () => {
   afterEach(() => {
-    delete window.pigui;
+    delete window.pace;
   });
 
   it("lists the diff root when no path is given", async () => {

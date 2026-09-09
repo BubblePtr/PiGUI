@@ -1,5 +1,5 @@
-declare const __PIGUI_APP_VERSION__: string;
-declare const __PIGUI_PI_VERSION__: string;
+declare const __PACE_APP_VERSION__: string;
+declare const __PACE_PI_VERSION__: string;
 
 export type PiRuntimeInfo = {
   appVersion: string;
@@ -15,12 +15,12 @@ export async function inspectPiRuntime(): Promise<PiRuntimeInfo> {
 
   // Bundling relocates Pi's package lookup to the App package.json. Capture
   // the installed engine version at build time instead of reporting App's version as Pi's.
-  const piVersion = typeof __PIGUI_PI_VERSION__ === "string" ? __PIGUI_PI_VERSION__ : sdk.VERSION;
+  const piVersion = typeof __PACE_PI_VERSION__ === "string" ? __PACE_PI_VERSION__ : sdk.VERSION;
   if (!piVersion) {
     throw new Error("The bundled Pi SDK version could not be determined.");
   }
   return {
-    appVersion: typeof __PIGUI_APP_VERSION__ === "string" ? __PIGUI_APP_VERSION__ : "development",
+    appVersion: typeof __PACE_APP_VERSION__ === "string" ? __PACE_APP_VERSION__ : "development",
     piVersion,
     mode: "SDK",
   };

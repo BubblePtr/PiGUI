@@ -13,7 +13,7 @@ import { createInMemorySessionProjectionStore } from "../persistence/session-pro
 let defaultDataDir: string;
 beforeEach(async () => {
   defaultDataDir = await mkdtemp(join(tmpdir(), "pace-gateway-default-"));
-  vi.stubEnv("PIGUI_DATA_DIR", defaultDataDir);
+  vi.stubEnv("PACE_DATA_DIR", defaultDataDir);
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -238,7 +238,7 @@ function agentEvent(
 }
 
 describe("Runtime Gateway service", () => {
-  it("dispatches PiGUI runtime methods and emits product event envelopes", async () => {
+  it("dispatches Pace runtime methods and emits product event envelopes", async () => {
     const service = createRuntimeGatewayService({
       driver: createFakeRuntimeDriver(),
       now: () => "2026-06-29T12:00:00.000Z",

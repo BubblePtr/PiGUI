@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
-  launchPiGUI,
+  launchPace,
   type E2EProject,
   type E2ESessionProjection,
 } from "../fixtures/electron-app";
@@ -43,7 +43,7 @@ async function openSession(
 
 test.describe("S3: Provider Settings (DF-002)", () => {
   test("Settings dialog shows Subscription/API Key tabs with provider cards", async () => {
-    const testApp = await launchPiGUI({ seedPreflightAuth: true });
+    const testApp = await launchPace({ seedPreflightAuth: true });
 
     try {
       // Open Settings without navigating away from the current page.
@@ -91,7 +91,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
   });
 
   test("blocks session creation with no provider credentials and offers Settings CTA", async () => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       seedProject: true,
       seedPreflightAuth: false,
     });
@@ -118,7 +118,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
   });
 
   test("preflight model_auth failure shows Configure providers CTA to Settings", async () => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       requirePreflight: true,
       seedPreflightAuth: false,
     });
@@ -148,7 +148,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
   });
 
   test("Settings preserves the draft and restores focus; Add Models opens its section", async () => {
-    const testApp = await launchPiGUI({ seedProject: true, seedModelControls: true, seedPreflightAuth: true });
+    const testApp = await launchPace({ seedProject: true, seedModelControls: true, seedPreflightAuth: true });
     try {
       const page = testApp.window;
       await page.getByRole("button", { name: "New Chat for E2E Project", exact: true }).click();
@@ -186,7 +186,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
   });
 
   test("legacy Models bookmarks open the dialog during first-run preflight", async () => {
-    const testApp = await launchPiGUI({ requirePreflight: true, seedPreflightAuth: false });
+    const testApp = await launchPace({ requirePreflight: true, seedPreflightAuth: false });
     try {
       await expect(testApp.window.getByText("Before your first session")).toBeVisible();
       await testApp.window.evaluate(() => { window.location.hash = "/settings#models"; });
@@ -203,7 +203,7 @@ test.describe("S3: Provider Settings (DF-002)", () => {
   });
 
   test("after provider auth is configured, session creation exposes models", async () => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       seedModelControls: true,
       seedPreflightAuth: true,
     });

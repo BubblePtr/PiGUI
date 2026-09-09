@@ -26,7 +26,7 @@ import {
   type StripSegment,
   type StripWidthMode,
 } from "@/shared/ui/pi-trajectory-strip";
-import type { RuntimeToolSchemas, SessionDetail, SessionTurn } from "@pigui/core";
+import type { RuntimeToolSchemas, SessionDetail, SessionTurn } from "@pace/core";
 
 export type {
   SessionContentPart,
@@ -34,7 +34,7 @@ export type {
   CostBreakdown,
   SessionTurn,
   SessionDetail,
-} from "@pigui/core";
+} from "@pace/core";
 
 const filterableKinds = ["tool", "think", "text", "image", "config"];
 

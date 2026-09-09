@@ -19,8 +19,8 @@ beforeEach(() => { home = mkdtempSync(join(tmpdir(), "pace-environment-")); });
 afterEach(() => { rmSync(home, { recursive: true, force: true }); });
 
 describe("resolveBackendEnvironment", () => {
-  it("keeps an explicit PIGUI_DATA_DIR untouched in every mode", () => {
-    const env = { PIGUI_DATA_DIR: "/tmp/e2e-data", PATH: "/bin" };
+  it("keeps an explicit PACE_DATA_DIR untouched in every mode", () => {
+    const env = { PACE_DATA_DIR: "/tmp/e2e-data", PATH: "/bin" };
 
     expect(resolveBackendEnvironment({ env, isPackaged: false, homeDir: home })).toEqual(env);
     expect(resolveBackendEnvironment({ env, isPackaged: true, homeDir: home })).toEqual(env);
@@ -33,7 +33,7 @@ describe("resolveBackendEnvironment", () => {
       homeDir: home,
     });
 
-    expect(result.PIGUI_DATA_DIR).toBe(`${home}/.pace-dev`);
+    expect(result.PACE_DATA_DIR).toBe(`${home}/.pace-dev`);
     expect(result.PATH).toBe("/bin");
   });
 
@@ -45,17 +45,29 @@ describe("resolveBackendEnvironment", () => {
     });
 
     expect(result).toEqual({ PATH: "/bin" });
-    expect(result).not.toHaveProperty("PIGUI_DATA_DIR");
+    expect(result).not.toHaveProperty("PACE_DATA_DIR");
   });
 
-  it("treats an empty PIGUI_DATA_DIR as unset", () => {
+  it("treats an empty PACE_DATA_DIR as unset", () => {
     const result = resolveBackendEnvironment({
-      env: { PIGUI_DATA_DIR: "" },
+      env: { PACE_DATA_DIR: "" },
       isPackaged: false,
       homeDir: home,
     });
 
-    expect(result.PIGUI_DATA_DIR).toBe(`${home}/.pace-dev`);
+    expect(result.PACE_DATA_DIR).toBe(`${home}/.pace-dev`);
+  });
+
+  it("falls back to PIGUI_DATA_DIR with a deprecation warning", () => {
+    const env = { PIGUI_DATA_DIR: "/tmp/legacy-data", PATH: "/bin" };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(resolveBackendEnvironment({ env, isPackaged: false, homeDir: home })).toEqual(env);
+      expect(resolveBackendEnvironment({ env, isPackaged: true, homeDir: home })).toEqual(env);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("PIGUI_DATA_DIR"));
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
@@ -99,8 +111,8 @@ describe("resolveDevelopmentUserDataPath", () => {
       writeFileSync(join(home, name, "history"), name);
     }
     const result = resolveBackendEnvironment({ env: {}, isPackaged: false, homeDir: home });
-    expect(result.PIGUI_DATA_DIR).toBe(join(home, ".pace-dev"));
-    expect(readFileSync(join(result.PIGUI_DATA_DIR!, "history"), "utf8")).toBe(".pigui-dev");
+    expect(result.PACE_DATA_DIR).toBe(join(home, ".pace-dev"));
+    expect(readFileSync(join(result.PACE_DATA_DIR!, "history"), "utf8")).toBe(".pigui-dev");
     expect(readFileSync(join(home, ".pigui", "history"), "utf8")).toBe(".pigui");
     expect(existsSync(join(home, ".pigui-dev"))).toBe(false);
     expect(existsSync(join(home, ".pace"))).toBe(false);
@@ -115,7 +127,7 @@ it.each(["EXDEV", "EACCES"])("keeps dev history available when migration fails w
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   try {
     const result = resolveBackendEnvironment({ env: {}, isPackaged: false, homeDir: home });
-    expect(result.PIGUI_DATA_DIR).toBe(old);
+    expect(result.PACE_DATA_DIR).toBe(old);
     expect(readFileSync(join(old, "history"), "utf8")).toBe("dev history");
     expect(existsSync(join(home, ".pace-dev"))).toBe(false);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining(old), error);
@@ -126,7 +138,7 @@ it.each(["EXDEV", "EACCES"])("keeps dev history available when migration fails w
 
 it("does not migrate dev history when a data override is present", () => {
   mkdirSync(join(home, ".pigui-dev"));
-  const env = { PIGUI_DATA_DIR: join(home, "custom") };
+  const env = { PACE_DATA_DIR: join(home, "custom") };
   expect(resolveBackendEnvironment({ env, isPackaged: false, homeDir: home })).toEqual(env);
   expect(existsSync(join(home, ".pigui-dev"))).toBe(true);
   expect(existsSync(join(home, ".pace-dev"))).toBe(false);
@@ -138,7 +150,7 @@ it("prefers existing Pace dev data without modifying either directory", () => {
     writeFileSync(join(home, name, "history"), name);
   }
   const result = resolveBackendEnvironment({ env: {}, isPackaged: false, homeDir: home });
-  expect(result.PIGUI_DATA_DIR).toBe(join(home, ".pace-dev"));
+  expect(result.PACE_DATA_DIR).toBe(join(home, ".pace-dev"));
   for (const name of [".pigui-dev", ".pace-dev"]) {
     expect(readFileSync(join(home, name, "history"), "utf8")).toBe(name);
   }

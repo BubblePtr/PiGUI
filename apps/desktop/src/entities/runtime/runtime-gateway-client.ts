@@ -5,9 +5,9 @@ import type {
   RuntimeGatewaySnapshot,
   RuntimeGatewaySummary,
   RuntimeModelControls,
-} from "@pigui/core";
-import { clonePromptImages, parseRuntimePromptImages } from "@pigui/core";
-import type { BackendRpcEvent } from "@pigui/backend";
+} from "@pace/core";
+import { clonePromptImages, parseRuntimePromptImages } from "@pace/core";
+import type { BackendRpcEvent } from "@pace/backend";
 import {
   PiRuntimeBridgeError,
   cloneSessionState,
@@ -21,7 +21,7 @@ import {
   type PiSessionState,
   type SessionReplayEntry,
 } from "@/entities/runtime/pi-runtime-bridge";
-import type { AgentRuntimeEvent } from "@pigui/core";
+import type { AgentRuntimeEvent } from "@pace/core";
 import { invoke as invokeRuntime, onBackendEvent as onRuntimeBackendEvent } from "@/shared/runtime";
 
 type InvokeGatewayMethod = <T>(

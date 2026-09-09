@@ -100,18 +100,18 @@ describe("Project Registry", () => {
 
     const renamed = renameProjectInRegistry(
       "/Users/void/code/opensource/Pig/.",
-      "  PiGUI Desktop  ",
+      "  Pace Desktop  ",
     );
 
     expect(renamed).toMatchObject({
       id: "/Users/void/code/opensource/Pig",
       path: "/Users/void/code/opensource/Pig",
-      displayName: "PiGUI Desktop",
+      displayName: "Pace Desktop",
       addedAt: "2026-06-30T08:00:00.000Z",
     });
     expect(getProjectRegistry().map((project) => project.displayName)).toEqual([
       "study",
-      "PiGUI Desktop",
+      "Pace Desktop",
     ]);
   });
 

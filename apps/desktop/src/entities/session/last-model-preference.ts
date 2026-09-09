@@ -2,7 +2,7 @@ import type {
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimeThinkingLevel,
-} from "@pigui/core";
+} from "@pace/core";
 
 const storageKey = "pigui.lastModelSelection.v1";
 

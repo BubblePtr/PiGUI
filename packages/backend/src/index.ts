@@ -1,4 +1,4 @@
-// @pigui/backend — the relocatable backend service: session-log parsing,
+// @pace/backend — the relocatable backend service: session-log parsing,
 // Runtime Gateway dispatch, Pi driver management, config inventory, and
 // execution-checkout git work. Hosted in the Electron utilityProcess today and
 // a headless server later.

@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { launchPiGUI } from "../fixtures/electron-app";
+import { launchPace } from "../fixtures/electron-app";
 
 test.describe("M5.2: First-run preflight", () => {
   test("cold start reaches preflight and keeps provider settings usable before setup completes", async ({}, testInfo) => {
-    const testApp = await launchPiGUI({ requirePreflight: true });
+    const testApp = await launchPace({ requirePreflight: true });
 
     try {
       await expect(testApp.window.getByText("Before your first session")).toBeVisible();
@@ -20,7 +20,7 @@ test.describe("M5.2: First-run preflight", () => {
   });
 
   test("gates first launch using the bundled engine without a global CLI", async ({}, testInfo) => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       requirePreflight: true,
       seedPreflightAuth: true,
       emptyPath: true,
@@ -59,7 +59,7 @@ test.describe("M5.2: First-run preflight", () => {
   });
 
   test("blocks Continue when model auth is missing", async () => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       requirePreflight: true,
       seedPreflightAuth: false,
     });
@@ -78,7 +78,7 @@ test.describe("M5.2: First-run preflight", () => {
   });
 
   test("keeps Continue enabled when optional Git is missing", async () => {
-    const testApp = await launchPiGUI({
+    const testApp = await launchPace({
       requirePreflight: true,
       seedPreflightAuth: true,
       forceGitMissing: true,

@@ -1,5 +1,5 @@
 {
-  "name": "@pigui/desktop",
+  "name": "@pace/desktop",
   "version": "0.0.2",
   "private": true,
   "license": "Apache-2.0",
@@ -14,8 +14,8 @@
     "preview": "electron-vite preview"
   },
   "devDependencies": {
-    "@pigui/backend": "workspace:*",
-    "@pigui/core": "workspace:*"
+    "@pace/backend": "workspace:*",
+    "@pace/core": "workspace:*"
   },
   "dependencies": {
     "@astryxdesign/cli": "^0.3.0",

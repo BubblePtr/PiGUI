@@ -9,7 +9,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import type { PersistedSessionProjection } from "@pigui/backend";
+import type { PersistedSessionProjection } from "@pace/backend";
 import { onBackendEvent } from "@/shared/runtime";
 import { shouldUseBrowserDevelopmentData } from "@/shared/browser-development-data";
 import {

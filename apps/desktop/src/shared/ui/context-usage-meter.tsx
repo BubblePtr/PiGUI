@@ -1,9 +1,9 @@
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import type { ComponentProps } from "react";
-import type { RuntimeContextUsage } from "@pigui/core";
+import type { RuntimeContextUsage } from "@pace/core";
 
 // Pi's own footer paints the context share amber past 70% and red past 90%;
-// PiGUI mirrors those thresholds so both surfaces alarm at the same moment.
+// Pace mirrors those thresholds so both surfaces alarm at the same moment.
 const WARNING_PERCENT = 70;
 const CRITICAL_PERCENT = 90;
 

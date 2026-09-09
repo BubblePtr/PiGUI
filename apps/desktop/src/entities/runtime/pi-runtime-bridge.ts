@@ -8,20 +8,20 @@ export type {
   PiRpcRawEvent,
   PiRpcTransportStartInput,
   PiRpcTransport,
-} from "@pigui/core";
+} from "@pace/core";
 import type {
   AgentRuntimeEvent,
   RuntimeContextUsage,
   RuntimeModelControls,
   RuntimeModelSelection,
   RuntimePromptImage,
-} from "@pigui/core";
+} from "@pace/core";
 
 export type {
   RuntimeContextUsage,
   RuntimeModelControls,
   RuntimeModelSelection,
-} from "@pigui/core";
+} from "@pace/core";
 
 export type ExecutionCheckout = {
   mode: "foreground-local" | "managed-worktree";

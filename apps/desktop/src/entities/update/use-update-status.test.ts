@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PiGUIRendererApi } from "@/shared/runtime";
+import type { PaceRendererApi } from "@/shared/runtime";
 import type { UpdateStatus } from "@/shared/update-protocol";
 import { resetUpdateStatusStore, useUpdateStatus } from "./use-update-status";
 
@@ -21,8 +21,8 @@ function mockUpdateBridge(initial: UpdateStatus) {
     return null;
   });
 
-  window.pigui = {
-    invoke: invoke as unknown as PiGUIRendererApi["invoke"],
+  window.pace = {
+    invoke: invoke as unknown as PaceRendererApi["invoke"],
     onBackendEvent: () => () => {},
     onBrowserEvent: () => () => {},
     onUpdateEvent: (listener) => {
@@ -52,7 +52,7 @@ describe("useUpdateStatus store", () => {
 
   afterEach(() => {
     resetUpdateStatusStore();
-    delete window.pigui;
+    delete window.pace;
   });
 
   it("invokes once for two hook instances and they read the same status", async () => {

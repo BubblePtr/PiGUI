@@ -9,9 +9,9 @@ import {
   type PiSdkSessionRuntime,
 } from "./pi-sdk-driver";
 
-export const PI_SDK_SPIKE_ENV = "PIGUI_RUN_PI_SDK_SPIKE";
-export const PI_SDK_SPIKE_PROMPT = "Reply with exactly: PIGUI_SDK_SPIKE_OK";
-export const PI_SDK_SPIKE_EXPECTED_TEXT = "PIGUI_SDK_SPIKE_OK";
+export const PI_SDK_SPIKE_ENV = "PACE_RUN_PI_SDK_SPIKE";
+export const PI_SDK_SPIKE_PROMPT = "Reply with exactly: PACE_SDK_SPIKE_OK";
+export const PI_SDK_SPIKE_EXPECTED_TEXT = "PACE_SDK_SPIKE_OK";
 
 export type PiSdkSpikeCapabilityStatus =
   | "confirmed"

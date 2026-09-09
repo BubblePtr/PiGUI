@@ -1,7 +1,7 @@
 /**
  * Last previewed URL per Project, kept in the renderer's localStorage.
  *
- * PiGUI has no knowledge of dev servers, so the address the user typed is the
+ * Pace has no knowledge of dev servers, so the address the user typed is the
  * only signal about what a Project's preview URL is. It is a convenience, not
  * a record: no backend persistence (PRD decision 2).
  */

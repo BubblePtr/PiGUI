@@ -1,7 +1,7 @@
 import { cloneElement, type ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { RuntimeModelControls } from "@pigui/core";
+import type { RuntimeModelControls } from "@pace/core";
 import type { TrajectoryRun, TrajectoryStep, TrajectoryTurn } from "@/entities/session/trajectory-model";
 import { BrowserSurface } from "@/shared/ui/browser/browser-surface";
 import { ChatChainOfThought } from "@/shared/ui/chat/chat-chain-of-thought";

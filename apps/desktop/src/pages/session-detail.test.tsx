@@ -7,7 +7,7 @@ import {
   largeSessionDetailApproxBytes,
 } from "@/entities/session/session-detail.fixtures";
 import { SessionDetailView } from "@/pages/session-detail";
-import type { SessionDetail, SessionTurn } from "@pigui/core";
+import type { SessionDetail, SessionTurn } from "@pace/core";
 
 function layoutStripColumns(container: HTMLElement) {
   const columns = [...container.querySelectorAll<HTMLElement>("[data-strip-col]")];

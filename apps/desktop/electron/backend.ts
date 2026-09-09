@@ -1,6 +1,6 @@
 import type { MessagePortMain } from "electron";
 import { homedir } from "node:os";
-import { createBackendService, migrateDataDir } from "@pigui/backend";
+import { createBackendService, migrateDataDir } from "@pace/backend";
 
 const { parentPort } = process;
 const service = createBackendService({

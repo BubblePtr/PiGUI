@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentRuntimeEvent } from "@pigui/core";
+import type { AgentRuntimeEvent } from "@pace/core";
 import { createAgentRuntimeEventNormalizer } from "./agent-runtime-event-normalizer";
 
 // Contract tests for the Agent Runtime Event Model normalizer. Fixtures follow

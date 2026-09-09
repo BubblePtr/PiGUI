@@ -68,7 +68,7 @@ describe("session projection store", () => {
     });
   });
 
-  it("persists projections under the PiGUI data dir", async () => {
+  it("persists projections under the Pace data dir", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pigui-projections-"));
     const store = createFileSessionProjectionStore({ dataDir });
 

@@ -9,7 +9,7 @@ import type {
  * description in the page's isolated world, message validation in main.
  *
  * This module is imported by the annotation preload and by main, never by the
- * PiGUI renderer preload: the two preloads must not share a runtime module or
+ * Pace renderer preload: the two preloads must not share a runtime module or
  * electron-vite would hoist it into a chunk that a sandboxed preload cannot
  * require (PRD S2 implementation constraint 6). The import above is type-only
  * and therefore erased, which is what keeps that true.

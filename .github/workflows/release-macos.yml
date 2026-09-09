@@ -56,7 +56,7 @@ jobs:
       - run: bun run test:release
       - run: bun run test --maxWorkers=2
         env:
-          PIGUI_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
+          PACE_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
       - name: Build and validate the bundled runtime
         run: bun run build:release
       - run: bun run stage:node-pty
@@ -91,7 +91,7 @@ jobs:
           DEBUG: pw:browser
         run: |
           system_profiler SPDisplaysDataType
-          PIGUI_E2E_EXECUTABLE="$RUNNER_TEMP/pigui-dmg/Pace.app/Contents/MacOS/Pace" \
+          PACE_E2E_EXECUTABLE="$RUNNER_TEMP/pigui-dmg/Pace.app/Contents/MacOS/Pace" \
             bun run test:e2e --workers=1 --max-failures=1 --reporter=line
       - name: Generate SHA-256 checksum
         working-directory: dist

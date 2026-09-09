@@ -12,7 +12,7 @@ import {
   type ProviderAuthMode,
   type ProviderAuthStatusItem,
   type ProviderAuthStatusReport,
-} from "@pigui/core";
+} from "@pace/core";
 
 type RuntimeInstance = Awaited<ReturnType<typeof ModelRuntime.create>>;
 type AuthInteraction = Parameters<RuntimeInstance["login"]>[2];
@@ -107,7 +107,7 @@ function assertKnownProvider(providerId: string): asserts providerId is Provider
 }
 
 /** A prompt that never settles: browser/device-code flows race a manual-code
- * prompt against the callback server. PiGUI has no paste box, so we pend and
+ * prompt against the callback server. Pace has no paste box, so we pend and
  * let the browser callback (or device-code poll) win. */
 function pendPrompt(): Promise<string> {
   return new Promise<string>(() => {});
@@ -133,7 +133,7 @@ export function createProviderAuthService(
 
   const listStatus = async (): Promise<ProviderAuthStatusReport> => {
     const runtime = await getRuntime();
-    // Re-read auth.json so logins done in the Pi TUI while PiGUI is open show up.
+    // Re-read auth.json so logins done in the Pi TUI while Pace is open show up.
     await runtime.refresh({ allowNetwork: false }).catch(() => {});
 
     const providers: ProviderAuthStatusItem[] = PROVIDER_AUTH_CATALOG.map((entry) => {

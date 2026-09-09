@@ -11,13 +11,13 @@ import type {
   RuntimeModelSelection,
   RuntimePromptImage,
   RuntimeToolSchemas,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   CHAT_PROJECT_ID,
   createRuntimeGatewaySequencer,
   parseRuntimePromptImages,
   shouldJournalRuntimeEvent,
-} from "@pigui/core";
+} from "@pace/core";
 import {
   copiedSessionEventInputsForFork,
   forkMarkerEventInput,
@@ -743,7 +743,7 @@ async function deleteSessionProjection(input: {
     throw new Error("Cannot delete an active Session.");
   }
 
-  // Pi owns Session truth; PiGUI only drops its own projection record.
+  // Pi owns Session truth; Pace only drops its own projection record.
   await store.remove(input.sessionId);
 
   return projection;

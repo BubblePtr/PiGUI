@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { DefaultPackageManager, loadSkills, SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { ConfigInventory } from "@pigui/core";
+import type { ConfigInventory } from "@pace/core";
 
 export async function buildConfigInventory(dir: string): Promise<ConfigInventory> {
   const agentDir = resolve(dir);
