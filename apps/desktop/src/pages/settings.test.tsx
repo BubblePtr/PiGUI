@@ -439,7 +439,7 @@ describe("Settings — changelog", () => {
     expect(within(section).getByText("Providers and models")).toBeVisible();
     const firstRelease = within(section).getByRole("article", { name: "v0.0.1" });
     expect(within(firstRelease).getByRole("link", { name: /View release on GitHub/ }))
-      .toHaveAttribute("href", "https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.1");
+      .toHaveAttribute("href", "https://github.com/BubblePtr/pace/releases/tag/v0.0.1");
   });
 
   it("switches to the changelog without losing the route or an unsaved settings draft", async () => {

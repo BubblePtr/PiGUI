@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import { join } from "node:path";
 
 // PiGUI is dogfooded: the packaged app is the daily driver while `bun run dev`
@@ -13,7 +14,13 @@ export function resolveBackendEnvironment(input: {
     return { ...input.env };
   }
 
-  return { ...input.env, PIGUI_DATA_DIR: join(input.homeDir, ".pigui-dev") };
+  return {
+    ...input.env,
+    PIGUI_DATA_DIR: migrateDirectory(
+      join(input.homeDir, ".pace-dev"),
+      join(input.homeDir, ".pigui-dev"),
+    ),
+  };
 }
 
 // Chromium allows one running process per profile directory: a second Electron
@@ -31,4 +38,36 @@ export function resolveDevelopmentUserDataPath(input: {
   }
 
   return `${input.userDataPath}-dev`;
+}
+
+function migrateDirectory(path: string, legacyPath: string): string {
+  if (fs.existsSync(legacyPath)) {
+    try {
+      if (fs.existsSync(path) && fs.readdirSync(path).length === 0 && fs.readdirSync(legacyPath).length > 0) {
+        // Electron may have created the profile before migration could run.
+        fs.rmdirSync(path);
+      }
+      if (!fs.existsSync(path)) fs.renameSync(legacyPath, path);
+    } catch (error) {
+      console.warn(`Pace could not migrate ${legacyPath} to ${path}; continuing with the old directory.`, error);
+      return legacyPath;
+    }
+  }
+  fs.mkdirSync(path, { recursive: true });
+  return path;
+}
+
+export function resolveUserDataPath(input: {
+  appDataPath: string;
+  isPackaged: boolean;
+} & (
+  | { hasUserDataDirSwitch: true; userDataPath: string }
+  | { hasUserDataDirSwitch: false }
+)): string {
+  if (input.hasUserDataDirSwitch) {
+    return input.userDataPath;
+  }
+
+  const path = join(input.appDataPath, input.isPackaged ? "Pace" : "Pace-dev");
+  return migrateDirectory(path, join(input.appDataPath, "@pigui", input.isPackaged ? "desktop" : "desktop-dev"));
 }

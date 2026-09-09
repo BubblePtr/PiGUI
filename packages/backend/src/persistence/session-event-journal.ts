@@ -3,8 +3,8 @@
 // reattaching client rebuilds its runtime model statically. Files are plain
 // JSONL so history survives a process restart and stays auditable.
 
+import * as fs from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   RuntimeGatewayEventEnvelope,
@@ -13,12 +13,30 @@ import type {
 
 // PiGUI's own data lives outside ~/.pi — that directory is Pi's session truth
 // and PiGUI only observes it.
-export function resolveDataDir(env: NodeJS.ProcessEnv = process.env) {
+export function resolveDataDir(env: NodeJS.ProcessEnv, homeDir: string): string {
+  return env.PIGUI_DATA_DIR || join(homeDir, ".pace");
+}
+
+export function migrateDataDir(env: NodeJS.ProcessEnv, homeDir: string): string {
   if (env.PIGUI_DATA_DIR) {
     return env.PIGUI_DATA_DIR;
   }
 
-  return join(homedir(), ".pigui");
+  const dataDir = resolveDataDir(env, homeDir);
+  const legacyDataDir = join(homeDir, ".pigui");
+  if (fs.existsSync(legacyDataDir)) {
+    try {
+      if (fs.existsSync(dataDir) && fs.readdirSync(dataDir).length === 0 && fs.readdirSync(legacyDataDir).length > 0) {
+        fs.rmdirSync(dataDir);
+      }
+      if (!fs.existsSync(dataDir)) fs.renameSync(legacyDataDir, dataDir);
+    } catch (error) {
+      console.warn(`Pace could not migrate ${legacyDataDir} to ${dataDir}; continuing with the old directory.`, error);
+      return legacyDataDir;
+    }
+  }
+  fs.mkdirSync(dataDir, { recursive: true });
+  return dataDir;
 }
 
 export type SessionEventJournal = {
@@ -247,7 +265,7 @@ export function createFileSessionEventJournal(
         })
         .catch((error) => {
           console.error(
-            `PiGUI session event journal failed to append to "${path}":`,
+            `Pace session event journal failed to append to "${path}":`,
             error,
           );
         });

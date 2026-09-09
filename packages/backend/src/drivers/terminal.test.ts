@@ -107,7 +107,7 @@ describe("terminal manager", () => {
     expect(calls[0]?.env).toMatchObject({
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
-      TERM_PROGRAM: "PiGUI",
+      TERM_PROGRAM: "Pace",
     });
     expect(Object.values(calls[0]?.env ?? {})).toSatisfy(
       (values) => values.every((value: unknown) => typeof value === "string"),

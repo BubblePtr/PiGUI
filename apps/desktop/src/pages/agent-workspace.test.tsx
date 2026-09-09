@@ -1027,7 +1027,7 @@ describe("AgentWorkspaceSessionsPage", () => {
           kind: "status",
           lifecycle: "connected",
           title: "Backend connected",
-          body: "PiGUI backend utility process is connected.",
+          body: "Pace backend utility process is connected.",
         },
       },
     });
@@ -3461,9 +3461,9 @@ describe("AgentWorkspaceSessionsPage", () => {
     const draftComposer = await screen.findByTestId("session-draft-composer");
     const emptyState = within(draftComposer).getByTestId("session-draft-empty-state");
     const draftTitle = within(draftComposer).getByRole("heading", {
-      name: "Build something useful with PiGUI",
+      name: "Build something useful with Pace",
     });
-    const shimmerText = within(draftTitle).getByText("PiGUI");
+    const shimmerText = within(draftTitle).getByText("Pace");
     const suggestionRoot = emptyState.querySelector('[data-slot="prompt-suggestion"]');
     const suggestionItems = emptyState.querySelector(
       '[data-slot="prompt-suggestion-items"]',

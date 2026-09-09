@@ -110,7 +110,7 @@ describe("Design page tabs", () => {
       "aria-current",
     );
     expect(screen.getByRole("region", { name: "Semantic colors" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "PiKpi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Component catalog" })).not.toBeInTheDocument();
   });
 
   it("switches to the Components tab and back", async () => {
@@ -120,7 +120,7 @@ describe("Design page tabs", () => {
 
     await user.click(screen.getByRole("button", { name: "Components" }));
 
-    expect(screen.getByRole("region", { name: "PiKpi" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Component catalog" })).toBeInTheDocument();
     expect(
       screen.queryByRole("region", { name: "Semantic colors" }),
     ).not.toBeInTheDocument();
@@ -143,7 +143,7 @@ describe("Design page tabs", () => {
 
     await user.click(screen.getByRole("button", { name: "Components" }));
 
-    expect(screen.getByRole("region", { name: "PiKpi" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Component catalog" })).toBeInTheDocument();
     expect(screen.queryByText(/crashed/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/reading 'use'/i)).not.toBeInTheDocument();
   });

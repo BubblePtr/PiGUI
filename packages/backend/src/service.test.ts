@@ -158,7 +158,8 @@ async function tempDataDir() {
 }
 
 describe("backend service", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.stubEnv("PIGUI_DATA_DIR", await tempDataDir());
     createAgentSession.mockReset();
     sessionManagerOpen.mockReset();
     sessionManagerListAll.mockReset();
@@ -167,6 +168,7 @@ describe("backend service", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await Promise.all(
       tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
     );
@@ -1628,7 +1630,7 @@ describe("backend service", () => {
     const cwd = join(dataDir, "chats", sessionId);
     const sessionDir = join(agentDir, "sessions", "chat");
 
-    expect(dataDir).not.toBe(resolveDataDir());
+    expect(dataDir).not.toBe(resolveDataDir(process.env, await tempDataDir()));
 
     await mkdir(sessionDir, { recursive: true });
     await writeFile(

@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { access } from "node:fs/promises";
 import type {
   RuntimeGatewayEventEnvelope,
@@ -140,7 +141,7 @@ export function createRuntimeGatewayService(
   const listeners = new Set<(event: RuntimeGatewayBackendEvent) => void>();
   const sessionIdsByPiSessionId = new Map<string, string>();
   const now = options.now ?? (() => new Date().toISOString());
-  const dataDir = options.dataDir ?? resolveDataDir();
+  const dataDir = options.dataDir ?? resolveDataDir(process.env, homedir());
   const nextEvent = createRuntimeGatewaySequencer({
     now,
     idFactory: options.idFactory,
@@ -571,7 +572,7 @@ function createRuntimeEventProjectionWriter(store?: SessionProjectionStore) {
       })
       .catch((error) => {
         console.error(
-          `PiGUI failed to persist Session Projection "${event.sessionId}":`,
+          `Pace failed to persist Session Projection "${event.sessionId}":`,
           error,
         );
       });

@@ -294,7 +294,7 @@ function terminalEnvironment(): Record<string, string> {
 
   env.TERM = "xterm-256color";
   env.COLORTERM = "truecolor";
-  env.TERM_PROGRAM = "PiGUI";
+  env.TERM_PROGRAM = "Pace";
 
   return env;
 }

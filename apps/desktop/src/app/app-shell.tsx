@@ -1455,7 +1455,7 @@ export function AppFrame({
 
     const confirmed = window.confirm(
       [
-        `Remove ${project.displayName} from PiGUI?`,
+        `Remove ${project.displayName} from Pace?`,
         "",
         "Local files and historical Sessions will not be deleted.",
         "If this Project is the current draft target, the draft text will be kept and the target cleared.",
@@ -1543,7 +1543,7 @@ export function AppFrame({
       window.alert(
         error instanceof Error
           ? error.message
-          : "PiGUI could not rename the Session.",
+          : "Pace could not rename the Session.",
       );
     }
   };
@@ -1569,7 +1569,7 @@ export function AppFrame({
       window.alert(
         error instanceof Error
           ? error.message
-          : "PiGUI could not archive the Session.",
+          : "Pace could not archive the Session.",
       );
     }
   };
@@ -1584,7 +1584,7 @@ export function AppFrame({
       [
         `Delete ${session.title}?`,
         "",
-        "This removes the Session from PiGUI permanently.",
+        "This removes the Session from Pace permanently.",
         "Pi's own session files on disk are not deleted.",
       ].join("\n"),
     );
@@ -1603,7 +1603,7 @@ export function AppFrame({
       window.alert(
         error instanceof Error
           ? error.message
-          : "PiGUI could not delete the Session.",
+          : "Pace could not delete the Session.",
       );
     }
   };

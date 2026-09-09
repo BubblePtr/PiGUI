@@ -1,6 +1,6 @@
 # macOS 打包与发布
 
-PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产物的固定标识为 `com.bubbleptr.pigui`，最低支持 macOS 12。
+Pace 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产物的固定标识为 `com.bubbleptr.pace`，最低支持 macOS 12。
 
 ## GitHub Actions
 
@@ -15,7 +15,7 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 
 ### 首次运行需要准备什么
 
-在仓库 [Settings → Secrets and variables → Actions](https://github.com/BubblePtr/PiGUI/settings/secrets/actions) 配置以下 **Repository secrets**：
+在仓库 [Settings → Secrets and variables → Actions](https://github.com/BubblePtr/pace/settings/secrets/actions) 配置以下 **Repository secrets**：
 
 | Secret | 内容 |
 | --- | --- |
@@ -33,15 +33,15 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 
 ### 导出证书、生成密钥并填写 Secrets
 
-1. 在 macOS「钥匙串访问」的「登录 → 我的证书」找到 `Developer ID Application`，展开后确认有对应私钥。选中该身份，使用「文件 → 导出项目」保存为 `.p12`，并设置导出密码。假设保存为 `~/Downloads/PiGUI-DeveloperID.p12`，执行下面的命令将 Base64 内容复制到剪贴板，粘贴为 `CSC_LINK`；导出密码填入 `CSC_KEY_PASSWORD`：
+1. 在 macOS「钥匙串访问」的「登录 → 我的证书」找到 `Developer ID Application`，展开后确认有对应私钥。选中该身份，使用「文件 → 导出项目」保存为 `.p12`，并设置导出密码。假设保存为 `~/Downloads/Pace-DeveloperID.p12`，执行下面的命令将 Base64 内容复制到剪贴板，粘贴为 `CSC_LINK`；导出密码填入 `CSC_KEY_PASSWORD`：
 
    ```bash
-   base64 -i "$HOME/Downloads/PiGUI-DeveloperID.p12" | tr -d '\n' | pbcopy
+   base64 -i "$HOME/Downloads/Pace-DeveloperID.p12" | tr -d '\n' | pbcopy
    ```
 
-2. 登录 [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api)，选择签名证书所属团队。进入「Users and Access → Integrations → App Store Connect API → Team Keys」，生成名为 `PiGUI CI` 的密钥。按当前 `@electron/notarize` 官方示例，Access 选 `App Manager`。若尚未开通 API，需要 Account Holder 先 Request Access；生成 Team Key 需要 Account Holder 或 Admin。
+2. 登录 [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api)，选择签名证书所属团队。进入「Users and Access → Integrations → App Store Connect API → Team Keys」，生成名为 `Pace CI` 的密钥。按当前 `@electron/notarize` 官方示例，Access 选 `App Manager`。若尚未开通 API，需要 Account Holder 先 Request Access；生成 Team Key 需要 Account Holder 或 Admin。
 3. 下载 `AuthKey_<KEY_ID>.p8`（只能下载一次），记录 Key ID 和 Issuer ID。将 `.p8` 全文填入 `APPLE_API_KEY_P8`，Key ID 填入 `APPLE_API_KEY_ID`，Issuer ID 填入 `APPLE_API_ISSUER`。Issuer ID 是 UUID，不是证书括号内的 Team ID；`.p8` 不需要 Base64 编码。
-4. 在仓库 Actions Secrets 页点击 **New repository secret**，按上面的表创建五项。完成后可运行 `gh secret list --repo BubblePtr/PiGUI` 核对名称。GitHub CI 不需要本机的 `pigui-notary` profile；该 profile 只用于下面的本地公证流程。
+4. 在仓库 Actions Secrets 页点击 **New repository secret**，按上面的表创建五项。完成后可运行 `gh secret list --repo BubblePtr/pace` 核对名称。GitHub CI 不需要本机的 `pigui-notary` profile；该 profile 只用于下面的本地公证流程。
 
 操作参考：[Apple 钥匙串导出说明](https://support.apple.com/guide/keychain-access/import-and-export-keychain-items-kyca35961/mac)、[Apple Team API Key 创建说明](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)、[@electron/notarize 凭据要求](https://github.com/electron/notarize#usage-with-app-store-connect-api-key)。
 
@@ -56,7 +56,7 @@ PiGUI 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
    ```bash
    git switch main
    git pull --ff-only
-   git tag -a v0.0.1 -m "PiGUI 0.0.1"
+   git tag -a v0.0.1 -m "Pace 0.0.1"
    git push origin v0.0.1
    ```
 
@@ -104,7 +104,7 @@ bun run package:mac:unsigned
 bun run test:e2e:packaged:mac
 ```
 
-这个产物仅用于本机验证，不能对外分发。E2E 会从 `dist/mac-arm64/PiGUI.app/Contents/MacOS/PiGUI` 启动真实 bundle，覆盖主进程、preload、renderer、ASAR 内 backend utility process、持久化、Git diff 和 Pi SDK 模型控制。
+这个产物仅用于本机验证，不能对外分发。E2E 会从 `dist/mac-arm64/Pace.app/Contents/MacOS/Pace` 启动真实 bundle，覆盖主进程、preload、renderer、ASAR 内 backend utility process、持久化、Git diff 和 Pi SDK 模型控制。
 
 ## 签名 `.app`
 
@@ -112,7 +112,7 @@ bun run test:e2e:packaged:mac
 
 ```bash
 bun run package:mac
-codesign --verify --deep --strict --verbose=2 dist/mac-arm64/PiGUI.app
+codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Pace.app
 ```
 
 如证书存在但构建报 `errSecInternalComponent`，先在「钥匙串访问」中检查对应私钥的访问控制。不要把钥匙串密码、证书私钥或公证凭据写入仓库。
@@ -150,17 +150,17 @@ APPLE_KEYCHAIN_PROFILE="pigui-notary" bun run dist:mac
 ```bash
 env -u APPLE_KEYCHAIN_PROFILE -u APPLE_KEYCHAIN bun run package:mac
 
-NOTARY_ARCHIVE="dist/PiGUI-notary-$(date +%Y%m%d%H%M%S).zip"
-ditto -c -k --keepParent dist/mac-arm64/PiGUI.app "$NOTARY_ARCHIVE"
+NOTARY_ARCHIVE="dist/Pace-notary-$(date +%Y%m%d%H%M%S).zip"
+ditto -c -k --keepParent dist/mac-arm64/Pace.app "$NOTARY_ARCHIVE"
 xcrun notarytool submit "$NOTARY_ARCHIVE" \
   --keychain-profile "pigui-notary" \
   --wait \
   --no-s3-acceleration
-xcrun stapler staple dist/mac-arm64/PiGUI.app
+xcrun stapler staple dist/mac-arm64/Pace.app
 
 ./node_modules/.bin/electron-builder \
   --config electron-builder.yml \
-  --prepackaged dist/mac-arm64/PiGUI.app \
+  --prepackaged dist/mac-arm64/Pace.app \
   --mac dmg \
   --arm64 \
   --publish never \
@@ -173,11 +173,20 @@ xcrun stapler staple dist/mac-arm64/PiGUI.app
 
 ```bash
 bun run dist:mac
-codesign --verify --deep --strict --verbose=2 dist/mac-arm64/PiGUI.app
-xcrun stapler validate dist/mac-arm64/PiGUI.app
-spctl --assess --type execute --verbose=2 dist/mac-arm64/PiGUI.app
-hdiutil verify dist/PiGUI-*-arm64.dmg
+codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Pace.app
+xcrun stapler validate dist/mac-arm64/Pace.app
+spctl --assess --type execute --verbose=2 dist/mac-arm64/Pace.app
+hdiutil verify dist/Pace-*-arm64.dmg
 bun run test:e2e:packaged:mac
 ```
 
-本地 `bun run dist:mac` 的产物仍是 `dist/PiGUI-<version>-arm64.dmg`。发版流水线额外构建 zip，并上传 zip、`${zip}.blockmap`、`latest-mac.yml` 与覆盖 DMG/zip 的 `SHA256SUMS.txt`。只有签名、公证、staple、Gatekeeper 和 packaged-app E2E 全部通过后，才可发布。
+本地 `bun run dist:mac` 的产物仍是 `dist/Pace-<version>-arm64.dmg`。发版流水线额外构建 zip，并上传 zip、`${zip}.blockmap`、`latest-mac.yml` 与覆盖 DMG/zip 的 `SHA256SUMS.txt`。只有签名、公证、staple、Gatekeeper 和 packaged-app E2E 全部通过后，才可发布。
+
+
+## 首个 Pace 版本发布前的强制升级验证
+
+仓库改名后，必须安装已发布的 **v0.0.2 DMG**，使用该旧包内的更新器检查首个 Pace Release。确认旧 feed `BubblePtr/PiGUI` 经 GitHub 重定向可以发现 `BubblePtr/pace` 的新版本，并完成下载、安装与重启；记录旧版本号、目标版本号和检查结果。此项必须实测，单元测试或手动打开新仓库链接不能替代，未通过前不得将首个 Pace 版本作为可升级发布交付。
+
+首个 Pace Release 准备好且旧版更新器可访问后，先完成上述验证再宣布发布。该检查需要仓库改名和实际 Release，改名 PR 阶段只记录门禁，不宣称已验证重定向。
+
+升级后检查 `~/.pigui` → `~/.pace` 与 Electron `Application Support/@pigui/desktop` → `Application Support/Pace` 的历史会话、项目注册表和草稿完整性。开发实例单独迁移对应 `-dev` 目录，不与安装版混用；新旧目录共存、显式覆盖与迁移失败时的策略见 [自举隔离说明](../dogfooding.md)。

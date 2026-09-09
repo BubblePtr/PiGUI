@@ -1,8 +1,11 @@
 import type { MessagePortMain } from "electron";
-import { createBackendService } from "@pigui/backend";
+import { homedir } from "node:os";
+import { createBackendService, migrateDataDir } from "@pigui/backend";
 
 const { parentPort } = process;
-const service = createBackendService();
+const service = createBackendService({
+  dataDir: migrateDataDir(process.env, homedir()),
+});
 
 parentPort.on("message", (event) => {
   if (event.data?.type === "connect") {

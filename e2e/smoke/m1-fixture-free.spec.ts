@@ -51,7 +51,7 @@ test.describe("M1: Real-data-only", () => {
     const testApp = await launchPiGUI();
 
     try {
-      await expect(testApp.window).toHaveTitle(/PiGUI/);
+      await expect(testApp.window).toHaveTitle(/Pace/);
       await expect(
         testApp.window.getByRole("button", { name: /add project/i }),
       ).toBeVisible();
@@ -163,7 +163,7 @@ test.describe("M2: Reliable lifecycle", () => {
       await expect(
         sessionRowButton(testApp.window, "Reloaded after backend restart"),
       ).toBeVisible();
-      await expect(testApp.window).toHaveTitle(/PiGUI/);
+      await expect(testApp.window).toHaveTitle(/Pace/);
     } finally {
       await testApp.close();
     }

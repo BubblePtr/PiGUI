@@ -4,7 +4,7 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/pigui-icon.XXXXXX")"
-iconset_dir="$work_dir/PiGUI.iconset"
+iconset_dir="$work_dir/Pace.iconset"
 master_png="$work_dir/icon-1024.png"
 compiled_dir="$work_dir/compiled"
 icon_composer="${ICON_COMPOSER_APP:-/Applications/Icon Composer.app}"

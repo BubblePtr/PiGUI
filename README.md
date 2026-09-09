@@ -7,9 +7,9 @@
 <p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
 <p align="center">
-[![Release](https://img.shields.io/github/v/release/BubblePtr/PiGUI?display_name=tag)](https://github.com/BubblePtr/PiGUI/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/PiGUI/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/PiGUI/release-macos.yml?label=release)](https://github.com/BubblePtr/PiGUI/actions)
+[![Release](https://img.shields.io/github/v/release/BubblePtr/pace?display_name=tag)](https://github.com/BubblePtr/pace/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/pace/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/pace/release-macos.yml?label=release)](https://github.com/BubblePtr/pace/actions)
 </p>
 
 Pi is a terminal coding agent with a VS Code-like extension system: packages contribute tools, commands, skills, prompts and themes. We want to bring that same flexibility to the desktop, so that everyone can shape a desktop agent that is truly their own. The name stands for *move at your own pace*: in the age of AI, individuals should keep full ownership of how they use an agent, customizing it and setting their own rhythm.
@@ -27,7 +27,7 @@ What that buys you today, in seconds instead of grep: how much a session cost, w
 
 ## Get Pace
 
-**Releases.** Signed and notarized macOS Apple Silicon builds are published on [GitHub Releases](https://github.com/BubblePtr/PiGUI/releases). Download the DMG, drag to Applications, and let the in-app updater handle the rest (ADR-0033). Linux AppImage and deb targets exist in the packaging config but are not yet shipped as releases; Windows is not targeted.
+**Releases.** Signed and notarized macOS Apple Silicon builds are published on [GitHub Releases](https://github.com/BubblePtr/pace/releases). Download the DMG, drag to Applications, and let the in-app updater handle the rest (ADR-0033). Linux AppImage and deb targets exist in the packaging config but are not yet shipped as releases; Windows is not targeted.
 
 **Requirements.** macOS 12 or later. Pi itself is bundled with the app (ADR-0031); you do not need a separate `pi` install, but if you have one, Pace shares its `~/.pi/agent` data, auth and extensions with it.
 
@@ -36,13 +36,13 @@ What that buys you today, in seconds instead of grep: how much a session cost, w
 ## Build from source
 
 ```sh
-git clone https://github.com/BubblePtr/PiGUI.git pace
+git clone https://github.com/BubblePtr/pace.git pace
 cd pace
 bun install
 bun run dev
 ```
 
-Toolchain: Bun 1.3.x (workspaces, scripts), Node 24 (Electron's runtime and vitest), Electron 42. `bun run dev` starts electron-vite with hot reload. The dev instance writes to `~/.pigui-dev` and a `-dev` suffixed userData profile, so it never touches the data of an installed copy; see [`docs/dogfooding.md`](docs/dogfooding.md) for the isolation rules that let you develop Pace with Pace.
+Toolchain: Bun 1.3.x (workspaces, scripts), Node 24 (Electron's runtime and vitest), Electron 42. `bun run dev` starts electron-vite with hot reload. The dev instance writes to `~/.pace-dev` and a `-dev` suffixed userData profile, so it never touches the data of an installed copy; see [`docs/dogfooding.md`](docs/dogfooding.md) for the isolation rules that let you develop Pace with Pace.
 
 Packaging:
 
@@ -142,7 +142,7 @@ Stack: Electron + electron-vite, React 19, TypeScript, TanStack (Query / Router 
 | Data | Installed app | `bun run dev` | Owner |
 | --- | --- | --- | --- |
 | Pi sessions, auth, extensions | `~/.pi/agent` | shared | Pi. Pace only reads. |
-| Session journal, projections, preflight state | `~/.pigui` | `~/.pigui-dev` | Pace. Override with `PIGUI_DATA_DIR`. |
+| Session journal, projections, preflight state | `~/.pace` | `~/.pace-dev` | Pace. Override with `PIGUI_DATA_DIR`. |
 | Renderer preferences (project registry, drafts, model choice), Chromium profile | Electron userData | userData `-dev` | Pace. |
 
 Deleting Pace's data directory loses the UI timeline and cost history but never a Pi session: Pi can still resume from its own log. Any change to the journal or projection format must read the previous format or ship a migration ([`docs/dogfooding.md`](docs/dogfooding.md)).

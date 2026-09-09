@@ -4,7 +4,7 @@ Settings Dialog 的 Changelog 分类展示正式发布的用户可感知变化�
 
 ## 内容来源
 
-唯一数据源是 `apps/desktop/src/entities/release/changelog.ts` 的 `changelogReleases`。内容随应用打包，因此断网也能阅读；不会在打开设置时请求 GitHub。当前收录的 v0.0.1 根据 [正式发布记录](https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.1) 整理，发布日期为 2026-09-06。
+唯一数据源是 `apps/desktop/src/entities/release/changelog.ts` 的 `changelogReleases`。内容随应用打包，因此断网也能阅读；不会在打开设置时请求 GitHub。当前收录的 v0.0.1 根据 [正式发布记录](https://github.com/BubblePtr/pace/releases/tag/v0.0.1) 整理，发布日期为 2026-09-06。
 
 页面文案沿用应用现有的英文界面。仅展示已发布功能，不把主干上的未发布变更或开发计划计入历史版本。每个版本附原始 GitHub Release 链接；桌面端通过已有 `browser_open_external` 通道打开系统浏览器，失败时在链接下提示重试。
 

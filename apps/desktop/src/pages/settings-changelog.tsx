@@ -39,7 +39,7 @@ export function ChangelogSection({
           Changelog
         </Heading>
         <Text as="p" type="supporting">
-          What’s new in PiGUI, release by release.
+          What’s new in Pace, release by release.
         </Text>
       </VStack>
       <VStack as="ol" aria-label="Release history" gap={0} style={{ listStyle: "none" }}>

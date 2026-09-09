@@ -29,7 +29,7 @@ import {
 } from "./browser-annotation";
 import {
   resolveBackendEnvironment,
-  resolveDevelopmentUserDataPath,
+  resolveUserDataPath,
 } from "./backend-environment";
 import {
   createBrowserHost,
@@ -137,7 +137,7 @@ function createMainWindow() {
     show: !backgroundWindowForEndToEnd,
     // Headless macOS runners can expose displays smaller than the E2E viewport.
     enableLargerThanScreen: backgroundWindowForEndToEnd,
-    title: "PiGUI",
+    title: "Pace",
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 13 },
     ...(process.platform === "darwin"
@@ -242,14 +242,14 @@ function createBackendBridge() {
     generation,
     lifecycle: "connected",
     title: "Backend connected",
-    body: "PiGUI backend utility process is connected.",
+    body: "Pace backend utility process is connected.",
   });
   backend.on("exit", (code) => {
     if (generation !== backendGeneration) {
       return;
     }
 
-    const error = new Error(`PiGUI backend utility process exited with code ${code}.`);
+    const error = new Error(`Pace backend utility process exited with code ${code}.`);
 
     backendProcess = null;
     port1.close();
@@ -329,7 +329,7 @@ function sendBackendLifecycleEvent(input: {
 
 function invokeBackend(command: string, args?: Record<string, unknown>) {
   if (!backendPort) {
-    return Promise.reject(new Error("PiGUI backend utility process is not connected."));
+    return Promise.reject(new Error("Pace backend utility process is not connected."));
   }
 
   backendRequestCounter += 1;
@@ -428,7 +428,7 @@ function createBrowserView(target: BrowserTabTarget) {
   const window = mainWindow;
 
   if (!window) {
-    throw new Error("The PiGUI window is not open.");
+    throw new Error("The Pace window is not open.");
   }
 
   const view = new WebContentsView({
@@ -666,11 +666,11 @@ function getBrowserHost() {
 
 function killBackendForEndToEndTest() {
   if (process.env.PIGUI_E2E !== "1") {
-    throw new Error("The PiGUI E2E backend control is disabled.");
+    throw new Error("The Pace E2E backend control is disabled.");
   }
 
   if (!backendProcess) {
-    throw new Error("PiGUI backend utility process is not running.");
+    throw new Error("Pace backend utility process is not running.");
   }
 
   const generation = backendGeneration;
@@ -716,14 +716,16 @@ ipcMain.handle(
 );
 
 // Must run before any session/profile access, so it sits ahead of whenReady.
-const developmentUserDataPath = resolveDevelopmentUserDataPath({
+app.setName("Pace");
+const userDataPath = resolveUserDataPath({
+  appDataPath: app.getPath("appData"),
   isPackaged: app.isPackaged,
-  hasUserDataDirSwitch: app.commandLine.hasSwitch("user-data-dir"),
-  userDataPath: app.getPath("userData"),
+  // getPath("userData") can create the destination and prevent legacy migration.
+  ...(app.commandLine.hasSwitch("user-data-dir")
+    ? { hasUserDataDirSwitch: true, userDataPath: app.getPath("userData") }
+    : { hasUserDataDirSwitch: false }),
 });
-if (developmentUserDataPath) {
-  app.setPath("userData", developmentUserDataPath);
-}
+app.setPath("userData", userDataPath);
 
 app.whenReady().then(() => {
   if (backgroundWindowForEndToEnd && process.platform === "darwin") {

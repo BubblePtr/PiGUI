@@ -19,7 +19,7 @@ export const changelogReleases: readonly ChangelogRelease[] = [
     date: "2026-09-08",
     title: "Chat freely, stay up to date",
     summary: "Start a conversation without a project, update PiGUI in the app, and find sessions more easily.",
-    url: "https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.2",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.2",
     changes: [
       {
         kind: "added",
@@ -63,7 +63,7 @@ export const changelogReleases: readonly ChangelogRelease[] = [
     date: "2026-09-06",
     title: "A workspace for Pi",
     summary: "The first PiGUI release brings Pi Agent to your macOS desktop.",
-    url: "https://github.com/BubblePtr/PiGUI/releases/tag/v0.0.1",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.1",
     changes: [
       {
         kind: "added",

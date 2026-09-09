@@ -169,7 +169,7 @@ describe("renderer runtime bridge", () => {
     window.pigui = {
       invoke: (() =>
         Promise.reject(
-          new Error("PiGUI backend utility process is not connected."),
+          new Error("Pace backend utility process is not connected."),
         )) as unknown as PiGUIRendererApi["invoke"],
       onBackendEvent: vi.fn(),
       onBrowserEvent: vi.fn(),
@@ -179,7 +179,7 @@ describe("renderer runtime bridge", () => {
     };
 
     await expect(invoke("list_sessions")).rejects.toThrowError(
-      new Error("PiGUI backend utility process is not connected."),
+      new Error("Pace backend utility process is not connected."),
     );
   });
 

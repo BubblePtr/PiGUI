@@ -23,7 +23,7 @@
 | macOS bundle id | `com.bubbleptr.pigui` | `com.bubbleptr.pace` |
 | Linux 可执行名 / desktopName | `pigui` / `pigui.desktop` | `pace` / `pace.desktop` |
 | 后端数据目录 | `~/.pigui`（dev `~/.pigui-dev`） | `~/.pace`（dev `~/.pace-dev`），带一次性迁移 |
-| Electron userData | 由包名 `@pigui/desktop` 派生 | 由包名 `@pace/desktop` 派生，带一次性迁移 |
+| Electron userData | 由包名 `@pigui/desktop` 派生 | 通过 `app.setName("Pace")` 固定为 `Pace`（dev：`Pace-dev`），不依赖包名，带一次性迁移 |
 | workspace 包作用域 | `@pigui/*` | `@pace/*` |
 | 环境变量前缀 | `PIGUI_*` | `PACE_*`；`PIGUI_DATA_DIR` 作为文档公开的覆盖入口保留一个 MINOR 版本的兼容读取 |
 | localStorage 键、IPC channel、CSS 类名前缀 | `pigui.*` / `pigui:*` / `pigui-*` | **不改**。用户不可见，localStorage 改名只会多一段迁移代码 |

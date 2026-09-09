@@ -1,8 +1,8 @@
-# PiGUI — Agent Instructions
+# Pace — Agent Instructions
 
 > Canonical agent instructions for this repo, shared across all runtimes (Pi, Claude Code, and any other agent). `CLAUDE.md` imports this file — edit here, not there.
 
-PiGUI is the missing GUI for the Pi coding agent — a visualization host for Pi's runtime and extension ecosystem, built on an agent-workspace control plane. It creates, starts, observes, and manages Pi agent workspaces — and replays each session as a legible timeline with cost and token truth; extension-registered surfaces and dynamic workflow views are the roadmap. It drives Pi as an isolated subprocess (Pi owns session truth; PiGUI observes and steers it over a transport-agnostic RPC protocol). The desktop shell is Electron (`utilityProcess` backend + React renderer; see `docs/adr/0013-electron-shell-and-relocatable-backend.md`). For product scope and decisions, read `README.md` and `.scratch/v1-session-replay/PRD.md`.
+Pace is the missing GUI for the Pi coding agent — a visualization host for Pi's runtime and extension ecosystem, built on an agent-workspace control plane. It creates, starts, observes, and manages Pi agent workspaces — and replays each session as a legible timeline with cost and token truth; extension-registered surfaces and dynamic workflow views are the roadmap. It drives Pi as an isolated subprocess (Pi owns session truth; Pace observes and steers it over a transport-agnostic RPC protocol). The desktop shell is Electron (`utilityProcess` backend + React renderer; see `docs/adr/0013-electron-shell-and-relocatable-backend.md`). For product scope and decisions, read `README.md` and `.scratch/v1-session-replay/PRD.md`.
 
 **Orientation**: the "Architecture" section of `README.md` is the canonical map — the event-pipeline diagram, the "Where things live" table (which file to edit for which concern), and the step-by-step prompt flow. Consult it before searching the codebase. Backend modules mirror that map: `packages/backend/src/{drivers,gateway,persistence,workspace}` with `service.ts` as the composition root.
 
@@ -60,5 +60,5 @@ The CONTEXT.md term ↔ code binding table is `apps/desktop/src/dev/ui-intent/re
 
 ## Runtime gotchas
 
-- **`bun run dev` writes to `~/.pigui-dev`, not `~/.pigui`.** The unpackaged app defaults its backend data directory to a sibling so a dev instance never mixes with the installed app's real sessions; set `PIGUI_DATA_DIR` to override. Details: `docs/dogfooding.md`.
+- **`bun run dev` writes to `~/.pace-dev`, not `~/.pace`.** The unpackaged app defaults its backend data directory to a sibling so a dev instance never mixes with the installed app's real sessions; set `PIGUI_DATA_DIR` to override. Details: `docs/dogfooding.md`.
 - **Never exercise the terminal pty driver (`packages/backend/src/drivers/terminal.ts`) under the Bun runtime** (`bun script.ts`, `bun -e`). Bun's Node-API support breaks `@lydell/node-pty`: the pty spawns, then its fd dies early (`ioctl(2) failed, EBADF`) and output is lost. The production path never hits this — the backend runs in Electron's Node via `utilityProcess`, and vitest runs on Node too — so the rule only applies to one-off debug scripts: run those with `node script.mjs` instead.

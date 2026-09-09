@@ -79,7 +79,7 @@ export function sessionProjectionFromPersistedProjection(
       : null,
     stale: sessionFileMissing,
     staleReason: sessionFileMissing
-      ? "Session file is missing. Start a new PiGUI Session to continue from this Project."
+      ? "Session file is missing. Start a new Pace Session to continue from this Project."
       : null,
     archivedAt:
       record.archivedAt ??

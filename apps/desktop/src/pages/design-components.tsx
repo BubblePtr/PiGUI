@@ -218,9 +218,9 @@ function PiBarChartGallery() {
 
 
 const galleryTerminalInstances = [
-  { id: "term-1", label: "Terminal 1", hint: "/work/PiGUI" },
-  { id: "term-2", label: "Terminal 2", hint: "/work/PiGUI/apps/desktop" },
-  { id: "term-3", label: "Terminal 3", hint: "/work/PiGUI", isExited: true },
+  { id: "term-1", label: "Terminal 1", hint: "/work/pace" },
+  { id: "term-2", label: "Terminal 2", hint: "/work/pace/apps/desktop" },
+  { id: "term-3", label: "Terminal 3", hint: "/work/pace", isExited: true },
 ];
 
 function SessionSurfaceTabsSample({

@@ -9,8 +9,8 @@ import test from "node:test";
 const publishScript = fileURLToPath(new URL("./publish-release.sh", import.meta.url));
 
 const releaseAssets = (version) => {
-  const artifact = `PiGUI-${version}-arm64.dmg`;
-  const zipArtifact = `PiGUI-${version}-arm64.zip`;
+  const artifact = `Pace-${version}-arm64.dmg`;
+  const zipArtifact = `Pace-${version}-arm64.zip`;
   return {
     artifact,
     zipArtifact,
@@ -39,7 +39,7 @@ if (operation === 'api') {
   const existing = JSON.parse(process.env.EXISTING_RELEASE);
   process.stdout.write(JSON.stringify(existing === null ? [] : [{ tag_name: process.env.RELEASE_TAG, draft: existing }]));
 } else if (operation === 'release view') {
-  process.stdout.write('Release: https://github.com/BubblePtr/PiGUI/releases/tag/' + process.env.RELEASE_TAG + '\\n');
+  process.stdout.write('Release: https://github.com/BubblePtr/pace/releases/tag/' + process.env.RELEASE_TAG + '\\n');
 } else if (!['release create', 'release upload', 'release edit'].includes(operation)) process.exit(2);
 `, { mode: 0o755 });
   const result = spawnSync("bash", [publishScript], {
@@ -51,7 +51,7 @@ if (operation === 'api') {
       CALLS_FILE: callsFile,
       EXISTING_RELEASE: JSON.stringify(existing),
       FAIL_OPERATION: fail,
-      GH_REPO: "BubblePtr/PiGUI",
+      GH_REPO: "BubblePtr/pace",
       RELEASE_TAG: `v${version}`,
       VERSION: version,
       PRERELEASE: String(prerelease),

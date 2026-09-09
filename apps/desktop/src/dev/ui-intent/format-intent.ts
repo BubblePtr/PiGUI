@@ -33,7 +33,7 @@ function at(file: string | null, line: number | null): string | null {
 }
 
 export function formatIntentBlock(target: IntentTarget): string {
-  const lines: string[] = ["UI target (picked from the running PiGUI app):", ""];
+  const lines: string[] = ["UI target (picked from the running Pace app):", ""];
 
   if (target.region) {
     lines.push(

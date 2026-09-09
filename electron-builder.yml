@@ -1,5 +1,5 @@
-appId: com.bubbleptr.pigui
-productName: PiGUI
+appId: com.bubbleptr.pace
+productName: Pace
 electronVersion: 42.5.0
 asar: true
 compression: normal
@@ -33,7 +33,7 @@ artifactName: ${productName}-${version}-${arch}.${ext}
 publish:
   provider: github
   owner: BubblePtr
-  repo: PiGUI
+  repo: pace
 
 mac:
   icon: build/icon.icns
@@ -72,14 +72,14 @@ linux:
   icon: build/icon.icns
   # Without this, electron-builder falls back to the workspace package name
   # (`@pigui/desktop` → `@piguidesktop`); see app-builder-lib linuxPackager.
-  executableName: pigui
+  executableName: pace
   # Electron derives app_id / WM_CLASS from `desktopName` in the app package.json;
   # syncing keeps the installed .desktop filename and StartupWMClass matching, so
   # Wayland/X11 compositors associate the running window with the launcher entry.
   syncDesktopName: true
   maintainer: BubblePtr <102268132+BubblePtr@users.noreply.github.com>
   category: Development
-  synopsis: The missing GUI for the Pi coding agent
+  synopsis: Pace — The GUI for the Pi coding agent
   target:
     - target: AppImage
       arch:

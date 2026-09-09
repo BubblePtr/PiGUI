@@ -32,8 +32,8 @@ export function validateRelease({ tag, rootVersion, appVersion, platform, arch, 
   return {
     version,
     prerelease: Boolean(match[4]),
-    artifact: `PiGUI-${version}-arm64.dmg`,
-    zipArtifact: `PiGUI-${version}-arm64.zip`,
+    artifact: `Pace-${version}-arm64.dmg`,
+    zipArtifact: `Pace-${version}-arm64.zip`,
   };
 }
 
