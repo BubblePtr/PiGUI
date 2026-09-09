@@ -85,6 +85,9 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app"
           spctl --assess --type execute --verbose=2 "$app"
+      # trajectory-strip.spec.ts drives a Vite page in Chromium, not Electron.
+      - name: Install Playwright Chromium
+        run: bunx playwright install chromium
       - name: Test the app inside the DMG
         timeout-minutes: 10
         env:

@@ -40,6 +40,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: bun run package:mac:unsigned
+      # trajectory-strip.spec.ts drives a Vite page in Chromium, not Electron.
+      - name: Install Playwright Chromium
+        run: bunx playwright install chromium
       - name: Test packaged app
         timeout-minutes: 10
         env:
