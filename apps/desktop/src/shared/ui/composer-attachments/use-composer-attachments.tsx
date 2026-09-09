@@ -123,7 +123,7 @@ export function useComposerInsertCatalog() {
           return;
         }
 
-        setSkills(inventory.skills);
+        setSkills(inventory.skills.filter(skill => skill.enabled));
         setPlugins(
           inventory.extensions.filter((extension) => extension.enabled),
         );

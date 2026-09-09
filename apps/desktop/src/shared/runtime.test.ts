@@ -94,6 +94,7 @@ describe("renderer runtime bridge", () => {
       extensions: [],
       skills: [],
       promptTemplates: [],
+      themes: [],
     });
     await expect(invoke("resolve_tool_schemas", { names: ["bash"] })).resolves.toEqual({
       schemas: {},
