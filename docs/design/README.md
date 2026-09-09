@@ -1,11 +1,11 @@
-# PiGUI 设计系统
+# Pace 设计系统
 
 > 给"昨天刚入职、以后也没法提问"的工程师看的。每一条没写的决定都会被猜测替代，而猜测和决定长得一模一样。
 > 本目录回答"什么时候用哪个、哪个变体、什么不存在"；[`../self-built-ui.md`](../self-built-ui.md) 回答"为什么自建、去哪儿了"；`/design` 页（dev 构建）是活的变体注册表。三者不互相复制。
 
 ## 系统性格
 
-PiGUI 是 Astryx（Meta 开源，`@astryxdesign/core` 0.3.x，155 个组件）之上的一层薄壳。Astryx 提供全部一级 token 与通用组件，`apps/desktop/src/app/styles.css` 把它们拼成 15 个语义桥 token 并暴露给 Tailwind 类名，`apps/desktop/src/shared/ui/` 只在 Astryx 没有对应物的地方自建（聊天流、思维链、轨迹台账、图表、终端、浏览器宿主）。主题是 `theme-neutral` + Montserrat 字体，明暗跟随操作系统，**没有应用内主题开关**。整个系统只有一种视觉密度：14px 正文、4px 间距基数、8px 元素圆角。
+Pace 是 Astryx（Meta 开源，`@astryxdesign/core` 0.3.x，155 个组件）之上的一层薄壳。Astryx 提供全部一级 token 与通用组件，`apps/desktop/src/app/styles.css` 把它们拼成 15 个语义桥 token 并暴露给 Tailwind 类名，`apps/desktop/src/shared/ui/` 只在 Astryx 没有对应物的地方自建（聊天流、思维链、轨迹台账、图表、终端、浏览器宿主）。主题是 `theme-neutral` + Montserrat 字体，明暗跟随操作系统，**没有应用内主题开关**。整个系统只有一种视觉密度：14px 正文、4px 间距基数、8px 元素圆角。
 
 ## 七条硬规则
 

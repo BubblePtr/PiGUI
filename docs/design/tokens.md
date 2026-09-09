@@ -2,7 +2,7 @@
 
 ## 允许哪一层
 
-三层，从下往上：Astryx 一级 token（`--color-*`、`--spacing-*`、`--radius-*`、`--font-size-*`、`--duration-*`，全部 `light-dark()`，随系统明暗自动切换）→ PiGUI 语义桥（`styles.css:59-76`，15 个）→ Tailwind 别名（`styles.css:81-97` 的 `@theme inline`，让 `text-foreground` / `bg-surface` / `border-separator` 这类类名可用）。
+三层，从下往上：Astryx 一级 token（`--color-*`、`--spacing-*`、`--radius-*`、`--font-size-*`、`--duration-*`，全部 `light-dark()`，随系统明暗自动切换）→ Pace 语义桥（`styles.css:59-76`，15 个）→ Tailwind 别名（`styles.css:81-97` 的 `@theme inline`，让 `text-foreground` / `bg-surface` / `border-separator` 这类类名可用）。
 
 组件代码只能引用**上两层**：语义桥（`var(--foreground)` 或类名 `text-foreground`）和 Astryx 一级 token（`var(--color-text-secondary)`）。原因：桥和一级 token 都会随主题解析，字面量不会；Tailwind 自带调色板（`text-gray-500`、`bg-zinc-900`）不经过 Astryx，明暗模式下必错。
 
