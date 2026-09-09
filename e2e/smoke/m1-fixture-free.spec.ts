@@ -8,7 +8,7 @@ import {
 
 declare global {
   interface Window {
-    __piguiE2EBackendLifecycle?: Array<{
+    __paceE2EBackendLifecycle?: Array<{
       generation: number;
       lifecycle: string;
     }>;
@@ -118,13 +118,13 @@ test.describe("M2: Reliable lifecycle", () => {
         testApp.projection!,
       );
       await testApp.window.evaluate(() => {
-        window.__piguiE2EBackendLifecycle = [];
+        window.__paceE2EBackendLifecycle = [];
         window.pace!.onBackendEvent((event) => {
           if (event.event.sessionId !== "__backend__") {
             return;
           }
 
-          window.__piguiE2EBackendLifecycle!.push({
+          window.__paceE2EBackendLifecycle!.push({
             generation: Number(event.event.payload.generation),
             lifecycle: String(event.event.payload.lifecycle),
           });
@@ -146,7 +146,7 @@ test.describe("M2: Reliable lifecycle", () => {
         .poll(
           () =>
             testApp.window.evaluate(
-              () => window.__piguiE2EBackendLifecycle ?? [],
+              () => window.__paceE2EBackendLifecycle ?? [],
             ),
           { timeout: 15_000 },
         )
@@ -350,13 +350,13 @@ test.describe("M4: Model and Thinking controls", () => {
         });
 
       await testApp.window.evaluate(() => {
-        window.__piguiE2EBackendLifecycle = [];
+        window.__paceE2EBackendLifecycle = [];
         window.pace!.onBackendEvent((event) => {
           if (event.event.sessionId !== "__backend__") {
             return;
           }
 
-          window.__piguiE2EBackendLifecycle!.push({
+          window.__paceE2EBackendLifecycle!.push({
             generation: Number(event.event.payload.generation),
             lifecycle: String(event.event.payload.lifecycle),
           });
@@ -370,7 +370,7 @@ test.describe("M4: Model and Thinking controls", () => {
         .poll(
           () =>
             testApp.window.evaluate(
-              () => window.__piguiE2EBackendLifecycle ?? [],
+              () => window.__paceE2EBackendLifecycle ?? [],
             ),
           { timeout: 15_000 },
         )
