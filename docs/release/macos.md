@@ -25,7 +25,7 @@ Pace 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
 | `APPLE_API_KEY_ID` | 上述 API key 的 Key ID。 |
 | `APPLE_API_ISSUER` | 同一 Team API key 的 Issuer ID。 |
 
-这需要可用的 Apple Developer Program 资格、Developer ID Application 签名证书及对应私钥，以及有公证权限的 App Store Connect Team API key。本机已有证书或 `pigui-notary` 钥匙串 profile **不会**自动传到 GitHub runner。
+这需要可用的 Apple Developer Program 资格、Developer ID Application 签名证书及对应私钥，以及有公证权限的 App Store Connect Team API key。本机已有证书或 `pigui-notary` 钥匙串 profile（改名前创建，未改名）**不会**自动传到 GitHub runner。
 
 还需要确认仓库允许 GitHub Actions 运行上述官方 actions，并允许 Release job 使用 `contents: write`。workflow 不绑定 GitHub Environment，因此不需要额外创建 environment。预检只判断凭据是否齐全；证书有效性、密码与公证权限由真实签名、公证阶段确认。
 
@@ -39,7 +39,7 @@ Pace 使用 `electron-builder` 生成 Apple Silicon `.app` 与 DMG。发布产�
    base64 -i "$HOME/Downloads/Pace-DeveloperID.p12" | tr -d '\n' | pbcopy
    ```
 
-2. 登录 [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api)，选择签名证书所属团队。进入「Users and Access → Integrations → App Store Connect API → Team Keys」，生成名为 `Pace CI` 的密钥。按当前 `@electron/notarize` 官方示例，Access 选 `App Manager`。若尚未开通 API，需要 Account Holder 先 Request Access；生成 Team Key 需要 Account Holder 或 Admin。
+2. 登录 [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api)，选择签名证书所属团队。进入「Users and Access → Integrations → App Store Connect API → Team Keys」，现有密钥仍名为 `PiGUI CI`（改名前创建，未改名）。新生成时显示名可沿用或改为 `Pace CI`；Secrets 只认 Key ID 与 Issuer，不认显示名。按当前 `@electron/notarize` 官方示例，Access 选 `App Manager`。若尚未开通 API，需要 Account Holder 先 Request Access；生成 Team Key 需要 Account Holder 或 Admin。
 3. 下载 `AuthKey_<KEY_ID>.p8`（只能下载一次），记录 Key ID 和 Issuer ID。将 `.p8` 全文填入 `APPLE_API_KEY_P8`，Key ID 填入 `APPLE_API_KEY_ID`，Issuer ID 填入 `APPLE_API_ISSUER`。Issuer ID 是 UUID，不是证书括号内的 Team ID；`.p8` 不需要 Base64 编码。
 4. 在仓库 Actions Secrets 页点击 **New repository secret**，按上面的表创建五项。完成后可运行 `gh secret list --repo BubblePtr/pace` 核对名称。GitHub CI 不需要本机的 `pigui-notary` profile；该 profile 只用于下面的本地公证流程。
 
@@ -125,7 +125,7 @@ codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Pace.app
 - `APPLE_API_KEY_ID`
 - `APPLE_API_ISSUER`
 
-Xcode 26+ 的 `notarytool` 支持 Individual API key，但必须省略 Issuer ID。当前流水线要求 Team API key 的五项 Secrets，不采用 Individual 认证方式。本地开发可先把 Team API key 写入钥匙串：
+Xcode 26+ 的 `notarytool` 支持 Individual API key，但必须省略 Issuer ID。当前流水线要求 Team API key 的五项 Secrets，不采用 Individual 认证方式。本地开发可先把 Team API key 写入钥匙串。profile 名仍是 `pigui-notary`（改名前创建）：
 
 ```bash
 xcrun notarytool store-credentials "pigui-notary" \
