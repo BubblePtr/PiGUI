@@ -9,6 +9,17 @@ import type {
 import { createMockApi } from "./scenarios";
 
 describe("static development sessions", () => {
+  it("lists directories before files in alphabetical order", async () => {
+    const api = createMockApi();
+    const directory = await api.invoke<SessionDirectoryListing>(
+      "list_session_directory",
+      { sessionId: "mock-review", path: "" },
+    );
+    expect(directory.entries.map((entry) => entry.name)).toEqual([
+      "assets", "docs", "empty", "logs", "src", "README.md",
+    ]);
+  });
+
   it("opens listed sessions and reads changed files through the same checkout paths", async () => {
     const api = createMockApi();
     const sessions = await api.invoke<PersistedSessionProjection[]>(

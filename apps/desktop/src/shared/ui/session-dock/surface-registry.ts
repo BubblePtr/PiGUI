@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { FileDiff, FolderOpen, Globe, Terminal } from "@/shared/ui/icons";
+import { FileDiff, Files, Globe, Terminal } from "@/shared/ui/icons";
 
 /**
  * Registry of the Session-scoped surfaces the SessionDock can host.
@@ -54,7 +54,7 @@ export const sessionSurfaces: Record<SessionSurfaceId, SessionSurfaceMeta> = {
   files: {
     id: "files",
     title: "Files",
-    icon: FolderOpen,
+    icon: Files,
     hint: "Browse this Session's checkout",
     flushContent: true,
   },
