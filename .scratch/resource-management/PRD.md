@@ -1,6 +1,6 @@
 # PRD: Resource Management（Pi 扩展体系的管理面）
 
-Status: needs-triage
+Status: ready-for-agent
 Feature: resource-management
 Created: 2026-09-09
 
@@ -77,12 +77,11 @@ SDK 已经把整套管理能力暴露出来了：`DefaultPackageManager` 提供 
 
 | # | Issue | 内容 | 阻塞 |
 | --- | --- | --- | --- |
-| 1 | — | 契约与只读升级：`ResourceInfo` / `PackageInfo`，Origin 含 drop-in，promptTemplates 填充，Setup 页按新契约展示（仍只读） | — |
-| 2 | — | 后端写回：install / remove / update / set_resource_enabled / check_updates 五个 gateway 方法，SDK 调用、锁与错误上报，与 CLI 互操作 contract test | Blocked by #1 |
-| 3 | — | 渲染层动作：安装对话框、Add local resource、Resource 开关、Theme 置灰、生效时机提示、composer 菜单刷新 | Blocked by #2 |
-| 4 | — | 诊断与更新：加载错误关联到 Package 详情，Update available 徽标；ADR-0037 与文档收尾 | Blocked by #3 |
+| 1 | #251 | 契约与只读升级：`ResourceInfo` / `PackageInfo`，Origin 含 drop-in，promptTemplates 填充，Setup 页按新契约展示（仍只读） | — |
+| 2 | #252 | 后端写回：install / remove / update / set_resource_enabled / check_updates 五个 gateway 方法，SDK 调用、锁与错误上报，与 CLI 互操作 contract test | Blocked by #251 |
+| 3 | #253 | 渲染层动作：安装对话框、Add local resource、Resource 开关、Theme 置灰、生效时机提示、composer 菜单刷新 | Blocked by #252 |
+| 4 | #254 | 诊断与更新：加载错误关联到 Package 详情，Update available 徽标；ADR-0037 与文档收尾 | Blocked by #253 |
 
-Issue 编号在 triage 时创建（`gh issue`），见 `docs/agents/issue-tracker.md`。
 
 ## Out of Scope
 
