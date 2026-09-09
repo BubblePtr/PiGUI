@@ -1,3 +1,4 @@
+import { Token } from "@astryxdesign/core/Token";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Layout, LayoutContent } from "@astryxdesign/core/Layout";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -23,7 +24,7 @@ import { Box, Palette, Puzzle, RefreshCw, Settings2, Sparkles, Wrench } from "@/
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import { invoke } from "@/shared/runtime";
 
-import type { ConfigInventory, ResourceInfo, PackageInfo, PackageProgressEvent, PackageActionResult, AddLocalResourceResult } from "@pace/core";
+import type { ConfigInventory, ResourceInfo, PackageInfo, PackageProgressEvent, PackageActionResult, AddLocalResourceResult, CheckPackageUpdatesResult } from "@pace/core";
 
 export type { ConfigInventory, ResourceInfo, PackageInfo } from "@pace/core";
 
@@ -147,7 +148,7 @@ const resourceGroups = [
   { kind: "theme", label: "Themes" },
 ] as const;
 
-const ActionsContext = createContext<{ pending: boolean; packages: PackageInfo[]; run: (command: string, args: Record<string, unknown>) => Promise<boolean> } | null>(null);
+const ActionsContext = createContext<{ pending: boolean; updates: CheckPackageUpdatesResult["updates"]; packages: PackageInfo[]; run: (command: string, args: Record<string, unknown>) => Promise<boolean> } | null>(null);
 const nextSessionCopy = "Takes effect in the next new Session. Running Sessions are not affected.";
 
 function ResourceControls({ resource }: { resource: ResourceInfo }) {
@@ -168,6 +169,15 @@ function ResourceControls({ resource }: { resource: ResourceInfo }) {
 
 export function ResourceManagement({ inventory, selected }: { inventory: ConfigInventory; selected: SetupCategory }) {
   const client = useQueryClient();
+  const updates = useQuery({
+    queryKey: ["package-updates"],
+    queryFn: () => invoke<CheckPackageUpdatesResult>("check_package_updates"),
+    staleTime: Infinity,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [installOpen, setInstallOpen] = useState(false);
@@ -192,12 +202,15 @@ export function ResourceManagement({ inventory, selected }: { inventory: ConfigI
       const result = command === "select_local_resource" ? undefined : await invoke<PackageActionResult>(command, args);
       setProgress(result?.progress ?? []);
       await client.invalidateQueries({ queryKey: ["config-inventory"] });
+      if (["update_package", "install_package", "remove_package"].includes(command)) {
+        await client.invalidateQueries({ queryKey: ["package-updates"] });
+      }
       setMessage(command === "reveal_project_in_finder" ? "Revealed in Finder" : nextSessionCopy);
       return true;
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); return false; }
     finally { busy.current = false; setPending(false); }
   };
-  return <ActionsContext.Provider value={{ pending, packages: inventory.packages, run }}><VStack gap={3}>
+  return <ActionsContext.Provider value={{ pending, updates: updates.data?.updates ?? [], packages: inventory.packages, run }}><VStack gap={3}>
     <HStack gap={2}>
       <Button label="Install package" variant="primary" isDisabled={pending} onClick={() => setInstallOpen(true)} />
       <Button label="Add local resource" variant="secondary" isDisabled={pending} onClick={() => void run("select_local_resource", {})} />
@@ -210,6 +223,7 @@ export function ResourceManagement({ inventory, selected }: { inventory: ConfigI
         <Button label={pending ? "Installing…" : "Install"} variant="primary" isDisabled={pending || !/^(npm:|git:|https:\/\/)/.test(source.trim())} onClick={() => void run("install_package", { source: source.trim() }).then(ok => { if (ok) { setInstallOpen(false); setSource(""); } })} />
       </VStack></LayoutContent>} />
     </Dialog>}
+    {updates.isError && <Text role="alert" style={{ color: "var(--danger)" }}>Could not check package updates: {updates.error.message}</Text>}
     {pending && <Text role="status">Working…</Text>}
     {progress.length > 0 && <List hasDividers>{progress.map((event, index) => <ListItem key={index} label={`${event.action}: ${event.type}`} description={`${event.source} ${event.message ?? ""}`} />)}</List>}
     {error && !installOpen && <Text role="alert" style={{ color: "var(--danger)" }}>{error}</Text>}
@@ -227,7 +241,7 @@ function ResourceList({ resources }: { resources: ResourceInfo[] }) {
           key={`${resource.kind}:${resource.path}`}
           endContent={<ResourceControls resource={resource} />}
           label={resource.name}
-          description={[
+          description={<VStack gap={1}><Text type="supporting">{[
             resource.enabled ? "enabled" : "disabled",
             resource.scope,
             resource.origin,
@@ -235,7 +249,12 @@ function ResourceList({ resources }: { resources: ResourceInfo[] }) {
             resource.origin === "drop-in" ? "Auto-loaded from a convention directory" : undefined,
             resource.kind === "theme" ? "Only affects the Pi terminal" : undefined,
             resource.path,
-          ].filter(Boolean).join(" · ")}
+          ].filter(Boolean).join(" · ")}</Text>
+            {resource.lastError && <>
+              <Text type="supporting">Latest extension error · <time dateTime={resource.lastError.timestamp}>{new Date(resource.lastError.timestamp).toLocaleString()}</time></Text>
+              <Text style={{ color: "var(--danger)", overflowWrap: "anywhere" }}>{resource.lastError.message}</Text>
+            </>}
+          </VStack>}
         />
       ))}
     </List>
@@ -251,6 +270,7 @@ function PackageList({ packages }: { packages: PackageInfo[] }) {
         <VStack key={`${pkg.scope}:${pkg.source}`} gap={3}>
           <HStack gap={3} vAlign="center">
             <Heading level={3}>{pkg.source}</Heading>
+            {actions?.updates.some(update => update.source === pkg.source && update.scope === pkg.scope) && <Token size="sm" label="Update available" />}
             {actions && <>
               <Button label={`Update ${pkg.source}`} variant="ghost" size="sm" isDisabled={actions.pending} onClick={() => void actions.run("update_package", { source: pkg.source })} />
               <Button label={`Remove ${pkg.source}`} variant="destructive" size="sm" isDisabled={actions.pending} onClick={() => {

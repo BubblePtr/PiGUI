@@ -408,6 +408,7 @@ export function createMockApi(): PaceRendererApi {
           break;
         }
         case "get_environment_preflight_status":
+        case "check_package_updates":
         case "get_config_inventory":
         case "list_available_model_controls":
         case "resolve_tool_schemas":

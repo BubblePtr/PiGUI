@@ -133,7 +133,7 @@ describe("resource actions", () => {
 
 it("validates install sources, prevents duplicate installs and shows returned progress", async () => {
   let complete!: (value: unknown) => void;
-  vi.mocked(invoke).mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+  vi.mocked(invoke).mockReset().mockImplementation(command => command === "check_package_updates" ? Promise.resolve({ updates: [] }) : new Promise(resolve => { complete = resolve; }));
   render(<QueryClientProvider client={new QueryClient()}><ResourceManagement inventory={inventory} selected="packages" /></QueryClientProvider>);
   fireEvent.click(screen.getByRole("button", { name: "Install package" }));
   const input = screen.getByRole("textbox", { name: "npm package or git URL" });
@@ -149,7 +149,11 @@ it("validates install sources, prevents duplicate installs and shows returned pr
 
 it("confirms local replacement and package removal before writing", async () => {
   vi.mocked(invoke).mockReset();
-  vi.mocked(invoke).mockResolvedValueOnce("/tmp/foo.ts").mockResolvedValueOnce({ conflict: true, path: "/agent/extensions/foo.ts" }).mockResolvedValue({ progress: [] });
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "select_local_resource") return "/tmp/foo.ts";
+    if (command === "add_local_resource" && !args?.overwrite) return { conflict: true, path: "/agent/extensions/foo.ts" };
+    return { progress: [], updates: [] };
+  });
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
   render(<QueryClientProvider client={new QueryClient()}><ResourceManagement inventory={inventory} selected="packages" /></QueryClientProvider>);
   fireEvent.click(screen.getByRole("button", { name: "Add local resource" }));
@@ -174,15 +178,42 @@ it("disables terminal themes and CLI bare packages, and confirms drop-in deletio
   const { rerender } = render(<QueryClientProvider client={client}><ResourceManagement inventory={data} selected="themes" /></QueryClientProvider>);
   expect(screen.getByRole("switch", { name: "Enable night" })).toHaveAttribute("aria-disabled", "true");
   fireEvent.click(screen.getByRole("switch", { name: "Enable night" }));
-  expect(invoke).not.toHaveBeenCalled();
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command !== "check_package_updates")).toHaveLength(0);
   rerender(<QueryClientProvider client={client}><ResourceManagement inventory={data} selected="extensions" /></QueryClientProvider>);
   const switches = screen.getAllByRole("switch", { name: "Enable terminal-tools" });
   expect(switches[0]).toHaveAttribute("aria-disabled", "true");
   const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
   fireEvent.click(screen.getByRole("button", { name: "Delete drop" }));
-  expect(invoke).not.toHaveBeenCalled();
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command !== "check_package_updates")).toHaveLength(0);
   fireEvent.click(screen.getByRole("button", { name: "Delete drop" }));
   expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("Removing the file disables it"));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("remove_local_resource", { path: "/extensions/drop.ts" }));
   confirm.mockRestore();
+});
+
+it("checks updates once on entry, keeps the badge across sections, and rechecks after Update", async () => {
+  vi.mocked(invoke).mockReset().mockImplementation(async command => command === "check_package_updates" ? { updates: [{ source: "@pi/code", scope: "user", type: "npm", displayName: "kit" }] } : { progress: [] });
+  const client = new QueryClient();
+  const view = (selected: "packages" | "extensions") => <QueryClientProvider client={client}><ResourceManagement inventory={inventory} selected={selected} /></QueryClientProvider>;
+  const { rerender } = render(view("packages"));
+  expect(await screen.findByText("Update available")).toBeInTheDocument();
+  rerender(view("extensions"));
+  rerender(view("packages"));
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "check_package_updates")).toHaveLength(1);
+  vi.mocked(invoke).mockImplementation(async command => command === "check_package_updates" ? { updates: [] } : { progress: [] });
+  fireEvent.click(screen.getByRole("button", { name: "Update @pi/code" }));
+  await waitFor(() => expect(screen.queryByText("Update available")).not.toBeInTheDocument());
+  expect(invoke).toHaveBeenCalledWith("update_package", { source: "@pi/code" });
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "check_package_updates")).toHaveLength(2);
+});
+
+it("shows the journal error and timestamp in package details and drop-in resources without empty placeholders", () => {
+  const lastError = { sessionId: "session", timestamp: "2026-09-09T12:00:00Z", message: "/kit/tool.ts: failed to load" };
+  const data = { ...inventory, packages: [{ ...inventory.packages[0], resources: [{ ...resources[0], lastError }, resources[1]] }], extensions: [{ ...inventory.extensions[1], lastError: { ...lastError, message: "drop failed" } }] };
+  const { rerender } = render(<ConfigInventoryView inventory={data} selected="packages" />);
+  expect(screen.getByText(lastError.message)).toBeInTheDocument();
+  expect(screen.getByText(/Latest extension error/).querySelector("time")).toHaveAttribute("datetime", lastError.timestamp);
+  expect(screen.getAllByText(/Latest extension error/)).toHaveLength(1);
+  rerender(<ConfigInventoryView inventory={data} selected="extensions" />);
+  expect(screen.getByText("drop failed")).toBeInTheDocument();
 });

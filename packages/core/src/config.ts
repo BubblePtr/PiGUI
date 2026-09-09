@@ -10,6 +10,7 @@ export type ResourceInfo = {
   origin: "package" | "top-level" | "drop-in";
   scope: "user" | "project";
   packageSource?: string;
+  lastError?: { sessionId: string; timestamp: string; message: string };
 };
 
 export type PackageInfo = {

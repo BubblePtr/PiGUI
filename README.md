@@ -112,6 +112,7 @@ flowchart LR
 | Gateway protocol (commands, event contract, identity) | [`packages/core/src/`](packages/core/src/): `runtime-gateway.ts`, `agent-runtime-event.ts` |
 | How Pi is driven | [`packages/backend/src/drivers/`](packages/backend/src/drivers/) |
 | Persistence and replay | [`packages/backend/src/persistence/`](packages/backend/src/persistence/) |
+| Resource Management (Setup): packages, resources, update checks and journal diagnostics | [`apps/desktop/src/pages/setup.tsx`](apps/desktop/src/pages/setup.tsx), [`packages/backend/src/workspace/resource-management.ts`](packages/backend/src/workspace/resource-management.ts), [`resource-diagnostics.ts`](packages/backend/src/workspace/resource-diagnostics.ts) ([ADR-0037](docs/adr/0037-resource-management.md)) |
 | Sessions on disk, git worktrees, config inventory | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Electron shell and transport | [`apps/desktop/electron/`](apps/desktop/electron/): `main.ts`, `preload.ts`, `backend.ts` |
 | Dock surfaces (Changes, Files, Terminal, Browser) | [`apps/desktop/src/shared/ui/session-dock/surface-registry.ts`](apps/desktop/src/shared/ui/session-dock/surface-registry.ts) |
@@ -120,7 +121,9 @@ flowchart LR
 
 ## Extensibility: where the GUI meets Pi's extension ecosystem
 
-Pi's extension ecosystem is built on the `Package → Extension / Skill / Prompt / Theme` model. Pace follows and reuses that model as is; it only defines what an extension can contribute to the desktop GUI in terms of visuals and interaction. The extension points that exist today:
+Pi's extension ecosystem is built on the `Package → Extension / Skill / Prompt / Theme` model. Pace follows and reuses that model as is; it only defines what an extension can contribute to the desktop GUI in terms of visuals and interaction. Setup provides **Resource Management**: install, remove and update user packages, toggle their resources, and add local resources to Pi convention directories. Package rows show available updates; resource details show extension errors from the most recently active Session. Settings changes apply to the next new Session ([ADR-0037](docs/adr/0037-resource-management.md)).
+
+The extension points that exist today:
 
 - **The `surface` routing stamp on every event**: the `chat | trace | status | composer | hidden` stamp an event carries decides how it is presented in the UI. Today it is a fixed, predefined set; it is also the standard mounting slot for future extension panels.
 
@@ -159,7 +162,7 @@ Stack: Electron + electron-vite, React 19, TypeScript, TanStack (Query / Router 
 
 | Data | Installed app | `bun run dev` | Owner |
 | --- | --- | --- | --- |
-| Pi sessions, auth, extensions | `~/.pi/agent` | shared | Pi. Pace only reads. |
+| Pi sessions, auth, extensions | `~/.pi/agent` | shared | Pi owns session truth; Pace manages user resource settings through the SDK and imports local resources. |
 | Session journal, projections, preflight state | `~/.pace` | `~/.pace-dev` | Pace. Override with `PACE_DATA_DIR` (`PIGUI_DATA_DIR` is a deprecated alias). |
 | Renderer preferences (project registry, drafts, model choice), Chromium profile | Electron userData | userData `-dev` | Pace. |
 

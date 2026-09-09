@@ -117,6 +117,7 @@ flowchart LR
 | 磁盘上的 Session、git worktree、配置清单 | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Electron 外壳与传输 | [`apps/desktop/electron/`](apps/desktop/electron/)：`main.ts`、`preload.ts`、`backend.ts` |
 | Dock Surface（Changes、Files、Terminal、Browser） | [`apps/desktop/src/shared/ui/session-dock/surface-registry.ts`](apps/desktop/src/shared/ui/session-dock/surface-registry.ts) |
+| Resource Management（Setup）：Package、Resource、更新检查与 journal 诊断 | [`apps/desktop/src/pages/setup.tsx`](apps/desktop/src/pages/setup.tsx)、[`packages/backend/src/workspace/resource-management.ts`](packages/backend/src/workspace/resource-management.ts)、[`resource-diagnostics.ts`](packages/backend/src/workspace/resource-diagnostics.ts)（[ADR-0037](docs/adr/0037-resource-management.md)） |
 | 设计系统规则 | [`docs/design/`](docs/design/)，自建组件清单见 [`docs/self-built-ui.md`](docs/self-built-ui.md) |
 | 为什么这样设计 | [`docs/adr/`](docs/adr/)，术语在 [`CONTEXT.md`](CONTEXT.md) |
 
@@ -124,7 +125,9 @@ flowchart LR
 
 ## 扩展机制：GUI 与 Pi 扩展生态的融合点
 
-Pi 的扩展生态基于 `Package → Extension / Skill / Prompt / Theme` 体系。Pace 直接复用这一模型，只定义扩展能为桌面 GUI 贡献哪些视觉与交互能力。当前已落地的扩展点：
+Pi 的扩展生态基于 `Package → Extension / Skill / Prompt / Theme` 体系。Pace 直接复用这一模型，只定义扩展能为桌面 GUI 贡献哪些视觉与交互能力。Setup 页提供 **Resource Management**：安装、卸载、更新 user scope 的 Package，开关其中的 Resource，把本地资源复制进 Pi 的约定目录；Package 行显示可用更新，Resource 详情显示最近活动 Session 的扩展错误。settings 变更在下一个新 Session 生效（[ADR-0037](docs/adr/0037-resource-management.md)）。
+
+当前已落地的扩展点：
 
 - **事件级别的 `surface` 路由标签**：事件携带的 `chat | trace | status | composer | hidden` 标签决定它在界面上如何呈现。目前是固定枚举集合，同时也是未来扩展面板的标准挂载插槽。
 - **Session Dock 面板注册表**：侧边栏里的每块面板都是一个 Surface，有唯一 ID、标题、图标与提示，集中声明在 `surface-registry.ts`。当前有四个内置面板（Changes、Files、Terminal、Browser）。按 [ADR-0032](docs/adr/0032-session-dock-and-trajectory-vocabulary.md) 的设计，注册表预留了 `provider` 字段（`builtin` 或具体的 Pi 扩展 ID），外部扩展贡献的面板会挂到同一侧边栏，不另起机制。
@@ -159,7 +162,7 @@ CONTEXT.md           领域术语表；每个界面区域和概念在这里都�
 
 | 数据 | 安装版 | `bun run dev` | 归属 |
 | --- | --- | --- | --- |
-| Pi 会话、认证、扩展 | `~/.pi/agent` | 共享 | Pi。Pace 只读。 |
+| Pi 会话、认证、扩展 | `~/.pi/agent` | 共享 | Pi 持有会话真相；Pace 通过 SDK 管理 user scope 的资源配置并导入本地资源。 |
 | Session journal、projection、预检状态 | `~/.pace` | `~/.pace-dev` | Pace。可用 `PACE_DATA_DIR` 覆盖（`PIGUI_DATA_DIR` 为已弃用别名）。 |
 | 渲染层偏好（项目注册表、草稿、模型选择）、Chromium profile | Electron userData | userData `-dev` | Pace。 |
 
