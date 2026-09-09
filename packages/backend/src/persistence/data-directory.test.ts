@@ -35,6 +35,18 @@ describe("backend data directory migration", () => {
     expect(migrateDataDir({}, home)).toBe(path);
   });
 
+  it("migrates journal contents into an empty destination directory", () => {
+    const home = temporaryHome();
+    const old = join(home, ".pigui");
+    const path = join(home, ".pace");
+    mkdirSync(old);
+    mkdirSync(path);
+    writeFileSync(join(old, "journal.jsonl"), "session history");
+    expect(migrateDataDir({}, home)).toBe(path);
+    expect(readFileSync(join(path, "journal.jsonl"), "utf8")).toBe("session history");
+    expect(existsSync(old)).toBe(false);
+  });
+
   it("keeps both directories intact when the new directory already exists", () => {
     const home = temporaryHome();
     for (const name of [".pigui", ".pace"]) {

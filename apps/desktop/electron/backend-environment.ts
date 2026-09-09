@@ -41,9 +41,13 @@ export function resolveDevelopmentUserDataPath(input: {
 }
 
 function migrateDirectory(path: string, legacyPath: string): string {
-  if (!fs.existsSync(path) && fs.existsSync(legacyPath)) {
+  if (fs.existsSync(legacyPath)) {
     try {
-      fs.renameSync(legacyPath, path);
+      if (fs.existsSync(path) && fs.readdirSync(path).length === 0 && fs.readdirSync(legacyPath).length > 0) {
+        // Electron may have created the profile before migration could run.
+        fs.rmdirSync(path);
+      }
+      if (!fs.existsSync(path)) fs.renameSync(legacyPath, path);
     } catch (error) {
       console.warn(`Pace could not migrate ${legacyPath} to ${path}; continuing with the old directory.`, error);
       return legacyPath;
@@ -55,14 +59,15 @@ function migrateDirectory(path: string, legacyPath: string): string {
 
 export function resolveUserDataPath(input: {
   appDataPath: string;
-  userDataPath: string;
   isPackaged: boolean;
-  hasUserDataDirSwitch: boolean;
-}): string {
+} & (
+  | { hasUserDataDirSwitch: true; userDataPath: string }
+  | { hasUserDataDirSwitch: false }
+)): string {
   if (input.hasUserDataDirSwitch) {
     return input.userDataPath;
   }
 
-  const path = resolveDevelopmentUserDataPath(input) ?? input.userDataPath;
+  const path = join(input.appDataPath, input.isPackaged ? "Pace" : "Pace-dev");
   return migrateDirectory(path, join(input.appDataPath, "@pigui", input.isPackaged ? "desktop" : "desktop-dev"));
 }

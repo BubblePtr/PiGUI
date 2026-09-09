@@ -150,7 +150,7 @@ describe.each([true, false])("Electron userData migration (packaged: %s)", (isPa
     const appDataPath = join(home, "Application Support");
     const suffix = isPackaged ? "" : "-dev";
     return {
-      input: { appDataPath, userDataPath: join(appDataPath, "Pace"), isPackaged, hasUserDataDirSwitch: false },
+      input: { appDataPath, isPackaged, hasUserDataDirSwitch: false as const },
       path: join(appDataPath, `Pace${suffix}`),
       old: join(appDataPath, "@pigui", `desktop${suffix}`),
     };
@@ -173,6 +173,16 @@ describe.each([true, false])("Electron userData migration (packaged: %s)", (isPa
     expect(readFileSync(join(other, "Local State"), "utf8")).toBe(other);
     expect(existsSync(old)).toBe(false);
     expect(resolveUserDataPath(input)).toBe(path);
+  });
+
+  it("migrates legacy preferences when Electron has created an empty destination", () => {
+    const { input, path, old } = paths();
+    mkdirSync(path, { recursive: true });
+    mkdirSync(join(old, "Local Storage"), { recursive: true });
+    writeFileSync(join(old, "Local Storage", "preferences"), "projects and drafts");
+    expect(resolveUserDataPath(input)).toBe(path);
+    expect(readFileSync(join(path, "Local Storage", "preferences"), "utf8")).toBe("projects and drafts");
+    expect(existsSync(old)).toBe(false);
   });
 
   it("leaves old and new profile contents intact when both exist", () => {

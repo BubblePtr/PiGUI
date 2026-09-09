@@ -24,9 +24,12 @@ export function migrateDataDir(env: NodeJS.ProcessEnv, homeDir: string): string 
 
   const dataDir = resolveDataDir(env, homeDir);
   const legacyDataDir = join(homeDir, ".pigui");
-  if (!fs.existsSync(dataDir) && fs.existsSync(legacyDataDir)) {
+  if (fs.existsSync(legacyDataDir)) {
     try {
-      fs.renameSync(legacyDataDir, dataDir);
+      if (fs.existsSync(dataDir) && fs.readdirSync(dataDir).length === 0 && fs.readdirSync(legacyDataDir).length > 0) {
+        fs.rmdirSync(dataDir);
+      }
+      if (!fs.existsSync(dataDir)) fs.renameSync(legacyDataDir, dataDir);
     } catch (error) {
       console.warn(`Pace could not migrate ${legacyDataDir} to ${dataDir}; continuing with the old directory.`, error);
       return legacyDataDir;

@@ -720,8 +720,10 @@ app.setName("Pace");
 const userDataPath = resolveUserDataPath({
   appDataPath: app.getPath("appData"),
   isPackaged: app.isPackaged,
-  hasUserDataDirSwitch: app.commandLine.hasSwitch("user-data-dir"),
-  userDataPath: app.getPath("userData"),
+  // getPath("userData") can create the destination and prevent legacy migration.
+  ...(app.commandLine.hasSwitch("user-data-dir")
+    ? { hasUserDataDirSwitch: true, userDataPath: app.getPath("userData") }
+    : { hasUserDataDirSwitch: false }),
 });
 app.setPath("userData", userDataPath);
 
