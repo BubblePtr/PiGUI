@@ -11,7 +11,7 @@
 
 | 组件 | 位置 | 说明 |
 | --- | --- | --- |
-| pace-wordmark | `shared/ui/pace-wordmark.tsx` | 项目专属品牌矢量，Astryx 无对应资源；保留已确认的分离式 PACE 路径，随主题继承颜色。Design 展示侧栏与大尺寸，使用规则见 `design/brand.md`。 |
+| pace-wordmark | `shared/ui/pace-wordmark.tsx` | 项目专属品牌矢量，Astryx 无对应资源；保留已确认的分离式 PACE 路径，随主题继承颜色。Design 展示小尺寸与大尺寸，工作区侧栏不使用，使用规则见 `design/brand.md`。 |
 | chat-chain-of-thought | `shared/ui/chat/` | Astryx 缺口;Compact 皮肤。**只剩 `phase` 一条路径**(#165 接线时删掉了 ADR-0027 的 `isStreaming` / `Live` / `LiveStatus` / `formatThoughtSummary` 一行视口,以及随之失去调用者的 `Trigger` / `Label` / `Content` 复合件):run 期间 step 列表平铺、无头部,底部挂 chat-status-line;`settled` 时整列折进「Worked for Ns」头部(默认折叠,高度过渡吃 Base UI 的 `--collapsible-panel-height`,时长走 `.chain-of-thought` 上的 `--cot-flip-duration: 300ms`——主题的 `--duration-slow-max` 在本仓库是 0.935s,不能拿来当翻页时长);步骤为空时头部退化为纯标签(`hasSteps={false}`,children 对组件不透明,数不出来只能告知);`startedAtMs` 是 run 期间唯一计时入口,组件自己 100ms 走表,没锚点就不显示数字(挂载时刻起表会把「页面开了多久」当成 run 的等待)。两条布局前提写在 chat.css 里且**只能一起成立**:块上 `contain: inline-size` 挡住 nowrap label 往上传的 min-content,`.chat-message__body:has(> .chain-of-thought)` 再把 Astryx 的 fit-content 消息体拉满列宽。Interim Output 行是页面级组合(`.chain-of-thought__interim`),不是组件。见 ADR-0030 |
 | chat-run-failure | `shared/ui/chat/` | 复用 Astryx Banner、Collapsible、Button 和 Stack 的错误恢复组合；认证和限流错误使用可读说明，原始错误默认折叠，支持 Provider settings、模型控件和异步重试。由页面决定最近失败请求是否可重试，组件阻止重复点击并呈现重试失败。Design 展示认证失败、历史错误、重试中和重试失败。 |
 | chat-chain-of-thought-rail | `shared/ui/chat/` | 2026-08-09 原型探索胜出的 Timeline 皮肤(PR #80);接线等 [#81](https://github.com/BubblePtr/PiGUI/issues/81) |

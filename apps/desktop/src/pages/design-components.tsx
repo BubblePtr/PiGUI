@@ -999,7 +999,7 @@ function PaceWordmarkGallery() {
   return (
     <GallerySection title="PaceWordmark">
       <VariantRow>
-        <Variant caption="Sidebar · theme foreground">
+        <Variant caption="Small · theme foreground">
           <PaceWordmark className="h-5" />
         </Variant>
         <Variant caption="Large · inherited color">

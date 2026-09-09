@@ -2,15 +2,15 @@
 
 ## 已确认的方向
 
-侧栏顶部使用 Figma 04 版独立 PACE 矢量字标，采用平直端点和切角轮廓。应用图标使用圆润开口 P、黑白底稿与 Icon Composer 原生材质；不使用 Figma 中的烟晶、冰晶或 IP 插画探索版。
+软件侧栏不展示品牌字标，让导航与会话内容成为重点。Figma 04 版独立 PACE 矢量字标保留为官网、宣传图片与社媒背景的品牌资源，采用平直端点和切角轮廓。应用图标使用圆润开口 P、黑白底稿与 Icon Composer 原生材质；不使用 Figma 中的烟晶、冰晶或 IP 插画探索版。
 
 设计来源：[Figma 第 04 版字标](https://www.figma.com/design/r5HLnoU3mVD8ddnAXMiGrA?node-id=3-197)，以及 `build/Pace.icon` 源工程。
 
-## 界面字标
+## 字标资源
 
 `PaceWordmark` 位于 `apps/desktop/src/shared/ui/pace-wordmark.tsx`，直接保留确认后的六条矢量路径，不依赖字体。默认高度为 `h-6`，宽高比为 824:180，颜色继承 `currentColor`；明暗主题使用界面的 foreground，不添加阴影、渐变或玻璃效果。
 
-字标放在 SideNav 固定头部、原生标题栏安全区下方，侧栏使用 `h-5`（20px）并水平居中。仅用于品牌识别，不添加点击行为。根 SVG 默认 `role="img"`、`aria-label="Pace"`，支持 `className` 与其他 SVG 属性透传。Design 页展示侧栏尺寸和大尺寸。
+字标不用于工作区侧栏；Design 页保留资源预览。仅用于品牌识别，不添加点击行为。根 SVG 默认 `role="img"`、`aria-label="Pace"`，支持 `className` 与其他 SVG 属性透传。Design 页展示小尺寸和大尺寸。
 
 ## 应用图标
 
