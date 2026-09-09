@@ -11,8 +11,8 @@
 | 项 | 现值 | 建议 | 说明 |
 | --- | --- | --- | --- |
 | 产品名 | PiGUI | **Pace** | About 页已显示 "Pace Agent"；建议 "Pace" 为产品名，"Pace Agent" 只作完整展示名（About、官网标题），界面文案里一律用 "Pace" |
-| GitHub 仓库 | `BubblePtr/PiGUI` | `everward-works/pace`（转移到 organization） | 用 `gh repo transfer` 或仓库 Settings → Transfer；issue、release、star 随仓库走，旧 URL 重定向。转移后核对 Actions secrets（五个 Apple 凭据）是否还在，缺则重填；`electron-builder.yml` 的 `publish.owner` 与 `linux.maintainer` 同步改。需确认 electron-updater 的 feed 能跟随重定向（见"破坏性位置"） |
-| macOS bundle id | `com.bubbleptr.pigui` | `works.everward.pace`（随 organization）或 `com.bubbleptr.pace` | 改 bundle id 等于换一个应用：Gatekeeper、钥匙串条目、`CFBundleIconName` 都按新 id 走；旧版本不会被视为同一应用而原位更新 |
+| GitHub 仓库 | `BubblePtr/PiGUI` | `BubblePtr/pace`（留在个人账号） | 个人账号保留 star / follower 的曝光；组织归属未定，不提前绑定。以后要搬用 `gh repo transfer`，issue、release、star 随仓库走，旧 URL 永久重定向，转移后需核对五个 Apple 凭据 secrets 并改 `publish.owner`。本次只 `gh repo rename`；需确认 electron-updater 的 feed 能跟随重定向（见"破坏性位置"） |
+| macOS bundle id | `com.bubbleptr.pigui` | `com.bubbleptr.pace`（不绑定组织，发布后不可换） | 改 bundle id 等于换一个应用：Gatekeeper、钥匙串条目、`CFBundleIconName` 都按新 id 走；旧版本不会被视为同一应用而原位更新 |
 | Linux 可执行名 / desktopName | `pigui` / `pigui.desktop` | `pace` / `pace.desktop` | |
 | 后端数据目录 | `~/.pigui`（dev：`~/.pigui-dev`） | `~/.pace`（dev：`~/.pace-dev`） | 必须迁移，见下 |
 | Electron userData | `~/Library/Application Support/@pigui/desktop` | 随包名变化 | 由 `apps/desktop/package.json` 的 `name` 派生，必须迁移，见下 |
