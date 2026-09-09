@@ -117,7 +117,7 @@ flowchart LR
 | 磁盘上的 Session、git worktree、配置清单 | [`packages/backend/src/workspace/`](packages/backend/src/workspace/) |
 | Electron 外壳与传输 | [`apps/desktop/electron/`](apps/desktop/electron/)：`main.ts`、`preload.ts`、`backend.ts` |
 | Dock Surface（Changes、Files、Terminal、Browser） | [`apps/desktop/src/shared/ui/session-dock/surface-registry.ts`](apps/desktop/src/shared/ui/session-dock/surface-registry.ts) |
-| Resource Management（Setup）：Package、Resource、更新检查与 journal 诊断 | [`apps/desktop/src/pages/setup.tsx`](apps/desktop/src/pages/setup.tsx)、[`packages/backend/src/workspace/resource-management.ts`](packages/backend/src/workspace/resource-management.ts)、[`resource-diagnostics.ts`](packages/backend/src/workspace/resource-diagnostics.ts)（[ADR-0037](docs/adr/0037-resource-management.md)） |
+| Packages 页（侧边栏）：Package、Resource、更新检查与 journal 诊断 | [`apps/desktop/src/pages/setup.tsx`](apps/desktop/src/pages/setup.tsx)、[`packages/backend/src/workspace/resource-management.ts`](packages/backend/src/workspace/resource-management.ts)、[`resource-diagnostics.ts`](packages/backend/src/workspace/resource-diagnostics.ts)（[ADR-0037](docs/adr/0037-resource-management.md)） |
 | 设计系统规则 | [`docs/design/`](docs/design/)，自建组件清单见 [`docs/self-built-ui.md`](docs/self-built-ui.md) |
 | 为什么这样设计 | [`docs/adr/`](docs/adr/)，术语在 [`CONTEXT.md`](CONTEXT.md) |
 
@@ -125,7 +125,7 @@ flowchart LR
 
 ## 扩展机制：GUI 与 Pi 扩展生态的融合点
 
-Pi 的扩展生态基于 `Package → Extension / Skill / Prompt / Theme` 体系。Pace 直接复用这一模型，只定义扩展能为桌面 GUI 贡献哪些视觉与交互能力。Setup 页提供 **Resource Management**：安装、卸载、更新 user scope 的 Package，开关其中的 Resource，把本地资源复制进 Pi 的约定目录；Package 行显示可用更新，Resource 详情显示最近活动 Session 的扩展错误。settings 变更在下一个新 Session 生效（[ADR-0037](docs/adr/0037-resource-management.md)）。
+Pi 的扩展生态基于 `Package → Extension / Skill / Prompt / Theme` 体系。Pace 直接复用这一模型，只定义扩展能为桌面 GUI 贡献哪些视觉与交互能力。主侧边栏的 **Packages** 页提供 Resource Management：安装、卸载、更新 user scope 的 Package，开关其中的 Resource，把本地资源复制进 Pi 的约定目录；Package 行显示可用更新，Resource 详情显示最近活动 Session 的扩展错误。settings 变更在下一个新 Session 生效（[ADR-0037](docs/adr/0037-resource-management.md)）。
 
 当前已落地的扩展点：
 

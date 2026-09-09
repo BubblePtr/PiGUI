@@ -335,7 +335,7 @@ export function ConfigInventoryView({
 }
 
 export function SetupPage() {
-  const [selected, setSelected] = useState<SetupCategory>("models");
+  const [selected, setSelected] = useState<SetupCategory>("packages");
   const inventory = useQuery({
     queryKey: ["config-inventory"],
     queryFn: getConfigInventory,
@@ -365,12 +365,12 @@ export function SetupPage() {
       <article className="min-h-full px-6 py-6">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
           <header className="border-b border-border pb-4">
-            <div className="text-sm font-semibold uppercase text-muted">Setup</div>
+            <div className="text-sm font-semibold uppercase text-muted">Pi</div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">
-              Pi configuration inventory
+              Packages
             </h1>
             <p className="mt-2 text-sm text-muted">
-              User resources from PI_CODING_AGENT_DIR, falling back to ~/.pi/agent.
+              Packages and resources from PI_CODING_AGENT_DIR, falling back to ~/.pi/agent. Changes apply to the next new Session.
             </p>
             <div className="mt-4">
               <Button

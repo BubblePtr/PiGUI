@@ -9,6 +9,7 @@ import { HStack, VStack } from "@astryxdesign/core/Stack";
 import {
   Archive,
   BarChart3,
+  Box,
   ChatAdd,
   ChevronRight,
   FolderClosed,
@@ -241,6 +242,12 @@ const trajectoryUsageNavigationItems = [
     icon: BarChart3,
     isActive: (pathname: string) => pathname === "/usage",
   },
+  {
+    label: "Packages",
+    to: "/packages",
+    icon: Box,
+    isActive: (pathname: string) => pathname === "/packages",
+  },
 ] as const;
 
 const systemNavigationItems = [
@@ -305,6 +312,10 @@ function getActiveTab(pathname: string) {
 
   if (pathname === "/usage") {
     return "Usage";
+  }
+
+  if (pathname === "/packages") {
+    return "Packages";
   }
 
   if (pathname === "/preflight") {

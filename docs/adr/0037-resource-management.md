@@ -14,7 +14,7 @@
 
 | 面 | 责任 |
 | --- | --- |
-| 管理面（Resource Management） | Setup 中安装、卸载、更新 Package，开关 Resource，导入和删除 drop-in，展示更新与历史错误 |
+| 管理面（Resource Management） | 主侧边栏 Packages 页（`/packages`）中安装、卸载、更新 Package，开关 Resource，导入和删除 drop-in，展示更新与历史错误 |
 | 贡献面 | Extension 声明 GUI Surface 与标准 UI request；由 ADR-0018、#85 后续推进 |
 | 执行面 | Pi 加载并运行资源；Pace 不接管执行与上下文真相 |
 
@@ -46,7 +46,7 @@ Resource Filter 用 `+path` / `-path` 精确项，不用 `!pattern`：文件名�
 
 `get_config_inventory` 在只读 inventory 上附加 Resource 的 `lastError`，无需新增 gateway 方法。读取 Session Projection 中 `updatedAt` 最新的 Session（即最近活动的 Session）的 journal，只取 `extension_load_error` 与 `extension_error`；按 ADR-0031 的 `path: detail` 消息格式，用完整资源路径或目录子路径边界关联，显示该资源最新错误的时间与消息。Package 详情与独立 drop-in 行共用展示，无错误不占位。最近 Session 没有错误或没有 journal 时，不回退展示旧 Session 的错误；配置为 enabled 不等于实际加载成功。
 
-Setup 打开时检查一次 `check_package_updates`，不按窗口聚焦、重连或后台定时轮询。按 Source 与 Scope 给 Package 行显示 `Update available` Token；安装、卸载或更新成功后失效更新查询，重查后移除已更新的徽标。检查失败显式展示错误，不阻断资源管理动作。
+Packages 页打开时检查一次 `check_package_updates`，不按窗口聚焦、重连或后台定时轮询。按 Source 与 Scope 给 Package 行显示 `Update available` Token；安装、卸载或更新成功后失效更新查询，重查后移除已更新的徽标。检查失败显式展示错误，不阻断资源管理动作。
 
 ## 后果与验证
 
