@@ -157,6 +157,14 @@ export function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Pr
       }
       return Promise.resolve(browserSessionDetail(summary) as T);
     }
+    case "install_package":
+    case "update_package":
+    case "set_resource_enabled":
+      return Promise.resolve({ progress: [] } as T);
+    case "remove_package":
+      return Promise.resolve({ removed: true, progress: [] } as T);
+    case "check_package_updates":
+      return Promise.resolve({ updates: [], progress: [] } as T);
     case "get_config_inventory":
       return Promise.resolve(emptyConfigInventory as T);
     case "run_environment_preflight":

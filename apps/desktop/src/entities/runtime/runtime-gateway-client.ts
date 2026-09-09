@@ -1,5 +1,11 @@
 import type {
   PrepareChatWorkspaceResult,
+  PackageSourceInput,
+  UpdatePackageInput,
+  SetResourceEnabledInput,
+  PackageActionResult,
+  RemovePackageResult,
+  CheckPackageUpdatesResult,
   RuntimeGatewayEventEnvelope,
   RuntimeGatewayQueuedMessage,
   RuntimeGatewaySnapshot,
@@ -528,6 +534,11 @@ function errorMessage(error: unknown) {
 export function createRuntimeGatewayClient(
   options: RuntimeGatewayClientOptions = {},
 ): PiRuntimeBridge & {
+  installPackage(input: PackageSourceInput): Promise<PackageActionResult>;
+  removePackage(input: PackageSourceInput): Promise<RemovePackageResult>;
+  updatePackage(input?: UpdatePackageInput): Promise<PackageActionResult>;
+  setResourceEnabled(input: SetResourceEnabledInput): Promise<PackageActionResult>;
+  checkPackageUpdates(): Promise<CheckPackageUpdatesResult>;
   prepareChatWorkspace(input: { sessionId: string }): Promise<PrepareChatWorkspaceResult>;
 } {
   const invoke = options.invoke ?? invokeRuntime;
@@ -1039,6 +1050,12 @@ export function createRuntimeGatewayClient(
         releaseBackendSubscriptionIfIdle();
       };
     },
+
+    installPackage: input => invoke<PackageActionResult>("install_package", input),
+    removePackage: input => invoke<RemovePackageResult>("remove_package", input),
+    updatePackage: input => invoke<PackageActionResult>("update_package", input),
+    setResourceEnabled: input => invoke<PackageActionResult>("set_resource_enabled", input),
+    checkPackageUpdates: () => invoke<CheckPackageUpdatesResult>("check_package_updates"),
 
     async prepareChatWorkspace(input) {
       return invoke<PrepareChatWorkspaceResult>("prepare_chat_workspace", {
