@@ -7475,13 +7475,12 @@ describe("Session changes action surface", () => {
   const sections = () => screen.getAllByTestId("session-change-section");
   const outline = () => screen.getByRole("navigation", { name: "Changed files" });
 
-  it("keeps the outline before narrow diffs and beside wide diffs when review is bounded", () => {
+  it("keeps the outline available when review is bounded", () => {
     render(panel(changes({ truncated: true, omittedFileCount: 3 })));
 
     expect(screen.getByText("Review is bounded. 3 additional files were omitted.")).toBeInTheDocument();
     expect(outline()).toBeInTheDocument();
-    expect(outline()).toHaveClass("order-first", "md:order-none");
-    expect(outline().className).not.toContain("order-last");
+    // Physical ordering at narrow dock widths is covered by the Electron E2E.
   });
 
   it("shows each file's kind and stage in the outline", () => {
@@ -7642,14 +7641,14 @@ describe("Session changes action surface", () => {
     );
 
     expect(
-      screen.getByText("Working tree clean. No staged, unstaged, or untracked changes."),
+      screen.getByRole("heading", { name: "No changes yet" }),
     ).toBeInTheDocument();
 
     view.rerender(
       panel(changes({ state: "non-git", files: [], repositoryRoot: null })),
     );
     expect(
-      screen.getByText("This Session checkout is not a Git repository."),
+      screen.getByRole("heading", { name: "No Git repository" }),
     ).toBeInTheDocument();
   });
 
