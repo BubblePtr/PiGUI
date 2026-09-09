@@ -1,14 +1,18 @@
-# Pace
+<p align="center">
+  <img src="build/icon-512.png" alt="" width="128" height="128">
+</p>
+<h1 align="center">Pace</h1>
+<p align="center"><a href="https://pi.dev">Pi coding agent</a> 的 GUI。把 Pi 的扩展性搬到屏幕上。</p>
 
-[English](README.md) | 简体中文
+<p align="center"><a href="README.md">English</a> | 简体中文</p>
 
-> [Pi coding agent](https://pi.dev) 的 GUI。把 Pi 的扩展性搬到屏幕上。
-
+<p align="center">
 [![Release](https://img.shields.io/github/v/release/BubblePtr/PiGUI?display_name=tag)](https://github.com/BubblePtr/PiGUI/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/PiGUI/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/PiGUI/release-macos.yml?label=release)](https://github.com/BubblePtr/PiGUI/actions)
+</p>
 
-Pi 是一个终端里的 coding agent，带有类似 VS Code 的扩展体系：Package 贡献 tool、command、skill、prompt 和 theme，agent 循环的行为由加载了什么决定，而不是写死在源码里。Pace 是给这套生态配的桌面应用：创建、驱动、观察和回放 Pi 会话，并且从设计上让**同一套**扩展机制也能塑造 GUI。
+Pi 是一个终端里的 coding agent，带有类似 VS Code 的扩展体系：Package 贡献 tool、command、skill、prompt 和 theme，我们希望将这种灵活性也拓展到桌面软件上，可以让用户定制专属于自己的桌面 Agent。Pace 这个名字代表的是 move at your own pace，我们希望在 AI 时代个人可以对 Agent 的使用拥有完全自主的权利，定制和控制好自己的节奏。
 
 Pace 不是 Pi 的分叉，也不是第二个运行时。Pi 始终是唯一的引擎和会话真相的唯一所有者；Pace 通过稳定的 Runtime Gateway 观察并驾驭它。
 
@@ -184,5 +188,3 @@ bun run build            # typecheck + electron-vite build
 ## 许可证
 
 本仓库尚未添加许可证文件。在此之前，代码仅供阅读与评估。Pi 是独立项目，有自己的许可证。
-
-由 [@Kieran](https://github.com/BubblePtr) Build in Public。

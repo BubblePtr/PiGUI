@@ -1,14 +1,18 @@
-# Pace
+<p align="center">
+  <img src="build/icon-512.png" alt="" width="128" height="128">
+</p>
+<h1 align="center">Pace</h1>
+<p align="center">The GUI for the <a href="https://pi.dev">Pi coding agent</a>. Pi's extensibility, on a screen.</p>
 
-English | [简体中文](README.zh-CN.md)
+<p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
-> The GUI for the [Pi coding agent](https://pi.dev). Pi's extensibility, on a screen.
-
+<p align="center">
 [![Release](https://img.shields.io/github/v/release/BubblePtr/PiGUI?display_name=tag)](https://github.com/BubblePtr/PiGUI/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-macOS%20arm64-black)](https://github.com/BubblePtr/PiGUI/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/BubblePtr/PiGUI/release-macos.yml?label=release)](https://github.com/BubblePtr/PiGUI/actions)
+</p>
 
-Pi is a terminal coding agent with a VS Code-like extension system: packages contribute tools, commands, skills, prompts and themes, and the agent loop is shaped by what is loaded rather than by what is hard-coded. Pace is the desktop app that gives that ecosystem a screen. It creates, drives, observes and replays Pi sessions, and it is built so that the *same* extension mechanism can shape the GUI.
+Pi is a terminal coding agent with a VS Code-like extension system: packages contribute tools, commands, skills, prompts and themes. We want to bring that same flexibility to the desktop, so that everyone can shape a desktop agent that is truly their own. The name stands for *move at your own pace*: in the age of AI, individuals should keep full ownership of how they use an agent, customizing it and setting their own rhythm.
 
 Pace is not a fork of Pi and not a second runtime. Pi stays the only engine and the only owner of session truth; Pace observes and steers it through a stable Runtime Gateway.
 
@@ -184,5 +188,3 @@ Never run the terminal pty driver under Bun; the backend runs on Node in product
 ## License
 
 A license file has not been added to this repository yet. Until it is, the code is source-available for reading and evaluation only. Pi is a separate project with its own license.
-
-Built in public by [@Kieran](https://github.com/BubblePtr).
