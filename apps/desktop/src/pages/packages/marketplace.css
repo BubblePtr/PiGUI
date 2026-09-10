@@ -60,7 +60,6 @@
 .package-search-slot {
   width: min(100%, calc(var(--spacing-10) * 10));
 }
-.package-search input,
 .package-detail input {
   font-size: var(--font-size-lg);
 }
