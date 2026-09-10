@@ -109,6 +109,8 @@ Browser 的弹层检测同时观察 Astryx 原生 `dialog[open]`；设置打开�
 
 ### Resource Management（#253）
 
-Setup 动作只组合已有 Astryx Dialog、TextInput、Switch、List 和 Button，未新增 `shared/ui/` 自建组件或变体。页面专属安装流程留在 `pages/setup.tsx`；composer 的资源目录改为订阅共享 query，交互约束见 `docs/design/astryx.md`。
+Setup 动作只组合已有 Astryx Dialog、TextInput、Switch、List 和 Button，未新增 `shared/ui/` 自建组件或变体。页面专属安装流程留在 `pages/packages/resources.tsx`；composer 的资源目录改为订阅共享 query，交互约束见 `docs/design/astryx.md`。
 
 Resource Management 诊断与更新（#254）：复用 Astryx Token / Text / VStack，资源行显示 journal 错误，Package 行显示更新状态；均为 Setup 页面组合，没有新增 shared/ui 原语或 Design 页变体。
+
+Packages Marketplace（2026-09-10）：复用 Astryx Card / Grid / TabList / Selector / Dialog；页面组合位于 `pages/packages/`。包卡、详情和资源检查不是新增共享原语，无需增加 Design 页条目或组件变体。

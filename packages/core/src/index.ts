@@ -18,6 +18,8 @@ export type {
 
 export type {
   ConfigInventory,
+  CatalogPackage,
+  PackageCatalogPage,
   ResourceInfo,
   PackageInfo,
 } from "./config";

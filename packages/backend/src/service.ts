@@ -20,6 +20,7 @@ import {
   setResourceEnabled,
   checkPackageUpdates,
 } from "./workspace/resource-management";
+import { searchPackageCatalog } from "./workspace/package-catalog";
 import { buildConfigInventory } from "./workspace/config";
 import {
   createEnvironmentPreflightReader,
@@ -334,6 +335,9 @@ async function dispatchRequest(input: {
       return removePackage(input.agentDir, { source: requiredString(params.source, "source") });
     case "update_package":
       return updatePackage(input.agentDir, { source: params.source === undefined ? undefined : requiredString(params.source, "source") });
+    case "search_package_catalog":
+      if (params.offset !== undefined && typeof params.offset !== "number") throw new Error("Invalid catalogue offset");
+      return searchPackageCatalog({ query: optionalString(params.query), offset: params.offset });
     case "check_package_updates":
       return checkPackageUpdates(input.agentDir);
     case "set_resource_enabled":

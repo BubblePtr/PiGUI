@@ -3,11 +3,23 @@ import { invoke } from "@/shared/runtime";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
-  ResourceManagement,
+  PackageManagement,
+  PackageActionFeedback,
+  InstallPackageButton,
+  usePackageActions,
   ConfigInventoryView,
   SetupInventoryControls,
   type ConfigInventory,
-} from "@/pages/setup";
+  type SetupCategory,
+} from "@/pages/packages/resources";
+
+function ResourceManagement({ inventory, selected }: { inventory: ConfigInventory; selected: SetupCategory }) {
+  return <PackageManagement inventory={inventory}><InstallPackageButton /><LocalButton /><PackageActionFeedback /><ConfigInventoryView inventory={inventory} selected={selected} /></PackageManagement>;
+}
+function LocalButton() {
+  const actions = usePackageActions();
+  return <button onClick={() => void actions.run("select_local_resource", {})}>Add local resource</button>;
+}
 
 const resources: ConfigInventory["extensions"] = [
   { kind: "extension", name: "terminal-tools", path: "/kit/tool.ts", enabled: true, origin: "package", scope: "user", packageSource: "@pi/code" },

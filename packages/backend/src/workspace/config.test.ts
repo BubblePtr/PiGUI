@@ -130,3 +130,13 @@ describe("backend native config inventory", () => {
     await expect(buildConfigInventory(agentDir)).resolves.toEqual({ packages: [], extensions: [], skills: [], promptTemplates: [], themes: [] });
   });
 });
+
+it("reads installed metadata locally and keeps packages with a damaged manifest manageable", async () => {
+  const { agentDir, put } = await fixture({ packages: ["./kit", "./broken"] });
+  await put("kit/package.json", JSON.stringify({ name: "pi-review", version: "1.2.0", description: "Review changes", author: { name: "Dev" }, pi: { extensions: ["tool.ts"] } }));
+  await put("kit/tool.ts", 'throw new Error("must not execute");');
+  await put("broken/package.json", "bad json");
+  const inventory = await buildConfigInventory(agentDir);
+  expect(inventory.packages.find(pkg => pkg.source === "./kit")).toMatchObject({ name: "pi-review", version: "1.2.0", description: "Review changes", author: "Dev" });
+  expect(inventory.packages.find(pkg => pkg.source === "./broken")).toMatchObject({ source: "./broken" });
+});

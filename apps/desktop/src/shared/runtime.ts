@@ -168,6 +168,8 @@ export function invokeBrowserFallback<T>(command: string, args?: InvokeArgs): Pr
       return Promise.resolve({ progress: [] } as T);
     case "remove_package":
       return Promise.resolve({ removed: true, progress: [] } as T);
+    case "search_package_catalog":
+      return Promise.reject(new Error("The package catalogue requires the desktop app"));
     case "check_package_updates":
       return Promise.resolve({ updates: [], progress: [] } as T);
     case "get_config_inventory":

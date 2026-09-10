@@ -44,3 +44,5 @@ Astryx 有对应组件吗？(bunx astryx search "<thing>")
 ## 验证方式
 
 没有 linter。token 纪律由 vitest 里的源码字符串断言守着（`bun run test`），加上人的眼睛。改了 token 桥、字体、图标粗细、数据色，先看 `apps/desktop/src/app/design-system.test.ts` 和 `apps/desktop/src/shared/ui/pi-trajectory-ledger.test.tsx` 会不会红。
+
+- [Packages Marketplace 设计决定](packages-marketplace.md)：选定方向、发现目录与本地管理的边界。

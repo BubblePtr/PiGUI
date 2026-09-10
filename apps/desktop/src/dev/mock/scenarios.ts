@@ -8,6 +8,8 @@ import type {
 } from "@pace/core";
 import { invokeBrowserFallback, type PaceRendererApi } from "@/shared/runtime";
 
+import { createMockPackages } from "./packages";
+
 export const mockProject = "/dev/Pace-Mock";
 const timestamp = "2026-09-09T08:00:00.000Z";
 const summary = {
@@ -361,6 +363,7 @@ function listing(sessionId: string, path: string): SessionDirectoryListing {
 }
 
 export function createMockApi(): PaceRendererApi {
+  const packageCommand = createMockPackages();
   return {
     async invoke<T>(
       command: string,
@@ -407,9 +410,16 @@ export function createMockApi(): PaceRendererApi {
           }
           break;
         }
-        case "get_environment_preflight_status":
+        case "search_package_catalog":
         case "check_package_updates":
         case "get_config_inventory":
+        case "install_package":
+        case "remove_package":
+        case "update_package":
+        case "set_resource_enabled":
+          result = packageCommand(command, args);
+          break;
+        case "get_environment_preflight_status":
         case "list_available_model_controls":
         case "resolve_tool_schemas":
         case "list_provider_auth_status":
