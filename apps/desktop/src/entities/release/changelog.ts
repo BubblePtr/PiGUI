@@ -15,6 +15,45 @@ export type ChangelogRelease = {
 // Ship release notes with the app so the history is also available offline.
 export const changelogReleases: readonly ChangelogRelease[] = [
   {
+    version: "0.0.4",
+    date: "2026-09-10",
+    title: "Discover and manage Pi packages",
+    summary: "Find Pi packages in the new marketplace, manage their resources, and work more comfortably in the Changes and Files panels.",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.4",
+    changes: [
+      {
+        kind: "added",
+        title: "Packages marketplace",
+        description: "Open Packages from the sidebar to browse the npm Pi package catalog. Explore themed collections, search across pages, and switch between Discover, Installed and Updates.",
+      },
+      {
+        kind: "added",
+        title: "Package and resource management",
+        description: "Install, update and remove packages, enable or disable their resources, and import local extensions, skills, prompts and themes.",
+      },
+      {
+        kind: "added",
+        title: "Resource details and diagnostics",
+        description: "Inspect where resources come from, check available package updates, and review extension errors from the most recently active session.",
+      },
+      {
+        kind: "improved",
+        title: "Clearer Files layout",
+        description: "The directory tree sits to the right of the file preview in wider windows, with simpler styling and a clearer Files dock icon.",
+      },
+      {
+        kind: "improved",
+        title: "Easier marketplace browsing",
+        description: "Package card titles stay on one line with clearer hover feedback, and the search input uses a more readable text size.",
+      },
+      {
+        kind: "fixed",
+        title: "Changes panel in narrow windows",
+        description: "Changes keeps a compact layout in narrow windows, header controls remain usable while scrolling, and clearing all changes shows the empty state correctly.",
+      },
+    ],
+  },
+  {
     version: "0.0.3",
     date: "2026-09-09",
     title: "PiGUI becomes Pace",
