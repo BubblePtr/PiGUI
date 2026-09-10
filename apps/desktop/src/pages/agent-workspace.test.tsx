@@ -7296,7 +7296,7 @@ describe("Context usage placement", () => {
         projectId="pig-docs"
         workspace={workspace}
         sessionProjection={projection}
-        sessionChanges={sessionChanges}
+        sessionChanges={sessionChanges ? { ...sessionChanges, refreshing: false } : undefined}
       />,
     );
 

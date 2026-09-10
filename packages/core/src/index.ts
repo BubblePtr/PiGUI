@@ -106,6 +106,7 @@ export {
   type RuntimeGatewayRequest,
   type RuntimeGatewayResponse,
   type RuntimeGatewayEventPayload,
+  type WorkspaceInvalidatedPayload,
   type RuntimeGatewayEventEnvelope,
   type RuntimeGatewayEventInput,
   type RuntimeGatewaySummary,

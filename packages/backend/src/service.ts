@@ -1,3 +1,5 @@
+import { CHAT_PROJECT_ID } from "@pace/core";
+import { createWorkspaceInvalidation } from "./workspace/workspace-invalidation";
 import { addResourceDiagnostics } from "./workspace/resource-diagnostics";
 import { homedir } from "node:os";
 import type {
@@ -129,11 +131,55 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
   const sessionCache = options.sessionCache ?? createSessionIndexCache();
   const gitClient = options.gitClient ?? createNodeExecutionCheckoutGitClient();
   const piRpc = options.piRpc ?? createNodePiRpcProcess();
-  const sessionProjectionStore =
+  const projectionStore =
     options.sessionProjectionStore ??
     createFileSessionProjectionStore({
       dataDir,
     });
+  const listeners = new Set<(event: BackendRpcEvent) => void>();
+  const invalidation = createWorkspaceInvalidation((payload) => {
+    for (const listener of listeners) {
+      listener({
+        type: "event",
+        event: {
+          id: `evt-${crypto.randomUUID()}`,
+          seq: 0,
+          sessionId: payload.sessionIds[0] ?? "",
+          piSessionId: "",
+          type: "workspace.invalidated",
+          ts: new Date().toISOString(),
+          payload,
+        },
+      });
+    }
+  });
+  function associate(projection: PersistedSessionProjection) {
+    const checkout = isRecord(projection.checkout) ? projection.checkout : {};
+    const root = optionalString(checkout.executionCheckoutRoot) ?? optionalString(checkout.root);
+    if (projection.projectId !== CHAT_PROJECT_ID && root) {
+      invalidation.associate(projection.sessionId, root);
+    } else {
+      invalidation.remove(projection.sessionId);
+    }
+  }
+  // Seed persisted siblings before accepting commands, then track every write
+  // through the same store boundary used by creation, resume and deletion.
+  const associationsReady = projectionStore.list().then((projections) => {
+    projections.forEach(associate);
+  });
+  const sessionProjectionStore: SessionProjectionStore = {
+    ...projectionStore,
+    async save(projection) {
+      await associationsReady;
+      await projectionStore.save(projection);
+      associate(projection);
+    },
+    async remove(sessionId) {
+      await associationsReady;
+      await projectionStore.remove(sessionId);
+      invalidation.remove(sessionId);
+    },
+  };
   const sessionChangesReader =
     options.sessionChangesReader ?? createNodeSessionChangesReader();
   const sessionFilesReader =
@@ -176,10 +222,14 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
     journal: runtimeJournal,
     dataDir,
   });
-  const listeners = new Set<(event: BackendRpcEvent) => void>();
   const terminalManager = options.terminalManager ?? createTerminalManager();
 
   runtimeGateway.onEvent((event) => {
+    const { payload, sessionId } = event.event;
+    if (payload.phase === "end") {
+      if (payload.type === "tool") invalidation.invalidate(sessionId);
+      if (payload.type === "turn" || payload.type === "run") invalidation.flush(sessionId);
+    }
     for (const listener of listeners) {
       listener(event);
     }
@@ -210,6 +260,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
   return {
     async handleRequest(request) {
       try {
+        await associationsReady;
         return {
           id: request.id,
           result: await dispatchRequest({
@@ -227,6 +278,7 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
             runtimeGateway,
             runtimeJournal,
             terminalManager,
+            invalidation,
             dataDir,
           }),
         };
@@ -263,11 +315,17 @@ async function dispatchRequest(input: {
   runtimeGateway: RuntimeGatewayService;
   runtimeJournal: SessionEventJournal;
   terminalManager: TerminalManager;
+  invalidation: ReturnType<typeof createWorkspaceInvalidation>;
   dataDir: string;
 }) {
   const params = paramsRecord(input.request.params);
 
   if (isRuntimeGatewayMethod(input.request.method)) {
+    if (input.request.method === "stop_run") {
+      for (const projection of await input.sessionProjectionStore.list()) {
+        if (projection.piSessionId === params.piSessionId) input.invalidation.flush(projection.sessionId);
+      }
+    }
     const response = await input.runtimeGateway.handleRequest(input.request);
 
     if (response.error) {
@@ -304,13 +362,18 @@ async function dispatchRequest(input: {
         store: input.sessionProjectionStore,
         reader: input.sessionChangesReader,
       });
-    case "checkout_session_branch":
-      return checkoutSessionBranch({
+    case "checkout_session_branch": {
+      const result = await checkoutSessionBranch({
         sessionId: requiredString(params.sessionId, "sessionId"),
         branch: requiredString(params.branch, "branch"),
         store: input.sessionProjectionStore,
         reader: input.sessionChangesReader,
       });
+      const sessionId = requiredString(params.sessionId, "sessionId");
+      input.invalidation.invalidate(sessionId);
+      input.invalidation.flush(sessionId);
+      return result;
+    }
     case "list_session_directory":
       return listSessionDirectory({
         sessionId: requiredString(params.sessionId, "sessionId"),
