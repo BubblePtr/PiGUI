@@ -732,7 +732,7 @@ export function Marketplace({
                 <VStack gap={4} style={{ height: "100%" }}>
                   <HStack gap={3} vAlign="center">
                     <Glyph pkg={pkg} />
-                    <VStack gap={0.5} style={{ minWidth: 0 }}>
+                    <VStack gap={0.5} style={{ minWidth: 0, flex: 1 }}>
                       <Button
                         label={`View ${pkg.title}`}
                         className="package-title-button"
