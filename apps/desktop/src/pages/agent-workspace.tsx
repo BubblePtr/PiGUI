@@ -60,6 +60,7 @@ import {
   lazy,
   type ReactNode,
   Suspense,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -167,6 +168,12 @@ import {
   saveLastModelSelection,
 } from "@/entities/session/last-model-preference";
 import { getVisibleModels } from "@/entities/model/visible-models";
+import {
+  findSessionChangeTarget,
+  parseSessionChangeLink,
+  type SessionChangeLink,
+  type SessionChangeTarget,
+} from "@/entities/session/session-change-link";
 import type { TerminalInstanceInfo } from "@/entities/terminal/terminal-client";
 import { SessionBrowserPanel } from "@/pages/session-browser-panel";
 import { SessionFilesPanel } from "@/pages/session-files-panel";
@@ -228,6 +235,7 @@ type AgentWorkspaceFixture = {
 
 type SessionChangesPanelProps = {
   sessionId: string | null;
+  target?: SessionChangeTarget | null;
   stale: boolean;
   /** The page owns the read so the rail badge can share it (ADR-0028). */
   changes: SessionChanges | null;
@@ -2182,6 +2190,7 @@ function sessionChangesStatus({
 
 export function SessionChangesPanel({
   sessionId,
+  target,
   stale,
   changes,
   error,
@@ -2228,7 +2237,7 @@ export function SessionChangesPanel({
     setClosedPaths(anyOpen ? new Set(files.map((file) => file.path)) : new Set());
   };
 
-  const navigateTo = (path: string) => {
+  const navigateTo = useCallback((path: string) => {
     setClosedPaths((current) => {
       if (!current.has(path)) return current;
       const next = new Set(current);
@@ -2242,8 +2251,8 @@ export function SessionChangesPanel({
     const section = sectionRefs.current.get(path);
     section?.scrollIntoView?.({ block: "start" });
     // Continue keyboard navigation from the diff after an outline jump.
-    section?.querySelector("button")?.focus();
-  };
+    section?.querySelector("button")?.focus({ preventScroll: true });
+  }, []);
 
   const status = sessionChangesStatus({ changes, error, loading });
   const hasReview =
@@ -2251,6 +2260,10 @@ export function SessionChangesPanel({
     !error &&
     changes?.state === "ready" &&
     files.length > 0;
+
+  useEffect(() => {
+    if (hasReview && target?.sessionId === sessionId) navigateTo(target.path);
+  }, [hasReview, target, sessionId, navigateTo]);
 
   return (
     <section aria-label="Session changes" className="flex h-full min-h-0 flex-col">
@@ -2423,6 +2436,7 @@ export function SessionChangesPanel({
                             <SessionDiffViewer
                               cacheKey={`${changes.sessionId}:${changes.generatedAt}:${file.path}`}
                               patch={file.patch}
+                              line={target?.sessionId === sessionId && target.path === file.path ? target.line : undefined}
                               style="unified"
                             />
                           </Suspense>
@@ -2509,6 +2523,7 @@ function ChangeCounts({ file }: { file: SessionChangedFile }) {
 function SessionSurfaceContent({
   surfaceId,
   projection,
+  changeTarget,
   sessionChanges,
   docked = false,
   onTerminalInstancesChange,
@@ -2516,6 +2531,7 @@ function SessionSurfaceContent({
 }: {
   surfaceId: SessionSurfaceId;
   projection?: SessionProjection | null;
+  changeTarget?: SessionChangeTarget | null;
   sessionChanges: SessionChangesView;
   /** Whether the surface can host a native browser view. */
   docked?: boolean;
@@ -2525,6 +2541,7 @@ function SessionSurfaceContent({
   if (surfaceId === "changes") {
     return (
       <SessionChangesPanel
+        target={changeTarget}
         changes={sessionChanges.changes}
         error={sessionChanges.error}
         loading={sessionChanges.loading}
@@ -4013,6 +4030,11 @@ export function AgentWorkspaceSessionsPage() {
   const dockMounted = useSessionDockPresence(dockOpen);
   const [activeSurfaceId, setActiveSurfaceId] =
     useState<SessionSurfaceId>("changes");
+  const [pendingChangeLink, setPendingChangeLink] = useState<{
+    sessionId: string;
+    link: SessionChangeLink;
+  } | null>(null);
+  const [changeTarget, setChangeTarget] = useState<SessionChangeTarget | null>(null);
   const project = isChatProjectId(projectId)
     ? chatWorkspaceListEntry()
     : registryProjects.find((candidate) => candidate.id === projectId) ?? null;
@@ -4042,6 +4064,30 @@ export function AgentWorkspaceSessionsPage() {
       !isChatProjectId(projectId),
   });
 
+  // Resolve only after the click's fresh read. The initial composer read may
+  // predate this run's edits; matching it would silently miss newly changed files.
+  useEffect(() => {
+    if (!pendingChangeLink) return;
+    if (showDraft || pendingChangeLink.sessionId !== selectedSessionProjection?.id) {
+      setPendingChangeLink(null);
+      return;
+    }
+    if (sessionChanges.loading) return;
+    const target = sessionChanges.changes
+      ? findSessionChangeTarget(
+          pendingChangeLink.link,
+          sessionChanges.changes,
+          selectedSessionProjection.checkout?.diffRoot ?? selectedSessionProjection.cwd ?? undefined,
+        )
+      : null;
+    setPendingChangeLink(null);
+    if (target) {
+      setChangeTarget(target);
+      setActiveSurfaceId("changes");
+      setDockOpen(true);
+    }
+  }, [pendingChangeLink, sessionChanges.changes, sessionChanges.loading, selectedSessionProjection, showDraft]);
+
   useEffect(
     () =>
       subscribeProjectRegistry(() =>
@@ -4053,6 +4099,7 @@ export function AgentWorkspaceSessionsPage() {
   useEffect(() => {
     setTerminalInstanceCount(0);
     setBrowserInstanceCount(0);
+    setChangeTarget(null);
   }, [selectedSessionId]);
 
   useEffect(() => {
@@ -4188,6 +4235,21 @@ export function AgentWorkspaceSessionsPage() {
       <div
         className="flex h-full min-h-0 min-w-0 flex-col"
         data-testid={emptyChatDraft ? "empty-workspace-state" : undefined}
+        onClick={(event) => {
+          // Delegate within Chat only, covering settled and streaming Markdown
+          // without coupling the shared renderer to Session/Dock state.
+          if (event.defaultPrevented || showDraft || !selectedSessionProjection?.piSessionId || isChatProjectId(projectId)) return;
+          const anchor = event.target instanceof Element
+            ? event.target.closest<HTMLAnchorElement>('[data-slot="chat-conversation"] a[href]')
+            : null;
+          const cwd = selectedSessionProjection.checkout?.runtimeCwd ?? selectedSessionProjection.cwd;
+          const link = anchor && cwd ? parseSessionChangeLink(anchor.getAttribute("href")!, cwd) : null;
+          if (!link) return;
+          event.preventDefault();
+          setChangeTarget(null);
+          setPendingChangeLink({ sessionId: selectedSessionProjection.id, link });
+          sessionChanges.refresh();
+        }}
       >
       <AgentWorkspaceSessionsView
         sessionChanges={sessionChanges}
@@ -4208,6 +4270,7 @@ export function AgentWorkspaceSessionsPage() {
             >
               <SessionSurfaceContent
                 docked
+                changeTarget={changeTarget}
                 sessionChanges={sessionChanges}
                 surfaceId={activeSurfaceId}
                 projection={selectedSessionProjection}
