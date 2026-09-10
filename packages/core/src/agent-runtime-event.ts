@@ -168,11 +168,13 @@ export function surfaceForMessagePart(partType: AgentMessagePartType): "chat" | 
 }
 
 // Session Event Journal boundary filter — the single source of truth for
-// what replay contains. Only the streaming delta hot path is excluded: its
-// content is authoritatively covered by the part(end)/message(end) snapshots,
-// which is what makes replay a static load instead of a re-stream.
+// what new journals contain. Message deltas and cumulative tool partialResult
+// snapshots are covered by end events; persisting each update bloats replay.
 export function shouldJournalRuntimeEvent(payload: Record<string, unknown>): boolean {
-  return !(payload.type === "message_part" && payload.phase === "update");
+  return !(
+    (payload.type === "message_part" || payload.type === "tool") &&
+    payload.phase === "update"
+  );
 }
 
 export const AGENT_STATUS_SURFACES: Record<

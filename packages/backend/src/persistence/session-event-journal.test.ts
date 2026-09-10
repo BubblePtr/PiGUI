@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -55,6 +55,42 @@ describe("in-memory session event journal", () => {
 });
 
 describe("file session event journal", () => {
+  it("drops legacy cumulative updates but preserves the last output of an unfinished tool", async () => {
+    const dataDir = await tempDataDir();
+    const events = [
+      { toolCallId: "completed", phase: "start", args: { command: "ls" } },
+      { toolCallId: "unfinished", phase: "start", args: { command: "build" } },
+      { toolCallId: "completed", phase: "update", result: "a" },
+      { toolCallId: "unfinished", phase: "update", result: "compiling" },
+      { toolCallId: "completed", phase: "update", result: "a b" },
+      { toolCallId: "completed", phase: "end", result: "a b c" },
+      { toolCallId: "unfinished", phase: "update", result: "compiling module 2" },
+    ].map((payload, index) => envelope({
+      id: `evt-${index + 1}`,
+      seq: index + 1,
+      type: "tool",
+      payload: { type: "tool", origin: "sdk", ...payload },
+    }));
+    await mkdir(join(dataDir, "sessions"));
+    await writeFile(
+      join(dataDir, "sessions", "pi-session-1.jsonl"),
+      events.map((event) => JSON.stringify(event)).join("\n") + "\n",
+    );
+    const journal = createFileSessionEventJournal({ dataDir });
+    const expected = [events[0], events[1], events[5], events[6]];
+
+    expect(await journal.read("pi-session-1")).toEqual(expected);
+    expect(await journal.read("pi-session-1")).toEqual(expected);
+
+    // A later completion supersedes the preserved partial output without renumbering.
+    const end = envelope({
+      id: "evt-8", seq: 8, type: "tool",
+      payload: { type: "tool", phase: "end", toolCallId: "unfinished", result: "built" },
+    });
+    journal.append(end);
+    expect(await journal.read("pi-session-1")).toEqual([events[0], events[1], events[5], end]);
+  });
+
   it("appends envelopes as JSON lines under <dataDir>/sessions", async () => {
     const dataDir = await tempDataDir();
     const journal = createFileSessionEventJournal({ dataDir });

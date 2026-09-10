@@ -48,10 +48,16 @@ describe("shouldJournalRuntimeEvent", () => {
     ).toBe(true);
   });
 
-  it("keeps every non-part agent lifecycle event", () => {
+  it("drops cumulative tool updates already covered by the final result", () => {
+    // Pi partialResult is cumulative; tool:end already carries the final result.
+    expect(shouldJournalRuntimeEvent({ type: "tool", phase: "update", origin: "sdk" })).toBe(false);
+  });
+
+  it("keeps agent lifecycle boundaries", () => {
     for (const payload of [
       { type: "message", phase: "end", origin: "sdk" },
-      { type: "tool", phase: "update", origin: "sdk" },
+      { type: "tool", phase: "start", origin: "sdk" },
+      { type: "tool", phase: "end", origin: "sdk" },
       { type: "run", phase: "start", origin: "sdk" },
       { type: "turn", phase: "end", origin: "sdk" },
       { type: "status", code: "retrying", origin: "sdk" },
