@@ -2743,6 +2743,10 @@ function LiveSessionColumn({
   const pendingResumeRequestsRef = useRef(new Map<string, Promise<PiSessionState>>());
   const resumeFailedKeysRef = useRef(new Set<string>());
   const [resumeRetryNonce, setResumeRetryNonce] = useState(0);
+  // Resume key of the in-flight resume RPC. A cold-opened Session has no
+  // runtime events until the snapshot lands, so without this the Live Chat is
+  // blank for the whole round-trip and reads as frozen.
+  const [pendingResumeKey, setPendingResumeKey] = useState<string | null>(null);
 
   useEffect(
     () =>
@@ -2887,6 +2891,7 @@ function LiveSessionColumn({
       });
       pendingResumeRequestsRef.current.set(resumeKey, request);
     }
+    setPendingResumeKey(resumeKey);
 
     // Projection refreshes cancel the old effect, but the current view must
     // still receive its pending resume without starting a second runtime.
@@ -2945,6 +2950,7 @@ function LiveSessionColumn({
       })
       .finally(() => {
         pendingResumeRequestsRef.current.delete(resumeKey);
+        setPendingResumeKey((current) => (current === resumeKey ? null : current));
       });
 
     return () => {
@@ -3114,6 +3120,11 @@ function LiveSessionColumn({
     };
   }, [getRuntimeBridge, liveProjection?.piSessionId, showDraft]);
 
+  const resumeInFlight =
+    pendingResumeKey !== null &&
+    Boolean(sessionProjection) &&
+    sessionProjection != null &&
+    resumeKeyForProjection(sessionProjection, resumeRetryNonce) === pendingResumeKey;
   const canRetryRuntimeResume = Boolean(
     liveProjection?.piSessionId &&
       liveProjection.sessionFile &&
@@ -3637,6 +3648,16 @@ function LiveSessionColumn({
                   }
                 />
               ))}
+              {resumeInFlight ? (
+                <p
+                  aria-live="polite"
+                  className="text-sm text-muted"
+                  data-testid="session-resume-status"
+                  role="status"
+                >
+                  <TextShimmer>Resuming session…</TextShimmer>
+                </p>
+              ) : null}
               {creating && liveProjection ? (
                 <p
                   aria-live="polite"

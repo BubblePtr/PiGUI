@@ -2974,6 +2974,74 @@ describe("AgentWorkspaceSessionsPage", () => {
     },
   );
 
+  describe("resume status", () => {
+    const projection: SessionProjection = {
+      ...createSessionProjection({
+        id: "resume-status",
+        projectId: "pig-docs",
+        initialPrompt: "Open the old session",
+        createdAt: "2026-07-02T10:00:00.000Z",
+      }),
+      status: "completed",
+      creationStage: "accepted",
+      runtimeId: "runtime-status",
+      piSessionId: "pi-status",
+      sessionFile: "/sessions/pi-status.jsonl",
+    };
+    const resumedState: PiSessionState = {
+      piSessionId: "pi-status",
+      runtimeId: "runtime-status",
+      projectId: "pig-docs",
+      cwd: "/project",
+      status: "completed",
+      events: [],
+      updatedAt: projection.updatedAt,
+    };
+
+    it("shows a resume status in the empty Live Chat until the runtime snapshot lands", async () => {
+      let resolveResume!: (state: PiSessionState) => void;
+      const resumeSession = vi.fn(() => new Promise<PiSessionState>((resolve) => {
+        resolveResume = resolve;
+      }));
+      render(
+        <AgentWorkspaceSessionsView
+          projectId="pig-docs"
+          runtimeBridge={{ ...createInMemoryPiRuntimeBridge(), resumeSession }}
+          sessionProjection={projection}
+          showDraft={false}
+        />,
+      );
+      await waitFor(() => expect(resumeSession).toHaveBeenCalledTimes(1));
+
+      expect(screen.getByTestId("session-resume-status")).toHaveTextContent("Resuming session");
+
+      await act(async () => resolveResume(resumedState));
+
+      await waitFor(() => expect(screen.queryByTestId("session-resume-status")).toBeNull());
+    });
+
+    it("clears the resume status when the resume fails", async () => {
+      let rejectResume!: (error: Error) => void;
+      const resumeSession = vi.fn(() => new Promise<PiSessionState>((_resolve, reject) => {
+        rejectResume = reject;
+      }));
+      render(
+        <AgentWorkspaceSessionsView
+          projectId="pig-docs"
+          runtimeBridge={{ ...createInMemoryPiRuntimeBridge(), resumeSession }}
+          sessionProjection={projection}
+          showDraft={false}
+        />,
+      );
+      await waitFor(() => expect(screen.getByTestId("session-resume-status")).toBeInTheDocument());
+
+      await act(async () => rejectResume(new Error("runtime exploded")));
+
+      await waitFor(() => expect(screen.queryByTestId("session-resume-status")).toBeNull());
+      expect(screen.getByTestId("runtime-fallback-banner")).toBeInTheDocument();
+    });
+  });
+
   it("keeps the submitted user bubble when a slow resume resync lands after the prompt echo", async () => {
     const user = userEvent.setup();
     const bridge = createInMemoryPiRuntimeBridge({

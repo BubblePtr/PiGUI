@@ -87,3 +87,5 @@
  ├── 一行 step → ChatThoughtStep / ChatToolStep（自带 shimmer 与翻页）
  └── 文字级占位 → <TextShimmer>；不要再放 ChatPixelLoader，心跳全局只有状态行一处
 ```
+
+冷开一个已有 Session 时，runtime 快照落地前 Live Chat 里没有任何 runtime 事件。`agent-workspace.tsx` 在消息列表末尾渲染一行 `role="status"` 的 `<TextShimmer>Resuming session…</TextShimmer>`（`data-testid="session-resume-status"`），与创建阶段的 `session-creation-status` 同一形态；resume 成功或失败后移除。不要为它引入骨架屏或 Spinner。
