@@ -92,6 +92,8 @@ Astryx 的 props 以 `bunx astryx component <Name>` 输出为准，本文只记�
 
 Settings 是一个 `Dialog purpose="form"` + 左侧 `SideNav` 分类，不是页面。新增一类设置 = 在 `pages/settings.tsx` 的 `SettingsSection` 联合里加一个值 + 写一个 `*Section` 函数：区块标题 `Heading level={2}` 带 `id`，每个分组一张 `Card` 内 `Heading level={3}`。不要为设置新建路由或 `shared/ui/` 组件。
 
+About & Updates 导航复用 `Token size="sm"`：发现更新及下载中显示蓝色 `Update`，下载完成显示绿色 `Ready`；其他状态不显示。标记直接订阅共享 updater 状态，不因打开分类而清除。桌面侧栏宽度为 `calc(var(--spacing-10) * 7)`，为完整分类名和标记留出空间；窄屏 About 标签将标记放在文字下方，有标记时统一增加标签高度，避免挤压其他分类。
+
 ## 导航与壳
 
 `AppShell variant="elevated"`，侧栏 `SideNav` + `SideNavSection`，宽度 `resizable={{ defaultWidth: 260, minWidth: 240, maxWidth: 320 }}`。页面内跳转走 Astryx `Link` / `useLinkComponent()`，不写裸 `<a>`。分栏面板用 `Layout` + `LayoutPanel`；Session 页右栏不是 `LayoutPanel`，是 `SessionDock`（见 workspace.md）。
