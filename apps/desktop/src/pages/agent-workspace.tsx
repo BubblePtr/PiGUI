@@ -4032,10 +4032,12 @@ export function AgentWorkspaceSessionsPage() {
   // is showing, so it needs the diff even on Terminal. The composer footer
   // needs the branch whenever a live Session is on screen, which is why this
   // is no longer gated on the dock being open.
+  // Draft handoff precedes worktree creation; the backend projection is only
+  // queryable once create_session returns and the runtime is bound.
   const sessionChanges = useSessionChanges({
     sessionId: selectedSessionProjection?.id ?? null,
     enabled:
-      Boolean(selectedSessionProjection?.id) &&
+      Boolean(selectedSessionProjection?.piSessionId) &&
       !showDraft &&
       !isChatProjectId(projectId),
   });

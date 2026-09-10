@@ -40,6 +40,7 @@ import {
   type InMemoryPiRuntimeBridge,
 } from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import { createExecutionCheckoutManager } from "@/entities/checkout/execution-checkout";
+import * as checkoutClientModule from "@/entities/checkout/execution-checkout-client";
 import {
   createInMemorySessionProjectionStore,
   createSessionFromDraft,
@@ -1370,6 +1371,89 @@ describe("AgentWorkspaceSessionsPage", () => {
       }
     },
   );
+
+  it("shows the branch after worktree creation and runtime binding without reselecting the Session", async () => {
+    const user = userEvent.setup();
+    addProjectToRegistry(pigProjectPath);
+    saveSessionDraft(pigProjectPath, "Work in a new worktree");
+    let releaseWorktree = () => {};
+    let releaseRuntime = () => {};
+    let runtimeStarted = false;
+    let runtimeReady = false;
+    const worktreeGate = new Promise<void>((resolve) => { releaseWorktree = resolve; });
+    const runtimeGate = new Promise<void>((resolve) => { releaseRuntime = resolve; });
+    const gitClientSpy = vi.spyOn(checkoutClientModule, "createInvokeExecutionCheckoutGitClient")
+      .mockReturnValue({
+        isGitRepository: async () => true,
+        addDetachedWorktree: async () => { await worktreeGate; },
+      });
+    const createBridge = inMemoryBridgeModule.createInMemoryPiRuntimeBridge;
+    const bridgeSpy = vi.spyOn(inMemoryBridgeModule, "createInMemoryPiRuntimeBridge")
+      .mockImplementation((options) => {
+        const bridge = createBridge(options);
+        return {
+          ...bridge,
+          startRuntime: async (input) => {
+            runtimeStarted = true;
+            await runtimeGate;
+            const runtime = await bridge.startRuntime(input);
+            // create_session persists the backend projection before returning.
+            runtimeReady = true;
+            return runtime;
+          },
+        };
+      });
+    const loadChanges = vi.spyOn(sessionsApi, "getSessionChanges")
+      .mockImplementation(async (sessionId) => {
+        if (!runtimeReady) {
+          throw new Error(`Session projection "${sessionId}" was not found.`);
+        }
+        return {
+          sessionId,
+          state: "ready",
+          checkoutRoot: `/tmp/worktrees/${sessionId}`,
+          repositoryRoot: `/tmp/worktrees/${sessionId}`,
+          generatedAt: "2026-09-10T08:00:00.000Z",
+          head: { oid: "abc1234", branch: null, detached: true },
+          branches: ["main"],
+          files: [],
+          totals: { files: 0, additions: 0, deletions: 0, binaryFiles: 0, conflictedFiles: 0 },
+          truncated: false,
+          omittedFileCount: 0,
+        };
+      });
+
+    try {
+      const { router } = renderProjectSessions("/projects/pig/sessions?view=draft");
+      await screen.findByTestId("session-draft-composer");
+      await user.click(screen.getByTestId("checkout-strategy-trigger"));
+      await user.click(await screen.findByRole("option", { name: /Git worktree/ }));
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      expect(await screen.findByTestId("session-creation-status")).toHaveTextContent("preparing checkout");
+      expect(router.state.location.search).toEqual({});
+      expect(screen.getByPlaceholderText("Starting session…")).toBeDisabled();
+      expect(runtimeStarted).toBe(false);
+      expect(loadChanges).not.toHaveBeenCalled();
+
+      await act(async () => { releaseWorktree(); });
+      await waitFor(() => expect(runtimeStarted).toBe(true));
+      expect(screen.getByPlaceholderText("Starting session…")).toBeDisabled();
+      expect(loadChanges).not.toHaveBeenCalled();
+
+      await act(async () => { releaseRuntime(); });
+      await waitFor(() => expect(getSessionDraft()).toBeNull());
+      expect(await screen.findByTestId("git-branch-status-trigger")).toHaveTextContent("abc1234");
+      expect(loadChanges).toHaveBeenCalledTimes(1);
+      expect(await findSidebarSessionRow("Work in a new worktree")).toHaveAttribute("aria-current", "page");
+    } finally {
+      releaseWorktree();
+      releaseRuntime();
+      gitClientSpy.mockRestore();
+      bridgeSpy.mockRestore();
+      loadChanges.mockRestore();
+    }
+  });
 
   it("hands the draft over to the Live Session before Pi accepts the initial prompt", async () => {
     const user = userEvent.setup();
