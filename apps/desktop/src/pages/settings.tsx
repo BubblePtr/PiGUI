@@ -7,6 +7,7 @@ import {
 } from "@astryxdesign/core/CheckboxList";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token } from "@astryxdesign/core/Token";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
@@ -545,6 +546,23 @@ function SettingsContent({
   compact: boolean;
 }) {
   const queryClient = useQueryClient();
+  const updateStatus = useUpdateStatus();
+  const updateIndicator =
+    updateStatus?.state === "ready" ? (
+      <Token
+        size="sm"
+        color="green"
+        label="Ready"
+        description="Update ready to install"
+      />
+    ) : updateStatus?.state === "available" || updateStatus?.state === "downloading" ? (
+      <Token
+        size="sm"
+        color="blue"
+        label="Update"
+        description="Update available"
+      />
+    ) : undefined;
   const [tab, setTab] = useState<AuthTab>("subscription");
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -618,7 +636,15 @@ function SettingsContent({
                   key={item.id}
                   value={item.id}
                   label={item.id === "about" ? "About" : item.label}
-                  style={{ paddingInline: "var(--spacing-2)" }}
+                  endContent={item.id === "about" ? updateIndicator : undefined}
+                  style={{
+                    paddingInline: "var(--spacing-2)",
+                    height: updateIndicator
+                      ? "calc(var(--spacing-8) * 2)"
+                      : undefined,
+                    flexDirection: "column",
+                    gap: "var(--spacing-1)",
+                  }}
                 />
               ))}
             </TabList>
@@ -629,7 +655,7 @@ function SettingsContent({
         compact ? undefined : (
           <LayoutPanel
             padding={2}
-            width="calc(var(--spacing-10) * 6)"
+            width="calc(var(--spacing-10) * 7)"
             hasDivider
           >
             <SideNav aria-label="Settings sections" style={{ width: "100%" }}>
@@ -638,6 +664,7 @@ function SettingsContent({
                   <SideNavItem
                     key={id}
                     label={label}
+                    endContent={id === "about" ? updateIndicator : undefined}
                     icon={
                       <Icon
                         aria-hidden="true"

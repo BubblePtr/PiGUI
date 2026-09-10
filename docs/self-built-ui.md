@@ -93,7 +93,7 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 
 ## 设置弹窗
 
-About & Updates 的品牌行复用应用图标与 Astryx Stack、Heading、Text，显示 Pace Agent 和版本号；属于页面组合，不新增共享组件。
+About & Updates 的品牌行复用应用图标与 Astryx Stack、Heading、Text，显示 Pace Agent 和版本号；属于页面组合，不新增共享组件。更新导航标记同样是页面组合，复用 Astryx `Token size="sm"`：桌面 SideNav 与窄屏 Tab 都显示 Update / Ready，并跟随共享 updater 状态；不新增自建原语或 Design 页变体。
 
 Settings 参考 Astryx `settings-dialog` 模板，使用原生 `Dialog`、`Layout`、`SideNav` 与 `DialogHeader` 组合，内容仍位于 `pages/settings.tsx`，没有新增自建 UI 原语。桌面显示左侧 Providers / Models / About & Updates 导航，导航项通过 `VStack gap={1}` 保持 4px 间距；窄屏使用全屏弹窗和顶部分类标签。标题栏固定，内容区独立滚动。Models 行使用透明背景，仅由复选框表示可见状态，避免整行强调色与分类导航选中态混淆。现有 API key、订阅登录、可见模型与应用更新功能保持原有保存通道。
 

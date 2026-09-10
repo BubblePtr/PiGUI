@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   RouterProvider,
@@ -89,6 +89,7 @@ function renderSettings(
   path = "/usage?settings=models",
   updateStatus: UpdateStatus = disabledUpdateStatus,
 ) {
+  const updateListeners = new Set<(status: UpdateStatus) => void>();
   const invoke = vi.fn(async (command: string) => {
     if (
       command === "list_provider_auth_status" ||
@@ -124,7 +125,10 @@ function renderSettings(
     invoke: invoke as unknown as PaceRendererApi["invoke"],
     onBackendEvent: vi.fn(() => vi.fn()),
     onBrowserEvent: vi.fn(() => vi.fn()),
-    onUpdateEvent: vi.fn(() => vi.fn()),
+    onUpdateEvent: vi.fn((listener) => {
+      updateListeners.add(listener);
+      return () => updateListeners.delete(listener);
+    }),
     onWindowFocusChanged: vi.fn(() => vi.fn()),
     onNavigateRequest: vi.fn(() => vi.fn()),
   };
@@ -156,6 +160,11 @@ function renderSettings(
       </QueryClientProvider>,
     ),
     router,
+    emitUpdate: (status: UpdateStatus) => {
+      act(() => {
+        for (const listener of updateListeners) listener(status);
+      });
+    },
     countCalls: (command: string) =>
       invoke.mock.calls.filter(([called]) => called === command).length,
   };
@@ -330,12 +339,76 @@ describe("Settings — chats", () => {
 });
 
 describe("Settings — about and updates", () => {
+  it.each([false, true])(
+    "keeps the update indicator in sync while browsing another section (compact: %s)",
+    async (compact) => {
+      const originalMatchMedia = window.matchMedia;
+      const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+        ...originalMatchMedia(query),
+        matches: query === "(max-width: 640px)" && compact,
+      }));
+      try {
+        const { emitUpdate, countCalls } = renderSettings("/usage?settings=models", {
+          state: "idle",
+          currentVersion: "0.0.1",
+        });
+        const navigation = await screen.findByRole("navigation", { name: "Settings sections" });
+        const about = within(navigation).getByRole("button", {
+          name: compact ? "About" : "About & Updates",
+        });
+        await findModelsSection();
+        await waitFor(() => expect(countCalls("update:status")).toBe(1));
+        expect(within(about).queryByText("Update")).not.toBeInTheDocument();
+        expect(within(about).queryByText("Ready")).not.toBeInTheDocument();
+
+        emitUpdate({ state: "available", currentVersion: "0.0.1", availableVersion: "0.0.2" });
+        expect(within(about).getByText("Update")).toBeVisible();
+        expect(screen.queryByRole("region", { name: "About & Updates" })).not.toBeInTheDocument();
+
+        emitUpdate({ state: "downloading", currentVersion: "0.0.1", progressPercent: 42 });
+        expect(within(about).getByText("Update")).toBeVisible();
+
+        emitUpdate({ state: "ready", currentVersion: "0.0.1", availableVersion: "0.0.2" });
+        expect(within(about).queryByText("Update")).not.toBeInTheDocument();
+        expect(within(about).getByText("Ready")).toBeVisible();
+        await userEvent.click(about);
+        const section = await screen.findByRole("region", { name: "About & Updates" });
+        expect(within(section).getByRole("button", { name: "Restart to update" })).toBeEnabled();
+        expect(within(about).getByText("Ready")).toBeVisible();
+
+        emitUpdate({ state: "idle", currentVersion: "0.0.2" });
+        expect(within(about).queryByText("Update")).not.toBeInTheDocument();
+        expect(within(about).queryByText("Ready")).not.toBeInTheDocument();
+        expect(within(section).queryByRole("button", { name: "Restart to update" })).not.toBeInTheDocument();
+      } finally {
+        matchMedia.mockRestore();
+      }
+    },
+  );
+
   async function findAboutSection() {
     await userEvent.click(
-      await screen.findByRole("button", { name: "About & Updates" }),
+      await screen.findByRole("button", { name: /^About & Updates/ }),
     );
     return screen.findByTestId("settings-about");
   }
+
+  it("shows a cached ready update when Settings opens after a background download", async () => {
+    const { emitUpdate, countCalls } = renderSettings("/usage", {
+      state: "idle",
+      currentVersion: "0.0.1",
+    });
+    const settings = await screen.findByRole("button", { name: "Settings" });
+    await waitFor(() => expect(countCalls("update:status")).toBe(1));
+    emitUpdate({ state: "ready", currentVersion: "0.0.1", availableVersion: "0.0.2" });
+
+    await userEvent.click(settings);
+    const navigation = await screen.findByRole("navigation", { name: "Settings sections" });
+    const about = within(navigation).getByRole("button", { name: /^About & Updates/ });
+    expect(within(about).getByText("Ready")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Providers" })).toBeVisible();
+    expect(countCalls("update:status")).toBe(1);
+  });
 
   it("shows the current version and a disabled check button when updates are disabled", async () => {
     renderSettings();
