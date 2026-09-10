@@ -57,6 +57,7 @@ import { getLastModelSelection, saveLastModelSelection } from "@/entities/sessio
 import { saveVisibleModels } from "@/entities/model/visible-models";
 import { ensureSessionDraft, getSessionDraft, saveSessionDraft, setSessionDraftTarget } from "@/entities/session/session-drafts";
 import * as sessionsApi from "@/entities/session/sessions";
+import { createMockApi, mockProject } from "@/dev/mock/scenarios";
 
 function render(ui: Parameters<typeof renderWithoutQuery>[0]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -779,6 +780,95 @@ describe("AgentWorkspaceSessionsPage", () => {
     expect(
       invoke.mock.calls.filter(([command]) => command === "get_session_changes"),
     ).toHaveLength(1);
+  });
+
+  it.each([
+    "src/new-file.ts#L1",
+    `${mockProject}/src/new-file.ts:1:2`,
+    `file://${mockProject}/src/%6Eew-file.ts#L1`,
+  ])("opens fresh Changes from chat link %s and refocuses on repeat clicks", async (href) => {
+    const user = userEvent.setup();
+    setDockedLayout(true);
+    addProjectToRegistry(mockProject);
+    const api = createMockApi();
+    let reads = 0;
+    let pendingRead: Promise<void> | null = null;
+    window.pace = {
+      ...api,
+      async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+        const result = await api.invoke<T>(command, args);
+        if (command === "resume_session" || command === "get_runtime_snapshot") {
+          const snapshot = result as unknown as import("@pace/core").RuntimeGatewaySnapshot;
+          for (const envelope of snapshot.events) {
+            const event = envelope.payload as import("@pace/core").AgentRuntimeEvent;
+            if (event.type === "message" && event.role === "assistant" && event.parts) {
+              for (const part of event.parts) {
+                if (part.partType === "text") {
+                  part.body = `See [the new file](${href}) and [website](https://example.com/src/new-file.ts).`;
+                }
+              }
+            }
+          }
+        }
+        if (command === "get_session_changes") {
+          reads += 1;
+          if (pendingRead) await pendingRead;
+          // The first read predates the agent's edits; clicking must not use it.
+          if (reads === 1) return { ...(result as SessionChanges), state: "clean", files: [] } as T;
+        }
+        return result;
+      },
+    };
+    const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
+    const { router } = renderProjectSessions(`/projects/${encodeURIComponent(mockProject)}/sessions`, { seedProjects: false });
+    const chat = await screen.findByLabelText("Live Chat messages");
+    const link = await within(chat).findByRole("link", { name: "the new file" });
+    await waitFor(() => expect(reads).toBe(1));
+    const before = router.state.location.href;
+    expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
+
+    expect(fireEvent.click(link)).toBe(false);
+    const dock = await screen.findByRole("complementary", { name: "Changes" });
+    const section = within(dock).getAllByTestId("session-change-section")
+      .find((node) => node.textContent?.includes("src/new-file.ts"))!;
+    await waitFor(() => expect(section.contains(document.activeElement)).toBe(true));
+    expect(scroll.mock.instances).toContain(section);
+    expect(within(section).getByRole("button", { expanded: true })).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Changed files" }))
+      .getByRole("button", { name: /src\/new-file.ts/ })).toHaveAttribute("data-current", "true");
+    expect(router.state.location.href).toBe(before);
+
+    await user.click(within(section).getByRole("button", { expanded: true }));
+    expect(within(section).getByRole("button", { expanded: false })).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "the new file" }));
+    await waitFor(() => {
+      const refreshedSection = screen.getAllByTestId("session-change-section")
+        .find((node) => node.textContent?.includes("src/new-file.ts"))!;
+      expect(within(refreshedSection).getByRole("button", { expanded: true })).toHaveFocus();
+    });
+
+    await user.click(within(screen.getByRole("group", { name: "Session surfaces" }))
+      .getByRole("button", { name: "Files" }));
+    await screen.findByRole("complementary", { name: "Files" });
+    await user.click(screen.getByRole("link", { name: "the new file" }));
+    await screen.findByRole("complementary", { name: "Changes" });
+    const readsBeforeWeb = reads;
+    expect(fireEvent.click(screen.getByRole("link", { name: "website" }))).toBe(true);
+    expect(reads).toBe(readsBeforeWeb);
+
+    // A late read from the previous Session must not steal the new Session's Dock.
+    await user.click(within(screen.getByRole("group", { name: "Session surfaces" }))
+      .getByRole("button", { name: "Files" }));
+    let releaseRead!: () => void;
+    pendingRead = new Promise<void>((resolve) => { releaseRead = resolve; });
+    fireEvent.click(screen.getByRole("link", { name: "the new file" }));
+    await waitFor(() => expect(reads).toBe(readsBeforeWeb + 1));
+    await user.click(await findSidebarSessionRow("03 · 无变更与空目录"));
+    await waitFor(() => expect(reads).toBe(readsBeforeWeb + 2));
+    await act(async () => { releaseRead(); await pendingRead; });
+    expect(screen.getByRole("complementary", { name: "Files" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Changes" })).not.toBeInTheDocument();
+    scroll.mockRestore();
   });
 
   it("keeps the rail badge empty when the working tree cannot be read", async () => {
