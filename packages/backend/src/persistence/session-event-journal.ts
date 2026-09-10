@@ -243,6 +243,27 @@ function parseJournalLines(jsonl: string): RuntimeGatewayEventEnvelope[] {
   return envelopes;
 }
 
+function withoutRedundantToolUpdates(
+  envelopes: RuntimeGatewayEventEnvelope[],
+): RuntimeGatewayEventEnvelope[] {
+  const ended = new Set<string>();
+  const lastUpdate = new Map<string, number>();
+
+  for (const [index, { payload }] of envelopes.entries()) {
+    if (payload.type !== "tool" || typeof payload.toolCallId !== "string") continue;
+    if (payload.phase === "end") ended.add(payload.toolCallId);
+    if (payload.phase === "update") lastUpdate.set(payload.toolCallId, index);
+  }
+
+  // End events supersede cumulative snapshots. For a crash mid-tool, replay
+  // still needs the last partial result to show the output produced before it.
+  return envelopes.filter(({ payload }, index) => {
+    if (payload.type !== "tool" || payload.phase !== "update") return true;
+    return typeof payload.toolCallId === "string" &&
+      !ended.has(payload.toolCallId) && lastUpdate.get(payload.toolCallId) === index;
+  });
+}
+
 export function createFileSessionEventJournal(
   options: FileSessionEventJournalOptions,
 ): SessionEventJournal {
@@ -286,14 +307,16 @@ export function createFileSessionEventJournal(
       const session = buffered.get(piSessionId);
 
       if (session) {
-        return session.map(cloneEnvelope);
+        const retained = withoutRedundantToolUpdates(session);
+        buffered.set(piSessionId, retained);
+        return retained.map(cloneEnvelope);
       }
 
       // Not seen in this process: a prior process may have journaled it.
       try {
-        const restored = parseJournalLines(
+        const restored = withoutRedundantToolUpdates(parseJournalLines(
           await readFile(join(sessionsDir, journalFileName(piSessionId)), "utf8"),
-        );
+        ));
 
         buffered.set(piSessionId, restored);
 
