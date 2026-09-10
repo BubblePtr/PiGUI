@@ -98,7 +98,8 @@
   border-radius: var(--radius-inner);
   height: auto;
   min-height: 0;
-  padding: 0;
+  padding: 0 var(--spacing-1);
+  margin-inline: calc(-1 * var(--spacing-1));
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   text-align: start;
