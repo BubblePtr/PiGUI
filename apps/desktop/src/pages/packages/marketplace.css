@@ -60,7 +60,6 @@
 .package-search-slot {
   width: min(100%, calc(var(--spacing-10) * 10));
 }
-.package-search input,
 .package-detail input {
   font-size: var(--font-size-lg);
 }
@@ -93,19 +92,22 @@
   color: var(--muted);
 }
 .package-title-button.astryx-button {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: var(--radius-inner);
   height: auto;
   min-height: 0;
-  padding: 0;
+  padding: 0 var(--spacing-1);
+  margin-inline: calc(-1 * var(--spacing-1));
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   text-align: start;
   justify-content: start;
-  white-space: normal;
+  white-space: nowrap;
+  transition-property: background-color;
 }
-.package-title-button.astryx-button > span {
-  white-space: normal;
-  text-align: start;
-  overflow-wrap: anywhere;
+.package-title-button.astryx-button[data-variant="ghost"]:not(#\#) {
+  background-image: none;
 }
 .package-card-source {
   font-family: var(--font-family-code);
@@ -159,9 +161,8 @@
   .package-card:hover {
     border-color: var(--color-text-secondary);
   }
-  .package-title-button:hover {
-    text-decoration: underline;
-    text-underline-offset: var(--spacing-1);
+  .package-title-button.astryx-button:hover {
+    background-color: var(--color-overlay-hover);
   }
 }
 @media (max-width: 1100px) {
