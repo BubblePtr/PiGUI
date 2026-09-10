@@ -95,6 +95,7 @@
 .package-title-button.astryx-button {
   width: fit-content;
   max-width: 100%;
+  border-radius: var(--radius-inner);
   height: auto;
   min-height: 0;
   padding: 0;
@@ -162,6 +163,9 @@
   flex-shrink: 0;
 }
 @media (hover: hover) and (pointer: fine) {
+  .package-card:hover {
+    border-color: var(--color-text-secondary);
+  }
   .package-title-button.astryx-button:hover {
     background-color: var(--color-overlay-hover);
   }
