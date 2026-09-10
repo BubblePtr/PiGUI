@@ -534,13 +534,14 @@ export function SessionDetailView({
               >
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const run = visibleRuns[virtualRow.index];
+                  // Layout offsets keep sticky Run headers in the scroller's coordinate space.
                   return (
                     <li
-                      className="absolute left-0 top-0 w-full"
+                      className="absolute left-0 w-full"
                       data-index={virtualRow.index}
                       key={virtualRow.key}
                       ref={rowVirtualizer.measureElement}
-                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      style={{ top: virtualRow.start }}
                     >
                       <PiTrajectoryLedger.Run
                         isDimmed={isRunDimmed(run.index)}
