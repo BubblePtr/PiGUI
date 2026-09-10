@@ -93,6 +93,8 @@
   color: var(--muted);
 }
 .package-title-button.astryx-button {
+  width: fit-content;
+  max-width: 100%;
   height: auto;
   min-height: 0;
   padding: 0;
@@ -101,6 +103,10 @@
   text-align: start;
   justify-content: start;
   white-space: normal;
+  transition-property: background-color;
+}
+.package-title-button.astryx-button[data-variant="ghost"]:not(#\#) {
+  background-image: none;
 }
 .package-title-button.astryx-button > span {
   white-space: normal;
@@ -156,12 +162,8 @@
   flex-shrink: 0;
 }
 @media (hover: hover) and (pointer: fine) {
-  .package-card:hover {
-    border-color: var(--color-text-secondary);
-  }
-  .package-title-button:hover {
-    text-decoration: underline;
-    text-underline-offset: var(--spacing-1);
+  .package-title-button.astryx-button:hover {
+    background-color: var(--color-overlay-hover);
   }
 }
 @media (max-width: 1100px) {
