@@ -70,6 +70,7 @@ xterm.js 宿主，对外只有 `ref.write()` / `ref.focus()` 和 `onData` / `onR
 三件套读同一个模型 `entities/session/trajectory-model.ts`（Run > Turn > Step）：
 
 - `PiTrajectoryLedger` + `.Run`：台账，行永不内联展开；徽章四色（USER / ASSISTANT / TOOL / CONTEXT）全部来自 `trajectoryStepType()` 与 `--pigui-data-*`。选中态、过滤、step/turn ref 放在根上经 context 下发；`.Run` 只传 `run`（外加可选 `isDimmed`）。`runs` 快捷路径行为不变。
+- 页面按 Run 虚拟化时，外层虚拟项用布局偏移 `top` 定位，不用 `translateY`：后者会使内部 sticky 横栏在滚动时错位、覆盖步骤。横栏在进入视口时仍位于本组步骤之前，到达滚动区顶部才吸顶，并在下一组进入时交接。
 - `PiTrajectoryStrip`：概览带。完整轨迹始终适配可用宽度；密集时按段数压缩最小列宽与间距，不裁掉尾部、不覆盖模式切换按钮。`widthMode: "steps" | "duration"` 必填且由页面持有；`lane` 只有 `"input" | "model" | "tools"`。推不出真实区间的段用斜纹 + 弱化标出，估算不伪装成实测。
 - `PiTrajectoryInspector`：`tab` 取自 `trajectoryInspectorTabs = ["Summary","Payload","Result","Schema","Timing"]`，由页面持有；Schema 拿不到时显示 unavailable 诚实态。
 
