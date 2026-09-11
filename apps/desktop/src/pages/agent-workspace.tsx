@@ -2843,12 +2843,25 @@ function LiveSessionColumn({
       return;
     }
 
-    setCreationProjection((currentProjection) =>
-      currentProjection?.id === sessionProjection.id ? sessionProjection : null,
-    );
-    setInteractionProjection((currentProjection) =>
-      currentProjection?.id === sessionProjection.id ? sessionProjection : null,
-    );
+    const syncProjection = (currentProjection: SessionProjection | null) => {
+      if (currentProjection?.id !== sessionProjection.id) {
+        return null;
+      }
+
+      // A queued parent effect can run after the subscription applied a newer
+      // event. Rewinding here would erase tool results before the next event.
+      if (
+        currentProjection.piSessionId === sessionProjection.piSessionId &&
+        currentProjection.runtimeModel.lastSeq > sessionProjection.runtimeModel.lastSeq
+      ) {
+        return currentProjection;
+      }
+
+      return sessionProjection;
+    };
+
+    setCreationProjection(syncProjection);
+    setInteractionProjection(syncProjection);
   }, [sessionProjection]);
 
   useEffect(() => {
