@@ -8071,7 +8071,7 @@ describe("Chain of Thought phases in Live Chat", () => {
     },
   });
 
-  const cotToolEnd = (ms: number, toolCallId: string, name: string, result: string): CotBeat => ({
+  const cotToolEnd = (ms: number, toolCallId: string, name: string, result: string, isError = false): CotBeat => ({
     ms,
     event: {
       type: "tool",
@@ -8081,7 +8081,7 @@ describe("Chain of Thought phases in Live Chat", () => {
       phase: "end",
       name,
       result,
-      isError: false,
+      isError,
       surface: "trace",
       origin: "sdk",
     },
@@ -8131,6 +8131,76 @@ describe("Chain of Thought phases in Live Chat", () => {
 
     return block;
   }
+
+  it.each([false, true])("keeps a completed tool after a delayed parent projection and the next turn (isError=%s)", (isError) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(cotT0 + 2000);
+    const matchMedia = window.matchMedia;
+    window.matchMedia = (query) => {
+      const media = matchMedia(query);
+      return query === "(prefers-reduced-motion: reduce)" ? { ...media, matches: true } : media;
+    };
+    onTestFinished(() => {
+      window.matchMedia = matchMedia;
+      vi.useRealTimers();
+    });
+
+    const m1 = cotMessage(1);
+    const call = m1.part(0, "tool_call");
+    const args = '{"path":"README.md"}';
+    const opening = [
+      cotRunStart(0),
+      m1.start(100),
+      call.start(200, "read"),
+      call.end(300, args, "call-1"),
+      m1.end(400, [call.snapshot(args, "call-1")]),
+      cotToolStart(500, "call-1", "read"),
+    ];
+    const parentProjection = cotProjection(opening);
+    const listeners = new Set<(entry: AgentRuntimeEventEntry) => void>();
+    const bridge = {
+      ...createInMemoryPiRuntimeBridge(),
+      subscribeToAgentEvents(_piSessionId: string, listener: (entry: AgentRuntimeEventEntry) => void) {
+        listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+    };
+    let seq = opening.length;
+    const emit = (beat: CotBeat) => {
+      act(() => {
+        const entry = { seq: ++seq, timestamp: cotAt(beat.ms), event: beat.event };
+        for (const listener of listeners) listener(entry);
+      });
+    };
+    const view = (projection: SessionProjection) => (
+      <AgentWorkspaceSessionsView
+        projectId="pig-docs"
+        runtimeBridge={bridge}
+        sessionProjection={projection}
+        workspace={cotWorkspace}
+      />
+    );
+    const { rerender } = render(view(parentProjection));
+    expect(cotBlock()).toHaveTextContent("Running read…");
+
+    const result = isError ? "Permission denied" : "Read complete";
+    emit(cotToolEnd(2100, "call-1", "read", result, isError));
+
+    // The parent has not caught up with the live subscription yet. Deliver its
+    // older snapshot deterministically instead of racing React with sleeps.
+    rerender(view({ ...parentProjection, unreadResult: false }));
+    const m2 = cotMessage(2);
+    emit(m2.start(2200));
+    emit(m2.part(0, "thinking").start(2300));
+    act(() => { vi.advanceTimersByTime(1000); });
+
+    const toolStep = cotBlock().querySelector('[data-slot="chat-tool-step"]');
+    expect(toolStep).toHaveTextContent("Read README.md");
+    expect(toolStep).not.toHaveTextContent("Running");
+    expect(toolStep).toHaveTextContent("1.6s");
+    expect(toolStep?.querySelector('[data-slot="chat-tool-result"]')).toHaveTextContent(result);
+    if (isError) expect(toolStep).toHaveTextContent("1 failed");
+  });
 
   it("keeps a multi-turn run flat with a live last step, then folds it once at run(end)", async () => {
     const m1 = cotMessage(1);
