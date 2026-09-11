@@ -4,6 +4,8 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
+const GIT_PATH_NAMES = ["HEAD", "index", "refs", "packed-refs"] as const;
+const GIT_DISCOVERY_TIMEOUT_MS = 15_000;
 type CheckoutWatch = { sessions: Set<string>; ready: Promise<void>; needsDiscovery: () => boolean; close: () => void };
 
 // Roots are canonical checkout identities supplied by the invalidation scheduler.
@@ -54,7 +56,8 @@ function watchCheckout(root: string, invalidate: () => void) {
   let discoveryFailed = false;
   let queued = false;
   const handles = new Map<string, { handle: fs.FSWatcher; identity: string }>();
-  let targets: string[] = [];
+  // Keyed by git-path name so the refs tree never depends on argument order.
+  let targets = new Map<string, string>();
 
   function changed() {
     if (closed || queued) return;
@@ -94,12 +97,12 @@ function watchCheckout(root: string, invalidate: () => void) {
         // Refs can disappear while Git prunes or packs them.
       }
     }
-    for (const target of targets) {
+    for (const target of targets.values()) {
       addTarget(target);
       // Watching the containing directory's parent also catches inode replacement.
       addTarget(dirname(target));
     }
-    addRefs(targets[2]!);
+    addRefs(targets.get("refs")!);
     for (const [directory, entry] of handles) {
       if (!directories.has(directory)) {
         entry.handle.close();
@@ -131,8 +134,15 @@ function watchCheckout(root: string, invalidate: () => void) {
 
   const ready = (async () => {
     try {
-      const { stdout } = await exec("git", ["-C", root, "rev-parse", "--git-path", "HEAD", "--git-path", "index", "--git-path", "refs", "--git-path", "packed-refs"], { env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
-      targets = stdout.trim().split("\n").map((path) => resolve(root, path));
+      const { stdout } = await exec(
+        "git",
+        ["-C", root, "rev-parse", ...GIT_PATH_NAMES.flatMap((name) => ["--git-path", name])],
+        // A hung git must fall into the discoveryFailed retry path, not block associate.
+        { env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" }, timeout: GIT_DISCOVERY_TIMEOUT_MS },
+      );
+      const paths = stdout.trim().split("\n");
+      if (paths.length !== GIT_PATH_NAMES.length) throw new Error("git rev-parse returned an unexpected path count");
+      targets = new Map(GIT_PATH_NAMES.map((name, index) => [name, resolve(root, paths[index]!)]));
     } catch {
       // A later association (resume) retries once the checkout exists again.
       discoveryFailed = true;
