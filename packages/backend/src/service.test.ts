@@ -1284,6 +1284,15 @@ describe("backend service", () => {
     });
 
     journal.append({
+      id: "evt-user-msg",
+      seq: 8,
+      sessionId: "session-old",
+      piSessionId: "pi-session-old",
+      type: "message_update",
+      ts: "2026-08-01T12:00:00.000Z",
+      payload: { kind: "message", role: "user", body: "Start the task" },
+    });
+    journal.append({
       id: "evt-last-msg",
       seq: 9,
       sessionId: "session-old",
@@ -1315,13 +1324,29 @@ describe("backend service", () => {
       result: [
         expect.objectContaining({
           sessionId: "session-old",
+          lastUserMessageAt: "2026-08-01T12:00:00.000Z",
           updatedAt: "2026-08-01T12:03:34.764Z",
         }),
       ],
     });
 
     await expect(projections.get("session-old")).resolves.toMatchObject({
+      lastUserMessageAt: "2026-08-01T12:00:00.000Z",
       updatedAt: "2026-08-01T12:03:34.764Z",
+    });
+
+    journal.append({
+      id: "evt-delayed-queue",
+      seq: 10,
+      sessionId: "session-old",
+      piSessionId: "pi-session-old",
+      type: "message_update",
+      ts: "2026-08-01T12:04:00.000Z",
+      payload: { kind: "message", role: "user", body: "Queued follow-up" },
+    });
+    await service.handleRequest({ id: "list-again", method: "list_session_projections" });
+    expect(await projections.get("session-old")).toMatchObject({
+      lastUserMessageAt: "2026-08-01T12:00:00.000Z",
     });
   });
 

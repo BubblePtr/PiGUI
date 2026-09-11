@@ -117,8 +117,8 @@ Session 列表中的轻量消息提示，表示该 Session 有用户尚未看过
 _Avoid_: Error badge, completed badge, runtime status
 
 **Session List Ordering**:
-Project 下 Session 列表的默认排序：active run 在前，其次是有 Unread Result Indicator 的 Session，其余按最近更新时间倒序。多个 active run 同时存在时，active run 组内按最近 runtime event 时间倒序。
-_Avoid_: Status taxonomy ordering, alphabetical default, draft ordering
+Project 与 Chats 下 Session 列表按用户最后一次成功发送消息的时间倒序，包括普通发送、Queue 和 Steer；尚无发送记录的新 Session 按创建时间排序。运行状态、助手输出、未读结果、打开会话和草稿编辑不改变顺序，提醒与导航顺序分离。
+_Avoid_: Runtime activity ordering, unread-first ordering, last-opened ordering, draft ordering
 
 **Live Session View**:
 Pace 中正在运行或可继续交互的 Session 界面。它以 Pi RPC/event stream 和当前 Pi Session State 为主数据源；Session Trajectory 只用于 backfill、恢复、审计和 Analyze。首版采用左侧 Project/Session 列表、中间 Live Chat + run timeline、右侧 Dock 的三栏结构（首版称 Structured Action Surface）；Dock 里的 Terminal / Browser Surface 已由 ADR-0028 / 0029 解冻，只读的 Files Surface 由 ADR-0035 解冻；编辑仍不包含。

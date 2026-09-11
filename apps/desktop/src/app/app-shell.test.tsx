@@ -568,7 +568,7 @@ describe("AppFrame", () => {
     expect(styles).toContain("rotate: 90deg;");
   });
 
-  it("renders the Project session list from active, unread, archive, and updated projection state", async () => {
+  it("orders Project sessions by user submission time while retaining active and unread indicators", async () => {
     renderAppFrame("/projects/pig/sessions");
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
@@ -582,8 +582,8 @@ describe("AppFrame", () => {
 
     expect(sessionRows.map((row) => sessionRowLabel(row))).toEqual([
       "Agent Workspace shell",
-      "Trace boundary pass",
       "Usage evidence review",
+      "Trace boundary pass",
     ]);
     const activeRunIndicator = within(sessionRows[0]).getByLabelText("Active run");
 
@@ -591,9 +591,9 @@ describe("AppFrame", () => {
     expect(activeRunIndicator).toHaveAttribute("data-state", "loading");
     expect(activeRunIndicator.querySelector("svg")).toHaveAttribute("viewBox", "0 0 16 16");
     expect(activeRunIndicator.querySelectorAll('[data-slot="dot-matrix-dot"]')).toHaveLength(16);
-    expect(within(sessionRows[1]).getByLabelText("Unread result")).toBeInTheDocument();
+    expect(within(sessionRows[2]).getByLabelText("Unread result")).toBeInTheDocument();
     expect(
-      sessionRows[2].querySelector('[data-testid="session-glyph"]'),
+      sessionRows[1].querySelector('[data-testid="session-glyph"]'),
     ).toBeEmptyDOMElement();
     expect(within(projectNavigation).queryByText("Archived checkout snapshot")).not.toBeInTheDocument();
     expect(within(projectNavigation).queryByText(/Running|Completed|Failed|Waiting/)).not.toBeInTheDocument();

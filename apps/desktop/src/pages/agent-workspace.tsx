@@ -3284,6 +3284,7 @@ function LiveSessionColumn({
       workspace,
     });
 
+    const submittedAt = new Date().toISOString();
     const accepted = await getRuntimeBridge().sendInitialPrompt({
       piSessionId: projection.piSessionId,
       prompt: message,
@@ -3292,6 +3293,7 @@ function LiveSessionColumn({
 
     const next = applySessionProjectionEvent(latestProjectionFor(projection), {
       type: "runtime-event-received",
+      submittedAt,
       event: accepted.event,
     });
     liveProjectionRef.current = next;

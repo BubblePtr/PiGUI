@@ -84,6 +84,7 @@ export function sessionProjectionFromPersistedProjection(
     archivedAt:
       record.archivedAt ??
       (record.status === "archived" ? record.updatedAt : null),
+    lastUserMessageAt: record.lastUserMessageAt,
     updatedAt: record.updatedAt,
   };
 }

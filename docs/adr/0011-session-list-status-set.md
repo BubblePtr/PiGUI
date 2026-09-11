@@ -1,5 +1,7 @@
 # Session Projection 使用内部状态集合
 
+> Session 列表排序已由 [ADR-0039](0039-session-order-follows-user-submissions.md) 替代；本 ADR 的状态和归档规则不变。
+
 PiGUI 的 Session Projection 使用固定内部状态集合：`creating`、`running`、`waiting`、`failed`、`completed`、`archived`。Session Draft 不属于这个集合，因为 draft 尚未创建 PiGUI Session、Pi Session State、Agent Run 或 Execution Checkout。
 
 ## Status Semantics

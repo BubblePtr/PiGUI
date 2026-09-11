@@ -214,6 +214,10 @@ export function createRuntimeGatewayService(
           emit,
           appendJournalEvent,
           now,
+          recordUserSubmission(piSessionId, submittedAt) {
+            const sessionId = sessionIdsByPiSessionId.get(piSessionId);
+            if (sessionId) projectionWrites.recordUserSubmission(sessionId, submittedAt);
+          },
           advanceEventSequence(events) {
             nextEvent.advanceTo(
               events.reduce((highestSeq, event) => Math.max(highestSeq, event.seq), 0),
@@ -279,6 +283,7 @@ async function dispatchRuntimeGatewayRequest(input: {
   emit: (event: RuntimeGatewayDriverEvent) => RuntimeGatewayEventEnvelope | null;
   appendJournalEvent: (event: RuntimeGatewayEventInput) => RuntimeGatewayEventEnvelope;
   now: () => string;
+  recordUserSubmission: (piSessionId: string, submittedAt: string) => void;
   advanceEventSequence: (events: RuntimeGatewayEventEnvelope[]) => void;
   rememberSession: (snapshot: RuntimeGatewaySnapshot) => void;
   resolveSessionId: (piSessionId: string) => string | null;
@@ -303,6 +308,7 @@ async function dispatchRuntimeGatewayRequest(input: {
       await saveSnapshotProjection({
         store: input.projections,
         snapshot,
+        patch: { lastUserMessageAt: snapshot.updatedAt },
       });
 
       return snapshot;
@@ -394,7 +400,11 @@ async function dispatchRuntimeGatewayRequest(input: {
       await saveSnapshotProjection({
         store: input.projections,
         snapshot: snapshotWithEvents,
-        patch: result.selectedText ? { initialPrompt: result.selectedText } : undefined,
+        patch: {
+          ...(result.selectedText ? { initialPrompt: result.selectedText } : {}),
+          // A new fork belongs at creation time, not at an inherited message's time.
+          lastUserMessageAt: result.snapshot.updatedAt,
+        },
       });
 
       return {
@@ -403,6 +413,7 @@ async function dispatchRuntimeGatewayRequest(input: {
       };
     }
     case "send_prompt": {
+      const submittedAt = input.now();
       const prompt = parsePromptText(params.prompt, params.images, "prompt");
       await setProjectionInitialPrompt({
         store: input.projections,
@@ -411,22 +422,24 @@ async function dispatchRuntimeGatewayRequest(input: {
         prompt: prompt.text || prompt.images[0]?.name || "Attached image",
       });
 
-      return input.emit(
-        await input.driver.sendPrompt({
-          piSessionId: requiredString(params.piSessionId, "piSessionId"),
-          prompt: prompt.text,
-          ...(prompt.images.length ? { images: prompt.images } : {}),
-        }),
-      );
+      const event = await input.driver.sendPrompt({
+        piSessionId: requiredString(params.piSessionId, "piSessionId"),
+        prompt: prompt.text,
+        ...(prompt.images.length ? { images: prompt.images } : {}),
+      });
+      input.recordUserSubmission(event.piSessionId, submittedAt);
+      return input.emit(event);
     }
     case "queue_follow_up": {
+      const submittedAt = input.now();
       const followUp = parsePromptText(params.message, params.images, "message");
-
-      return input.driver.queueFollowUp({
+      const queued = await input.driver.queueFollowUp({
         piSessionId: requiredString(params.piSessionId, "piSessionId"),
         message: followUp.text,
         ...(followUp.images.length ? { images: followUp.images } : {}),
       });
+      input.recordUserSubmission(queued.piSessionId, submittedAt);
+      return queued;
     }
     case "withdraw_queued_message":
       return input.driver.withdrawQueuedMessage({
@@ -434,15 +447,15 @@ async function dispatchRuntimeGatewayRequest(input: {
         queuedMessageId: requiredString(params.queuedMessageId, "queuedMessageId"),
       });
     case "steer_run": {
+      const submittedAt = input.now();
       const steer = parsePromptText(params.message, params.images, "message");
-
-      return input.emit(
-        await input.driver.steerRun({
-          piSessionId: requiredString(params.piSessionId, "piSessionId"),
-          message: steer.text,
-          ...(steer.images.length ? { images: steer.images } : {}),
-        }),
-      );
+      const event = await input.driver.steerRun({
+        piSessionId: requiredString(params.piSessionId, "piSessionId"),
+        message: steer.text,
+        ...(steer.images.length ? { images: steer.images } : {}),
+      });
+      input.recordUserSubmission(event.piSessionId, submittedAt);
+      return input.emit(event);
     }
     case "stop_run":
       return input.emit(
@@ -550,21 +563,22 @@ async function dispatchRuntimeGatewayRequest(input: {
 function createRuntimeEventProjectionWriter(store?: SessionProjectionStore) {
   const pendingWrites = new Map<string, Promise<void>>();
 
-  const enqueue = (event: RuntimeGatewayEventEnvelope) => {
-    if (!store || !projectionPatchFromRuntimeEvent(event)) {
-      return;
-    }
+  const enqueueUpdate = (
+    sessionId: string,
+    update: (current: PersistedSessionProjection) => PersistedSessionProjection,
+  ) => {
+    if (!store) return;
 
-    const previousWrite = pendingWrites.get(event.sessionId) ?? Promise.resolve();
+    const previousWrite = pendingWrites.get(sessionId) ?? Promise.resolve();
     const write = previousWrite
       .then(async () => {
-        const current = await store.get(event.sessionId);
+        const current = await store.get(sessionId);
 
         if (!current) {
           return;
         }
 
-        const next = projectionAfterRuntimeEvent(current, event);
+        const next = update(current);
 
         if (next !== current) {
           await store.save(next);
@@ -572,21 +586,35 @@ function createRuntimeEventProjectionWriter(store?: SessionProjectionStore) {
       })
       .catch((error) => {
         console.error(
-          `Pace failed to persist Session Projection "${event.sessionId}":`,
+          `Pace failed to persist Session Projection "${sessionId}":`,
           error,
         );
       });
 
-    pendingWrites.set(event.sessionId, write);
+    pendingWrites.set(sessionId, write);
     void write.finally(() => {
-      if (pendingWrites.get(event.sessionId) === write) {
-        pendingWrites.delete(event.sessionId);
+      if (pendingWrites.get(sessionId) === write) {
+        pendingWrites.delete(sessionId);
       }
     });
   };
 
   return {
-    enqueue,
+    enqueue(event: RuntimeGatewayEventEnvelope) {
+      if (projectionPatchFromRuntimeEvent(event)) {
+        enqueueUpdate(event.sessionId, (current) => projectionAfterRuntimeEvent(current, event));
+      }
+    },
+    recordUserSubmission(sessionId: string, submittedAt: string) {
+      // Serialize with runtime writes so streaming updates cannot erase a submission.
+      enqueueUpdate(sessionId, (current) => ({
+        ...current,
+        lastUserMessageAt:
+          current.lastUserMessageAt && current.lastUserMessageAt > submittedAt
+            ? current.lastUserMessageAt
+            : submittedAt,
+      }));
+    },
     async flush() {
       await Promise.all([...pendingWrites.values()]);
     },

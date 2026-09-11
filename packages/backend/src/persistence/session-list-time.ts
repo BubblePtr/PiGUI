@@ -51,6 +51,22 @@ export function lastChatActivityAtFromGatewayEvents(
   return latest;
 }
 
+// Backfill older projections once; new submissions are persisted at command acceptance.
+export function lastUserMessageAtFromGatewayEvents(
+  events: readonly GatewayEventLike[],
+): string | null {
+  let latest: string | null = null;
+  for (const { ts, payload } of events) {
+    if (
+      typeof ts === "string" && ts && payload?.role === "user" &&
+      (payload.kind === "message" || payload.kind === "control" || payload.type === "message")
+    ) {
+      if (!latest || ts > latest) latest = ts;
+    }
+  }
+  return latest;
+}
+
 /**
  * Prefer last chat activity from events; otherwise keep the previous
  * persisted list time; only then fall back to snapshot wall-clock.
