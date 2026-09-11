@@ -61,7 +61,7 @@ export default function SessionDiffViewer({
   if (!parsed.fileDiff) {
     return (
       <div
-        className="rounded-md border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger"
+        className="bg-danger/5 px-3 py-2 text-sm text-danger"
         role="alert"
       >
         {parsed.error}
@@ -70,7 +70,7 @@ export default function SessionDiffViewer({
   }
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-default/70 bg-surface">
+    <div className="min-w-0 overflow-hidden bg-surface">
       <FileDiff
         disableWorkerPool
         fileDiff={parsed.fileDiff}

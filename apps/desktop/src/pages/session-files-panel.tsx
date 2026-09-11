@@ -1,3 +1,4 @@
+import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Button } from "@astryxdesign/core/Button";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { TreeList, type TreeListItemData } from "@astryxdesign/core/TreeList";
@@ -273,7 +274,7 @@ function FilesSessionContent({ sessionId }: Props) {
   const rootLoading = !root || root.status === "loading";
 
   return (
-    <section aria-label="Session files" className="flex h-full min-h-0 flex-col pb-2">
+    <section aria-label="Session files" className="flex h-full min-h-0 flex-col">
       <SessionSurfaceBar
         actions={
           <IconButton
@@ -315,9 +316,17 @@ function FilesSessionContent({ sessionId }: Props) {
             onClick={refresh}
           />
         </div>
+      ) : root?.status === "loaded" && root.entries.length === 0 && !root.truncated ? (
+        <EmptyState
+          className="flex-1 justify-center px-4"
+          title="No files yet"
+          description="This session’s working directory is empty. Files will appear here as you work."
+          icon={<FolderClosed className="size-5 text-muted" />}
+          isCompact
+        />
       ) : (
-        <div className="grid min-h-0 min-w-0 flex-1 md:grid-cols-[minmax(0,1fr)_14rem]">
-          <div className="min-w-0 overflow-y-auto border border-default/70 bg-surface p-1.5 md:order-last">
+        <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)_min(40%,13rem)] grid-rows-[minmax(0,1fr)] overflow-hidden">
+          <div className="order-last min-h-0 min-w-0 overflow-y-auto overscroll-contain border-l border-separator bg-surface p-1.5">
             <TreeList
               className="pigui-files-tree"
               density="compact"
@@ -326,7 +335,7 @@ function FilesSessionContent({ sessionId }: Props) {
               variant="noGuides"
             />
           </div>
-          <div className="min-h-0 min-w-0 overflow-y-auto">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto overscroll-contain">
             <FilePreview preview={preview} onRetry={openFile} />
           </div>
         </div>
@@ -343,7 +352,15 @@ function FilePreview({
   onRetry: (path: string) => void;
 }) {
   if (!preview) {
-    return <p className="text-sm leading-6 text-muted">Select a file to preview it.</p>;
+    return (
+      <EmptyState
+        className="flex-1 justify-center px-4"
+        title="No file selected"
+        description="Select a file to preview it."
+        icon={<FileIcon className="size-5 text-muted" />}
+        isCompact
+      />
+    );
   }
 
   if (preview.status === "loading") {
@@ -377,22 +394,30 @@ function FilePreview({
 
   if (content.binary) {
     return (
-      <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-        Binary file. A preview is not available.
-      </p>
+      <EmptyState
+        className="flex-1 justify-center px-4"
+        title="Preview unavailable"
+        description="Binary file. A preview is not available."
+        icon={<FileIcon className="size-5 text-muted" />}
+        isCompact
+      />
     );
   }
 
   if (content.content.length === 0) {
     return (
-      <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-        This file is empty.
-      </p>
+      <EmptyState
+        className="flex-1 justify-center px-4"
+        title="Empty file"
+        description="This file is empty."
+        icon={<FileIcon className="size-5 text-muted" />}
+        isCompact
+      />
     );
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid shrink-0 gap-3">
       {content.truncated ? (
         <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
           Only the first part of this file is shown. It exceeds the preview limit.

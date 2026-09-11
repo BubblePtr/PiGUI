@@ -857,3 +857,12 @@ html[data-pigui-vibrancy] .pigui-app-sidenav > div:not(#\#):not(#\#):not(#\#) {
 .pigui-files-tree .astryx-tree-list-item {
   border-radius: 0;
 }
+
+/* Each file owns its sticky header so the next file naturally replaces it. */
+.pigui-change-section > .astryx-collapsible-trigger {
+  padding-inline: var(--spacing-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}

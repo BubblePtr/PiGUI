@@ -2308,9 +2308,9 @@ export function SessionChangesPanel({
 
       {/* Keep scrolling and size containment below the window's header band.
           The bar must stay in the root stacking context above its drag region. */}
-      <div className="@container/changes flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
+      <div className="@container/changes flex min-h-0 flex-1 flex-col overflow-hidden">
         {stale ? (
-          <p className="mt-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
+          <p className="mt-3 bg-warning/5 px-3 py-2 text-sm text-foreground">
             Runtime state is stale. This diff is fresh, but the Session status may be outdated.
           </p>
         ) : null}
@@ -2325,12 +2325,12 @@ export function SessionChangesPanel({
           />
         ) : loading && !changes ? (
           <div className="mt-3 grid gap-2" aria-label="Loading Session changes">
-            <div className="h-8 animate-pulse motion-reduce:animate-none rounded-md bg-default/40" />
-            <div className="h-24 animate-pulse motion-reduce:animate-none rounded-md bg-default/30" />
+            <div className="h-8 animate-pulse motion-reduce:animate-none bg-default/40" />
+            <div className="h-24 animate-pulse motion-reduce:animate-none bg-default/30" />
           </div>
         ) : error ? (
           <div
-            className="mt-3 rounded-md border border-danger/40 bg-danger/5 px-3 py-3"
+            className="mt-3 bg-danger/5 px-3 py-3"
             role="alert"
           >
             <p className="text-sm text-danger">{error}</p>
@@ -2359,12 +2359,12 @@ export function SessionChangesPanel({
             isCompact
           />
         ) : (
-          <div className="grid min-w-0 @xl/changes:grid-cols-[minmax(0,1fr)_13rem]">
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)_min(40%,13rem)] grid-rows-[minmax(0,1fr)]">
             {/* Every diff, top to bottom: the reviewer scrolls instead of
                 switching. Each section is one file; a folded one drops its
                 viewer so a wide tree never keeps hundreds of renderers alive. */}
             <CollapsibleGroup
-              className="min-w-0 rounded-md border border-default/70 bg-surface"
+              className="min-h-0 min-w-0 overflow-y-auto overscroll-contain bg-surface"
               density="compact"
               hasDividers
               type="multiple"
@@ -2384,7 +2384,7 @@ export function SessionChangesPanel({
                 return (
                   <Collapsible
                     key={`${file.previousPath ?? ""}:${file.path}`}
-                    className="pigui-change-section px-2"
+                    className="pigui-change-section shrink-0"
                     data-testid="session-change-section"
                     ref={(node) => {
                       if (node) sectionRefs.current.set(file.path, node);
@@ -2410,18 +2410,22 @@ export function SessionChangesPanel({
                     value={file.path}
                   >
                     {isOpen ? (
-                      <div className="pb-2">
+                      <>
                         {file.kind === "conflicted" ? (
-                          <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                          <p className="bg-warning/5 px-3 py-3 text-sm text-foreground">
                             This file has unresolved merge conflicts. Resolve it in the
                             checkout before reviewing a normal patch.
                           </p>
                         ) : file.binary ? (
-                          <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-                            Binary file changed. A textual diff is not available.
-                          </p>
+                          <EmptyState
+                            className="px-4 py-6"
+                            title="Diff unavailable"
+                            description="Binary file changed. A textual diff is not available."
+                            icon={<FileDiff className="size-5 text-muted" />}
+                            isCompact
+                          />
                         ) : file.patchTruncated ? (
-                          <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-3 text-sm text-foreground">
+                          <p className="bg-warning/5 px-3 py-3 text-sm text-foreground">
                             This patch exceeds the review limit and was omitted. Open the
                             checkout for the full diff.
                           </p>
@@ -2429,7 +2433,7 @@ export function SessionChangesPanel({
                           <Suspense
                             fallback={
                               <div
-                                className="h-40 animate-pulse motion-reduce:animate-none rounded-md bg-default/30"
+                                className="h-40 animate-pulse motion-reduce:animate-none bg-default/30"
                                 aria-label="Loading diff renderer"
                               />
                             }
@@ -2442,33 +2446,35 @@ export function SessionChangesPanel({
                             />
                           </Suspense>
                         ) : (
-                          <p className="rounded-md border border-default/70 bg-surface px-3 py-3 text-sm text-muted">
-                            No textual patch is available for this file.
-                          </p>
+                          <EmptyState
+                            className="px-4 py-6"
+                            title="No textual changes"
+                            description="No textual patch is available for this file."
+                            icon={<FileDiff className="size-5 text-muted" />}
+                            isCompact
+                          />
                         )}
-                      </div>
+                      </>
                     ) : null}
                   </Collapsible>
                 );
               })}
             </CollapsibleGroup>
 
-            {/* The outline: one row per file, in the order of the sections. It
-                comes first in narrow docks; only a wide container can afford
-                a second column, regardless of the application's window width. */}
+            {/* Both columns own their scroll position, including in narrow docks. */}
             <nav
               aria-label="Changed files"
-              className="min-w-0 self-start rounded-md border border-default/70 bg-surface p-1.5 @xl/changes:sticky @xl/changes:top-0 order-first @xl/changes:order-none"
+              className="flex min-h-0 min-w-0 flex-col border-l border-separator bg-surface"
             >
-              <p className="px-2 py-1 text-xs font-medium text-muted">
+              <p className="shrink-0 px-2 py-1 text-xs font-medium text-muted">
                 {changes.files.length} files
               </p>
-              <div className="max-h-[34rem] divide-y divide-separator overflow-y-auto">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {changes.files.map((file) => (
                   <button
                     key={`${file.previousPath ?? ""}:${file.path}`}
                     data-current={file.path === currentPath ? "true" : undefined}
-                    className={`w-full min-w-0 rounded px-2 py-1.5 text-left transition-colors ${
+                    className={`w-full min-w-0 px-2 py-1.5 text-left transition-colors ${
                       file.path === currentPath
                         ? "bg-default/70 text-foreground"
                         : "text-muted hover:bg-default/40 hover:text-foreground"
@@ -2489,16 +2495,15 @@ export function SessionChangesPanel({
                 ))}
               </div>
             </nav>
-
-            {changes.truncated ? (
-              <p className="@xl/changes:col-span-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-foreground">
-                Review is bounded. {changes.omittedFileCount > 0
-                  ? `${changes.omittedFileCount} additional files were omitted.`
-                  : "One or more oversized patches were omitted."}
-              </p>
-            ) : null}
           </div>
         )}
+        {hasReview && changes?.truncated ? (
+          <p className="shrink-0 bg-warning/5 px-3 py-2 text-sm text-foreground">
+            Review is bounded. {changes.omittedFileCount > 0
+              ? `${changes.omittedFileCount} additional files were omitted.`
+              : "One or more oversized patches were omitted."}
+          </p>
+        ) : null}
       </div>
     </section>
   );
