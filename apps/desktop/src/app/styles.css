@@ -208,6 +208,33 @@ body {
   z-index: 1;
 }
 
+/* Row actions share the row surface; only the glyph gains emphasis.
+   Match StyleX specificity without changing the built-in focus outline. */
+.pigui-sidenav-hover-actions .astryx-button:not(#\#):not(#\#):not(#\#) {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--muted);
+  transform: none;
+  transition-property: color;
+}
+
+.pigui-sidenav-hover-actions .astryx-button:not(:disabled):not([aria-disabled="true"]):is(:focus-visible, :active, [aria-expanded="true"]):not(#\#):not(#\#):not(#\#) {
+  color: var(--foreground);
+}
+
+@media (hover: hover) {
+  .pigui-sidenav-hover-actions .astryx-button:not(:disabled):not([aria-disabled="true"]):hover:not(#\#):not(#\#):not(#\#) {
+    color: var(--foreground);
+  }
+
+  /* The action overlay is a sibling, so hovering it does not hover the
+     navigation button. Keep the same row wash across that boundary. */
+  .pigui-sidenav-row-with-actions:has(> .pigui-sidenav-row-actions:hover) > div > .astryx-side-nav-item:not([data-selected="selected"]):not(#\#):not(#\#):not(#\#) {
+    background-color: var(--color-overlay-hover);
+  }
+}
+
 .pigui-sidenav-actions-spacer {
   display: inline-block;
   width: calc(2 * var(--size-element-sm) + var(--spacing-0-5));
