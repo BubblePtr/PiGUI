@@ -1,3 +1,4 @@
+import { createGitMetadataWatchers } from "./workspace/git-metadata-watcher";
 import { CHAT_PROJECT_ID } from "@pace/core";
 import { createWorkspaceInvalidation } from "./workspace/workspace-invalidation";
 import { addResourceDiagnostics } from "./workspace/resource-diagnostics";
@@ -153,31 +154,35 @@ export function createBackendService(options: BackendServiceOptions = {}): Backe
       });
     }
   });
-  function associate(projection: PersistedSessionProjection) {
+  const gitWatchers = createGitMetadataWatchers((root) => invalidation.invalidateCheckout(root, "git-watch"));
+  async function associate(projection: PersistedSessionProjection) {
     const checkout = isRecord(projection.checkout) ? projection.checkout : {};
     const root = optionalString(checkout.executionCheckoutRoot) ?? optionalString(checkout.root);
     if (projection.projectId !== CHAT_PROJECT_ID && root) {
-      invalidation.associate(projection.sessionId, root);
+      const checkoutId = invalidation.associate(projection.sessionId, root);
+      await gitWatchers.associate(projection.sessionId, checkoutId);
     } else {
       invalidation.remove(projection.sessionId);
+      gitWatchers.remove(projection.sessionId);
     }
   }
   // Seed persisted siblings before accepting commands, then track every write
   // through the same store boundary used by creation, resume and deletion.
   const associationsReady = projectionStore.list().then((projections) => {
-    projections.forEach(associate);
+    return Promise.all(projections.map(associate));
   });
   const sessionProjectionStore: SessionProjectionStore = {
     ...projectionStore,
     async save(projection) {
       await associationsReady;
       await projectionStore.save(projection);
-      associate(projection);
+      await associate(projection);
     },
     async remove(sessionId) {
       await associationsReady;
       await projectionStore.remove(sessionId);
       invalidation.remove(sessionId);
+      gitWatchers.remove(sessionId);
     },
   };
   const sessionChangesReader =

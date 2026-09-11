@@ -1,7 +1,9 @@
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { WorkspaceInvalidatedPayload } from "@pace/core";
 
 type Pending = {
+  source: WorkspaceInvalidatedPayload["source"];
   trailing: ReturnType<typeof setTimeout>;
   deadline: ReturnType<typeof setTimeout>;
 };
@@ -22,13 +24,14 @@ export function createWorkspaceInvalidation(
   }
 
   function flushCheckout(checkoutId: string) {
-    if (!cancel(checkoutId)) return;
+    const source = pending.get(checkoutId)?.source;
+    if (!source || !cancel(checkoutId)) return;
     emit({
       checkoutId,
       sessionIds: [...sessions]
         .filter(([, root]) => root === checkoutId)
         .map(([id]) => id),
-      source: "tool",
+      source,
     });
   }
 
@@ -38,25 +41,38 @@ export function createWorkspaceInvalidation(
     if (root && ![...sessions.values()].includes(root)) cancel(root);
   }
 
+  function invalidateCheckout(root: string, source: WorkspaceInvalidatedPayload["source"]) {
+    if (![...sessions.values()].includes(root)) return;
+    const previous = pending.get(root);
+    if (previous) clearTimeout(previous.trailing);
+    pending.set(root, {
+      source,
+      trailing: setTimeout(() => flushCheckout(root), 500),
+      // Continuous signals must not postpone convergence indefinitely.
+      deadline: previous?.deadline ?? setTimeout(() => flushCheckout(root), 2000),
+    });
+  }
+
   return {
     associate(sessionId: string, root: string) {
-      const normalized = resolve(root);
-      if (sessions.get(sessionId) === normalized) return;
+      let normalized: string;
+      try {
+        normalized = realpathSync(root);
+      } catch {
+        // Persisted checkouts can be absent until resume recreates them.
+        normalized = resolve(root);
+      }
+      if (sessions.get(sessionId) === normalized) return normalized;
       remove(sessionId);
       sessions.set(sessionId, normalized);
+      return normalized;
     },
     remove,
     invalidate(sessionId: string) {
       const root = sessions.get(sessionId);
-      if (!root) return;
-      const previous = pending.get(root);
-      if (previous) clearTimeout(previous.trailing);
-      pending.set(root, {
-        trailing: setTimeout(() => flushCheckout(root), 500),
-        // Continuous tools must not postpone convergence indefinitely.
-        deadline: previous?.deadline ?? setTimeout(() => flushCheckout(root), 2000),
-      });
+      if (root) invalidateCheckout(root, "tool");
     },
+    invalidateCheckout,
     flush(sessionId: string) {
       const root = sessions.get(sessionId);
       if (root) flushCheckout(root);

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { realpathSync, symlinkSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1773,4 +1775,40 @@ describe("workspace invalidation delivery", () => {
     expect(recorded.some((event) => event.type === "workspace.invalidated")).toBe(false);
     expect(await projections.get("b")).toMatchObject({ status: "idle" });
   });
+});
+
+it("delivers external Git changes to linked checkout siblings without a runtime event", async () => {
+  const root = realpathSync(await mkdtemp(join(tmpdir(), "service-git-watch-")));
+  const git = (...args: string[]) => execFileSync("git", ["-C", root, ...args], { stdio: "pipe" });
+  git("init", "-b", "main");
+  git("config", "user.name", "Watcher test");
+  git("config", "user.email", "watcher@example.test");
+  git("commit", "--allow-empty", "-m", "initial");
+  const linked = join(root, "linked");
+  git("worktree", "add", "--detach", linked);
+  const alias = join(root, "alias");
+  symlinkSync(linked, alias, "dir");
+  const projections = createInMemorySessionProjectionStore();
+  for (const [id, checkoutRoot] of [["a", linked], ["b", alias], ["chat", linked]]) {
+    await projections.save({ sessionId: id!, piSessionId: `pi-${id}`, runtimeId: id!,
+      projectId: id === "chat" ? "chat" : root, cwd: checkoutRoot!, status: "idle",
+      checkout: { mode: "foreground-local", root: checkoutRoot! }, updatedAt: "2026-09-11T00:00:00Z" });
+  }
+  const read = vi.fn();
+  const service = createBackendService({ dataDir: join(root, "data"), sessionProjectionStore: projections,
+    runtimeJournal: createInMemorySessionEventJournal(), sessionChangesReader: { read, checkoutBranch: vi.fn() },
+    runtimeDriver: { onEvent: () => () => {} } as unknown as PiRuntimeDriver, piRpc: createFakePiRpcTransport() });
+  const delivered: unknown[] = [];
+  service.onEvent(({ event }) => { if (event.type === "workspace.invalidated") delivered.push(event.payload); });
+  try {
+    await service.handleRequest({ id: "init", method: "list_session_projections" });
+    execFileSync("git", ["-C", linked, "checkout", "-b", "external"], { stdio: "pipe" });
+    await vi.waitFor(() => expect(delivered).toContainEqual({ checkoutId: linked, sessionIds: ["a", "b"], source: "git-watch" }), { timeout: 3000, interval: 20 });
+    expect(read).not.toHaveBeenCalled();
+  } finally {
+    for (const id of ["a", "b", "chat"]) {
+      await service.handleRequest({ id: `delete-${id}`, method: "delete_session", params: { sessionId: id } });
+    }
+    await rm(root, { recursive: true, force: true });
+  }
 });
