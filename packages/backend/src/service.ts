@@ -71,7 +71,10 @@ import {
   type PersistedSessionProjection,
   type SessionProjectionStore,
 } from "./persistence/session-projection-store";
-import { lastChatActivityAtFromGatewayEvents } from "./persistence/session-list-time";
+import {
+  lastChatActivityAtFromGatewayEvents,
+  lastUserMessageAtFromGatewayEvents,
+} from "./persistence/session-list-time";
 import {
   annotateSessionPresence,
   buildSessionIndexWithCache,
@@ -689,13 +692,15 @@ async function healProjectionListTimesFromJournal(input: {
     input.projections.map(async (projection) => {
       try {
         const events = await input.journal.read(projection.piSessionId);
-        const activityAt = lastChatActivityAtFromGatewayEvents(events);
+        const activityAt = lastChatActivityAtFromGatewayEvents(events) ?? projection.updatedAt;
+        const lastUserMessageAt = projection.lastUserMessageAt ??
+          lastUserMessageAtFromGatewayEvents(events) ?? undefined;
 
-        if (!activityAt || activityAt === projection.updatedAt) {
+        if (activityAt === projection.updatedAt && lastUserMessageAt === projection.lastUserMessageAt) {
           return projection;
         }
 
-        const next = { ...projection, updatedAt: activityAt };
+        const next = { ...projection, updatedAt: activityAt, lastUserMessageAt };
         await input.store.save(next);
         return next;
       } catch {

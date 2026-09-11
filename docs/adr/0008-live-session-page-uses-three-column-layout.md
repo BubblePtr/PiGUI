@@ -1,5 +1,7 @@
 # Live Session 页面采用三栏结构
 
+> Session 列表排序已由 [ADR-0039](0039-session-order-follows-user-submissions.md) 替代：按用户最后发送时间排序，运行状态和未读结果不再置顶。
+
 PiGUI 首版的 Session 页面采用三栏结构：
 
 1. 左侧是 Project Sidebar，用于展示 Project Registry 中所有 Project；每个 Project 可展开查看自己的 Sessions，并提供 New Session、恢复或归档旧 Session 的入口。未提交 Session Draft 不作为列表项出现，只在目标 Project 或 composer 上显示轻量提示；Session 有未看新消息、run 结果或 Follow-up Draft 时，可以显示对应 indicator。Session 列表默认排序为 active run 在前，其次有 unread result，其余按最近更新时间倒序；active run 组内按最近 runtime event 时间倒序。

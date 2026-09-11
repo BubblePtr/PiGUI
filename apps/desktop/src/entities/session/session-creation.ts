@@ -275,6 +275,7 @@ export async function createSessionFromDraft(
       }),
     );
 
+    const submittedAt = now();
     const accepted = await input.bridge.sendInitialPrompt({
       piSessionId: piState.piSessionId,
       prompt: input.draft.prompt,
@@ -285,6 +286,7 @@ export async function createSessionFromDraft(
       applySessionProjectionEvent(projection, {
         type: "runtime-event-received",
         stage: "accepted",
+        submittedAt,
         event: accepted.event,
       }),
     );

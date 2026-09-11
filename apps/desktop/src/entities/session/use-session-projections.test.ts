@@ -16,6 +16,24 @@ const record: PersistedSessionProjection = {
 };
 
 describe("session projection hydration", () => {
+  it("keeps last user submission order after cold hydration despite newer assistant activity", () => {
+    const sessions = [
+      sessionProjectionFromPersistedProjection({
+        ...record, sessionId: "older-input", status: "running",
+        lastUserMessageAt: "2026-07-18T10:00:00.000Z",
+        updatedAt: "2026-07-18T12:00:00.000Z",
+      }),
+      sessionProjectionFromPersistedProjection({
+        ...record, sessionId: "newer-input",
+        lastUserMessageAt: "2026-07-18T11:00:00.000Z",
+        updatedAt: "2026-07-18T11:30:00.000Z",
+      }),
+    ];
+    expect(getSessionProjectionListItems(sessions).map((item) => item.id)).toEqual([
+      "newer-input", "older-input",
+    ]);
+  });
+
   it("keeps a renamed Session title across reloads", () => {
     expect(
       sessionProjectionFromPersistedProjection({

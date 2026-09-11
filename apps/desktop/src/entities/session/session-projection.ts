@@ -65,6 +65,7 @@ export type SessionProjection = {
   unreadResult: boolean;
   archivedAt: string | null;
   createdAt: string;
+  lastUserMessageAt?: string;
   updatedAt: string;
 };
 
@@ -99,6 +100,8 @@ export type SessionProjectionEvent =
   | {
       type: "runtime-event-received";
       stage?: "accepted";
+      // Present only on successful user sends, never on runtime echoes or replay.
+      submittedAt?: string;
       event: PiRuntimeEvent;
     }
   | {
@@ -235,8 +238,8 @@ function maxIsoTimestamp(left: string | null | undefined, right: string): string
 }
 
 /**
- * Sidebar/list time for a session: last chat activity (user/assistant message,
- * control echo, or run error) — never "last opened" / resume wall clock.
+ * Last chat activity (user/assistant message, control echo, or run error)
+ * for projection freshness — never "last opened" / resume wall clock.
  * DF-010.
  */
 export function lastChatActivityAt(
@@ -268,22 +271,22 @@ export function lastChatActivityAt(
   return latest ?? projection.updatedAt;
 }
 
-function activeRunUpdatedAt(projection: SessionProjection): string {
-  return lastChatActivityAt(projection);
-}
+function lastUserMessageAt(projection: SessionProjection): string {
+  // Explicit submissions survive cold hydration and delayed queue processing echoes.
+  if (projection.lastUserMessageAt) return projection.lastUserMessageAt;
 
-function projectionListSortKey(projection: SessionProjection): [number, string] {
-  const activityAt = lastChatActivityAt(projection);
-
-  if (isSessionProjectionActive(projection)) {
-    return [0, activityAt];
+  let latest = projection.createdAt;
+  for (const message of projection.runtimeModel.messages.values()) {
+    if (message.role === "user") {
+      latest = maxIsoTimestamp(latest, message.startedAt ?? message.updatedAt);
+    }
   }
-
-  if (projection.unreadResult) {
-    return [1, activityAt];
+  for (const event of projection.runtimeEvents) {
+    if (event.role === "user" && (event.kind === "message" || event.kind === "control")) {
+      latest = maxIsoTimestamp(latest, event.timestamp);
+    }
   }
-
-  return [2, activityAt];
+  return latest;
 }
 
 export function getSessionProjectionListItems(
@@ -300,19 +303,10 @@ export function getSessionProjectionListItems(
       active: isSessionProjectionActive(projection),
       unread: projection.unreadResult,
       archived: isSessionProjectionArchived(projection),
-      updatedAt: lastChatActivityAt(projection),
+      updatedAt: lastUserMessageAt(projection),
       projection,
     }))
-    .sort((left, right) => {
-      const [leftGroup, leftTime] = projectionListSortKey(left.projection);
-      const [rightGroup, rightTime] = projectionListSortKey(right.projection);
-
-      if (leftGroup !== rightGroup) {
-        return leftGroup - rightGroup;
-      }
-
-      return rightTime.localeCompare(leftTime);
-    });
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
 function sessionStatusFromRuntimeState(state: PiSessionState): SessionStatus {
@@ -546,6 +540,9 @@ export function applySessionProjectionEvent(
                 ? "completed"
                 : "running",
         creationStage: event.stage ?? projection.creationStage,
+        lastUserMessageAt: event.submittedAt
+          ? maxIsoTimestamp(projection.lastUserMessageAt, event.submittedAt)
+          : projection.lastUserMessageAt,
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),
         queuedMessages: queuedMessagesAfterRuntimeEvent(projection, event.event),
@@ -606,6 +603,7 @@ export function applySessionProjectionEvent(
     case "queued-message-added":
       return {
         ...projection,
+        lastUserMessageAt: maxIsoTimestamp(projection.lastUserMessageAt, event.queuedMessage.createdAt),
         queuedMessages: [
           ...projection.queuedMessages,
           { ...event.queuedMessage },
@@ -651,6 +649,7 @@ export function applySessionProjectionEvent(
     case "steer-submitted":
       return {
         ...projection,
+        lastUserMessageAt: maxIsoTimestamp(projection.lastUserMessageAt, event.event.timestamp),
         status: "running",
         runtimeEvents: upsertRuntimeEvent(projection.runtimeEvents, event.event),
         runtimeModel: runtimeModelAfterLegacyEvent(projection.runtimeModel, event.event),

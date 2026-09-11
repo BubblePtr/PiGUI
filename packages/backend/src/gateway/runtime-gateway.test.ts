@@ -553,6 +553,63 @@ describe("Runtime Gateway service", () => {
     ]);
   });
 
+  it.each(["send_prompt", "queue_follow_up", "steer_run"])(
+    "persists %s submission time without bumping it on background activity or resume",
+    async (method) => {
+      const projections = createInMemorySessionProjectionStore();
+      const driver = createFakeRuntimeDriver();
+      let now = "2026-07-03T10:00:00.000Z";
+      const service = createRuntimeGatewayService({ driver, projections, now: () => now });
+      await service.handleRequest({
+        id: "create",
+        method: "create_session",
+        params: { sessionId: "app-session-1", projectId: "pig", cwd: "/repo" },
+      });
+      expect(await projections.get("app-session-1")).toMatchObject({
+        lastUserMessageAt: "2026-06-29T12:00:00.000Z",
+      });
+      const response = await service.handleRequest({
+        id: "submit",
+        method,
+        params: { piSessionId: "pi-session-1", prompt: "Continue", message: "Continue" },
+      });
+      expect(response.error).toBeUndefined();
+      expect(await projections.get("app-session-1")).toMatchObject({ lastUserMessageAt: now });
+
+      now = "2026-07-03T11:00:00.000Z";
+      driver.emitDriverEvent({
+        piSessionId: "pi-session-1",
+        type: "message_update",
+        payload: { kind: "message", role: "user", body: "Delayed queued echo" },
+      });
+      driver.emitDriverEvent({
+        piSessionId: "pi-session-1",
+        type: "message_update",
+        payload: { kind: "message", role: "assistant", body: "Still working" },
+      });
+      // A successful stop also flushes queued runtime writes before the assertion.
+      const stopped = await service.handleRequest({
+        id: "stop", method: "stop_run", params: { piSessionId: "pi-session-1" },
+      });
+      expect(stopped.error).toBeUndefined();
+      expect(await projections.get("app-session-1")).toMatchObject({
+        lastUserMessageAt: "2026-07-03T10:00:00.000Z",
+      });
+      const resumed = await service.handleRequest({
+        id: "resume",
+        method: "resume_session",
+        params: {
+          sessionId: "app-session-1", piSessionId: "pi-session-1", projectId: "pig",
+          cwd: "/repo", sessionFile: "/tmp/session.jsonl",
+        },
+      });
+      expect(resumed.error).toBeUndefined();
+      expect(await projections.get("app-session-1")).toMatchObject({
+        lastUserMessageAt: "2026-07-03T10:00:00.000Z",
+      });
+    },
+  );
+
   it("preserves the persisted initial prompt when snapshots refresh Projection records", async () => {
     const projections = createInMemorySessionProjectionStore();
     const service = createRuntimeGatewayService({
@@ -1326,6 +1383,7 @@ describe("Runtime Gateway service", () => {
         piSessionId: "pi-session-forked",
         cwd: "/repo-forked",
         sessionFile: "/Users/void/.pi/agent/sessions/pig/pi-session-forked.jsonl",
+        lastUserMessageAt: "2026-07-03T12:10:00.000Z",
       }),
     ]);
     await expect(

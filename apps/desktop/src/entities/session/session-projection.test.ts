@@ -21,82 +21,48 @@ function projection(overrides: Partial<SessionProjection>): SessionProjection {
 }
 
 describe("Session Projection state", () => {
-  it("lists visible sessions by active runtime activity, unread results, then recent updates", () => {
-    const activeOlder = applySessionProjectionEvent(
-      projection({
-        id: "active-older",
-        initialPrompt: "Older active run",
-      }),
-      {
+  it("keeps concurrent sessions in last user message order until the user sends again", () => {
+    function send(session: SessionProjection, role: "user" | "assistant", timestamp: string) {
+      return applySessionProjectionEvent(session, {
         type: "runtime-event-received",
         stage: "accepted",
+        ...(role === "user" ? { submittedAt: timestamp } : {}),
         event: {
-          id: "event-active-older",
-          piSessionId: "pi-active-older",
+          id: `${session.id}-${timestamp}`,
+          piSessionId: `pi-${session.id}`,
           kind: "message",
-          role: "assistant",
-          body: "Still running",
-          timestamp: "2026-06-26T08:04:00.000Z",
+          role,
+          body: role === "user" ? "Continue the task" : "Still working",
+          timestamp,
         },
-      },
-    );
-    const activeNewer = applySessionProjectionEvent(
-      projection({
-        id: "active-newer",
-        initialPrompt: "Newer active run",
-      }),
-      {
-        type: "runtime-event-received",
-        stage: "accepted",
-        event: {
-          id: "event-active-newer",
-          piSessionId: "pi-active-newer",
-          kind: "message",
-          role: "assistant",
-          body: "Most recent runtime activity",
-          timestamp: "2026-06-26T08:06:00.000Z",
-        },
-      },
-    );
-    const unreadOlderThanNormal = projection({
-      id: "unread-result",
-      initialPrompt: "Unread completed result",
-      status: "completed",
-      unreadResult: true,
-      updatedAt: "2026-06-26T08:01:00.000Z",
-    });
-    const normalRecent = projection({
-      id: "normal-recent",
-      initialPrompt: "Recent read result",
-      status: "completed",
-      updatedAt: "2026-06-26T08:05:00.000Z",
-    });
-    const archived = projection({
-      id: "archived-session",
-      initialPrompt: "Archived checkout snapshot",
-      status: "completed",
-      archivedAt: "2026-06-26T08:07:00.000Z",
-      updatedAt: "2026-06-26T08:07:00.000Z",
-    });
+      });
+    }
 
-    expect(
-      getSessionProjectionListItems([
-        normalRecent,
-        archived,
-        activeOlder,
-        unreadOlderThanNormal,
-        activeNewer,
-      ]).map((item) => item.id),
-    ).toEqual(["active-newer", "active-older", "unread-result", "normal-recent"]);
-    expect(
-      getSessionProjectionListItems([
-        normalRecent,
-        archived,
-        activeOlder,
-        unreadOlderThanNormal,
-        activeNewer,
-      ], { includeArchived: true }).map((item) => item.id),
-    ).toContain("archived-session");
+    let older = send(projection({ id: "older" }), "user", "2026-06-26T08:01:00.000Z");
+    const newer = send(projection({ id: "newer" }), "user", "2026-06-26T08:02:00.000Z");
+    const order = (sessions: SessionProjection[]) =>
+      getSessionProjectionListItems(sessions).map((item) => item.id);
+
+    expect(order([older, newer])).toEqual(["newer", "older"]);
+    older = send(older, "assistant", "2026-06-26T08:03:00.000Z");
+    expect(order([older, newer])).toEqual(["newer", "older"]);
+
+    const finished = applySessionProjectionEvent(newer, {
+      type: "run-completed",
+      event: {
+        id: "newer-result",
+        piSessionId: "pi-newer",
+        kind: "message",
+        role: "assistant",
+        body: "Done",
+        timestamp: "2026-06-26T08:04:00.000Z",
+      },
+    });
+    expect(order([older, finished])).toEqual(["newer", "older"]);
+    expect(order([older, { ...finished, unreadResult: false }])).toEqual(["newer", "older"]);
+
+    older = send(older, "user", "2026-06-26T08:05:00.000Z");
+    expect(order([finished, older])).toEqual(["older", "newer"]);
   });
 
   it("shows the custom title in list items and falls back to the initial prompt", () => {
@@ -298,6 +264,12 @@ describe("Session Projection state", () => {
       }),
     ]);
     expect(queued.runtimeEvents).toEqual([]);
+    expect(getSessionProjectionListItems([queued])[0]?.updatedAt).toBe(
+      "2026-06-26T08:01:00.000Z",
+    );
+    expect(getSessionProjectionListItems([withdrawn])[0]?.updatedAt).toBe(
+      "2026-06-26T08:01:00.000Z",
+    );
     expect(withdrawn.queuedMessages).toEqual([
       expect.objectContaining({
         id: "queued-1",
@@ -320,6 +292,9 @@ describe("Session Projection state", () => {
       }),
     ]);
     expect(processing.updatedAt).toBe("2026-06-26T08:03:00.000Z");
+    expect(getSessionProjectionListItems([processing])[0]?.updatedAt).toBe(
+      "2026-06-26T08:02:00.000Z",
+    );
   });
 
   it("promotes a matching queued follow-up when the runtime emits the user message", () => {
@@ -526,6 +501,9 @@ describe("Session Projection state", () => {
       ],
     });
     expect(steered.queuedMessages).toEqual([]);
+    expect(getSessionProjectionListItems([steered])[0]?.updatedAt).toBe(
+      "2026-06-26T08:04:00.000Z",
+    );
   });
 
   it("records stopped runs as completed and archiveable", () => {
@@ -759,7 +737,7 @@ describe("Session Projection state", () => {
 
     expect(openedToday.updatedAt).toBe("2026-07-30T05:53:00.000Z");
     expect(getSessionProjectionListItems([openedToday])[0]?.updatedAt).toBe(
-      "2026-07-30T05:53:00.000Z",
+      "2026-07-30T05:52:27.500Z",
     );
   });
 

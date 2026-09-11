@@ -180,6 +180,7 @@ function createSidebarProjection({
         thinkingLevel: "high",
       },
     },
+    lastUserMessageAt: updatedAt,
     updatedAt,
   };
 }

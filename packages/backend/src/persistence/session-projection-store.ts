@@ -23,6 +23,8 @@ export type PersistedSessionProjection = {
   summary?: RuntimeGatewaySummary;
   modelSelection?: RuntimeModelSelection;
   archivedAt?: string;
+  // Explicit user submissions drive navigation order, not runtime activity.
+  lastUserMessageAt?: string;
   updatedAt: string;
 };
 
@@ -137,6 +139,7 @@ export function mergeSessionProjection(
     summary: next.summary ?? current.summary,
     modelSelection: next.modelSelection ?? current.modelSelection,
     archivedAt: current.archivedAt ?? next.archivedAt,
+    lastUserMessageAt: next.lastUserMessageAt ?? current.lastUserMessageAt,
   };
 
   if (merged.sessionFile) {
