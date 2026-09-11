@@ -70,17 +70,42 @@ bun run dev
 整个系统由一条单向事件流水线和两套职责明确、互不替代的持久化机制组成（[ADR-0021](docs/adr/0021-session-fork-resume-persistence-layering.md)）：
 
 ```mermaid
-flowchart LR
-  subgraph backend["packages/backend (utilityProcess)"]
-    D["Pi driver<br/>(SDK)"] --> N["Normalizer<br/>AgentRuntimeEvent"]
-    N --> G["Runtime Gateway<br/>envelope: seq + ids"]
-    G --> J[("Session Event Journal<br/>presentation truth")]
-    G --> P[("Session Projection<br/>query model")]
+flowchart TB
+  subgraph R["渲染层 — apps/desktop · React 19 · FSD(pages → entities → shared)"]
+    direction LR
+    pages["Pages + entities<br/>消费事件包络,按 surface 戳路由:<br/>chat · trace · status · composer · hidden"]
+    dock["Session Dock<br/>Changes · Files · Terminal · Browser<br/>+ 扩展面板(provider 字段已预留)"]
+    pages --- dock
   end
-  Pi["Pi Runtime"] --> D
-  Pi --> L[("Pi session jsonl<br/>context truth")]
-  G -->|MessagePort| R["Renderer<br/>apps/desktop"]
-  R -->|"commands: prompt / queue / steer / stop"| G
+
+  subgraph S["Electron 主进程 — apps/desktop/electron"]
+    relay["preload.ts contextBridge + IPC 中继<br/>invoke ⇄ backend-event"]
+    host["窗口 · 自动更新 · 内嵌浏览器宿主 · 应用菜单"]
+    relay --- host
+  end
+
+  subgraph B["后端 — packages/backend · utilityProcess(Node)"]
+    svc["service.ts — 组合根<br/>RPC 分发 + 事件扇出"]
+    subgraph PL["唯一的单向事件流水线"]
+      direction LR
+      pi["Pi 运行时 — 内嵌<br/>AgentSession · 工具 · 扩展<br/>(agent loop 在这里)"]
+      drv["Driver<br/>pi-sdk 默认 · pi-rpc 已冻结"]
+      nz["Normalizer<br/>原始事件 → AgentRuntimeEvent"]
+      gw["Runtime Gateway<br/>seq + 确定性 run/turn/message id<br/>+ 能力声明"]
+      pi --> drv --> nz --> gw
+    end
+    ws["workspace<br/>会话 · 执行检出 · 资源管理<br/>环境预检 · 供应商认证 · 终端 pty"]
+    svc --- gw
+    svc --- ws
+    gw -. "命令: prompt · queue · steer · stop · model" .-> drv
+  end
+
+  R <-->|"contextBridge"| S
+  S <-->|"MessageChannel port"| B
+
+  gw ==>|"仅追加边界事件"| jrnl[("Session Event Journal<br/>~/.pace — 呈现层真相")]
+  gw -->|"更新"| proj[("Session Projection<br/>~/.pace — 查询模型")]
+  pi -->|"Pi 拥有"| pilog[("Pi 会话 jsonl<br/>~/.pi — 上下文真相")]
 ```
 
 - **Driver（驱动层）**：封装 Pi 运行时。默认使用 SDK Driver；RPC Driver 保留但已冻结（[ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)）。

@@ -69,17 +69,42 @@ bun run dev
 The whole system is one unidirectional event pipeline plus two persistence tracks whose roles never swap ([ADR-0021](docs/adr/0021-session-fork-resume-persistence-layering.md)):
 
 ```mermaid
-flowchart LR
-  subgraph backend["packages/backend (utilityProcess)"]
-    D["Pi driver<br/>(SDK)"] --> N["Normalizer<br/>AgentRuntimeEvent"]
-    N --> G["Runtime Gateway<br/>envelope: seq + ids"]
-    G --> J[("Session Event Journal<br/>presentation truth")]
-    G --> P[("Session Projection<br/>query model")]
+flowchart TB
+  subgraph R["Renderer — apps/desktop · React 19 · FSD (pages → entities → shared)"]
+    direction LR
+    pages["Pages + entities<br/>consume envelopes, route by surface stamp:<br/>chat · trace · status · composer · hidden"]
+    dock["Session Dock<br/>Changes · Files · Terminal · Browser<br/>+ extension surfaces (provider field reserved)"]
+    pages --- dock
   end
-  Pi["Pi Runtime"] --> D
-  Pi --> L[("Pi session jsonl<br/>context truth")]
-  G -->|MessagePort| R["Renderer<br/>apps/desktop"]
-  R -->|"commands: prompt / queue / steer / stop"| G
+
+  subgraph S["Electron main — apps/desktop/electron"]
+    relay["preload.ts contextBridge + IPC relay<br/>invoke ⇄ backend-event"]
+    host["windows · updater · browser host · app menu"]
+    relay --- host
+  end
+
+  subgraph B["Backend — packages/backend · utilityProcess (Node)"]
+    svc["service.ts — composition root<br/>RPC dispatch + event fan-out"]
+    subgraph PL["the one event pipeline"]
+      direction LR
+      pi["Pi runtime — embedded<br/>AgentSession · tools · extensions<br/>(the agent loop lives here)"]
+      drv["Driver<br/>pi-sdk default · pi-rpc frozen"]
+      nz["Normalizer<br/>raw events → AgentRuntimeEvent"]
+      gw["Runtime Gateway<br/>seq + deterministic run/turn/message ids<br/>+ capability advertisement"]
+      pi --> drv --> nz --> gw
+    end
+    ws["workspace<br/>sessions · execution checkouts · resources<br/>preflight · provider auth · terminal pty"]
+    svc --- gw
+    svc --- ws
+    gw -. "commands: prompt · queue · steer · stop · model" .-> drv
+  end
+
+  R <-->|"contextBridge"| S
+  S <-->|"MessageChannel port"| B
+
+  gw ==>|"append boundary envelopes only"| jrnl[("Session Event Journal<br/>~/.pace — presentation truth")]
+  gw -->|"update"| proj[("Session Projection<br/>~/.pace — query model")]
+  pi -->|"owns"| pilog[("Pi session jsonl<br/>~/.pi — context truth")]
 ```
 
 - **Driver**: wraps the underlying Pi runtime. The SDK driver is the default and main path; the RPC driver is kept but archived and frozen ([ADR-0018](docs/adr/0018-runtime-gateway-api-and-pi-drivers.md)).
