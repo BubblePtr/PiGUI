@@ -169,6 +169,12 @@ function createMainWindow() {
   mainWindow.on("focus", () => {
     mainWindow?.webContents.send("pigui:window-focus");
   });
+  mainWindow.webContents.on("did-start-navigation", (event) => {
+    // Reload does not run React cleanup; native pages outlive the renderer.
+    if (event.isMainFrame && !event.isSameDocument) {
+      browserHost?.detachRenderer();
+    }
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
     browserHost?.dispose();

@@ -836,6 +836,9 @@ export function createBrowserHost(deps: BrowserHostDependencies) {
     tab,
     readTab,
     notify,
+    detachRenderer() {
+      activate(null);
+    },
     allowsNavigationTo: isAllowedBrowserUrl,
     allowsPermission: (_permission: string) => false,
     dispose() {
