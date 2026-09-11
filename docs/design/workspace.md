@@ -73,6 +73,8 @@ Live Chat 中的本地文件链接由会话页面处理，流式与已完成回�
 
 ## 轨迹（Trajectory Cockpit）
 
+左侧历史列表只沿用窗口栏的 Trajectory 标题，不重复标题和历史说明。第一行由项目筛选与右侧 ghost 刷新按钮组成，第二行保留排序与 Presence 筛选；列表独立滚动，上下边缘不加渐隐遮罩，确保首尾行清晰可读。
+
 三件套读同一个模型 `entities/session/trajectory-model.ts`（Run > Turn > Step）：
 
 - `PiTrajectoryLedger` + `.Run`：台账，行永不内联展开；徽章四色（USER / ASSISTANT / TOOL / CONTEXT）全部来自 `trajectoryStepType()` 与 `--pigui-data-*`。选中态、过滤、step/turn ref 放在根上经 context 下发；`.Run` 只传 `run`（外加可选 `isDimmed`）。`runs` 快捷路径行为不变。

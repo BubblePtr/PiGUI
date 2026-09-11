@@ -76,6 +76,8 @@ AgentSession 只暴露了 `isAutoCompactionEnabled`,拿不到具体数值——�
 
 ## 维护规则
 
+- **Trajectory 列表精简**：移除页面级重复标题、说明与列表上下渐隐，项目筛选和刷新复用 Astryx `HStack`、`Tokenizer`、`IconButton`；未新增共享原语或 Design 页变体。
+
 - **2026-09-10 Trajectory Run 横栏遮挡修复**：仅调整 `SessionDetailView` 的虚拟项定位，保留 `PiTrajectoryLedger` 的吸顶与组件契约；未新增自建组件或 Design 页变体。定位约束见 [轨迹使用规则](design/workspace.md#轨迹trajectory-cockpit)，浏览器回归覆盖滚动进入、吸顶交接及反向滚动。
 
 - **2026-09-09 Pace 品牌字标**：新增 `shared/ui/pace-wordmark.tsx`，直接承载确认后的品牌矢量，Astryx 通用图标没有对应品牌资产。颜色继承 `currentColor`，根 SVG 属性透传；已注册 Design 页的 Visual primitives。侧栏头部继续复用 Astryx Stack 与 SideNav，不新增布局原语。使用规则见 [品牌资源](design/brand.md)。
