@@ -4072,7 +4072,7 @@ export function AgentWorkspaceSessionsPage() {
       setPendingChangeLink(null);
       return;
     }
-    if (sessionChanges.loading) return;
+    if (sessionChanges.loading || sessionChanges.refreshing) return;
     const target = sessionChanges.changes
       ? findSessionChangeTarget(
           pendingChangeLink.link,
@@ -4086,7 +4086,7 @@ export function AgentWorkspaceSessionsPage() {
       setActiveSurfaceId("changes");
       setDockOpen(true);
     }
-  }, [pendingChangeLink, sessionChanges.changes, sessionChanges.loading, selectedSessionProjection, showDraft]);
+  }, [pendingChangeLink, sessionChanges.changes, sessionChanges.loading, sessionChanges.refreshing, selectedSessionProjection, showDraft]);
 
   useEffect(
     () =>
