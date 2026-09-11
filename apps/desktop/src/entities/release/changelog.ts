@@ -15,11 +15,11 @@ export type ChangelogRelease = {
 // Ship release notes with the app so the history is also available offline.
 export const changelogReleases: readonly ChangelogRelease[] = [
   {
-    version: "0.1.0",
+    version: "0.0.5",
     date: "2026-09-11",
     title: "Follow changes from chat",
     summary: "Open changed files from chat, keep workspace changes fresh, and see when a session is resuming.",
-    url: "https://github.com/BubblePtr/pace/releases/tag/v0.1.0",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.5",
     changes: [
       {
         kind: "added",
