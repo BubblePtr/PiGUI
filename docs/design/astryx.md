@@ -33,6 +33,8 @@ Astryx 的 props 以 `bunx astryx component <Name>` 输出为准，本文只记�
 
 同样的 `variant` / `size` 联合。默认组合是 **`variant="ghost" size="sm"`**（22 处里 15 处 ghost、18 处 sm）：图标按钮几乎都住在工具栏、标题带、消息动作行里，需要退到内容后面。只有**悬浮在内容之上**的图标按钮（对话流的滚到底按钮 `chat-conversation.tsx:69`、setup 页）用 `secondary`，因为 ghost 在内容上方没有可辨的边界。`aria-label` 必填。
 
+侧栏会话行、项目行及分组标题中的操作按钮统一使用颜色反馈：按钮背景透明，不叠加独立 hover / pressed 底色或阴影，不缩放；图标从 `--muted` 过渡到 `--foreground`。按钮 hover 时仍共享整行背景，选中行保持选中底色；菜单打开及键盘聚焦时保持图标强调，保留 Astryx 的 focus ring 与减动效处理。此规则仅限侧栏操作区，不改变全局 ghost 按钮。
+
 ## Token · Badge · StatusDot
 
 三选一时：**永远 Token**。`Badge`（14 色变体）和 `StatusDot` 在仓库里 0 调用，不要成为第一个。
