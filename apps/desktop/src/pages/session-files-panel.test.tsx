@@ -85,6 +85,21 @@ describe("SessionFilesPanel", () => {
     expect(listSessionDirectory).toHaveBeenCalledWith("session-1", "");
   });
 
+  it("replaces an empty checkout state with the file tree after refresh", async () => {
+    const user = userEvent.setup();
+    listSessionDirectory.mockResolvedValueOnce(listing("", []));
+    render(<SessionFilesPanel sessionId="session-1" />);
+    expect(await screen.findByRole("heading", { name: "No files yet" })).toBeInTheDocument();
+    expect(screen.queryByRole("tree")).not.toBeInTheDocument();
+    expect(readSessionFile).not.toHaveBeenCalled();
+
+    listSessionDirectory.mockResolvedValueOnce(rootListing);
+    await user.click(screen.getByRole("button", { name: "Refresh Session files" }));
+    expect(await screen.findByRole("tree")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No files yet" })).not.toBeInTheDocument();
+    expect(screen.getByText("Select a file to preview it.")).toBeInTheDocument();
+  });
+
   it("loads a directory's children when it is expanded", async () => {
     const user = userEvent.setup();
     scriptListings({
