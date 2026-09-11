@@ -15,6 +15,55 @@ export type ChangelogRelease = {
 // Ship release notes with the app so the history is also available offline.
 export const changelogReleases: readonly ChangelogRelease[] = [
   {
+    version: "0.1.0",
+    date: "2026-09-11",
+    title: "Follow changes from chat",
+    summary: "Open changed files from chat, keep workspace changes fresh, and see when a session is resuming.",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.1.0",
+    changes: [
+      {
+        kind: "added",
+        title: "Chat links open Changes",
+        description: "Click a changed file link in chat to open the Changes dock and jump to that file's diff.",
+      },
+      {
+        kind: "improved",
+        title: "Workspace changes stay current",
+        description: "Changes refreshes after agent activity and Git metadata changes, including commits, staging and branch switches outside Pace.",
+      },
+      {
+        kind: "improved",
+        title: "Session resume status",
+        description: "A status line shows when a session is resuming while its runtime snapshot loads.",
+      },
+      {
+        kind: "improved",
+        title: "Simpler Changes and Files panels",
+        description: "Flatter layouts give file content more room, with consistent empty states across the dock.",
+      },
+      {
+        kind: "fixed",
+        title: "Correct branch after creating a worktree",
+        description: "The branch selector waits for the session runtime to bind before reading its branch.",
+      },
+      {
+        kind: "fixed",
+        title: "Trajectory headers stay aligned",
+        description: "Sticky run headers keep their position while you scroll through the trajectory.",
+      },
+      {
+        kind: "fixed",
+        title: "Visible update indicators in Settings",
+        description: "Settings navigation now shows when an app update is available.",
+      },
+      {
+        kind: "fixed",
+        title: "Smaller session journals",
+        description: "Cumulative tool-output updates are no longer written repeatedly to the session journal. Live output and completed tool results remain available.",
+      },
+    ],
+  },
+  {
     version: "0.0.4",
     date: "2026-09-10",
     title: "Discover and manage Pi packages",
