@@ -12,7 +12,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { BackendRpcEvent } from "@pace/backend";
 import type {
   AgentMessagePartSnapshot,
@@ -820,6 +820,7 @@ describe("AgentWorkspaceSessionsPage", () => {
       },
     };
     const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
+    onTestFinished(() => scroll.mockRestore());
     const { router } = renderProjectSessions(`/projects/${encodeURIComponent(mockProject)}/sessions`, { seedProjects: false });
     const chat = await screen.findByLabelText("Live Chat messages");
     const link = await within(chat).findByRole("link", { name: "the new file" });
@@ -827,7 +828,13 @@ describe("AgentWorkspaceSessionsPage", () => {
     const before = router.state.location.href;
     expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
 
+    let finishRefresh!: () => void;
+    pendingRead = new Promise<void>((resolve) => { finishRefresh = resolve; });
     expect(fireEvent.click(link)).toBe(false);
+    await waitFor(() => expect(reads).toBe(2));
+    expect(screen.queryByTestId("session-dock")).not.toBeInTheDocument();
+    await act(async () => { finishRefresh(); await pendingRead; });
+    pendingRead = null;
     const dock = await screen.findByRole("complementary", { name: "Changes" });
     const section = within(dock).getAllByTestId("session-change-section")
       .find((node) => node.textContent?.includes("src/new-file.ts"))!;
@@ -868,7 +875,6 @@ describe("AgentWorkspaceSessionsPage", () => {
     await act(async () => { releaseRead(); await pendingRead; });
     expect(screen.getByRole("complementary", { name: "Files" })).toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Changes" })).not.toBeInTheDocument();
-    scroll.mockRestore();
   });
 
   it("keeps the rail badge empty when the working tree cannot be read", async () => {
@@ -7296,7 +7302,7 @@ describe("Context usage placement", () => {
         projectId="pig-docs"
         workspace={workspace}
         sessionProjection={projection}
-        sessionChanges={sessionChanges}
+        sessionChanges={sessionChanges ? { ...sessionChanges, refreshing: false } : undefined}
       />,
     );
 
@@ -7765,6 +7771,7 @@ describe("Session changes action surface", () => {
     const scrollIntoView = vi
       .spyOn(HTMLElement.prototype, "scrollIntoView")
       .mockImplementation(() => {});
+    onTestFinished(() => scrollIntoView.mockRestore());
 
     render(panel(twoTextFiles()));
     expect(await screen.findAllByTestId("session-diff-viewer")).toHaveLength(2);
@@ -7795,8 +7802,6 @@ describe("Session changes action surface", () => {
     expect(rows[2]).toHaveAttribute("data-current", "true");
     expect(sections()[2]!.contains(document.activeElement)).toBe(true);
     expect(rows[0]).not.toHaveAttribute("data-current");
-
-    scrollIntoView.mockRestore();
   });
 
   it("collapses and expands every section from the surface bar", async () => {

@@ -1384,7 +1384,7 @@ describe("backend service", () => {
     ]);
     expect(runtimeDriver.getSnapshot).not.toHaveBeenCalled();
 
-    const events: unknown[] = [];
+    const events: import("./service").BackendRpcEvent[] = [];
     service.onEvent((event) => {
       events.push(event);
     });
@@ -1686,5 +1686,91 @@ describe("backend service", () => {
       result: { path: join(dataDir, "chats") },
     });
     await expect(stat(join(dataDir, "chats"))).rejects.toThrow();
+  });
+});
+
+describe("workspace invalidation delivery", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("flushes explicit stop and successful checkout, and releases deleted siblings", async () => {
+    vi.useFakeTimers();
+    const projections = createInMemorySessionProjectionStore();
+    for (const id of ["a", "b"]) await projections.save({
+      sessionId: id, piSessionId: `pi-${id}`, runtimeId: id, projectId: "/repo", cwd: "/repo",
+      status: "idle", checkout: { root: "/repo" }, updatedAt: "2026-09-11T00:00:00Z",
+    });
+    let emit!: Parameters<PiRuntimeDriver["onEvent"]>[0];
+    let finishStop!: () => void;
+    const stopping = new Promise<void>((resolve) => { finishStop = resolve; });
+    const service = createBackendService({ sessionProjectionStore: projections,
+      runtimeJournal: createInMemorySessionEventJournal(),
+      sessionChangesReader: { read: vi.fn(), checkoutBranch: vi.fn().mockResolvedValue({ state: "clean" }) },
+      runtimeDriver: { onEvent: (listener: Parameters<PiRuntimeDriver["onEvent"]>[0]) => { emit = listener; return () => {}; },
+        stopRun: async () => {
+          await stopping;
+          return { sessionId: "a", piSessionId: "pi-a", type: "stopped", payload: {} };
+        },
+      } as unknown as PiRuntimeDriver, piRpc: createFakePiRpcTransport() });
+    const delivered: string[][] = [];
+    service.onEvent(({ event }) => {
+      if (event.type === "workspace.invalidated") delivered.push(event.payload.sessionIds as string[]);
+    });
+    await service.handleRequest({ id: "checkout", method: "checkout_session_branch", params: { sessionId: "a", branch: "main" } });
+    expect(delivered).toEqual([["a", "b"]]);
+    emit({
+      sessionId: "a", piSessionId: "pi-a", type: "tool",
+      payload: { type: "tool", phase: "end", runId: "run", turnId: "turn",
+        toolCallId: "tool", name: "bash", surface: "trace", origin: "sdk" },
+    });
+    const stop = service.handleRequest({ id: "stop", method: "stop_run", params: { piSessionId: "pi-a" } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(delivered).toHaveLength(2);
+    finishStop();
+    await stop;
+    expect(await service.handleRequest({ id: "delete", method: "delete_session", params: { sessionId: "b" } })).not.toHaveProperty("error");
+    emit({
+      sessionId: "a", piSessionId: "pi-a", type: "tool",
+      payload: { type: "tool", phase: "end", runId: "run", turnId: "turn",
+        toolCallId: "tool", name: "bash", surface: "trace", origin: "sdk" },
+    });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(delivered[delivered.length - 1]).toEqual(["a"]);
+  });
+
+  it("fans failed tool hints out to checkout siblings without journaling the notification", async () => {
+    vi.useFakeTimers();
+    const projections = createInMemorySessionProjectionStore();
+    for (const id of ["a", "b", "chat", "other"]) {
+      await projections.save({ sessionId: id, piSessionId: `pi-${id}`, runtimeId: id,
+        projectId: id === "chat" ? "chat" : "/repo", cwd: "/repo", status: "idle",
+        checkout: { executionCheckoutRoot: id === "other" ? "/other" : "/repo", diffRoot: `/repo/${id}` },
+        updatedAt: "2026-09-11T00:00:00Z" });
+    }
+    let emit!: Parameters<PiRuntimeDriver["onEvent"]>[0];
+    const journal = createInMemorySessionEventJournal();
+    const read = vi.fn();
+    const service = createBackendService({ sessionProjectionStore: projections, runtimeJournal: journal,
+      sessionChangesReader: { read, checkoutBranch: vi.fn() },
+      runtimeDriver: { onEvent: (listener: Parameters<PiRuntimeDriver["onEvent"]>[0]) => { emit = listener; return () => {}; } } as PiRuntimeDriver,
+      piRpc: createFakePiRpcTransport() });
+    const events: import("./service").BackendRpcEvent[] = [];
+    service.onEvent((event) => events.push(event));
+    await service.handleRequest({ id: "init", method: "list_session_projections" });
+    const hint = (type: string, id = "a") => emit({ sessionId: id, piSessionId: `pi-${id}`, type,
+      payload: { type, phase: "end", isError: true, runId: "run", turnId: "turn", toolCallId: "tool", name: "bash", surface: "trace", origin: "sdk" } });
+    hint("tool");
+    hint("tool", "b");
+    hint("tool", "chat");
+    hint("turn");
+    hint("run");
+    await vi.advanceTimersByTimeAsync(2500);
+    const invalidations = events.filter((event) => event.event?.type === "workspace.invalidated");
+    expect(invalidations).toEqual([expect.objectContaining({ type: "event", event: expect.objectContaining({ seq: 0,
+      payload: { checkoutId: "/repo", sessionIds: ["a", "b"], source: "tool" } }) })]);
+    expect(read).not.toHaveBeenCalled();
+    const recorded = await journal.read("pi-a");
+    expect(recorded.length).toBeGreaterThan(0);
+    expect(recorded.some((event) => event.type === "workspace.invalidated")).toBe(false);
+    expect(await projections.get("b")).toMatchObject({ status: "idle" });
   });
 });

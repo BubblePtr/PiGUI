@@ -19,6 +19,12 @@ export type RuntimeGatewayResponse = {
 
 export type RuntimeGatewayEventPayload = Record<string, unknown>;
 
+export type WorkspaceInvalidatedPayload = {
+  checkoutId: string;
+  sessionIds: string[];
+  source: "tool" | "git-watch" | "focus" | "reconnect";
+};
+
 export type RuntimeGatewayEventEnvelope = {
   id: string;
   seq: number;
