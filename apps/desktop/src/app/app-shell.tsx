@@ -1125,6 +1125,9 @@ function HeaderChrome({
     left: "var(--pigui-chrome-safe-left)",
   } as CSSProperties;
   const titleStyle = {
+    // The traffic-light safe area consumes chat width when the sidebar is closed.
+    maxWidth:
+      "max(0px, calc(var(--spacing-4) * 20 - max(0px, var(--pigui-chrome-safe-left) - var(--pigui-main-left))))",
     transform:
       "translateX(calc(max(var(--pigui-main-left), var(--pigui-chrome-safe-left)) - var(--pigui-chrome-safe-left)))",
   } as CSSProperties;
@@ -1173,7 +1176,10 @@ function HeaderChrome({
           data-testid="header-chrome-title"
           style={titleStyle}
         >
-          <h1 className="select-none truncate text-sm font-normal leading-7 tracking-normal text-foreground">
+          <h1
+            className="select-none truncate text-sm font-normal leading-7 tracking-normal text-foreground"
+            title={title}
+          >
             {title}
           </h1>
         </div>
