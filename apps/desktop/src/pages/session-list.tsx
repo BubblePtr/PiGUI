@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Selector } from "@astryxdesign/core/Selector";
@@ -319,44 +320,41 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
       data-testid="session-list-panel"
     >
       <div className="border-b border-border px-4 py-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold uppercase text-muted">Trajectory</h2>
-            <p className="mt-1 text-xs text-muted">Historical Pi session trajectories</p>
-          </div>
+        <HStack gap={2} vAlign="center">
+          {/* Multi-select filter: chosen projects render as removable token
+              chips; an empty set means "all projects". */}
+          <Tokenizer
+            className="min-w-0 flex-1"
+            hasClear
+            hasEntriesOnFocus
+            isLabelHidden
+            label="Filter by projects"
+            placeholder="All projects"
+            renderToken={(item, onRemove) => (
+              <Token
+                color={projectTokenColor(item.label)}
+                label={item.label}
+                size="sm"
+                onRemove={onRemove}
+              />
+            )}
+            searchSource={projectSource}
+            size="sm"
+            tokenOverflowBehavior="unfocusedInline"
+            value={selectedProjects}
+            width="100%"
+            onChange={(items) => setSelectedProjects(items)}
+          />
           <IconButton
-            className="pigui-pressable"
+            className="pigui-pressable shrink-0"
             icon={<RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />}
             isDisabled={sessions.isFetching}
             label="Refresh sessions"
             size="sm"
+            variant="ghost"
             onClick={() => sessions.refetch()}
           />
-        </div>
-
-        {/* Multi-select filter: chosen projects render as removable token
-            chips; an empty set means "all projects". */}
-        <Tokenizer
-          hasClear
-          hasEntriesOnFocus
-          isLabelHidden
-          label="Filter by projects"
-          placeholder="All projects"
-          renderToken={(item, onRemove) => (
-            <Token
-              color={projectTokenColor(item.label)}
-              label={item.label}
-              size="sm"
-              onRemove={onRemove}
-            />
-          )}
-          searchSource={projectSource}
-          size="sm"
-          tokenOverflowBehavior="unfocusedInline"
-          value={selectedProjects}
-          width="100%"
-          onChange={(items) => setSelectedProjects(items)}
-        />
+        </HStack>
         {/* View switcher sits under the filter: Recent is one chronological
             stream across projects, Project is the grouped ledger. */}
         <div className="mt-3 flex items-center gap-2">
@@ -393,7 +391,7 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
         </div>
       </div>
 
-      <div className="pigui-scroll-fade min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {sessions.isLoading ? (
           <EmptyState className="px-4 py-10" isCompact title="Loading sessions..." />
         ) : sessions.isError ? (
