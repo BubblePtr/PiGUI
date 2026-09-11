@@ -3058,10 +3058,15 @@ function LiveSessionColumn({
       ...(event.modelSelection ? { modelSelection: event.modelSelection } : {}),
       ...(event.images?.length ? { images: event.images } : {}),
       onProjectionChange: (projection) => {
-        setCreationProjection(projection);
+        const isStarting = !creationStarted;
+        // Runtime subscriptions outlive creation. Once navigation clears the
+        // local owner, background events must not reclaim the draft's state.
+        setCreationProjection((current) =>
+          isStarting || current?.id === projection.id ? projection : current,
+        );
         onProjectionChange?.(projection);
 
-        if (!creationStarted) {
+        if (isStarting) {
           creationStarted = true;
           draftHandoffPendingRef.current = true;
           onSessionCreationStarted?.(projection);
@@ -3069,7 +3074,9 @@ function LiveSessionColumn({
       },
     });
 
-    setCreationProjection(result.projection);
+    setCreationProjection((current) =>
+      current?.id === result.projection.id ? result.projection : current,
+    );
     onProjectionChange?.(result.projection);
 
     if (result.clearDraft) {
