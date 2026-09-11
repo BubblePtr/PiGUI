@@ -15,6 +15,40 @@ export type ChangelogRelease = {
 // Ship release notes with the app so the history is also available offline.
 export const changelogReleases: readonly ChangelogRelease[] = [
   {
+    version: "0.0.6",
+    date: "2026-09-11",
+    title: "A tidier session list",
+    summary: "Sessions order by your last message, the list header is simpler, and stale state no longer revives finished tools.",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.6",
+    changes: [
+      {
+        kind: "improved",
+        title: "Sessions ordered by your last message",
+        description: "The sidebar sorts sessions by when you last sent a message instead of grouping by run state.",
+      },
+      {
+        kind: "improved",
+        title: "Simpler session list header",
+        description: "The session list drops its edge fades and extra header chrome.",
+      },
+      {
+        kind: "fixed",
+        title: "Finished tools stay finished",
+        description: "A stale projection could rewind the conversation and show completed tools as running again, erasing their results. Out-of-order state is now ignored.",
+      },
+      {
+        kind: "fixed",
+        title: "Session titles stay clear of the dock",
+        description: "Long session titles are constrained so they no longer cover the dock.",
+      },
+      {
+        kind: "fixed",
+        title: "Drafts keep a clean slate",
+        description: "Background updates from a session still being created no longer leak into a new draft.",
+      },
+    ],
+  },
+  {
     version: "0.0.5",
     date: "2026-09-11",
     title: "Follow changes from chat",
