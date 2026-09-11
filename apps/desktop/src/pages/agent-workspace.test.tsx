@@ -33,6 +33,7 @@ import {
   type ForkSessionInput,
   type ForkSessionResult,
   type PiSessionState,
+  type PiRuntimeEvent,
 } from "@/entities/runtime/pi-runtime-bridge";
 import * as inMemoryBridgeModule from "@/entities/runtime/in-memory-pi-runtime-bridge";
 import {
@@ -1612,6 +1613,71 @@ describe("AgentWorkspaceSessionsPage", () => {
     } finally {
       bridgeSpy.mockRestore();
     }
+  });
+
+  it("keeps background events from a created Session out of an unsent Session Draft", async () => {
+    const user = userEvent.setup();
+    addProjectToRegistry(pigProjectPath);
+    saveSessionDraft(pigProjectPath, "Keep the first session updating");
+    const listeners = new Map<string, Set<(event: PiRuntimeEvent) => void>>();
+    let firstPiSessionId = "";
+    const createBridge = inMemoryBridgeModule.createInMemoryPiRuntimeBridge;
+    const bridgeSpy = vi
+      .spyOn(inMemoryBridgeModule, "createInMemoryPiRuntimeBridge")
+      .mockImplementation((options) => {
+        const bridge = createBridge(options);
+        return {
+          ...bridge,
+          sendInitialPrompt: async (input) => {
+            firstPiSessionId = input.piSessionId;
+            return bridge.sendInitialPrompt(input);
+          },
+          subscribeToEvents: (piSessionId, listener) => {
+            const sessionListeners = listeners.get(piSessionId) ?? new Set();
+            sessionListeners.add(listener);
+            listeners.set(piSessionId, sessionListeners);
+            return () => { sessionListeners.delete(listener); };
+          },
+        };
+      });
+    onTestFinished(() => bridgeSpy.mockRestore());
+
+    const { router } = renderProjectSessions("/projects/pig/sessions?view=draft");
+    await screen.findByTestId("session-draft-composer");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(getSessionDraft()).toBeNull());
+    expect(await screen.findByLabelText("Live Chat messages")).toHaveTextContent(
+      "Keep the first session updating",
+    );
+
+    await user.click(screen.getByRole("button", { name: "New Chat for Pig" }));
+    const draftInput = await screen.findByPlaceholderText("Do anything with Pi");
+    fireEvent.change(draftInput, { target: { value: "This draft is not sent" } });
+    expect(screen.queryByTestId("session-creation-status")).not.toBeInTheDocument();
+
+    act(() => {
+      for (const listener of listeners.get(firstPiSessionId) ?? []) {
+        listener({
+          id: "background-answer",
+          piSessionId: firstPiSessionId,
+          kind: "message",
+          role: "assistant",
+          body: "The first session kept working in the background.",
+          timestamp: "2026-09-11T10:00:00.000Z",
+        });
+      }
+    });
+
+    expect(screen.queryByTestId("session-creation-status")).not.toBeInTheDocument();
+    expect(draftInput).toHaveValue("This draft is not sent");
+    expect(router.state.location.search).toEqual({ view: "draft" });
+
+    await user.click(await findSidebarSessionRow("Keep the first session updating"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent(
+        "The first session kept working in the background.",
+      ),
+    );
   });
 
   it("shows a failed Session Creation in the Live Session and reopens the kept draft", async () => {
