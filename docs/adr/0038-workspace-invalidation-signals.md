@@ -1,8 +1,8 @@
 # ADR-0038：工作区失效信号，Agent 副作用后的 Changes 收敛
 
-- 状态：Proposed
+- 状态：Accepted
 - 日期：2026-09-11
-- 来源：架构讨论（2026-09-10）、codex 交叉审查 `.scratch/workspace-invalidation/review-codex.md`
+- 来源：架构讨论（2026-09-10）、codex 交叉审查 `.scratch/workspace-invalidation/review-codex.md`；第一期 #272 / PR #273，第二期 #274 / PR #275
 
 ## 背景
 
