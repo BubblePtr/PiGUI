@@ -537,3 +537,34 @@ test("Browser tabs isolate views and marks, restore the Project group, and close
     server.close();
   }
 });
+
+test("Renderer reload hides native browser views until the dock reopens", async () => {
+  const { server, origin } = await startPreviewServer();
+  const testApp = await launchPace({ seedSession: true, seedPreflightAuth: true });
+  try {
+    const { window, app } = testApp;
+    const aside = await openBrowserSurface(testApp);
+    const previewPage = app.waitForEvent("window");
+    await aside.getByRole("textbox", { name: "Address" }).fill(`${origin}/next`);
+    await window.keyboard.press("Enter");
+    const preview = await previewPage;
+    await expect(preview.locator("#next")).toHaveText("Pace preview next");
+    await expect.poll(async () =>
+      (await readBrowserViews(app)).filter((view) => view.visible).length,
+    ).toBe(1);
+
+    await window.reload();
+    await expect.poll(async () =>
+      (await readBrowserViews(app)).filter((view) => view.visible).length,
+    ).toBe(0);
+    await expect(preview.locator("#next")).toHaveText("Pace preview next");
+    await window.getByLabel("Session dock").click();
+    await window.getByTestId("session-dock").getByRole("button", { name: "Browser", exact: true }).click();
+    await expect.poll(async () =>
+      (await readBrowserViews(app)).filter((view) => view.visible).length,
+    ).toBe(1);
+  } finally {
+    await testApp.close();
+    server.close();
+  }
+});

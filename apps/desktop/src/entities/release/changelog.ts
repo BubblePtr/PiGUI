@@ -58,6 +58,11 @@ export const changelogReleases: readonly ChangelogRelease[] = [
       },
       {
         kind: "fixed",
+        title: "Browser views after window reload",
+        description: "Reloading the app window hides native browser views until the dock reopens, while keeping their tabs and pages alive.",
+      },
+      {
+        kind: "fixed",
         title: "Smaller session journals",
         description: "Cumulative tool-output updates are no longer written repeatedly to the session journal. Live output and completed tool results remain available.",
       },
