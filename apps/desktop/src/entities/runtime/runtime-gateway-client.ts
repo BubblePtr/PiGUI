@@ -619,6 +619,11 @@ export function createRuntimeGatewayClient(
         return;
       }
 
+      // Ephemeral workspace and terminal signals never belong to runtime truth.
+      if (["workspace.invalidated", "terminal_output", "terminal_exit"].includes(event.event.type)) {
+        return;
+      }
+
       // Session metadata is consumed by the list provider, not the run timeline.
       if (event.event.payload.type === "session_info_changed") {
         const state = states.get(event.event.piSessionId);

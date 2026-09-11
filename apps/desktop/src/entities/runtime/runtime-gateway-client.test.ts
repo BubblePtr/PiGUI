@@ -1097,6 +1097,27 @@ describe("Runtime Gateway client", () => {
     ]);
   });
 
+  it.each(["workspace.invalidated", "terminal_output", "terminal_exit"])("ignores ephemeral %s before runtime state and deduplication", async (type) => {
+    let receive: ((event: BackendRpcEvent) => void) | undefined;
+    const snapshot: RuntimeGatewaySnapshot = { sessionId: "session-1", runtimeId: "pi-sdk:session-1", piSessionId: "pi-session-1", projectId: "pig", cwd: "/repo", status: "idle", events: [], updatedAt: "2026-09-05T00:00:00.000Z" };
+    const client = createRuntimeGatewayClient({
+      invoke: async <T,>() => snapshot as T,
+      onBackendEvent: handler => { receive = handler; return vi.fn(); },
+    });
+    const runtime = await client.startRuntime({ sessionId: "session-1", projectId: "pig", checkout: { mode: "foreground-local", root: "/repo", runtimeCwd: "/repo" } });
+    const state = await client.createPiSessionState({ runtimeId: runtime.runtimeId, projectId: "pig", cwd: "/repo" });
+    const observed = vi.fn();
+    client.subscribeToEvents(state.piSessionId, observed);
+    client.subscribeToAgentEvents?.(state.piSessionId, observed);
+    const envelope = { id: "shared-id", seq: 0, sessionId: "session-1", piSessionId: state.piSessionId, type, ts: snapshot.updatedAt, payload: { checkoutId: "/repo", sessionIds: ["session-1"], source: "git-watch" } };
+    receive?.({ type: "event", event: envelope });
+    expect(observed).not.toHaveBeenCalled();
+    await expect(client.getSessionState(state.piSessionId)).resolves.toEqual(state);
+    // A real event with the same id must not be swallowed by the seen set.
+    receive?.({ type: "event", event: { ...envelope, seq: 1, type: "message_update", payload: { kind: "message", role: "user", body: "Real message" } } });
+    expect(observed).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps session metadata out of agent and chat timelines", async () => {
     let receive: ((event: BackendRpcEvent) => void) | undefined;
     const snapshot: RuntimeGatewaySnapshot = { sessionId: "session-1", runtimeId: "runtime-1", piSessionId: "pi-session-1", projectId: "p", cwd: "/repo", status: "idle", events: [], updatedAt: "2026-09-07T00:00:00Z" };

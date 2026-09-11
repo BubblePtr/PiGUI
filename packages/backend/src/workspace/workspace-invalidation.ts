@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { WorkspaceInvalidatedPayload } from "@pace/core";
 
@@ -40,7 +41,13 @@ export function createWorkspaceInvalidation(
 
   return {
     associate(sessionId: string, root: string) {
-      const normalized = resolve(root);
+      let normalized: string;
+      try {
+        normalized = realpathSync(root);
+      } catch {
+        // Persisted checkouts can be absent until resume recreates them.
+        normalized = resolve(root);
+      }
       if (sessions.get(sessionId) === normalized) return;
       remove(sessionId);
       sessions.set(sessionId, normalized);

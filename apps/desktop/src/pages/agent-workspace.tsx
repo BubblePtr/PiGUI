@@ -670,7 +670,8 @@ function FullChatComposer({
   const localSessionChanges = useSessionChanges({
     sessionId,
     enabled:
-      !providedSessionChanges && Boolean(sessionId && projection?.piSessionId),
+      !providedSessionChanges && Boolean(sessionId && projection?.piSessionId) &&
+      !isChatProjectId(projection?.projectId ?? ""),
   });
   const promptStatus = isStoppingRun || isCreating
     ? "submitted"
