@@ -9,9 +9,9 @@ import { HStack, VStack } from "@astryxdesign/core/Stack";
 import {
   AnimatedChartPie,
   AnimatedHistory,
-  AnimatedMoreHorizontal,
+  MoreHorizontal,
   AnimatedNewChat,
-  AnimatedPlus,
+  Plus,
   AnimatedPuzzle,
   AnimatedSettings,
   AnimatedSidebar,
@@ -656,7 +656,7 @@ function AddProjectButton({
 
   return (
     <IconButton
-      icon={<AnimatedPlus aria-hidden="true" />}
+      icon={<Plus aria-hidden="true" />}
       isDisabled={choosing}
       label="Add Project"
       tooltip="Add Project"
@@ -680,7 +680,7 @@ function ProjectActionsMenu({
 }) {
   return (
     <MoreMenu
-      icon={<AnimatedMoreHorizontal aria-hidden="true" />}
+      icon={<MoreHorizontal aria-hidden="true" />}
       label={`Project actions for ${project.displayName}`}
       size="sm"
       items={[
@@ -728,7 +728,7 @@ function SessionActionsMenu({
     <DropdownMenu
       hasChevron={false}
       button={{
-        icon: <AnimatedMoreHorizontal aria-hidden="true" />,
+        icon: <MoreHorizontal aria-hidden="true" />,
         isIconOnly: true,
         label: `Session actions for ${session.title}`,
         size: "sm",
@@ -878,7 +878,7 @@ function ChatNavigation({
         contentId={contentId}
         onToggle={toggle}
         actions={
-          <IconButton icon={<AnimatedPlus aria-hidden="true" />} label="New Chat without a project"
+          <IconButton icon={<Plus aria-hidden="true" />} label="New Chat without a project"
             tooltip="New Chat" size="sm" variant="ghost" onClick={onNewChat} />
         }
       />
@@ -998,7 +998,7 @@ function ProjectNavigation({
               trailingActions={
                 <>
                   <IconButton
-                    icon={<AnimatedPlus aria-hidden="true" />}
+                    icon={<Plus aria-hidden="true" />}
                     label={`New Chat for ${project.displayName}`}
                     size="sm"
                     variant="ghost"
