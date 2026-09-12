@@ -1680,6 +1680,77 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
+  it("keeps a viewed completed Session selected while a created Session runs in the background", async () => {
+    const user = userEvent.setup();
+    addProjectToRegistry(pigProjectPath);
+    saveSessionDraft(pigProjectPath, "Running session that keeps working");
+    const listeners = new Map<string, Set<(event: PiRuntimeEvent) => void>>();
+    let runningPiSessionId = "";
+    const createBridge = inMemoryBridgeModule.createInMemoryPiRuntimeBridge;
+    const bridgeSpy = vi
+      .spyOn(inMemoryBridgeModule, "createInMemoryPiRuntimeBridge")
+      .mockImplementation((options) => {
+        const bridge = createBridge(options);
+
+        return {
+          ...bridge,
+          sendInitialPrompt: async (input) => {
+            runningPiSessionId = input.piSessionId;
+            return bridge.sendInitialPrompt(input);
+          },
+          subscribeToEvents: (piSessionId, listener) => {
+            const sessionListeners = listeners.get(piSessionId) ?? new Set();
+            sessionListeners.add(listener);
+            listeners.set(piSessionId, sessionListeners);
+            return () => {
+              sessionListeners.delete(listener);
+            };
+          },
+        };
+      });
+    onTestFinished(() => bridgeSpy.mockRestore());
+
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+    await screen.findByTestId("session-draft-composer");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    const runningRow = await findSidebarSessionRow("Running session that keeps working");
+    await waitFor(() => expect(runningRow).toHaveAttribute("aria-current", "page"));
+
+    const completedRow = await findSidebarSessionRow("Usage evidence review");
+    await user.click(completedRow);
+    await waitFor(() =>
+      expect(completedRow).toHaveAttribute("aria-current", "page"),
+    );
+
+    act(() => {
+      for (const listener of listeners.get(runningPiSessionId) ?? []) {
+        listener({
+          id: "background-progress",
+          piSessionId: runningPiSessionId,
+          kind: "message",
+          role: "assistant",
+          body: "Still working in the background.",
+          timestamp: "2026-09-12T10:00:00.000Z",
+        });
+      }
+    });
+
+    // Background events must update the running Session's projection without
+    // reclaiming the Live Chat from the Session the user is viewing.
+    expect(completedRow).toHaveAttribute("aria-current", "page");
+    expect(runningRow).not.toHaveAttribute("aria-current", "page");
+    expect(screen.getByLabelText("Live Chat messages")).not.toHaveTextContent(
+      "Still working in the background.",
+    );
+
+    await user.click(runningRow);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Live Chat messages")).toHaveTextContent(
+        "Still working in the background.",
+      ),
+    );
+  });
+
   it("shows a failed Session Creation in the Live Session and reopens the kept draft", async () => {
     const user = userEvent.setup();
     addProjectToRegistry(pigProjectPath);

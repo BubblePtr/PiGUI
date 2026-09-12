@@ -3610,6 +3610,11 @@ function LiveSessionColumn({
         }),
       );
     }
+
+    // Forked Sessions used to take over via the selection side effect on
+    // every projection commit; selection is explicit now, so the fork lands
+    // the view itself (failure state included, matching prior behavior).
+    onSessionCreated?.(forkProjection);
   };
 
   return (
@@ -4163,8 +4168,11 @@ export function AgentWorkspaceSessionsPage() {
     }
   }, [selectedSessionProjection?.id]);
 
+  // Store updates only: projection commits also arrive for Sessions the user
+  // is not viewing (a created Session's runtime subscription outlives the
+  // view), so this must never move the selection. Selection changes are
+  // explicit: sidebar clicks, the first-session fallback, and Session takeovers.
   const handleProjectionChange = (nextProjection: SessionProjection) => {
-    setSelectedSessionId(nextProjection.id);
     setSessionProjections((projections) => {
       const projectionExists = projections.some(
         (projection) => projection.id === nextProjection.id,
@@ -4196,6 +4204,7 @@ export function AgentWorkspaceSessionsPage() {
   // as extensions held the user-message boundary. Also fires on success so a
   // retargeted draft lands on its Project route.
   const enterLiveSession = (projection: SessionProjection) => {
+    setSelectedSessionId(projection.id);
     void navigate({
       to: "/projects/$projectId/sessions",
       params: { projectId: projection.projectId },
