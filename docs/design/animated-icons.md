@@ -13,8 +13,8 @@
 | Settings 导航 | `AnimatedSettings` | Hugeicons `settings-01` | 外齿轮转动，轴心静止 |
 | Header 的 Sidebar 开关 | `AnimatedSidebar` | Hugeicons `panel-left` | 分隔线沿外框收起、展开 |
 | Header 的右侧 Dock 开关 | `AnimatedSidebarRight` | Hugeicons `panel-left` 水平镜像 | 右侧分隔线沿外框收起、展开 |
-| Chats / Projects / 项目行的新增按钮 | `AnimatedPlus` | Hugeicons `plus-sign` | 两笔先后伸展、回弹 |
-| 项目与会话的更多菜单 | `AnimatedMoreHorizontal` | Hugeicons `more-horizontal` | 三个点依次轻跳 |
+| Chats / Projects / 项目行的新增按钮 | `Plus` | 原有 Hugeicons 静态图标 | 无动画 |
+| 项目与会话的更多菜单 | `MoreHorizontal` | 原有 Hugeicons 静态图标 | 无动画 |
 | Settings → Providers | `AnimatedKey` | Hugeicons `key-01` | 钥匙轻推、转动后回位 |
 | Settings → Models | `AnimatedRobot` | Hugeicons `robot-01` | 天线摆动、轻微歪头与眨眼 |
 | Settings → Chats | `AnimatedMessage` | Hugeicons `message-01` | 气泡展开，文字线随后伸展 |
