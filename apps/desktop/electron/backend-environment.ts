@@ -18,13 +18,21 @@ export function resolveBackendEnvironment(input: {
   env: NodeJS.ProcessEnv;
   isPackaged: boolean;
   homeDir: string;
+  appPath: string;
+  resourcesPath: string;
 }): NodeJS.ProcessEnv {
-  if (resolveDataDirOverride(input.env) || input.isPackaged) {
-    return { ...input.env };
+  const env = {
+    ...input.env,
+    PACE_PI_RUNTIME_DIR: input.isPackaged
+      ? join(input.resourcesPath, "pi-runtime/node_modules/@earendil-works/pi-coding-agent")
+      : fs.realpathSync(join(input.appPath, "../../packages/backend/node_modules/@earendil-works/pi-coding-agent")),
+  };
+  if (resolveDataDirOverride(env) || input.isPackaged) {
+    return env;
   }
 
   return {
-    ...input.env,
+    ...env,
     PACE_DATA_DIR: migrateDirectory(
       join(input.homeDir, ".pace-dev"),
       join(input.homeDir, ".pigui-dev"),

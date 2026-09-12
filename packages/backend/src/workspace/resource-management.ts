@@ -1,7 +1,7 @@
 import { copyFile, cp, mkdir, lstat, readdir, realpath, rm } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, dirname, extname, relative, resolve } from "node:path";
-import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { DefaultPackageManager, SettingsManager } from "../drivers/pi-runtime";
 import type {
   AddLocalResourceInput,
   AddLocalResourceResult,

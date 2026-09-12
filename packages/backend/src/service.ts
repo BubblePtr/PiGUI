@@ -12,8 +12,7 @@ import type {
   SetResourceEnabledInput,
   RuntimeGatewayEventEnvelope,
 } from "@pace/core";
-import * as piSdk from "@earendil-works/pi-coding-agent";
-import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { piSdk, registerBunOAuthFlows } from "./drivers/pi-runtime";
 import {
   addLocalResource,
   removeLocalResource,

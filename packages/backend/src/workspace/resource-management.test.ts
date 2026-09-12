@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { DefaultPackageManager, SettingsManager } from "../drivers/pi-runtime";
 import type { CheckPackageUpdatesResult, PackageActionResult, RemovePackageResult } from "@pace/core";
 import { createBackendService } from "../service";
 import { addLocalResource, removeLocalResource, checkPackageUpdates, installPackage, removePackage, setResourceEnabled, updatePackage } from "./resource-management";
