@@ -175,3 +175,321 @@
   color: var(--color-text-disabled);
   user-select: none;
 }
+/* SVG motion is opt-in at the icon; its existing button owns the hit area. */
+.pigui-animated-icon {
+  overflow: visible;
+}
+
+.pigui-animated-icon [data-icon-part] {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.pigui-animated-icon[data-icon-motion="history"] [data-icon-part] {
+  transform-origin: 53.8829% 50%;
+}
+
+.pigui-animated-icon[data-icon-motion="history"] [data-icon-part="ring"] {
+  --icon-turn: -360deg;
+}
+
+.pigui-animated-icon[data-icon-motion="history"] [data-icon-part="minute"] {
+  --icon-turn: -2160deg;
+}
+
+.pigui-animated-icon[data-icon-motion="history"] [data-icon-part="hour"] {
+  --icon-turn: -1080deg;
+}
+
+.pigui-animated-icon[data-icon-motion="new-chat"] [data-icon-part="add"] {
+  transform-origin: 77.0833% 22.9167%;
+}
+
+.pigui-animated-icon[data-icon-motion="more"] [data-icon-part="first"] {
+  transform-origin: 25% 50%;
+}
+
+.pigui-animated-icon[data-icon-motion="more"] [data-icon-part="third"] {
+  transform-origin: 75% 50%;
+}
+
+.pigui-animated-icon[data-icon-motion="key"] [data-icon-part="key"] {
+  transform-origin: 64.5833% 35.4167%;
+}
+
+.pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="head"] {
+  transform-origin: 50% 37.5%;
+}
+
+.pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="antenna"] {
+  transform-origin: 50% 16.6667%;
+}
+
+.pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="left-eye"],
+.pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="right-eye"] {
+  transform-origin: 50% 34.375%;
+}
+
+.pigui-animated-icon[data-icon-motion="message"] [data-icon-part="bubble"] {
+  transform-box: fill-box;
+  transform-origin: 10% 97%;
+}
+
+.pigui-animated-icon[data-icon-motion="message"] [data-icon-part="text"] {
+  transform-origin: 35.4167% 50%;
+}
+
+.pigui-animated-icon[data-icon-motion="file"] [data-icon-part="lines"] {
+  transform-origin: 33.3333% 50%;
+}
+
+.pigui-animated-icon[data-icon-motion="information-circle"] [data-icon-part="stem"] {
+  transform-origin: 50% 66.6667%;
+}
+
+.pigui-animated-icon[data-icon-motion="information-circle"] [data-icon-part="dot"] {
+  transform-origin: 50% 34.375%;
+}
+
+/* Only a fine pointer starts decorative motion. Focus and touch stay still. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .pigui-animated-icon[data-icon-motion="chart-pie"] [data-icon-part="slice"] {
+    transition: transform var(--duration-medium-min) var(--ease-standard);
+  }
+
+  :where(button, a, [role="menuitem"]):hover:not(:disabled):not([aria-disabled="true"]) {
+    & .pigui-animated-icon[data-icon-motion="history"] [data-icon-part] {
+      animation: pigui-icon-rewind var(--duration-slow-min) linear;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="chart-pie"] [data-icon-part="slice"] {
+      transform: translate(4.5833%, -4.5833%);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="new-chat"] [data-icon-part="bubble"] {
+      animation: pigui-icon-chat var(--duration-medium-max) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="new-chat"] [data-icon-part="add"] {
+      animation: pigui-icon-chat-add var(--duration-medium-max) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="puzzle"] [data-icon-part="piece"] {
+      animation: pigui-icon-puzzle var(--duration-slow-min) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="settings"] [data-icon-part="gear"] {
+      animation: pigui-icon-gear var(--duration-slow) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="sidebar"] [data-icon-part="divider"] {
+      animation: pigui-icon-sidebar var(--duration-slow-min) linear;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="plus"] [data-icon-part="stem"] {
+      animation: pigui-icon-plus-stem var(--duration-medium-max) ease-in-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="plus"] [data-icon-part="arm"] {
+      animation: pigui-icon-plus-arm var(--duration-medium-max) ease-in-out;
+      animation-delay: calc(var(--duration-fast) / 3);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="more"] [data-icon-part] {
+      animation: pigui-icon-dot var(--duration-medium) ease-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="more"] [data-icon-part="second"] {
+      animation-delay: calc(var(--duration-fast) / 2);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="more"] [data-icon-part="third"] {
+      animation-delay: var(--duration-fast);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="key"] [data-icon-part="key"] {
+      animation: pigui-icon-key var(--duration-slow-min) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="head"] {
+      animation: pigui-icon-robot-head var(--duration-slow) ease-in-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="antenna"] {
+      animation: pigui-icon-robot-antenna var(--duration-slow-min) ease-in-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="robot"] :is([data-icon-part="left-eye"], [data-icon-part="right-eye"]) {
+      animation: pigui-icon-robot-eye var(--duration-slow-min) ease-in-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="robot"] [data-icon-part="right-eye"] {
+      animation-delay: calc(var(--duration-fast) / 5);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="message"] [data-icon-part="bubble"] {
+      animation: pigui-icon-message var(--duration-medium-max) ease-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="message"] [data-icon-part="text"] {
+      animation: pigui-icon-message-text var(--duration-slow) ease-out;
+    }
+
+    & .pigui-animated-icon[data-icon-motion="file"] [data-icon-part="paper"] {
+      animation: pigui-icon-paper var(--duration-slow-min) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="file"] [data-icon-part="lines"] {
+      animation: pigui-icon-paper-lines var(--duration-medium-max) var(--ease-standard);
+      animation-delay: var(--duration-fast);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="information-circle"] [data-icon-part="circle"] {
+      animation: pigui-icon-info-circle var(--duration-slow-min) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="information-circle"] [data-icon-part="stem"] {
+      animation: pigui-icon-info-stem var(--duration-slow-min) var(--ease-standard);
+    }
+
+    & .pigui-animated-icon[data-icon-motion="information-circle"] [data-icon-part="dot"] {
+      animation: pigui-icon-info-dot var(--duration-slow-min) var(--ease-standard);
+    }
+  }
+}
+
+@keyframes pigui-icon-rewind {
+  0% { transform: rotate(0deg); }
+  10% { transform: rotate(calc(var(--icon-turn) / -30)); }
+  26% { transform: rotate(calc(var(--icon-turn) / 6)); }
+  46% { transform: rotate(calc(var(--icon-turn) / 2)); }
+  66% { transform: rotate(calc(var(--icon-turn) * 0.833333)); }
+  84% { transform: rotate(calc(var(--icon-turn) * 1.025)); }
+  100% { transform: rotate(var(--icon-turn)); }
+}
+
+@keyframes pigui-icon-chat {
+  0%, 100% { transform: none; }
+  32% { transform: translateY(2.9167%) scale(0.96); }
+  65% { transform: translateY(-4.1667%) scale(1.025); }
+}
+
+@keyframes pigui-icon-chat-add {
+  0%, 100% { transform: none; }
+  14% { transform: rotate(-14deg) scale(0.48); }
+  45% { transform: rotate(5deg) scale(1.22); }
+  75% { transform: rotate(-2deg) scale(0.98); }
+}
+
+@keyframes pigui-icon-gear {
+  0% { transform: none; }
+  72% { transform: rotate(202deg); }
+  90% { transform: rotate(177.5deg); }
+  100% { transform: rotate(180deg); }
+}
+
+@keyframes pigui-icon-sidebar {
+  0%, 100% { d: path("M9 3V21"); }
+  10% { d: path("M6.8 3.123V20.877"); }
+  22% { d: path("M4.3 4.051V19.949"); }
+  32%, 50% { d: path("M3.4 5.456V18.544"); }
+  66% { d: path("M5.4 3.419V20.581"); }
+  82% { d: path("M8.3 3.02V20.98"); }
+  92% { d: path("M9.25 3V21"); }
+}
+
+@keyframes pigui-icon-plus-stem {
+  0%, 100% { transform: none; }
+  32% { transform: scaleY(1.175); }
+  68% { transform: scaleY(0.925); }
+}
+
+@keyframes pigui-icon-plus-arm {
+  0%, 100% { transform: none; }
+  32% { transform: scaleX(1.175); }
+  68% { transform: scaleX(0.925); }
+}
+
+@keyframes pigui-icon-dot {
+  0%, 100% { transform: none; }
+  33% { transform: translateY(-6.25%) scale(1.2); }
+  66% { transform: translateY(1.4583%) scale(0.95); }
+}
+
+@keyframes pigui-icon-puzzle {
+  0%, 100% { transform: none; }
+  18% { transform: translate(5%, -6.4583%) rotate(7deg) scale(0.985); }
+  34% { transform: translate(6.875%, -7.9167%) rotate(10deg) scale(0.98); }
+  56% { transform: translate(1.4583%, -1.25%) rotate(1.5deg) scale(1.01); }
+  70% { transform: translate(-0.6667%, 0.9167%) rotate(-0.8deg) scale(0.985); }
+  84% { transform: translate(0, -0.3333%) scale(1.018); }
+}
+
+@keyframes pigui-icon-key {
+  0%, 100% { transform: none; }
+  33% { transform: translate(5%, -5%) rotate(-8deg); }
+  67% { transform: translate(-1.4583%, 1.4583%) rotate(3deg); }
+}
+
+@keyframes pigui-icon-robot-head {
+  0%, 100% { transform: none; }
+  30% { transform: translateY(-2.5%) rotate(-5deg); }
+  70% { transform: rotate(4deg); }
+}
+
+@keyframes pigui-icon-robot-antenna {
+  0%, 100% { transform: none; }
+  25% { transform: rotate(-15deg); }
+  50% { transform: rotate(12deg); }
+  75% { transform: rotate(-5deg); }
+}
+
+@keyframes pigui-icon-robot-eye {
+  0%, 24%, 58%, 82%, 100% { transform: none; }
+  12%, 70% { transform: scaleY(0.1); }
+}
+
+@keyframes pigui-icon-message {
+  0% { transform: scale(0.85); }
+  70% { transform: scale(1.04); }
+  100% { transform: none; }
+}
+
+@keyframes pigui-icon-message-text {
+  0%, 35% { transform: scaleX(0); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes pigui-icon-paper {
+  0%, 100% { transform: none; }
+  33% { transform: translateY(-3.3333%) rotate(-1deg); }
+  67% { transform: translateY(1.875%) rotate(0.5deg); }
+}
+
+@keyframes pigui-icon-paper-lines {
+  0%, 100% { transform: none; }
+  33% { transform: scaleX(0.5); }
+  67% { transform: scaleX(1.1); }
+}
+
+@keyframes pigui-icon-info-circle {
+  0%, 100% { transform: none; }
+  20% { transform: scale(0.975); }
+  50% { transform: scale(1.02); }
+  76% { transform: scale(0.996); }
+}
+
+@keyframes pigui-icon-info-stem {
+  0%, 100% { transform: none; }
+  20% { transform: translateY(2.0833%) scaleY(0.78); }
+  50% { transform: translateY(-2.9167%) scaleY(1.08); }
+  76% { transform: translateY(0.75%) scaleY(0.98); }
+}
+
+@keyframes pigui-icon-info-dot {
+  0%, 100% { transform: none; }
+  20% { transform: translateY(2.5%) scale(0.9); }
+  50% { transform: translateY(-5.8333%) scale(1.16); }
+  76% { transform: translateY(0.8333%) scale(0.94); }
+}

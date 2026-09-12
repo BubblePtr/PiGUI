@@ -48,6 +48,8 @@
 5. 持有原生视图的 surface（Browser 的 `WebContentsView`）跟不了 CSS transform：动画前截快照、隐藏原生视图，`transitionend` 后重同步 bounds。新 surface 若持有原生资源，走 `SessionDockMotionContext`。
 6. 心跳（`ChatPixelLoader`）全局只出现在 `ChatStatusLine` 一处。它是情绪层，信息在 step 行里；两处心跳等于两个"正在跑"的主语。
 
+Sidebar / Header 的图标部件动作遵循 [animated-icons.md](animated-icons.md)：静止态无 transform，只有精细指针悬停且系统未开启减少动态效果时运行，全部沿用 CSS。SVG 分隔线的 `d: path()` 插值是明确限定的图标几何动画，不扩展为布局属性动画。
+
 ```css
 /* 正确 — chat.css 的减动效分支形态 */
 @media (prefers-reduced-motion: reduce) {

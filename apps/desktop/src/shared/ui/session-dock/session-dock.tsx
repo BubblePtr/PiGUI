@@ -12,7 +12,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { SidebarLeft } from "@/shared/ui/icons";
+import { AnimatedSidebarRight } from "@/shared/ui/icons";
 import {
   sessionSurfaceOrder,
   sessionSurfaces,
@@ -94,7 +94,7 @@ export function SessionDockTrigger({
     <IconButton
       aria-pressed={isOpen}
       className={`pigui-pressable ${className ?? ""}`.trim()}
-      icon={<SidebarLeft className="size-4 rotate-180" />}
+      icon={<AnimatedSidebarRight className="size-4" />}
       label="Session dock"
       size="sm"
       tooltip={isOpen ? "Hide dock" : "Show dock"}

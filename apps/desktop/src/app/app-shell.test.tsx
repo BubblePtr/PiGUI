@@ -1170,36 +1170,6 @@ describe("AppFrame", () => {
     expect(heading).toHaveClass("leading-7");
   });
 
-  it("uses state-specific Hugeicons glyphs for the fixed header sidebar trigger", async () => {
-    const user = userEvent.setup();
-    const source = readFileSync(join(process.cwd(), "apps/desktop/src/app/app-shell.tsx"), "utf8");
-    const iconSource = readFileSync(
-      join(process.cwd(), "apps/desktop/src/shared/ui/icons.tsx"),
-      "utf8",
-    );
-
-    renderAppFrame("/");
-
-    expect(await screen.findByText("Main content")).toBeInTheDocument();
-    const headerChrome = screen.getByTestId("header-chrome");
-    const trigger = within(headerChrome).getByRole("button", { name: "Collapse sidebar" });
-
-    expect(trigger).toHaveAttribute("data-slot", "sidebar-trigger");
-    await user.click(trigger);
-    expect(within(headerChrome).getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
-    expect(source).toContain("LayoutAlignLeft,");
-    expect(source).toContain("SidebarLeft,");
-    expect(source).toContain("function SidebarToggleIcon({ sidebarOpen }: { sidebarOpen: boolean })");
-    expect(source).toContain("const Icon = sidebarOpen ? SidebarLeft : LayoutAlignLeft;");
-    expect(source).toContain("<SidebarToggleIcon sidebarOpen={sidebarOpen} />");
-    expect(source).not.toContain('<SidebarLeft aria-hidden="true" className="size-4" />');
-    expect(source).not.toContain('style={titlebarControlStyle}\n        />');
-    expect(iconSource).toContain("LayoutAlignLeftIcon");
-    expect(iconSource).toContain("export const LayoutAlignLeft = iconComponent(LayoutAlignLeftIcon);");
-    expect(iconSource).toContain("SidebarLeftIcon");
-    expect(iconSource).toContain("export const SidebarLeft = iconComponent(SidebarLeftIcon);");
-  });
-
   it("uses only blank titlebar space as window drag regions", async () => {
     const { container } = renderAppFrame("/trajectory");
 
@@ -1711,8 +1681,7 @@ describe("AppFrame", () => {
     expect(source).not.toContain("sidebarNavigationIconSlotClassName");
     expect(source).not.toContain("sidebarNavigationIconClassName");
     expect(source).not.toContain("size-[1.125rem]");
-    expect(source).toContain('<ChatAdd aria-hidden="true" className="size-4" />');
-    expect(source.split('<Icon aria-hidden="true" className="size-4" />')).toHaveLength(4);
+    expect(source).toContain('<AnimatedNewChat aria-hidden="true" className="size-4" />');
   });
 
   it("does not import standalone React Aria Heading into the app shell", () => {

@@ -14,7 +14,7 @@ Pace 是 Astryx（Meta 开源，`@astryxdesign/core` 0.3.x，155 个组件）之
 3. **Button 默认 `secondary`，一屏一个 `primary`。** IconButton 默认 `ghost` + `sm`。两个 primary 等于没有层级。见 [astryx.md](astryx.md)。
 4. **状态用 Token，不用 Badge / StatusDot。** 这两个 Astryx 组件在仓库里零调用，不要成为第一个；图形分类色只用 `--pigui-data-*`，文字状态色只用 `--success/--warning/--danger`，两族不互借。
 5. **每个动画都要有 `prefers-reduced-motion` 分支**，静止态不写 `transform` / `will-change`。见 [typography-motion.md](typography-motion.md)。
-6. **图标只从 `shared/ui/icons.tsx` 导入。** 它把 Hugeicons 钉在 `strokeWidth 1.5`；页面里直接 `import ... from "@hugeicons/..."` 或 lucide 都是错的。
+6. **图标只从 `shared/ui/icons.tsx` 导入。** 统一 `strokeWidth 1.5`；默认 Hugeicons，Usage 的 `chart-pie` 是明确选定的 Lucide 例外。页面不直接导入供应商图标。Sidebar / Header / Settings 的动画导出见 [animated-icons.md](animated-icons.md)。
 7. **shared/ui 最低契约。** 每个组件接 `className` 并合并到根元素；剩余 props（`...rest`）透传到根 DOM（根是 Astryx 组件时透传到该组件）。React 19 下 `ref` 作为普通 prop 随 rest 到达根元素，不要 `forwardRef`（`TerminalView` 的 `useImperativeHandle` 除外）。指向内部元素的 ref 用具名 prop（`inputRef`、`viewportRef`）。已有内部 `data-testid` 保留，调用方传入的 `data-testid` 必须能覆盖根元素（rest 在内部属性之后展开）。不识别的 prop 不得转发给子组件。由 `apps/desktop/src/shared/ui/contract.test.tsx` 守住。命名跟 Astryx（React Aria 惯例）：布尔 `isX`/`hasX`/`canX`；受控状态对 `x` + `onXChange`；命令回调 `onVerb`；点击 `onPress`；非受控初值 `defaultX`；直接透传给 Astryx 的 prop 保持其原名（`isDisabled`，不再叫 `isLocked`）。禁止裸 `open`、`designMode` 这种名词布尔。
 
 ## 我需要一个 UI 件，从哪拿
@@ -36,6 +36,8 @@ Astryx 有对应组件吗？(bunx astryx search "<thing>")
 | --- | --- |
 | [tokens.md](tokens.md) | 允许哪一层 token；背景/文字/状态/数据色各选哪个；已知债务不许再添 |
 | [typography-motion.md](typography-motion.md) | 字号下限、对话标题阶梯、数字对齐；时长与缓动、减动效、列表进出场 |
+| [animated-icons.md](animated-icons.md) | Sidebar / Header / Settings 的动画图标、来源、触发方式与静态状态 |
+| [settings-icons-evaluation.md](settings-icons-evaluation.md) | Settings 五个导航图标的选型理由与动效边界（已实施） |
 | [astryx.md](astryx.md) | 我们实际采用的 Astryx 组件与选定变体；哪些 Astryx 组件不用 |
 | [chat.md](chat.md) | 对话流、Composer、思维链三类自建组件：何时用哪个、联合类型、正反例 |
 | [workspace.md](workspace.md) | Session Dock、Surface、轨迹台账、图表、图标与视觉原语 |

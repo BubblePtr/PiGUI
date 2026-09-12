@@ -19,7 +19,13 @@ import {
   useSettingsDialog,
   type SettingsSection,
 } from "@/shared/settings-navigation";
-import { Bot, FolderOpen, Globe, RefreshCw, Sparkles } from "@/shared/ui/icons";
+import {
+  AnimatedFile,
+  AnimatedInformationCircle,
+  AnimatedKey,
+  AnimatedMessage,
+  AnimatedRobot,
+} from "@/shared/ui/icons";
 import { ChangelogSection } from "@/pages/settings-changelog";
 import paceIcon from "../../../../build/icon-512.png";
 import { ProviderIcon } from "@/entities/provider/provider-icon";
@@ -816,11 +822,11 @@ function SettingsContent({
 }
 
 const settingsSections = [
-  { id: "providers", label: "Providers", icon: Globe },
-  { id: "models", label: "Models", icon: Bot },
-  { id: "chats", label: "Chats", icon: FolderOpen },
-  { id: "changelog", label: "Changelog", icon: Sparkles },
-  { id: "about", label: "About & Updates", icon: RefreshCw },
+  { id: "providers", label: "Providers", icon: AnimatedKey },
+  { id: "models", label: "Models", icon: AnimatedRobot },
+  { id: "chats", label: "Chats", icon: AnimatedMessage },
+  { id: "changelog", label: "Changelog", icon: AnimatedFile },
+  { id: "about", label: "About & Updates", icon: AnimatedInformationCircle },
 ] as const;
 
 export function SettingsDialog() {

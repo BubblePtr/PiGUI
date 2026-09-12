@@ -129,3 +129,21 @@ export const Wrench = iconComponent(WrenchIcon);
 
 // Keep the plain bot glyph available for places that need a chat-specific robot icon.
 export const BotMessage = iconComponent(BotIcon);
+
+export {
+  AnimatedChartPie,
+  AnimatedFile,
+  AnimatedHistory,
+  AnimatedInformationCircle,
+  AnimatedKey,
+  AnimatedMessage,
+  AnimatedMoreHorizontal,
+  AnimatedNewChat,
+  AnimatedPlus,
+  AnimatedPuzzle,
+  AnimatedRobot,
+  AnimatedSettings,
+  AnimatedSidebar,
+  AnimatedSidebarRight,
+  type AnimatedIconProps,
+} from "./animated-icons";
