@@ -1039,6 +1039,11 @@ function AnimatedIconsGallery() {
     ["Right sidebar", Icons.AnimatedSidebarRight],
     ["Add", Icons.AnimatedPlus],
     ["More", Icons.AnimatedMoreHorizontal],
+    ["Providers", Icons.AnimatedKey],
+    ["Models", Icons.AnimatedRobot],
+    ["Chats", Icons.AnimatedMessage],
+    ["Changelog", Icons.AnimatedFile],
+    ["About & Updates", Icons.AnimatedInformationCircle],
   ] as const;
 
   return (
@@ -2297,7 +2302,7 @@ export const componentExamples: ComponentExample[] = [
   { name: "ContextUsageMeter", category: "Workspace & trajectory", description: "Context token budget, warning thresholds, and compaction.", Preview: ContextUsageMeterGallery },
   { name: "DotMatrix", category: "Visual primitives", description: "Pixel patterns for compact visual indicators.", Preview: DotMatrixGallery },
   { name: "Icons", category: "Visual primitives", description: "The complete icon set, labeled by its exported name.", Preview: IconsGallery },
-  { name: "AnimatedIcons", category: "Visual primitives", description: "Sidebar and header icon gestures, with disabled and static variants.", Preview: AnimatedIconsGallery },
+  { name: "AnimatedIcons", category: "Visual primitives", description: "Sidebar, header, and Settings icon gestures, with disabled and static variants.", Preview: AnimatedIconsGallery },
   { name: "ChatToolKindIcon", category: "Visual primitives", description: "Visual identifiers for shell, search, web, file, and edit tools.", Preview: ChatToolKindIconGallery },
   { name: "ChatPixelLoader", category: "Visual primitives", description: "Animated pixel loading indicator with adjustable speed.", Preview: ChatPixelLoaderGallery },
   { name: "ChatInlinePager", category: "Visual primitives", description: "Inline status text that flips between pages.", Preview: ChatInlinePagerGallery },

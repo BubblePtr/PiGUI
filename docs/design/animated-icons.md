@@ -1,8 +1,8 @@
-# Sidebar 与 Header 的动画图标
+# Sidebar、Header 与 Settings 的动画图标
 
 2026-09-12 选型：先从现成动画库挑选语义与外观合适的图形，再映射到 Pace。现有 glyph 不构成兼容性要求。Trajectory 选 Hugeicons Animated 的 `history`；Usage 选 Lucide Animated 的 `chart-pie`；Packages 选 Hugeicons Animated 的 `puzzle`。插件入口的图标后续另选。
 
-本批仅用于 AppShell 的 Sidebar 与 Header。Header 右上角的 Dock 开关也使用动画，Dock 内部的栏位图标保持原实现；项目目录的展开指示已有状态反馈，不叠加悬停动画。
+本批用于 AppShell 的 Sidebar、Header 与 Settings 弹窗的五个分类导航。Header 右上角的 Dock 开关也使用动画，Dock 内部的栏位图标保持原实现；项目目录的展开指示已有状态反馈，不叠加悬停动画。
 
 | 使用位置 | 导出 | 来源图标 | 动作 |
 | --- | --- | --- | --- |
@@ -15,6 +15,11 @@
 | Header 的右侧 Dock 开关 | `AnimatedSidebarRight` | Hugeicons `panel-left` 水平镜像 | 右侧分隔线沿外框收起、展开 |
 | Chats / Projects / 项目行的新增按钮 | `AnimatedPlus` | Hugeicons `plus-sign` | 两笔先后伸展、回弹 |
 | 项目与会话的更多菜单 | `AnimatedMoreHorizontal` | Hugeicons `more-horizontal` | 三个点依次轻跳 |
+| Settings → Providers | `AnimatedKey` | Hugeicons `key-01` | 钥匙轻推、转动后回位 |
+| Settings → Models | `AnimatedRobot` | Hugeicons `robot-01` | 天线摆动、轻微歪头与眨眼 |
+| Settings → Chats | `AnimatedMessage` | Hugeicons `message-01` | 气泡展开，文字线随后伸展 |
+| Settings → Changelog | `AnimatedFile` | Hugeicons `file-01` | 纸张微动，内部文字线伸缩 |
+| Settings → About & Updates | `AnimatedInformationCircle` | Hugeicons `information-circle` | 圆框、字干与圆点轻弹 |
 
 ## 接入与状态
 
@@ -27,6 +32,8 @@
 - 时长使用 Astryx 的 `--duration-medium*` 与 `--duration-slow*`；短小部件动作可以跨越按钮颜色反馈的时长，但不阻塞交互。SVG 内部的坐标、角度、关键帧百分比是原图几何参数，不是界面间距 token。
 - `panel-left` 的分隔线通过 CSS `d: path()` 做 SVG 几何插值，运行于 Electron Chromium；减少动态效果时直接使用 SVG 的原始 `d`。右侧版本用 SVG 组的 `translate(24 0) scale(-1 1)` 镜像绘制坐标，共用同一份图形与动画；不在根节点保留 CSS transform。
 
-`/design → Components → AnimatedIcons` 展示全部 9 个导出（8 种图形，含侧栏左右两个方向）的导航尺寸、常规尺寸、禁用与强制静态状态。
+`/design → Components → AnimatedIcons` 展示全部 14 个导出（13 种图形，含侧栏左右两个方向）的导航尺寸、常规尺寸、禁用与强制静态状态。
+
+Settings 的供应商品牌标志、Pace Logo 与版本时间轴圆点保持静态；窄屏仍使用原有文字标签。`robot-01` 保留静止图形与天线、头部、眨眼动作，省去悬停时临时生成的三段屏幕线条，以适应 16px 导航。`message-01` 的文字用伸展与淡入表达写入，不引入路径描边动画。选型理由见 [Settings 图标评估](settings-icons-evaluation.md)。
 
 来源与授权见 [动画图标许可证](../licenses/animated-icons.md)。

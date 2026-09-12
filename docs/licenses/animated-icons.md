@@ -6,7 +6,7 @@ Pace 的 `apps/desktop/src/shared/ui/animated-icons.tsx` 与 `primitives.css` �
 
 - 项目：[enesgules/hugeicons-animated](https://github.com/enesgules/hugeicons-animated)
 - 固定版本：[10d719295bdf4247ae2da4dd10a05db412570ce2](https://github.com/enesgules/hugeicons-animated/tree/10d719295bdf4247ae2da4dd10a05db412570ce2)
-- 图标：`history`、`message-add-01`、`settings-01`、`panel-left`、`plus-sign`、`more-horizontal`、`puzzle`。
+- 图标：`history`、`message-add-01`、`settings-01`、`panel-left`、`plus-sign`、`more-horizontal`、`puzzle`、`key-01`、`robot-01`、`message-01`、`file-01`、`information-circle`。
 - [上游 README](https://github.com/enesgules/hugeicons-animated/blob/10d719295bdf4247ae2da4dd10a05db412570ce2/README.md#license) 声明动画代码为 MIT，图形源于 MIT 授权的 `@hugeicons/core-free-icons`。该版本未单独附带 LICENSE 文件。
 
 Hugeicons 官方项目的 [MIT 许可原文](https://github.com/hugeicons/hugeicons-react/blob/main/LICENSE.md)：

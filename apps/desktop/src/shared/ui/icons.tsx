@@ -132,11 +132,16 @@ export const BotMessage = iconComponent(BotIcon);
 
 export {
   AnimatedChartPie,
+  AnimatedFile,
   AnimatedHistory,
+  AnimatedInformationCircle,
+  AnimatedKey,
+  AnimatedMessage,
   AnimatedMoreHorizontal,
   AnimatedNewChat,
   AnimatedPlus,
   AnimatedPuzzle,
+  AnimatedRobot,
   AnimatedSettings,
   AnimatedSidebar,
   AnimatedSidebarRight,
