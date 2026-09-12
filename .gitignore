@@ -27,5 +27,3 @@ yarn-error.log*
 *.swp
 test-results/
 e2e/screenshots/
-
-/apps/desktop/pi-runtime/

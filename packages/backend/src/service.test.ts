@@ -23,19 +23,30 @@ const sessionManagerOpen = vi.hoisted(() => vi.fn());
 const sessionManagerListAll = vi.hoisted(() => vi.fn(async () => []));
 const registerBunOAuthFlows = vi.hoisted(() => vi.fn());
 
-vi.mock("./drivers/pi-runtime", async () => {
-  const sdk = await import("@earendil-works/pi-coding-agent");
-  const piSdk = {
-    ...sdk,
-    createAgentSession,
-    SessionManager: { open: sessionManagerOpen, listAll: sessionManagerListAll },
-    AuthStorage: {
-      create: () => ({ get: () => null, set: () => undefined, delete: () => undefined }),
-    },
-    ModelRegistry: { create: () => ({ getAvailable: () => [] }) },
-  };
-  return { ...piSdk, piSdk, registerBunOAuthFlows };
-});
+vi.mock("@earendil-works/pi-ai/bun-oauth", () => ({
+  registerBunOAuthFlows,
+}));
+
+vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@earendil-works/pi-coding-agent")>(),
+  createAgentSession,
+  SessionManager: {
+    open: sessionManagerOpen,
+    listAll: sessionManagerListAll,
+  },
+  AuthStorage: {
+    create: () => ({
+      get: () => null,
+      set: () => undefined,
+      delete: () => undefined,
+    }),
+  },
+  ModelRegistry: {
+    create: () => ({
+      getAvailable: () => [],
+    }),
+  },
+}));
 
 function fixtureAgentDir() {
   return join(process.cwd(), "fixtures/pi-agent");

@@ -54,17 +54,15 @@ ADR-0021 中“不导入 CLI/TUI 会话”保留为当前实现范围，不作�
 - 澄清 [ADR-0021](0021-session-fork-resume-persistence-layering.md) 及 `CONTEXT.md` 的 Session Creation Boundary 为当前阶段边界；不改变现有列表、恢复、分叉与双轨持久化行为。
 - [ADR-0025](0025-first-run-environment-preflight.md) 的 Pi runtime 必需检查现已验证实际使用的内置引擎，并显示 App / Pi 版本与 SDK 模式；默认路径不再要求另装全局 CLI。
 
-## 已有实现的对齐状态（2026-09-12）
+## 已有实现的对齐状态（2026-09-05）
 
 本次修复只覆盖已有实现：
 
-1. 环境预检加载 `PACE_PI_RUNTIME_DIR` 指向的真实 SDK，以其 `VERSION` 检查构建时记录的引擎版本；版本不符直接报告定位信息。App 版本、实际 Pi 版本与 SDK 模式分别显示，不再以 App 包版本或仅构建常量代替实际运行引擎。
-2. 以真实 npm 包树分发 SDK：后端外置 `@earendil-works/*`，移除 `PI_BUNDLED_NODE`，由主进程通过 `PACE_PI_RUNTIME_DIR` 指定包根。开发使用仓库安装的真实路径，发布使用 asar 外的 `resources/pi-runtime/node_modules/@earendil-works/pi-coding-agent`。扩展生态（如 pi-subagents）需要真实包根和可供裸 Node 子进程加载的 peer 依赖；内联与虚拟模块只能覆盖进程内导入，无法满足这一要求。构建从冻结安装的生产依赖图复制真实文件并校验依赖边，不重新解析 npm 版本；按目标平台／架构与包的 `os`／`cpu` 声明过滤 optional 依赖，不匹配的 required 依赖报错；Photon WASM 随原包保留。
+1. 环境预检检查内置 SDK，构建时记录实际安装的引擎版本，避免将 App 包版本误报为 Pi 版本。
+2. 独立构建启用 Pi 自带的 `PI_BUNDLED_NODE` 虚拟模块解析，使原生扩展不依赖仓库中的 Pi peer 模块文件。
 3. 创建、恢复和分叉均绑定扩展并执行启动生命周期；加载和事件处理错误进入首次响应与持久化事件历史，可恢复的扩展错误不将整个会话标记为失败。
 4. Setup 的全局配置清单复用 Pi 的包发现、过滤与技能解析规则，支持包对象和禁用配置。查询不安装包、不执行扩展、不写回配置；清单中的启用状态表示配置结果，实际加载失败由会话诊断报告。
 5. 两个 Pi 直接依赖精确固定为 `0.84.3`，发布构建先执行冻结 lockfile 安装，再构建并运行独立产物冒烟测试。
-
-代价：安装包新增约 140MB 的未压缩运行时资源（本次 darwin arm64 `du -sh` 为 149M），约 13k 文件进入签名封装范围，其中包含原生 `.node`。开发与打包统一走真实包树和同一导入边界，需维护 staging、路径解析与目标平台验证；包级过滤不会裁剪 Pi TUI 原包内的跨平台预编译资源，也不会补装主机安装图中缺少的目标 optional 依赖。首次发版必须验证签名、公证及安装后的 pi-subagents 后台子代理启动，目录包的模块导入测试不能替代这一发布门。
 
 验证入口与覆盖范围见 [内置运行时发布验证](../runtime-release-validation.md)。
 
@@ -79,4 +77,4 @@ ADR-0021 中“不导入 CLI/TUI 会话”保留为当前实现范围，不作�
 
 - [Pi SDK 文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md)
 - [Pi 扩展文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md)
-- 当前实现依据：[后端依赖](../../packages/backend/package.json)、[组合根](../../packages/backend/src/service.ts)、[构建配置](../../apps/desktop/electron.vite.config.ts)、[打包配置](../../electron-builder.yml)、[环境预检](../../packages/backend/src/workspace/environment-preflight.ts)。版本与实现现状为 2026-09-12 核查结果，后续以代码和 lockfile 为准。
+- 当前实现依据：[后端依赖](../../packages/backend/package.json)、[组合根](../../packages/backend/src/service.ts)、[构建配置](../../apps/desktop/electron.vite.config.ts)、[打包配置](../../electron-builder.yml)、[环境预检](../../packages/backend/src/workspace/environment-preflight.ts)。版本与实现现状为 2026-09-05 核查结果，后续以代码和 lockfile 为准。

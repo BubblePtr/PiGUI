@@ -5,7 +5,7 @@
 
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { ModelRuntime, readStoredCredential } from "../drivers/pi-runtime";
+import { ModelRuntime, readStoredCredential } from "@earendil-works/pi-coding-agent";
 import {
   PROVIDER_AUTH_CATALOG,
   type ProviderAuthId,

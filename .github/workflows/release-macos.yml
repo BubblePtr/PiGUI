@@ -59,7 +59,6 @@ jobs:
           PACE_DATA_DIR: ${{ runner.temp }}/pigui-unit-data
       - name: Build and validate the bundled runtime
         run: bun run build:release
-      - run: bun run stage:pi-runtime --platform darwin --arch arm64
       - run: bun run stage:node-pty
       - name: Sign and notarize the ARM64 DMG
         env:

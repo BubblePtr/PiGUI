@@ -32,12 +32,6 @@ extraResources:
 asarUnpack:
   - "node_modules/@lydell/**/*"
 
-# Extensions launch plain Node children, so the SDK must live outside asar.
-extraResources:
-  # Copy from node_modules itself: electron-builder filters a root child named node_modules.
-  - from: apps/desktop/pi-runtime/node_modules
-    to: pi-runtime/node_modules
-
 artifactName: ${productName}-${version}-${arch}.${ext}
 
 # Generates latest-mac.yml / app-update.yml for electron-updater.
