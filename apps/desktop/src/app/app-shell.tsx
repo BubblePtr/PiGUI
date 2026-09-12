@@ -7,22 +7,21 @@ import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import {
+  AnimatedChartPie,
+  AnimatedHistory,
+  AnimatedMoreHorizontal,
+  AnimatedNewChat,
+  AnimatedPlus,
+  AnimatedPuzzle,
+  AnimatedSettings,
+  AnimatedSidebar,
   Archive,
-  BarChart3,
-  Box,
-  ChatAdd,
   ChevronRight,
   FolderClosed,
   FolderOpen,
   FolderOpenState,
-  LayoutAlignLeft,
-  ListTree,
-  MoreHorizontal,
   Palette,
   Pencil,
-  Plus,
-  Settings,
-  SidebarLeft,
   Trash2,
 } from "@/shared/ui/icons";
 import {
@@ -233,20 +232,20 @@ const trajectoryUsageNavigationItems = [
   {
     label: "Trajectory",
     to: "/trajectory",
-    icon: ListTree,
+    icon: AnimatedHistory,
     isActive: (pathname: string) =>
       pathname === "/trajectory" || pathname.startsWith("/sessions/"),
   },
   {
     label: "Usage",
     to: "/usage",
-    icon: BarChart3,
+    icon: AnimatedChartPie,
     isActive: (pathname: string) => pathname === "/usage",
   },
   {
     label: "Packages",
     to: "/packages",
-    icon: Box,
+    icon: AnimatedPuzzle,
     isActive: (pathname: string) => pathname === "/packages",
   },
 ] as const;
@@ -267,7 +266,7 @@ const systemNavigationItems = [
   {
     label: "Settings",
     to: "/settings",
-    icon: Settings,
+    icon: AnimatedSettings,
     isActive: (pathname: string) =>
       pathname === "/settings" || pathname.startsWith("/settings/"),
   },
@@ -655,7 +654,7 @@ function AddProjectButton({
 
   return (
     <IconButton
-      icon={<Plus aria-hidden="true" />}
+      icon={<AnimatedPlus aria-hidden="true" />}
       isDisabled={choosing}
       label="Add Project"
       tooltip="Add Project"
@@ -679,7 +678,7 @@ function ProjectActionsMenu({
 }) {
   return (
     <MoreMenu
-      icon={<MoreHorizontal aria-hidden="true" />}
+      icon={<AnimatedMoreHorizontal aria-hidden="true" />}
       label={`Project actions for ${project.displayName}`}
       size="sm"
       items={[
@@ -727,7 +726,7 @@ function SessionActionsMenu({
     <DropdownMenu
       hasChevron={false}
       button={{
-        icon: <MoreHorizontal aria-hidden="true" />,
+        icon: <AnimatedMoreHorizontal aria-hidden="true" />,
         isIconOnly: true,
         label: `Session actions for ${session.title}`,
         size: "sm",
@@ -740,7 +739,7 @@ function SessionActionsMenu({
           ? [
               {
                 label: "Open Trajectory",
-                icon: <ListTree aria-hidden="true" size={16} />,
+                icon: <AnimatedHistory aria-hidden="true" size={16} />,
                 onClick: () => onOpenTrajectory(piSessionId),
               },
             ]
@@ -877,7 +876,7 @@ function ChatNavigation({
         contentId={contentId}
         onToggle={toggle}
         actions={
-          <IconButton icon={<Plus aria-hidden="true" />} label="New Chat without a project"
+          <IconButton icon={<AnimatedPlus aria-hidden="true" />} label="New Chat without a project"
             tooltip="New Chat" size="sm" variant="ghost" onClick={onNewChat} />
         }
       />
@@ -997,7 +996,7 @@ function ProjectNavigation({
               trailingActions={
                 <>
                   <IconButton
-                    icon={<Plus aria-hidden="true" />}
+                    icon={<AnimatedPlus aria-hidden="true" />}
                     label={`New Chat for ${project.displayName}`}
                     size="sm"
                     variant="ghost"
@@ -1033,7 +1032,7 @@ function TrajectoryUsageNavigation({
   return (
     <SideNavSection isHeaderHidden title="Trajectory and usage navigation">
       <SideNavItem
-        icon={<ChatAdd aria-hidden="true" className="size-4" />}
+        icon={<AnimatedNewChat aria-hidden="true" className="size-4" />}
         isSelected={draftViewActive}
         label="New Chat"
         onClick={onNewSession}
@@ -1089,12 +1088,6 @@ function SystemNavigation({
       })}
     </SideNavSection>
   );
-}
-
-function SidebarToggleIcon({ sidebarOpen }: { sidebarOpen: boolean }) {
-  const Icon = sidebarOpen ? SidebarLeft : LayoutAlignLeft;
-
-  return <Icon aria-hidden="true" className="size-4" />;
 }
 
 function HeaderChrome({
@@ -1157,7 +1150,7 @@ function HeaderChrome({
             type="button"
             onClick={onToggleSidebar}
           >
-            <SidebarToggleIcon sidebarOpen={sidebarOpen} />
+            <AnimatedSidebar aria-hidden="true" className="size-4" />
           </button>
         ) : null}
         <div

@@ -21,6 +21,12 @@ files:
   # it into a store dir electron-builder cannot reach).
   - "node_modules/@lydell/**/*"
 
+extraResources:
+  - from: docs/licenses
+    to: licenses
+    filter:
+      - "**/*.md"
+
 # Native modules (pty.node) cannot be dlopen'd from inside the asar, and
 # node-pty's spawn-helper is exec'd as a subprocess — unpack the whole scope.
 asarUnpack:

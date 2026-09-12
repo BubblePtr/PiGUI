@@ -27,7 +27,7 @@ import { ComposerAttachmentDrawer } from "@/shared/ui/composer-attachments/compo
 import { ComposerInsertMenu } from "@/shared/ui/composer-attachments/composer-insert-menu";
 import { ContextUsageMeter } from "@/shared/ui/context-usage-meter";
 import { DotMatrix } from "@/shared/ui/dot-matrix";
-import { Activity } from "@/shared/ui/icons";
+import { Activity, AnimatedHistory } from "@/shared/ui/icons";
 import { ModelSelectorControl } from "@/shared/ui/model-selector/model-selector-control";
 import { PiBarChart } from "@/shared/ui/pi-bar-chart";
 import { PiKpi } from "@/shared/ui/pi-kpi";
@@ -288,6 +288,7 @@ const cases: Array<{
       />
     ),
   },
+  { name: "AnimatedHistory", ui: <AnimatedHistory /> },
   { name: "ChatToolKindIcon", ui: <ChatToolKindIcon kind="tool" /> },
   { name: "ChatStatusLine", ui: <ChatStatusLine phase="thinking" /> },
   { name: "TextShimmer", ui: <TextShimmer>loading</TextShimmer> },

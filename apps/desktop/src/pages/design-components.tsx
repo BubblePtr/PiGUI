@@ -1028,6 +1028,45 @@ function DotMatrixGallery() {
   );
 }
 
+function AnimatedIconsGallery() {
+  const icons = [
+    ["Trajectory", Icons.AnimatedHistory],
+    ["Usage", Icons.AnimatedChartPie],
+    ["Packages", Icons.AnimatedPuzzle],
+    ["New Chat", Icons.AnimatedNewChat],
+    ["Settings", Icons.AnimatedSettings],
+    ["Sidebar", Icons.AnimatedSidebar],
+    ["Add", Icons.AnimatedPlus],
+    ["More", Icons.AnimatedMoreHorizontal],
+  ] as const;
+
+  return (
+    <GallerySection title="AnimatedIcons">
+      <Text type="supporting">Hover a control to preview. Keyboard focus and reduced motion stay still.</Text>
+      <VariantRow>
+        <Variant caption="16px · navigation">
+          <VStack gap={2}>
+            {icons.map(([label, Icon]) => (
+              <Button key={label} icon={<Icon size={16} />} label={label} size="sm" variant="ghost" />
+            ))}
+          </VStack>
+        </Variant>
+        <Variant caption="24px · enabled / disabled / static">
+          <VStack gap={3}>
+            {icons.map(([label, Icon]) => (
+              <HStack key={label} gap={3} vAlign="center">
+                <IconButton icon={<Icon />} label={`${label} animated`} size="sm" variant="ghost" />
+                <IconButton icon={<Icon />} isDisabled label={`${label} disabled`} size="sm" variant="ghost" />
+                <IconButton icon={<Icon isAnimated={false} />} label={`${label} static`} size="sm" variant="ghost" />
+              </HStack>
+            ))}
+          </VStack>
+        </Variant>
+      </VariantRow>
+    </GallerySection>
+  );
+}
+
 function IconsGallery() {
   return (
     <GallerySection title="Icons">
@@ -2257,6 +2296,7 @@ export const componentExamples: ComponentExample[] = [
   { name: "ContextUsageMeter", category: "Workspace & trajectory", description: "Context token budget, warning thresholds, and compaction.", Preview: ContextUsageMeterGallery },
   { name: "DotMatrix", category: "Visual primitives", description: "Pixel patterns for compact visual indicators.", Preview: DotMatrixGallery },
   { name: "Icons", category: "Visual primitives", description: "The complete icon set, labeled by its exported name.", Preview: IconsGallery },
+  { name: "AnimatedIcons", category: "Visual primitives", description: "Sidebar and header icon gestures, with disabled and static variants.", Preview: AnimatedIconsGallery },
   { name: "ChatToolKindIcon", category: "Visual primitives", description: "Visual identifiers for shell, search, web, file, and edit tools.", Preview: ChatToolKindIconGallery },
   { name: "ChatPixelLoader", category: "Visual primitives", description: "Animated pixel loading indicator with adjustable speed.", Preview: ChatPixelLoaderGallery },
   { name: "ChatInlinePager", category: "Visual primitives", description: "Inline status text that flips between pages.", Preview: ChatInlinePagerGallery },
