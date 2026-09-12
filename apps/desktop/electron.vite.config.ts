@@ -6,6 +6,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import type { Plugin } from "vite";
+import { piBackendEntry, piRuntimeBundle } from "./build/pi-runtime-bundle";
 
 // The @pace/* workspace packages are internal TS source, not external runtime
 // deps — bundle them into the main/preload output so the utilityProcess can find
@@ -23,6 +24,7 @@ const appPackage = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "
 const photonWasmPath = requireFromPi.resolve(
   "@silvia-odwyer/photon-node/photon_rs_bg.wasm",
 );
+const piRuntime = piRuntimeBundle(piPackageDirectory);
 
 function copyMainRuntimeAssets(): Plugin {
   return {
@@ -33,7 +35,7 @@ function copyMainRuntimeAssets(): Plugin {
       }
 
       // The bundled Photon chunk resolves its WASM beside the emitted chunk.
-      const outputPath = resolve(options.dir, "chunks/photon_rs_bg.wasm");
+      const outputPath = resolve(options.dir, "runtime/chunks/photon_rs_bg.wasm");
 
       await mkdir(dirname(outputPath), { recursive: true });
       await copyFile(photonWasmPath, outputPath);
@@ -45,10 +47,13 @@ const mainBuild = {
   rollupOptions: {
     input: {
       main: resolve(__dirname, "electron/main.ts"),
-      backend: resolve(__dirname, "electron/backend.ts"),
+      [piBackendEntry]: resolve(__dirname, "electron/backend.ts"),
+      ...piRuntime.input,
     },
+    preserveEntrySignatures: "strict",
     output: {
       entryFileNames: "[name].js",
+      chunkFileNames: "runtime/chunks/[name]-[hash].js",
     },
   },
 };
@@ -109,6 +114,7 @@ export default defineConfig({
     plugins: [
       externalizeDepsPlugin({ exclude: [...internalPackages, "electron-updater"] }),
       copyMainRuntimeAssets(),
+      piRuntime.plugin,
     ],
     build: mainBuild as any,
     resolve: { alias: coreAlias },

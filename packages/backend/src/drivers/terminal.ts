@@ -1,6 +1,8 @@
 // A terminal manager wrapping node-pty: multi-instance, session-scoped, with a
 // bounded per-instance scrollback so late-attaching renderers can replay output.
 
+import { createRequire } from "node:module";
+
 export type PtyHandle = {
   write(data: string): void;
   resize(cols: number, rows: number): void;
@@ -154,15 +156,12 @@ export function createTerminalManager(
   return {
     async create(input) {
       if (!spawnPty) {
-        // @lydell/node-pty is a dependency of apps/desktop only: the backend
-        // bundle runs in that context and resolves it at runtime, but the
-        // package is intentionally not resolvable from packages/backend at
-        // typecheck/test time. Keep the specifier opaque (a variable, never a
-        // static import) so tsc and the dev/test transform leave it alone —
-        // the import only executes in the Electron backend, where
-        // apps/desktop/node_modules is on the resolution path.
+        // Resolve the desktop-only native dependency at runtime. node-pty
+        // rewrites app.asar to app.asar.unpacked for its spawn helper, so use
+        // the archive path even when this backend already runs outside asar.
+        const requireFromDesktop = createRequire(import.meta.url.replace("/app.asar.unpacked/", "/app.asar/"));
         const nodePtySpecifier = "@lydell/node-pty";
-        const nodePty = (await import(nodePtySpecifier)) as NodePtyModule;
+        const nodePty = requireFromDesktop(nodePtySpecifier) as NodePtyModule;
 
         spawnPty = (spawnInput) => {
           const pty = nodePty.spawn(spawnInput.file, spawnInput.args, {

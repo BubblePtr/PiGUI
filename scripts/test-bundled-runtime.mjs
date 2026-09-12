@@ -10,6 +10,47 @@ import test from "node:test";
 const run = promisify(execFile);
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+test("an independent Node process can use the shipped SDK and its peer exports", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pace-extension-sdk-"));
+  try {
+    await cp(join(repo, "apps/desktop/out/main/runtime"), root, { recursive: true });
+    await writeFile(join(root, "package.json"), JSON.stringify({ type: "module" }));
+    await writeFile(join(root, "probe.mjs"), `
+      import assert from 'node:assert/strict';
+      import * as sdk from '@earendil-works/pi-coding-agent';
+      import { Agent } from '@earendil-works/pi-agent-core';
+      import * as nodeCore from '@earendil-works/pi-agent-core/node';
+      import * as ai from '@earendil-works/pi-ai/compat';
+      import * as oauth from '@earendil-works/pi-ai/oauth';
+      import * as providers from '@earendil-works/pi-ai/providers/all';
+      import * as tui from '@earendil-works/pi-tui';
+      import { Type } from 'typebox';
+      import { Compile } from 'typebox/compile';
+      import { Value } from 'typebox/value';
+      const schema = Type.Object({ task: Type.String() });
+      assert.equal(Compile(schema).Check({ task: 'probe' }), true);
+      assert.equal(Value.Check(schema, { task: 42 }), false);
+      const loader = new sdk.DefaultResourceLoader({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR,
+        noExtensions: true, noSkills: true, noPromptTemplates: true, noContextFiles: true });
+      await loader.reload();
+      const { session } = await sdk.createAgentSession({ cwd: process.cwd(), resourceLoader: loader });
+      assert.ok(session.agent instanceof Agent, 'the public SDK must share peer identity');
+      assert.ok(session.agent.state.tools.some(tool => tool.name === 'read'));
+      await session.dispose();
+      console.log('SDK_CHILD_OK');
+    `);
+    const { stdout } = await run(process.execPath, [join(root, "probe.mjs")], {
+      cwd: root,
+      env: { HOME: root, PATH: "", PI_CODING_AGENT_DIR: join(root, "agent"),
+        PI_PACKAGE_DIR: join(root, "node_modules/@earendil-works/pi-coding-agent") },
+      timeout: 30_000,
+    });
+    assert.match(stdout, /SDK_CHILD_OK/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("the release declares an exact Pi engine combination", async () => {
   const { dependencies } = JSON.parse(await readFile(join(repo, "packages/backend/package.json"), "utf8"));
   for (const name of ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"]) {
@@ -51,9 +92,11 @@ test("the shipped backend works without global pi or repository node_modules", a
       const pending = new Map();
       const events = [];
       let receive;
+      let connected;
+      const ready = new Promise(resolve => { connected = resolve; });
       process.parentPort = { on(_name, connect) {
         connect({ data: { type: "connect" }, ports: [{
-          on(_event, handler) { receive = handler; }, start() {},
+          on(_event, handler) { receive = handler; connected(); }, start() {},
           postMessage(message) {
             if (message.type === "event") events.push(message.event);
             else { pending.get(message.id)?.(message); pending.delete(message.id); }
@@ -61,6 +104,7 @@ test("the shipped backend works without global pi or repository node_modules", a
         }] });
       } };
       await import(pathToFileURL(process.env.PROBE_BACKEND));
+      await ready;
       let sequence = 0;
       const request = (method, params) => new Promise(resolve => {
         const id = String(++sequence); pending.set(id, resolve); receive({ data: { id, method, params } });
@@ -80,7 +124,9 @@ test("the shipped backend works without global pi or repository node_modules", a
         HOME: root,
         PI_CODING_AGENT_DIR: agentDir,
         PACE_DATA_DIR: join(root, "data"),
-        PROBE_BACKEND: join(appDir, "out/main/backend.js"),
+        PROBE_BACKEND: join(appDir, "out/main/runtime/node_modules/@earendil-works/pi-coding-agent/pace-backend.js"),
+        PI_PACKAGE_DIR: join(appDir, "out/main/runtime/node_modules/@earendil-works/pi-coding-agent"),
+        PACE_NODE_PATH: join(root, "missing-node"),
         PROBE_CWD: cwd,
       },
       timeout: 30_000,

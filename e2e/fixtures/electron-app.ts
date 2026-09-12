@@ -87,6 +87,8 @@ type LaunchPaceOptions = {
   forceGitMissing?: boolean;
   /** Prove the bundled engine does not depend on any executable on PATH. */
   emptyPath?: boolean;
+  environment?: Record<string, string>;
+  agentFiles?: Record<string, string>;
 };
 
 async function git(cwd: string, ...args: string[]) {
@@ -271,6 +273,12 @@ export async function launchPace(
     );
   }
 
+  for (const [relative, contents] of Object.entries(options.agentFiles ?? {})) {
+    const filename = path.join(agentDirectory, relative);
+    await mkdir(path.dirname(filename), { recursive: true });
+    await writeFile(filename, contents);
+  }
+  await mkdir(path.join(testRoot, "tmp"), { recursive: true });
   const app = await electron.launch({
     ...(packagedExecutable ? { executablePath: packagedExecutable } : {}),
     args: [
@@ -285,8 +293,11 @@ export async function launchPace(
       PACE_DATA_DIR: dataDirectory,
       PACE_E2E: "1",
       PI_CODING_AGENT_DIR: agentDirectory,
+      HOME: testRoot,
+      TMPDIR: path.join(testRoot, "tmp"),
       ...(options.emptyPath ? { PATH: "" } : {}),
       ...(options.forceGitMissing ? { PACE_E2E_FORCE_GIT_MISSING: "1" } : {}),
+      ...options.environment,
     },
   });
   const window = await app.firstWindow();

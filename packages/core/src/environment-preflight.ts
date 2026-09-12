@@ -6,6 +6,7 @@ export type EnvironmentPreflightCheckId =
   | "pi_runtime"
   | "data_directory"
   | "model_auth"
+  | "extension_node"
   | "git";
 
 export type EnvironmentPreflightCheckSeverity = "required" | "optional";
