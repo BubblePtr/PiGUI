@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import {
   app,
   BrowserWindow,
@@ -207,7 +208,12 @@ function createBackendBridge() {
   const generation = backendGeneration;
   const backend = utilityProcess.fork(backendPath(), [], {
     env: resolveBackendEnvironment({
-      env: process.env,
+      env: {
+        ...process.env,
+        PACE_PI_RUNTIME_DIR: app.isPackaged
+          ? join(process.resourcesPath, "pi-runtime/node_modules/@earendil-works/pi-coding-agent")
+          : realpathSync(join(__dirname, "../../../../packages/backend/node_modules/@earendil-works/pi-coding-agent")),
+      },
       isPackaged: app.isPackaged,
       homeDir: homedir(),
     }),

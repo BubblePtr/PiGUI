@@ -8,14 +8,16 @@ export type PiRuntimeInfo = {
 };
 
 export async function inspectPiRuntime(): Promise<PiRuntimeInfo> {
-  const sdk = await import("@earendil-works/pi-coding-agent");
+  const sdk = (await import("./pi-runtime")).piSdk;
   if (typeof sdk.createAgentSession !== "function" || typeof sdk.SessionManager?.create !== "function") {
     throw new Error("The bundled Pi SDK is missing its session APIs.");
   }
 
-  // Bundling relocates Pi's package lookup to the App package.json. Capture
-  // the installed engine version at build time instead of reporting App's version as Pi's.
-  const piVersion = typeof __PACE_PI_VERSION__ === "string" ? __PACE_PI_VERSION__ : sdk.VERSION;
+  // Check the loaded package against the engine validated by this build.
+  const piVersion = sdk.VERSION;
+  if (typeof __PACE_PI_VERSION__ === "string" && piVersion !== __PACE_PI_VERSION__) {
+    throw new Error(`Pi runtime version mismatch: expected ${__PACE_PI_VERSION__}, loaded ${piVersion} at ${process.env.PACE_PI_RUNTIME_DIR}`);
+  }
   if (!piVersion) {
     throw new Error("The bundled Pi SDK version could not be determined.");
   }

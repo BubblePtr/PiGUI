@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const run = promisify(execFile);
@@ -26,6 +27,7 @@ test("the shipped backend works without global pi or repository node_modules", a
     const agentDir = join(root, "agent");
     const cwd = join(root, "project");
     await cp(join(repo, "apps/desktop/out/main"), join(appDir, "out/main"), { recursive: true });
+    await cp(join(repo, "apps/desktop/pi-runtime"), join(root, "resources/pi-runtime"), { recursive: true });
     await cp(join(repo, "apps/desktop/package.json"), join(appDir, "package.json"));
     await mkdir(join(agentDir, "extensions"), { recursive: true });
     await mkdir(cwd);
@@ -43,6 +45,14 @@ test("the shipped backend works without global pi or repository node_modules", a
         pi.registerCommand("bundle-probe", { description: "Probe command", handler: async (_args, ctx) => {
           writeFileSync(join(ctx.cwd, "command.txt"), "ready");
         } });
+      }
+    `);
+    await writeFile(join(agentDir, "extensions/host.ts"), `
+      import { writeFileSync } from "node:fs";
+      export default function() {
+        writeFileSync(${JSON.stringify(join(cwd, "host.json"))}, JSON.stringify({
+          sdk: import.meta.resolve("@earendil-works/pi-coding-agent"),
+        }));
       }
     `);
     await writeFile(join(agentDir, "extensions/broken.ts"), `export default function() { throw new Error("EXTENSION_LOAD_PROBE"); }`);
@@ -76,6 +86,7 @@ test("the shipped backend works without global pi or repository node_modules", a
       cwd,
       env: {
         ...process.env,
+        PACE_PI_RUNTIME_DIR: join(root, "resources/pi-runtime/node_modules/@earendil-works/pi-coding-agent"),
         PATH: "",
         HOME: root,
         PI_CODING_AGENT_DIR: agentDir,
@@ -88,6 +99,40 @@ test("the shipped backend works without global pi or repository node_modules", a
     });
     const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("PROBE_RESULT ")).slice(13));
     assert.equal(result.created.error, undefined);
+    const host = JSON.parse(await readFile(join(cwd, "host.json"), "utf8"));
+    assert.match(host.sdk, /^file:/);
+    let packageRoot = dirname(fileURLToPath(host.sdk));
+    while (true) {
+      const manifest = await readFile(join(packageRoot, "package.json"), "utf8").then(JSON.parse).catch(() => null);
+      if (manifest?.name === "@earendil-works/pi-coding-agent") break;
+      const parent = dirname(packageRoot);
+      assert.notEqual(parent, packageRoot, "extension must resolve a real Pi package root");
+      packageRoot = parent;
+    }
+    const requireFromHost = createRequire(join(packageRoot, "package.json"));
+    const peerEntries = [];
+    for (const peer of ["pi-agent-core", "pi-ai", "pi-tui"]) {
+      let directory = packageRoot;
+      while (true) {
+        const candidate = join(directory, "node_modules/@earendil-works", peer);
+        const manifest = await readFile(join(candidate, "package.json"), "utf8").then(JSON.parse).catch(() => null);
+        if (manifest) {
+          assert.equal(manifest.name, `@earendil-works/${peer}`);
+          // Pi 0.84 exports import-only entries; mirror the extension's ESM aliases.
+          const entry = requireFromHost.resolve(resolve(candidate, (manifest.exports?.["."]?.import ?? manifest.main)));
+          peerEntries.push(pathToFileURL(entry).href);
+          break;
+        }
+        const parent = dirname(directory);
+        assert.notEqual(parent, directory, `missing host peer ${peer}`);
+        directory = parent;
+      }
+    }
+    const child = await run(process.execPath, ["--input-type=module", "-e", `
+      for (const entry of ${JSON.stringify(peerEntries)}) await import(entry);
+      console.log("host peers loaded");
+    `], { cwd, env: { ...process.env, PATH: "", HOME: root }, timeout: 30_000 });
+    assert.equal(child.stdout.trim(), "host peers loaded");
     assert.ok(result.created.result.events.some(event => event.payload.code === "extension_load_error"), "startup errors must be in the first snapshot");
     assert.ok(result.tools?.result?.schemas?.bundle_probe, "the extension must resolve bundled peer modules");
     assert.equal(await readFile(join(cwd, "started.txt"), "utf8"), "ready", "session_start must run");
