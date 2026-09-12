@@ -1,4 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { render as renderView, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import {
   Outlet,
   RouterProvider,
@@ -15,6 +17,11 @@ vi.mock("./session-list", () => ({
     <div data-selected-session-id={selectedSessionId ?? ""} data-testid="mock-session-list" />
   ),
 }));
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderView(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 function renderTrajectoryWorkspace() {
   const rootRoute = createRootRoute({
@@ -125,12 +132,12 @@ describe("TrajectoryWorkspace", () => {
 
     const detailPane = await screen.findByTestId("trajectory-detail-pane");
 
-    expect(
-      await within(detailPane).findByText("Trajectory"),
-    ).toBeInTheDocument();
+    expect(within(screen.getByTestId("trajectory-list-header")).getByRole("heading", { name: "Trajectory" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("trajectory-list-header")).getByRole("button", { name: "Refresh sessions" })).toBeInTheDocument();
+    expect(within(detailPane).queryByText("Trajectory")).not.toBeInTheDocument();
     expect(screen.queryByText("Analyze / Trajectory")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Select a Pi session trajectory" }),
+      screen.getByRole("heading", { name: "Select a session" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("mock-session-list")).toBeInTheDocument();
   });

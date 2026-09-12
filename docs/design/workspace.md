@@ -73,7 +73,9 @@ Live Chat 中的本地文件链接由会话页面处理，流式与已完成回�
 
 ## 轨迹（Trajectory Cockpit）
 
-左侧历史列表只沿用窗口栏的 Trajectory 标题，不重复标题和历史说明。第一行由项目筛选与右侧 ghost 刷新按钮组成，第二行保留排序与 Presence 筛选；列表独立滚动，上下边缘不加渐隐遮罩，确保首尾行清晰可读。
+窗口标题栏直接承载左右两栏等高的 Header，不另叠页面标题：左栏为 Trajectory 与 ghost 刷新按钮，右栏为所选会话标题与项目；未选中时仅显示弱化的 Session replay。Header 底线对齐，左栏右侧分隔线从标题栏贯穿到列表底部；收起应用侧栏时，左标题让出交通灯与侧栏开关的安全区，刷新仍可点击，标题栏空白仍可拖动窗口。
+
+项目筛选独占下一行，第二行保留排序与 Presence 筛选。列表独立滚动，不加行间横线或上下渐隐遮罩，以留白、hover / 选中背景区分行；费用与 tokens 均用次要小字，优先突出会话标题。未选中会话时，右侧使用无边框的紧凑 Astryx EmptyState，不重复 Trajectory 标题、不显示零值统计或无意义操作。选中后，ID 与用量留在概览带上方，不重复项目标题。
 
 三件套读同一个模型 `entities/session/trajectory-model.ts`（Run > Turn > Step）：
 

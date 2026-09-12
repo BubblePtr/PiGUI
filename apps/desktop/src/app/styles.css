@@ -601,6 +601,24 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Pane headers share the content split, including while the sidebar resizes.
+   Only the first pane yields to traffic lights when navigation is collapsed. */
+.pigui-header-chrome__pane-headers {
+  position: absolute;
+  inset: 0 0 0 var(--pigui-main-left);
+  height: var(--pigui-header-height);
+  pointer-events: auto;
+  -webkit-app-region: drag;
+}
+
+.pigui-header-chrome__pane-headers > :first-child {
+  padding-left: calc(var(--spacing-4) + max(0px, var(--pigui-chrome-safe-left) - var(--pigui-main-left)));
+}
+
+.pigui-header-chrome__pane-headers button {
+  -webkit-app-region: no-drag;
+}
+
 .pigui-header-chrome__title {
   position: relative;
   z-index: 1;

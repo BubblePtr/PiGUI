@@ -1,5 +1,10 @@
 import { useParams } from "@tanstack/react-router";
-import { Card } from "@astryxdesign/core/Card";
+import { useQuery } from "@tanstack/react-query";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { listSessions } from "@/entities/session/sessions";
+import { RefreshCw } from "@/shared/ui/icons";
 import { AppFrame } from "@/app/app-shell";
 import { NoProvidersEmptyState } from "@/entities/session/no-providers-empty-state";
 import { useProviderAuthStatus } from "@/entities/session/use-provider-auth-status";
@@ -14,18 +19,13 @@ import { SessionListPanel } from "@/pages/session-list";
  */
 function TrajectoryEmptyState() {
   return (
-    <div className="flex h-full min-h-0 items-center justify-center px-6">
-      <Card className="w-full max-w-xl">
-        <div className="text-sm font-semibold uppercase text-muted">Trajectory</div>
-        <h2 className="mt-3 text-2xl font-semibold tracking-normal text-foreground">
-          Select a Pi session trajectory
-        </h2>
-        <p className="mt-4 text-sm leading-6 text-muted">
-          Choose a historical session from the left list to replay its timeline, cost, tokens,
-          thinking, and tool I/O.
-        </p>
-      </Card>
-    </div>
+    <HStack className="h-full min-h-0 px-6" hAlign="center" vAlign="center">
+      <EmptyState
+        isCompact
+        title="Select a session"
+        description="Choose a session from the left to explore its timeline, tool calls, and usage."
+      />
+    </HStack>
   );
 }
 
@@ -36,8 +36,55 @@ export function TrajectoryWorkspace({
   selectedSessionId?: string;
   children: React.ReactNode;
 }) {
+  const sessions = useQuery({ queryKey: ["sessions"], queryFn: listSessions });
+  const selectedSession = sessions.data?.find((session) => session.id === selectedSessionId);
+  const title = selectedSession?.title;
+  const sessionTitle = title?.kind === "text" ? title.sentence
+    : title?.kind === "command" ? `${title.name}${title.args ? ` ${title.args}` : ""}`
+    : title?.kind === "skill" ? title.name
+    : title?.text || "Untitled session";
+
   return (
-    <AppFrame>
+    <AppFrame
+      headerContent={
+        <>
+          <HStack
+            className="h-full w-80 min-w-0 shrink-0 border-r border-b border-separator px-4"
+            gap={2}
+            vAlign="center"
+            data-testid="trajectory-list-header"
+          >
+            <h1 className="min-w-0 flex-1 truncate text-sm font-medium">Trajectory</h1>
+            <IconButton
+              className="pigui-pressable shrink-0"
+              icon={<RefreshCw className={`size-4 ${sessions.isFetching ? "motion-safe:animate-spin" : ""}`} />}
+              isDisabled={sessions.isFetching}
+              label="Refresh sessions"
+              size="sm"
+              variant="ghost"
+              onClick={() => sessions.refetch()}
+            />
+          </HStack>
+          <HStack
+            className="h-full min-w-0 flex-1 border-b border-separator px-5"
+            gap={3}
+            vAlign="center"
+            data-testid="trajectory-detail-header"
+          >
+            {selectedSession ? (
+              <>
+                <h2 className="min-w-0 truncate text-sm font-medium" title={sessionTitle}>
+                  {sessionTitle}
+                </h2>
+                <p className="min-w-0 truncate text-xs text-muted">{selectedSession.project}</p>
+              </>
+            ) : (
+              <p className="truncate text-sm text-muted">Session replay</p>
+            )}
+          </HStack>
+        </>
+      }
+    >
       <article
         className="h-full min-h-0 overflow-hidden"
         data-testid="trajectory-workspace"

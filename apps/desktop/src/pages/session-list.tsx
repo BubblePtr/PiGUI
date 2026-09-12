@@ -2,14 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { HStack } from "@astryxdesign/core/HStack";
-import { IconButton } from "@astryxdesign/core/IconButton";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Token } from "@astryxdesign/core/Token";
 import { Tokenizer } from "@astryxdesign/core/Tokenizer";
 import { createStaticSource, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useMemo, useState } from "react";
-import { Archive, Command, Puzzle, RefreshCw } from "@/shared/ui/icons";
+import { Archive, Command, Puzzle } from "@/shared/ui/icons";
 import { useRefreshOnWindowFocus } from "@/shared/refresh";
 import {
   formatCost,
@@ -193,7 +192,8 @@ function SessionRow({
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId: session.id }}
-        className={`block border-b border-separator px-4 py-2 pl-5 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
+        aria-current={selected ? "page" : undefined}
+        className={`block px-4 py-3 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-foreground/20 ${
           selected ? "bg-surface-muted" : "hover:bg-surface-hover"
         }`}
       >
@@ -233,7 +233,7 @@ function SessionRow({
             </div>
           </div>
           <div className="shrink-0">
-            <div className="tabular-nums text-right text-sm font-medium text-foreground">
+            <div className="tabular-nums text-right text-xs text-muted">
               {formatCost(session.totalCostUsd)}
             </div>
             <div className="mt-1 tabular-nums text-right text-xs text-muted">
@@ -344,15 +344,6 @@ export function SessionListPanel({ selectedSessionId }: { selectedSessionId?: st
             value={selectedProjects}
             width="100%"
             onChange={(items) => setSelectedProjects(items)}
-          />
-          <IconButton
-            className="pigui-pressable shrink-0"
-            icon={<RefreshCw className={`size-4 ${sessions.isFetching ? "animate-spin" : ""}`} />}
-            isDisabled={sessions.isFetching}
-            label="Refresh sessions"
-            size="sm"
-            variant="ghost"
-            onClick={() => sessions.refetch()}
           />
         </HStack>
         {/* View switcher sits under the filter: Recent is one chronological

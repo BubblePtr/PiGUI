@@ -92,6 +92,8 @@ type AppFrameProps = {
    */
   showSidebar?: boolean;
   toolbarActions?: ReactNode;
+  /** Pane headers that occupy the titlebar band instead of the default page title. */
+  headerContent?: ReactNode;
   sessionProjections?: SessionProjection[];
   /** False until first successful projection list (or intentional empty after retries). */
   sessionsHydrated?: boolean;
@@ -1101,6 +1103,7 @@ function HeaderChrome({
   chromeRef,
   title,
   toolbarActions,
+  headerContent,
   sidebarOpen,
   mainLeft,
   showSidebarToggle = true,
@@ -1109,6 +1112,7 @@ function HeaderChrome({
   chromeRef: RefObject<HTMLDivElement | null>;
   title: string;
   toolbarActions?: ReactNode;
+  headerContent?: ReactNode;
   sidebarOpen: boolean;
   mainLeft: string;
   showSidebarToggle?: boolean;
@@ -1166,6 +1170,11 @@ function HeaderChrome({
           data-window-drag-region
         />
       </div>
+      {headerContent ? (
+        <HStack className="pigui-header-chrome__pane-headers" gap={0}>
+          {headerContent}
+        </HStack>
+      ) : (
       <div
         className="pigui-header-chrome__title-track"
         data-testid="header-chrome-title-track"
@@ -1198,6 +1207,7 @@ function HeaderChrome({
           </div>
         ) : null}
       </div>
+      )}
     </div>
   );
 }
@@ -1206,6 +1216,7 @@ export function AppFrame({
   children,
   showSidebar = true,
   toolbarActions,
+  headerContent,
   sessionProjections,
   sessionsHydrated,
   selectedSessionId,
@@ -1651,6 +1662,7 @@ export function AppFrame({
         sidebarOpen={showSidebar ? sidebarOpen : false}
         title={draftViewActive ? "New Chat" : sessionTitle || activeTab}
         toolbarActions={toolbarActions}
+        headerContent={headerContent}
         onToggleSidebar={() => handleSidebarOpenChange(!sidebarOpen)}
       />
       <div
