@@ -129,7 +129,9 @@ describe("SessionTerminalPanel", () => {
     expect(await screen.findByText("No terminals open")).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(bridge.invoke.mock.calls.map(([command]) => command)).toEqual(["list_terminals"]);
-    expect(onInstancesChange).toHaveBeenLastCalledWith([]);
+    await waitFor(() => {
+      expect(onInstancesChange).toHaveBeenLastCalledWith([]);
+    });
 
     await user.click(screen.getByRole("button", { name: "New terminal" }));
     const strip = await screen.findByRole("tablist", { name: "Terminal instances" });
