@@ -1879,6 +1879,26 @@ function ChatToolStepGallery() {
         <Variant caption="settled, with a failure">
           <ChatToolStep step={failedToolStep} />
         </Variant>
+        <Variant caption="settled, failed long command">
+          <ChatToolStep
+            data-testid="tool-step-failed-long-command"
+            step={{
+              kind: "tools",
+              id: "design-tools-failed-long-command",
+              live: false,
+              tools: [{
+                toolCallId: "design-failed-long-command",
+                toolName: "bash",
+                state: "output-error",
+                durationMs: 2400,
+                argsText: JSON.stringify({
+                  command: "cd /Users/void/code/opensource/PiGUI && gh pr checks 297 && gh pr view 297 --json mergeable,mergeStateStatus,isDraft",
+                }),
+                output: "no checks reported on the branch",
+              }],
+            }}
+          />
+        </Variant>
         <Variant caption="settled, mixed kinds">
           <ChatToolStep step={mixedKindToolStep} />
         </Variant>

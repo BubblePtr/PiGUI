@@ -76,7 +76,7 @@
 ### Step 行
 
 - `ChatThoughtStep`：`step` 是 `CotStep` 的 `thinking` 分支。live 是 shimmer 的「Thinking…」，收束为「Thought Ns」；无正文就是一行纯 label，**空正文是常态**，不要当异常渲染。
-- `ChatToolStep`：`step` 是 `tools` 分支。总结行动词表在 `VERBS`（bash → Ran N commands，read → Read N files…），新工具名先补 `chat-tool-kind.ts` 的 `KIND_ALIASES`，不要在页面里拼文案。
+- `ChatToolStep`：`step` 是 `tools` 分支。总结行动词表在 `VERBS`（bash → Ran N commands，read → Read N files…），新工具名先补 `chat-tool-kind.ts` 的 `KIND_ALIASES`，不要在页面里拼文案。收束后的摘要保持单行：失败计数与耗时不收缩、不换行，空间不足时仅截断命令文字；完整内容仍可展开查看。`/design → Components → ChatToolStep` 提供长命令失败样例，运行 `bunx playwright test --config e2e/playwright.layout.config.ts` 验证窄宽度布局。
 - `ChatTool` / `ChatToolGroup` / `ChatToolDetail`：只在 `ChatToolStep` 内部与 `/design` 使用。`ToolPartState` 联合是 `"input-streaming" | "input-available" | "output-available" | "output-error"`，映射到 Astryx 的 running / complete / error。
 - `ChatStatusLine`：`phase` 只有 `"thinking" | "acting"`，由 `ChatChainOfThought` 在 run 期间自己挂在底部；页面不单独渲染它。
 - `ChatChainOfThoughtRail`：Timeline 皮肤，**只在 /design**，等 Appearance 设置页（#81）再接线。不要在页面里用它替代 `ChatChainOfThought`。

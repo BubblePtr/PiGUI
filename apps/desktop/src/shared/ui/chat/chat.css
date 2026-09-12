@@ -535,6 +535,12 @@
   white-space: nowrap;
 }
 
+/* Keep status and duration intact; only the command summary should shrink. */
+.chat-tool-step__page .chat-step__meta {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 /* Kind icons sit in the same slot the chevron uses, so header and
    expanded rows share one left column (Codex's type-icon alignment). */
 .chat-tool-kind {
