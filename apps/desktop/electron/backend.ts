@@ -1,11 +1,11 @@
 import type { MessagePortMain } from "electron";
 import { homedir } from "node:os";
-import { createBackendService, migrateDataDir } from "@pace/backend";
+import { createBackendService, migrateDataDir, prepareSystemNode } from "@pace/backend";
 
 const { parentPort } = process;
-const service = createBackendService({
+const serviceReady = prepareSystemNode().then(() => createBackendService({
   dataDir: migrateDataDir(process.env, homedir()),
-});
+}));
 
 parentPort.on("message", (event) => {
   if (event.data?.type === "connect") {
@@ -16,7 +16,8 @@ parentPort.on("message", (event) => {
   }
 });
 
-function connect(port: MessagePortMain) {
+async function connect(port: MessagePortMain) {
+  const service = await serviceReady;
   service.onEvent((event) => {
     port.postMessage(event);
   });

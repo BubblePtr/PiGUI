@@ -16,7 +16,7 @@ import {
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { autoUpdater } from "electron-updater";
 import type { BackendRpcEvent, BackendRpcResponse } from "@pace/backend";
 import { browserEventChannel, type BrowserEvent, type BrowserTabTarget } from "@/shared/browser-protocol";
@@ -83,7 +83,9 @@ function browserAnnotationPreloadPath() {
 }
 
 function backendPath() {
-  return join(__dirname, "backend.js");
+  const mainDirectory = app.isPackaged
+    ? join(process.resourcesPath, "app.asar.unpacked/out/main") : __dirname;
+  return join(mainDirectory, "runtime/node_modules/@earendil-works/pi-coding-agent/pace-backend.js");
 }
 
 /**
@@ -207,7 +209,7 @@ function createBackendBridge() {
   const generation = backendGeneration;
   const backend = utilityProcess.fork(backendPath(), [], {
     env: resolveBackendEnvironment({
-      env: process.env,
+      env: { ...process.env, PI_PACKAGE_DIR: dirname(backendPath()) },
       isPackaged: app.isPackaged,
       homeDir: homedir(),
     }),

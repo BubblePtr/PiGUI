@@ -97,7 +97,6 @@ describe("Electron shell", () => {
   it("reveals Projects in Finder through the main process", () => {
     const main = readProjectFile("apps/desktop/electron/main.ts");
 
-    expect(main).toContain('import { join } from "node:path";');
     expect(main).toContain("shell.showItemInFolder");
     expect(main).toContain('input.command === "reveal_project_in_finder"');
   });

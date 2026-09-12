@@ -133,8 +133,7 @@ export function PreflightPage() {
             </div>
             <h1 className="text-2xl font-semibold tracking-normal">Before your first session</h1>
             <p className="text-sm text-muted">
-              Check local prerequisites. Required items must pass. Git is optional and never blocks
-              Continue.
+              Check local prerequisites. Required items must pass. Optional checks never block Continue.
             </p>
             {statusQuery.data?.completedAt ? (
               <p className="text-xs text-muted">
