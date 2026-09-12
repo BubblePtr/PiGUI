@@ -209,15 +209,10 @@ function createBackendBridge() {
     env: resolveBackendEnvironment({
       env: process.env,
       isPackaged: app.isPackaged,
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
       homeDir: homedir(),
     }),
     stdio: "pipe",
   });
-  // Drain startup diagnostics even when module loading fails before IPC connects.
-  backend.stdout?.on("data", (chunk) => console.info(`[backend:${generation}] ${chunk.toString()}`));
-  backend.stderr?.on("data", (chunk) => console.error(`[backend:${generation}] ${chunk.toString()}`));
   const { port1, port2 } = new MessageChannelMain();
 
   backendProcess = backend;

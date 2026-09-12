@@ -1,9 +1,11 @@
+import { copyFile, mkdir } from "node:fs/promises";
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import type { Plugin } from "vite";
 
 // The @pace/* workspace packages are internal TS source, not external runtime
 // deps — bundle them into the main/preload output so the utilityProcess can find
@@ -15,11 +17,32 @@ const piPackageDirectory = realpathSync(
     "../../packages/backend/node_modules/@earendil-works/pi-coding-agent",
   ),
 );
+const requireFromPi = createRequire(join(piPackageDirectory, "package.json"));
 const piPackage = JSON.parse(readFileSync(join(piPackageDirectory, "package.json"), "utf8"));
 const appPackage = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8"));
+const photonWasmPath = requireFromPi.resolve(
+  "@silvia-odwyer/photon-node/photon_rs_bg.wasm",
+);
+
+function copyMainRuntimeAssets(): Plugin {
+  return {
+    name: "pigui-copy-main-runtime-assets",
+    async writeBundle(options) {
+      if (!options.dir) {
+        throw new Error("Main build output directory is required.");
+      }
+
+      // The bundled Photon chunk resolves its WASM beside the emitted chunk.
+      const outputPath = resolve(options.dir, "chunks/photon_rs_bg.wasm");
+
+      await mkdir(dirname(outputPath), { recursive: true });
+      await copyFile(photonWasmPath, outputPath);
+    },
+  };
+}
+
 const mainBuild = {
   rollupOptions: {
-    external: [/^@earendil-works\//],
     input: {
       main: resolve(__dirname, "electron/main.ts"),
       backend: resolve(__dirname, "electron/backend.ts"),
@@ -76,12 +99,16 @@ const rendererReactAlias = {
 
 export default defineConfig({
   main: {
+    // Use Pi's embedded peer modules; dist aliases point at files that do not
+    // exist after electron-vite bundles the SDK into the backend.
     define: {
+      PI_BUNDLED_NODE: "true",
       __PACE_APP_VERSION__: JSON.stringify(appPackage.version),
       __PACE_PI_VERSION__: JSON.stringify(piPackage.version),
     },
     plugins: [
       externalizeDepsPlugin({ exclude: [...internalPackages, "electron-updater"] }),
+      copyMainRuntimeAssets(),
     ],
     build: mainBuild as any,
     resolve: { alias: coreAlias },

@@ -9,11 +9,6 @@ import test from "node:test";
 
 const run = promisify(execFile);
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const hostImports = [
-  "@earendil-works/pi-coding-agent", "@earendil-works/pi-agent-core", "@earendil-works/pi-ai", "@earendil-works/pi-tui",
-  "@earendil-works/pi-ai/oauth", "@earendil-works/pi-ai/providers/all", "@earendil-works/pi-ai/compat",
-  "typebox", "typebox/compile", "typebox/value",
-];
 
 test("the release declares an exact Pi engine combination", async () => {
   const { dependencies } = JSON.parse(await readFile(join(repo, "packages/backend/package.json"), "utf8"));
@@ -31,7 +26,6 @@ test("the shipped backend works without global pi or repository node_modules", a
     const agentDir = join(root, "agent");
     const cwd = join(root, "project");
     await cp(join(repo, "apps/desktop/out/main"), join(appDir, "out/main"), { recursive: true });
-    await cp(join(repo, "apps/desktop/pi-runtime"), join(root, "resources/pi-runtime"), { recursive: true });
     await cp(join(repo, "apps/desktop/package.json"), join(appDir, "package.json"));
     await mkdir(join(agentDir, "extensions"), { recursive: true });
     await mkdir(cwd);
@@ -49,15 +43,6 @@ test("the shipped backend works without global pi or repository node_modules", a
         pi.registerCommand("bundle-probe", { description: "Probe command", handler: async (_args, ctx) => {
           writeFileSync(join(ctx.cwd, "command.txt"), "ready");
         } });
-      }
-    `);
-    await writeFile(join(agentDir, "extensions/host.ts"), `
-      import { writeFileSync } from "node:fs";
-      export default function() {
-        writeFileSync(${JSON.stringify(join(cwd, "host.json"))}, JSON.stringify({
-          sdk: import.meta.resolve("@earendil-works/pi-coding-agent"),
-          entries: Object.fromEntries(${JSON.stringify(hostImports)}.map(name => [name, import.meta.resolve(name)])),
-        }));
       }
     `);
     await writeFile(join(agentDir, "extensions/broken.ts"), `export default function() { throw new Error("EXTENSION_LOAD_PROBE"); }`);
@@ -91,7 +76,6 @@ test("the shipped backend works without global pi or repository node_modules", a
       cwd,
       env: {
         ...process.env,
-        PACE_PI_RUNTIME_DIR: join(root, "resources/pi-runtime/node_modules/@earendil-works/pi-coding-agent"),
         PATH: "",
         HOME: root,
         PI_CODING_AGENT_DIR: agentDir,
@@ -104,25 +88,6 @@ test("the shipped backend works without global pi or repository node_modules", a
     });
     const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("PROBE_RESULT ")).slice(13));
     assert.equal(result.created.error, undefined);
-    const host = JSON.parse(await readFile(join(cwd, "host.json"), "utf8"));
-    assert.match(host.sdk, /^file:/);
-    let packageRoot = dirname(fileURLToPath(host.sdk));
-    while (true) {
-      const manifest = await readFile(join(packageRoot, "package.json"), "utf8").then(JSON.parse).catch(() => null);
-      if (manifest?.name === "@earendil-works/pi-coding-agent") break;
-      const parent = dirname(packageRoot);
-      assert.notEqual(parent, packageRoot, "extension must resolve a real Pi package root");
-      packageRoot = parent;
-    }
-    for (const name of hostImports) assert.match(host.entries[name], /^file:/, name);
-    // Node, rather than a hand-written exports parser, validates both the host
-    // package imports and the real URLs discovered at the extension's location.
-    const child = await run(process.execPath, ["--input-type=module", "-e", `
-      for (const name of ${JSON.stringify(hostImports)}) await import(name);
-      for (const entry of ${JSON.stringify(Object.values(host.entries))}) await import(entry);
-      console.log("host peers loaded");
-    `], { cwd: packageRoot, env: { ...process.env, PATH: "", HOME: root, NODE_PATH: "" }, timeout: 30_000 });
-    assert.equal(child.stdout.trim(), "host peers loaded");
     assert.ok(result.created.result.events.some(event => event.payload.code === "extension_load_error"), "startup errors must be in the first snapshot");
     assert.ok(result.tools?.result?.schemas?.bundle_probe, "the extension must resolve bundled peer modules");
     assert.equal(await readFile(join(cwd, "started.txt"), "utf8"), "ready", "session_start must run");

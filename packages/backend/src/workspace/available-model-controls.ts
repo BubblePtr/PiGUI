@@ -2,7 +2,7 @@
 // open Agent Session (draft create / DF-011).
 
 import { join } from "node:path";
-import { ModelRegistry, ModelRuntime } from "../drivers/pi-runtime";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type {
   RuntimeModelCapability,
   RuntimeModelControls,

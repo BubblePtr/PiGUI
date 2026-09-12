@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { DefaultPackageManager, loadSkills, SettingsManager } from "../drivers/pi-runtime";
+import { DefaultPackageManager, loadSkills, SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { ConfigInventory, PackageInfo, ResourceInfo } from "@pace/core";
 
 export async function buildConfigInventory(dir: string): Promise<ConfigInventory> {
