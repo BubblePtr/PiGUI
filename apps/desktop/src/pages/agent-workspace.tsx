@@ -2966,7 +2966,6 @@ function LiveSessionColumn({
           }
         }
 
-        liveProjectionRef.current = next;
         commitInteractionProjection(next);
       })
       .catch((error) => {
@@ -3085,8 +3084,19 @@ function LiveSessionColumn({
       onSessionCreated?.(result.projection);
     }
   };
-  const commitInteractionProjection = (nextProjection: SessionProjection) => {
-    setInteractionProjection(nextProjection);
+  const commitInteractionProjection = (
+    nextProjection: SessionProjection,
+    { follow = false }: { follow?: boolean } = {},
+  ) => {
+    const current = liveProjectionRef.current;
+    // Async resolutions can land after the view switched Sessions: they still
+    // reach the store, but only the Session still on screen may reclaim the
+    // local projection. `follow` is for commits that intentionally move the
+    // view to a new Session (fork).
+    if (follow || !current || current.id === nextProjection.id) {
+      liveProjectionRef.current = nextProjection;
+      setInteractionProjection(nextProjection);
+    }
     onProjectionChange?.(nextProjection);
   };
   const liveProjection =
@@ -3285,7 +3295,6 @@ function LiveSessionColumn({
       type: "queued-message-added",
       queuedMessage,
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const handlePromptSubmit = async (
@@ -3316,7 +3325,6 @@ function LiveSessionColumn({
       submittedAt,
       event: accepted.event,
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const modelChangeInFlight = useRef<Promise<void> | null>(null);
@@ -3367,7 +3375,6 @@ function LiveSessionColumn({
         modelControls,
         occurredAt: new Date().toISOString(),
       });
-      liveProjectionRef.current = next;
       commitInteractionProjection(next);
     });
     modelChangeInFlight.current = change;
@@ -3394,7 +3401,6 @@ function LiveSessionColumn({
       queuedMessageId,
       occurredAt: new Date().toISOString(),
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const handleSteerSubmit = async (
@@ -3417,7 +3423,6 @@ function LiveSessionColumn({
       type: "steer-submitted",
       event,
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const handleStopRun = async () => {
@@ -3444,7 +3449,6 @@ function LiveSessionColumn({
         event,
       });
 
-      liveProjectionRef.current = next;
       commitInteractionProjection(next);
     } catch (error) {
       const next = applySessionProjectionEvent(latestProjectionFor(projection), {
@@ -3459,7 +3463,6 @@ function LiveSessionColumn({
         },
       });
 
-      liveProjectionRef.current = next;
       commitInteractionProjection(next);
     } finally {
       setStoppingRun(false);
@@ -3527,7 +3530,7 @@ function LiveSessionColumn({
     });
     const commitForkProjection = (nextProjection: SessionProjection) => {
       forkProjection = nextProjection;
-      commitInteractionProjection(nextProjection);
+      commitInteractionProjection(nextProjection, { follow: true });
     };
 
     if (message.body.trim()) {

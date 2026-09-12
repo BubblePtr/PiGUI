@@ -1751,6 +1751,76 @@ describe("AgentWorkspaceSessionsPage", () => {
     );
   });
 
+  it("ignores a follow-up commit that resolves after the user switched Sessions", async () => {
+    const user = userEvent.setup();
+    addProjectToRegistry(pigProjectPath);
+    saveSessionDraft(pigProjectPath, "Running session that keeps working");
+    let releaseQueue = () => {};
+    const queueGate = new Promise<void>((resolve) => {
+      releaseQueue = resolve;
+    });
+    const createBridge = inMemoryBridgeModule.createInMemoryPiRuntimeBridge;
+    const bridgeSpy = vi
+      .spyOn(inMemoryBridgeModule, "createInMemoryPiRuntimeBridge")
+      .mockImplementation((options) => {
+        const bridge = createBridge(options);
+
+        return {
+          ...bridge,
+          queueFollowUp: async (input) => {
+            if (input.message === "Follow-up sent right before switching") {
+              await queueGate;
+            }
+            return bridge.queueFollowUp(input);
+          },
+        };
+      });
+    onTestFinished(() => bridgeSpy.mockRestore());
+
+    renderProjectSessions("/projects/pig/sessions?view=draft");
+    await screen.findByTestId("session-draft-composer");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    const runningRow = await findSidebarSessionRow("Running session that keeps working");
+    await waitFor(() => expect(runningRow).toHaveAttribute("aria-current", "page"));
+
+    // A follow-up goes out on Session A; its RPC is still in flight.
+    fireEvent.change(screen.getByPlaceholderText("Queue the next task…"), {
+      target: { value: "Follow-up sent right before switching" },
+    });
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    // The user moves to a completed Session before the commit resolves.
+    const completedRow = await findSidebarSessionRow("Usage evidence review");
+    await user.click(completedRow);
+    await waitFor(() =>
+      expect(completedRow).toHaveAttribute("aria-current", "page"),
+    );
+
+    await act(async () => {
+      releaseQueue();
+    });
+
+    // The late commit lands in the store but must not reclaim the view.
+    expect(completedRow).toHaveAttribute("aria-current", "page");
+    expect(
+      within(screen.getByTestId("live-session-column")).queryByText(
+        "Follow-up sent right before switching",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("live-session-column")).queryByText(
+        "Running session that keeps working",
+      ),
+    ).not.toBeInTheDocument();
+
+    await user.click(runningRow);
+    expect(
+      await within(screen.getByTestId("live-session-column")).findByText(
+        "Follow-up sent right before switching",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows a failed Session Creation in the Live Session and reopens the kept draft", async () => {
     const user = userEvent.setup();
     addProjectToRegistry(pigProjectPath);
