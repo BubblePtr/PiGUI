@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
+import { realpathSync, symlinkSync, existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,20 +14,41 @@ vi.mock("node:fs", async (importOriginal) => {
 
 });
 
+const runtimePaths = { appPath: join(process.cwd(), "apps/desktop"), resourcesPath: "/packaged/resources" };
 let home: string;
 beforeEach(() => { home = mkdtempSync(join(tmpdir(), "pace-environment-")); });
 afterEach(() => { rmSync(home, { recursive: true, force: true }); });
 
 describe("resolveBackendEnvironment", () => {
+  it("resolves the development Pi symlink from appPath independently of output layout", () => {
+    const appPath = join(home, "repo/apps/desktop");
+    const packageDir = join(home, "store/pi");
+    const scope = join(home, "repo/packages/backend/node_modules/@earendil-works");
+    mkdirSync(packageDir, { recursive: true });
+    mkdirSync(scope, { recursive: true });
+    symlinkSync(packageDir, join(scope, "pi-coding-agent"));
+    const result = resolveBackendEnvironment({ ...runtimePaths, env: { PACE_DATA_DIR: "/custom" }, isPackaged: false,
+      homeDir: home, appPath, resourcesPath: "/unused" });
+    expect(result.PACE_PI_RUNTIME_DIR).toBe(realpathSync(packageDir));
+    expect(result.PACE_DATA_DIR).toBe("/custom");
+  });
+
+  it("uses packaged resources even when an inherited runtime override points elsewhere", () => {
+    const result = resolveBackendEnvironment({ ...runtimePaths, env: { PACE_PI_RUNTIME_DIR: "/stale/dev" }, isPackaged: true,
+      homeDir: home, appPath: "/Applications/Pace.app/Contents/Resources/app.asar",
+      resourcesPath: "/Applications/Pace.app/Contents/Resources" });
+    expect(result.PACE_PI_RUNTIME_DIR).toBe("/Applications/Pace.app/Contents/Resources/pi-runtime/node_modules/@earendil-works/pi-coding-agent");
+  });
+
   it("keeps an explicit PACE_DATA_DIR untouched in every mode", () => {
     const env = { PACE_DATA_DIR: "/tmp/e2e-data", PATH: "/bin" };
 
-    expect(resolveBackendEnvironment({ env, isPackaged: false, homeDir: home })).toEqual(env);
-    expect(resolveBackendEnvironment({ env, isPackaged: true, homeDir: home })).toEqual(env);
+    expect(resolveBackendEnvironment({ ...runtimePaths, env, isPackaged: false, homeDir: home })).toMatchObject(env);
+    expect(resolveBackendEnvironment({ ...runtimePaths, env, isPackaged: true, homeDir: home })).toMatchObject(env);
   });
 
   it("points an unpackaged app at ~/.pace-dev so dev runs never touch real data", () => {
-    const result = resolveBackendEnvironment({
+    const result = resolveBackendEnvironment({ ...runtimePaths,
       env: { PATH: "/bin" },
       isPackaged: false,
       homeDir: home,
@@ -38,18 +59,18 @@ describe("resolveBackendEnvironment", () => {
   });
 
   it("leaves the packaged app on the backend default (~/.pace)", () => {
-    const result = resolveBackendEnvironment({
+    const result = resolveBackendEnvironment({ ...runtimePaths,
       env: { PATH: "/bin" },
       isPackaged: true,
       homeDir: home,
     });
 
-    expect(result).toEqual({ PATH: "/bin" });
+    expect(result).toMatchObject({ PATH: "/bin" });
     expect(result).not.toHaveProperty("PACE_DATA_DIR");
   });
 
   it("treats an empty PACE_DATA_DIR as unset", () => {
-    const result = resolveBackendEnvironment({
+    const result = resolveBackendEnvironment({ ...runtimePaths,
       env: { PACE_DATA_DIR: "" },
       isPackaged: false,
       homeDir: home,
@@ -62,8 +83,8 @@ describe("resolveBackendEnvironment", () => {
     const env = { PIGUI_DATA_DIR: "/tmp/legacy-data", PATH: "/bin" };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      expect(resolveBackendEnvironment({ env, isPackaged: false, homeDir: home })).toEqual(env);
-      expect(resolveBackendEnvironment({ env, isPackaged: true, homeDir: home })).toEqual(env);
+      expect(resolveBackendEnvironment({ ...runtimePaths, env, isPackaged: false, homeDir: home })).toMatchObject(env);
+      expect(resolveBackendEnvironment({ ...runtimePaths, env, isPackaged: true, homeDir: home })).toMatchObject(env);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("PIGUI_DATA_DIR"));
     } finally {
       warn.mockRestore();
@@ -110,7 +131,7 @@ describe("resolveDevelopmentUserDataPath", () => {
       mkdirSync(join(home, name));
       writeFileSync(join(home, name, "history"), name);
     }
-    const result = resolveBackendEnvironment({ env: {}, isPackaged: false, homeDir: home });
+    const result = resolveBackendEnvironment({ ...runtimePaths, env: {}, isPackaged: false, homeDir: home });
     expect(result.PACE_DATA_DIR).toBe(join(home, ".pace-dev"));
     expect(readFileSync(join(result.PACE_DATA_DIR!, "history"), "utf8")).toBe(".pigui-dev");
     expect(readFileSync(join(home, ".pigui", "history"), "utf8")).toBe(".pigui");
@@ -126,7 +147,7 @@ it.each(["EXDEV", "EACCES"])("keeps dev history available when migration fails w
   vi.mocked(renameSync).mockImplementationOnce(() => { throw error; });
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   try {
-    const result = resolveBackendEnvironment({ env: {}, isPackaged: false, homeDir: home });
+    const result = resolveBackendEnvironment({ ...runtimePaths, env: {}, isPackaged: false, homeDir: home });
     expect(result.PACE_DATA_DIR).toBe(old);
     expect(readFileSync(join(old, "history"), "utf8")).toBe("dev history");
     expect(existsSync(join(home, ".pace-dev"))).toBe(false);
@@ -139,7 +160,7 @@ it.each(["EXDEV", "EACCES"])("keeps dev history available when migration fails w
 it("does not migrate dev history when a data override is present", () => {
   mkdirSync(join(home, ".pigui-dev"));
   const env = { PACE_DATA_DIR: join(home, "custom") };
-  expect(resolveBackendEnvironment({ env, isPackaged: false, homeDir: home })).toEqual(env);
+  expect(resolveBackendEnvironment({ ...runtimePaths, env, isPackaged: false, homeDir: home })).toMatchObject(env);
   expect(existsSync(join(home, ".pigui-dev"))).toBe(true);
   expect(existsSync(join(home, ".pace-dev"))).toBe(false);
 });
@@ -149,7 +170,7 @@ it("prefers existing Pace dev data without modifying either directory", () => {
     mkdirSync(join(home, name));
     writeFileSync(join(home, name, "history"), name);
   }
-  const result = resolveBackendEnvironment({ env: {}, isPackaged: false, homeDir: home });
+  const result = resolveBackendEnvironment({ ...runtimePaths, env: {}, isPackaged: false, homeDir: home });
   expect(result.PACE_DATA_DIR).toBe(join(home, ".pace-dev"));
   for (const name of [".pigui-dev", ".pace-dev"]) {
     expect(readFileSync(join(home, name, "history"), "utf8")).toBe(name);

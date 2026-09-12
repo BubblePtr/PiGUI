@@ -1,60 +1,108 @@
 # 内置运行时发布验证
 
-本文记录 [ADR-0031](adr/0031-bundled-pi-runtime-and-extension-compatibility.md) 已有实现的验证入口。GUI 扩展交互、专属面板与 CLI 会话交接仍按各自功能范围推进。
+## 分发与定位契约
 
-## 构建约束
+- Pi 依赖精确固定为 `0.84.3`，发布先冻结 lockfile 安装；不重新解析 npm 版本、不修改 pi-subagents、不 patch node_modules，node-pty 原处理不变。
+- 后端外置 `@earendil-works/*` 并移除 `PI_BUNDLED_NODE`，所有运行时导入经过 `drivers/pi-runtime.ts`，开发与发布均加载真实 npm 包树。
+- `resolveBackendEnvironment` 统一设置 `PACE_PI_RUNTIME_DIR`：开发从 `appPath` 找到工作区安装的 realpath；打包从 `resourcesPath/pi-runtime/node_modules/@earendil-works/pi-coding-agent` 加载。Electron 覆盖继承的旧运行时变量，独立后端可自行显式指定；源码未设置变量时解析工作区安装。主进程转发 backend stdout/stderr 到现有 console 日志，启动期定位错误不再仅剩 exit code 1。
+- staging 复制当前安装图的生产依赖、已安装 optional／peer 依赖与原包资源，校验每条依赖边，生成无符号链接的 `apps/desktop/pi-runtime`。`--platform`／`--arch` 优先于 `PACE_TARGET_PLATFORM`／`PACE_TARGET_ARCH`，默认当前主机；包的 `os`／`cpu` 不匹配时 optional 包跳过、required 包报错。打包脚本与 macOS CI 显式传入目标。
+- electron-builder 从 staged `node_modules` 直接复制到 asar 外的 `resources/pi-runtime`，避免其过滤器跳过源目录直属的同名子目录。Photon WASM 随原包保留。
+- 包级过滤不会补装主机安装图缺少的目标 optional 依赖，也不会删除 Pi TUI 原包内没有独立 package.json 的跨平台 prebuild。跨平台 staging 成功不等于目标平台原生能力可用，发布应使用目标平台冻结安装并完成目标机验收。
 
-- `packages/backend/package.json` 精确声明 Pi 引擎依赖，`bun.lock` 固定依赖树。
-- 所有 `package:*`、`dist:*` 发布入口先执行 `build:release`：冻结安装、类型检查与构建、独立产物冒烟。
-- 构建读取实际安装的 Pi 包版本和 App 包版本，预检显示这两个版本及 `SDK` 模式。
-- `bun run build` 执行 `scripts/stage-pi-runtime.mjs`，从当前安装图复制 SDK、生产依赖、已安装的可选／peer 依赖及原包资源，生成无符号链接的 `apps/desktop/pi-runtime`。选择复制 Bun 安装图而非临时 npm 安装，避免传递依赖重新解析；发布前的冻结安装保证与 lockfile 一致。
-- electron-builder 的源路径直接选择 staged `node_modules`（其过滤器会跳过源目录直属的同名子目录），将包树复制为 asar 外的 `resources/pi-runtime`，裸 Node 子进程可以读取 SDK 包根、peer 与 Photon WASM。现有 node-pty staging 不变。
-- 主进程设置 `PACE_PI_RUNTIME_DIR`：开发指向仓库 Pi 包的 realpath，安装包指向上述 resources 内的包根；后端导入统一经过 `packages/backend/src/drivers/pi-runtime.ts` 的文件 URL。预检检查实际 SDK 版本与构建版本一致，错误包含定位信息，不使用 `NODE_PATH`。
-- 调试独立后端时可显式指定同一变量；未指定时源码运行解析工作区安装。
-
-## 自动化入口
+## 自动化入口与覆盖
 
 ```sh
-bun run test
+bun run build
+find apps/desktop/pi-runtime -type l | wc -l
+env -u PACE_PI_RUNTIME_DIR bun run test
+PACE_PI_RUNTIME_DIR=$(realpath apps/desktop/pi-runtime/node_modules/@earendil-works/pi-coding-agent) bun run test
 bun run typecheck
+node --test scripts/test-stage-pi-runtime.mjs scripts/test-bundled-runtime.mjs
 bun run build:release
-find apps/desktop/pi-runtime -type l | wc -l # 必须为 0
-du -sh apps/desktop/pi-runtime # PR 记录体积
-bun run package:mac:unsigned
-bun run test:e2e:packaged:mac e2e/smoke/m5-2-preflight.spec.ts
 ```
 
-`build:release` 的 `scripts/test-bundled-runtime.mjs` 将后端构建产物和 staged npm 包树复制到临时目录，隔离仓库依赖、全局 Pi 目录和 `PATH`，通过实际后端消息入口验证：
+独立产物探针复制后端构建及包树到临时目录，隔离仓库 node_modules、全局 Pi 与 PATH，通过实际后端消息入口验证预检、扩展注册、`session_start`、原生命令及加载错误的持久化。扩展位置的 `import.meta.resolve()` 必须返回真实 `file:` URL，SDK 包根名称必须匹配；裸 Node 再从包根按裸包名导入，并逐一导入扩展解析出的真实入口，不再手写 exports 解析器。
 
-- 内置引擎可通过预检，诊断版本与安装依赖一致。
-- 原生 TypeScript 扩展可导入 `typebox` 并注册工具、命令。
-- 扩展内 `import.meta.resolve("@earendil-works/pi-coding-agent")` 返回真实 `file:` URL，向上找到名称正确的包根，并能定位 `pi-agent-core`、`pi-ai`、`pi-tui` 的入口；另起裸 Node 子进程逐一 `import()` 验证可加载。Pi 0.84.3 使用仅含 `import` 条件的 exports，测试与 pi-subagents 一样从包目录读取真实 ESM 入口，再用 `require.resolve(入口绝对路径)` 检查文件，而非要求不存在的 CommonJS 裸包名导出。Pi 0.84.3 的生产依赖树没有 pi-server。
-- `session_start` 和原生命令处理器实际执行。
-- 故意损坏的扩展产生加载诊断，首次创建响应及后续历史读取都能看到错误。
+探针覆盖 `@earendil-works/pi-coding-agent`、`pi-agent-core`、`pi-ai`、`pi-tui`，以及 `@earendil-works/pi-ai/oauth`、`@earendil-works/pi-ai/providers/all`、`@earendil-works/pi-ai/compat`、`typebox`、`typebox/compile`、`typebox/value`。Pi 0.84.3 的生产图不含 pi-server。
 
-单元与集成测试另外覆盖创建／恢复／分叉的扩展绑定、初始化失败清理、分叉历史与启动事件的顺序、非致命错误在后端投影和前端状态中的处理，以及原生包清单、禁用规则、包内技能和只读查询。
+## 2026-09-12：PR #288 修订验收
 
-安装包预检 E2E 在 `PATH` 为空时打开真实 Electron App，检查内置版本展示、继续进入主界面，以及缺少认证时阻断、缺少可选 Git 时放行。
+本机 macOS arm64，App 0.0.6，Pi 0.84.3。
+
+| 命令 | 输出 |
+| --- | --- |
+| `bun run build` | 退出 0；`darwin/arm64: 126 packages, Pi 0.84.3` |
+| `find apps/desktop/pi-runtime -type l \| wc -l` | `0` |
+| `env -u PACE_PI_RUNTIME_DIR bun run test` | `133 passed (133)` 文件；`1399 passed (1399)` 测试 |
+| `PACE_PI_RUNTIME_DIR=$(realpath apps/desktop/pi-runtime/node_modules/@earendil-works/pi-coding-agent) bun run test` | `133 passed (133)` 文件；`1399 passed (1399)` 测试 |
+| `bun run test:release` | `tests 14 / pass 14 / fail 0` |
+| `bun run typecheck` | `tsc --noEmit`，退出 0 |
+| `node --test scripts/test-bundled-runtime.mjs` | `tests 2 / pass 2 / fail 0` |
+| `node --test scripts/test-stage-pi-runtime.mjs scripts/test-bundled-runtime.mjs` | `tests 4 / pass 4 / fail 0`（staging 2，独立产物 2） |
+
+先红后绿：staging 两项回归最初分别发现错误 optional 包仍存在、required 包未抛错；修复后 2/2 通过。环境解析测试最初 2 failed / 27 passed，修复后 29/29 通过。`service.test.ts` 在 staged 运行时变量下原为 5 failed / 22 passed，mock 改到 `drivers/pi-runtime.ts` 后 27/27 通过，避免真实文件 URL 绕过裸包名 mock；资源管理 queued-write 回归的 SettingsManager spy 同样改为运行时边界，原失败用例随后通过。
+
+### 两个目标的 staging
+
+```sh
+node scripts/stage-pi-runtime.mjs --platform linux --arch x64 --target /tmp/pace-pi-runtime-linux-x64
+bun run stage:pi-runtime --platform darwin --arch arm64
+du -sh /tmp/pace-pi-runtime-linux-x64 apps/desktop/pi-runtime
+find /tmp/pace-pi-runtime-linux-x64 -type f | wc -l
+find apps/desktop/pi-runtime -type f | wc -l
+find /tmp/pace-pi-runtime-linux-x64 -name '*.node'
+find apps/desktop/pi-runtime -name '*.node'
+```
+
+| 目标 | staged 包数 | `du -sh` | 文件数 | `.node` 数 |
+| --- | --- | --- | --- | --- |
+| Linux x64 | 124 | 144M | 13249 | 4 |
+| darwin arm64 | 126 | 149M | 13255 | 6 |
+
+以下路径相对于各自 `node_modules/`；前四项在两个目标均存在，后两项仅 darwin arm64 存在。这是包级过滤后的原包内容清单，并非六个文件均为 SDK／后台子代理必需：
+
+| `.node` 路径 | 来源与是否必需 |
+| --- | --- |
+| `@earendil-works/pi-tui/native/darwin/prebuilds/darwin-x64/darwin-modifiers.node` | Pi TUI 0.84.3 原包资源；macOS x64 修饰键检测，在本次两个目标均不加载，非必需 |
+| `@earendil-works/pi-tui/native/darwin/prebuilds/darwin-arm64/darwin-modifiers.node` | Pi TUI 原包资源；macOS arm64 修饰键检测，加载失败回退 false；SDK／后台子代理启动非必需 |
+| `@earendil-works/pi-tui/native/win32/prebuilds/win32-arm64/win32-console-mode.node` | Pi TUI 原包资源；Windows arm64 控制台模式／修饰键辅助，本次两个目标均不加载，非必需 |
+| `@earendil-works/pi-tui/native/win32/prebuilds/win32-x64/win32-console-mode.node` | Pi TUI 原包资源；Windows x64 控制台模式／修饰键辅助，本次两个目标均不加载，非必需 |
+| `@mariozechner/clipboard-darwin-universal/clipboard.darwin-universal.node` | clipboard 0.3.9 optional 包；macOS 原生剪贴板首选绑定，非 SDK／后台子代理启动必需 |
+| `@mariozechner/clipboard-darwin-arm64/clipboard.darwin-arm64.node` | clipboard 0.3.9 optional 包；universal 加载失败后的 arm64 回退，非 SDK／后台子代理启动必需 |
+
+来源核查：Pi TUI `dist/native-modifiers.js`／`dist/terminal.js` 按平台和架构选择原生文件；clipboard `index.js` 先尝试 universal 再尝试 arm64，Pi `dist/utils/clipboard-native.js` 允许原生加载失败并返回 null。Linux staging 剔除了两项 darwin clipboard 包，但本机安装图没有 Linux clipboard 原生包；本次未验证 Linux 原生剪贴板。
+
+### 签名、公证与首次发版强制门
+
+`security find-identity -v -p codesigning` 找到 2 个有效身份，包含 Developer ID Application。已完成以下保留 hardenedRuntime 的签名目录构建；公证单独禁用，不能将其当作正式发布包：
+
+```sh
+bun run stage:node-pty
+bunx electron-builder --config electron-builder.yml --mac dir --arm64 --publish never -c.mac.notarize=false
+codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Pace.app
+```
+
+签名构建成功，electron-builder 使用 Developer ID Application，并输出 `skipped macOS notarization`（显式 `notarize=false`）。严格验证退出码为 `0`，末两行输出：
+
+```text
+dist/mac-arm64/Pace.app: valid on disk
+dist/mac-arm64/Pace.app: satisfies its Designated Requirement
+```
+
+`codesign -dv --verbose=2` 显示 `flags=0x10000(runtime)` 与 Developer ID Application，确认 hardenedRuntime 保留。签名目录包首启预检：
+
+```sh
+PACE_E2E_EXECUTABLE=dist/mac-arm64/Pace.app/Contents/MacOS/Pace bun run test:e2e e2e/smoke/m5-2-preflight.spec.ts --grep 'gates first launch'
+```
+
+输出 `1 passed (5.4s)`，空 PATH 下内置引擎预检通过；不等同于安装后的真实后台子代理验证。
+
+签名目录包 `Contents/Resources/pi-runtime` 为 `139M`（`du -sh`，磁盘占用），`13255` 文件、`0` 符号链接，保留上述六个 `.node`。公证本次未验证。
+
+**首次发版必须验证签名与公证通过、且安装后 pi-subagents 后台子代理可启动。** 必须对实际分发包完成 Developer ID + hardenedRuntime 签名、Apple 公证及 staple 验证，在脱离仓库与全局 Pi 的安装环境运行 pi-subagents 后台子代理；记录命令、输出和子会话启动证据后才能发版。约 140MB／13k 新增文件及原生 `.node` 都进入签名封装范围，未签名目录包与裸 Node 导入探针不能替代这道门。
 
 ## 验收边界
 
-测试使用临时认证占位，不登录真实账号、不调用付费模型。真实 OAuth 登录、模型工具执行、运行中停止与跨版本旧会话恢复／分叉，需要在引擎升级时使用对应账号和历史数据进一步验收。上述自动化验证不代表任意第三方扩展均已兼容。
+测试执行中曾因并行运行两套全量造成既有 UI 测试超过 5 秒；改为串行后两套全绿。终端面板的一次异步回调断言失败单独复跑通过，未改动其 UI／测试实现。第一次设置变量的复核还与 staging 重建目录重叠，出现 ENOENT；最终结果均在 staging 完成后取得。
 
-
-## 2026-09-12：真实 npm 宿主验收（#287）
-
-环境为 macOS arm64，App 0.0.6，Pi 0.84.3；未升级引擎。
-
-| 命令／验证 | 输出 |
-| --- | --- |
-| `bun run build` | 退出 0；staging 126 个生产包 |
-| `find apps/desktop/pi-runtime -type l \| wc -l` | `0` |
-| `node --test scripts/test-bundled-runtime.mjs` | `tests 2, pass 2, fail 0`，含扩展真实包根与裸 Node peer 导入 |
-| `bun run test` | `Test Files 133 passed (133)`；`Tests 1397 passed (1397)` |
-| `bun run stage:node-pty` 后执行 `bunx electron-builder --config electron-builder.yml --mac dir --arm64 --publish never -c.forceCodeSigning=false -c.mac.identity=null -c.mac.notarize=false` | 退出 0，生成未签名目录包 |
-| `du -sh dist/mac-arm64/Pace.app/Contents/Resources/pi-runtime` | `149M`；该目录符号链接数为 `0` |
-| `PACE_E2E_EXECUTABLE=dist/mac-arm64/Pace.app/Contents/MacOS/Pace bun run test:e2e e2e/smoke/m5-2-preflight.spec.ts --grep 'gates first launch'` | `1 passed (4.3s)`，空 PATH 的安装包预检及 Continue 通过 |
-
-先红后绿：仅添加扩展探针后，原内联构建无法生成 `host.json`，输出 `pass 1, fail 1`；切换真实 npm 包树后通过。
-
-另以临时 `PACE_DATA_DIR`、`PI_CODING_AGENT_DIR` 和独立 Electron profile 启动 `bun run dev`，经真实 renderer → IPC → utilityProcess 创建会话成功，返回 Pi session ID；预检 RPC 与截图显示 `Pace 0.0.6 · Pi 0.84.3 · SDK`，`canContinue: true`。认证使用占位数据，未执行真实模型请求、OAuth 或 pi-subagents 的完整后台任务；探针只保证其所需的宿主包定位与子进程加载能力。
+探针使用临时认证占位，不登录真实账号、不调用付费模型。本次未执行真实 OAuth、模型请求或 pi-subagents 完整后台任务，自动化只验证其宿主定位及子进程模块加载能力；首次发版门仍需完成安装后的真实后台启动。引擎升级另需覆盖停止、旧会话恢复／分叉和对应账号／模型能力。

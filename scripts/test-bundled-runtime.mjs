@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const run = promisify(execFile);
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const hostImports = [
+  "@earendil-works/pi-coding-agent", "@earendil-works/pi-agent-core", "@earendil-works/pi-ai", "@earendil-works/pi-tui",
+  "@earendil-works/pi-ai/oauth", "@earendil-works/pi-ai/providers/all", "@earendil-works/pi-ai/compat",
+  "typebox", "typebox/compile", "typebox/value",
+];
 
 test("the release declares an exact Pi engine combination", async () => {
   const { dependencies } = JSON.parse(await readFile(join(repo, "packages/backend/package.json"), "utf8"));
@@ -52,6 +56,7 @@ test("the shipped backend works without global pi or repository node_modules", a
       export default function() {
         writeFileSync(${JSON.stringify(join(cwd, "host.json"))}, JSON.stringify({
           sdk: import.meta.resolve("@earendil-works/pi-coding-agent"),
+          entries: Object.fromEntries(${JSON.stringify(hostImports)}.map(name => [name, import.meta.resolve(name)])),
         }));
       }
     `);
@@ -109,29 +114,14 @@ test("the shipped backend works without global pi or repository node_modules", a
       assert.notEqual(parent, packageRoot, "extension must resolve a real Pi package root");
       packageRoot = parent;
     }
-    const requireFromHost = createRequire(join(packageRoot, "package.json"));
-    const peerEntries = [];
-    for (const peer of ["pi-agent-core", "pi-ai", "pi-tui"]) {
-      let directory = packageRoot;
-      while (true) {
-        const candidate = join(directory, "node_modules/@earendil-works", peer);
-        const manifest = await readFile(join(candidate, "package.json"), "utf8").then(JSON.parse).catch(() => null);
-        if (manifest) {
-          assert.equal(manifest.name, `@earendil-works/${peer}`);
-          // Pi 0.84 exports import-only entries; mirror the extension's ESM aliases.
-          const entry = requireFromHost.resolve(resolve(candidate, (manifest.exports?.["."]?.import ?? manifest.main)));
-          peerEntries.push(pathToFileURL(entry).href);
-          break;
-        }
-        const parent = dirname(directory);
-        assert.notEqual(parent, directory, `missing host peer ${peer}`);
-        directory = parent;
-      }
-    }
+    for (const name of hostImports) assert.match(host.entries[name], /^file:/, name);
+    // Node, rather than a hand-written exports parser, validates both the host
+    // package imports and the real URLs discovered at the extension's location.
     const child = await run(process.execPath, ["--input-type=module", "-e", `
-      for (const entry of ${JSON.stringify(peerEntries)}) await import(entry);
+      for (const name of ${JSON.stringify(hostImports)}) await import(name);
+      for (const entry of ${JSON.stringify(Object.values(host.entries))}) await import(entry);
       console.log("host peers loaded");
-    `], { cwd, env: { ...process.env, PATH: "", HOME: root }, timeout: 30_000 });
+    `], { cwd: packageRoot, env: { ...process.env, PATH: "", HOME: root, NODE_PATH: "" }, timeout: 30_000 });
     assert.equal(child.stdout.trim(), "host peers loaded");
     assert.ok(result.created.result.events.some(event => event.payload.code === "extension_load_error"), "startup errors must be in the first snapshot");
     assert.ok(result.tools?.result?.schemas?.bundle_probe, "the extension must resolve bundled peer modules");

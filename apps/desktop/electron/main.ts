@@ -1,4 +1,3 @@
-import { realpathSync } from "node:fs";
 import {
   app,
   BrowserWindow,
@@ -208,17 +207,17 @@ function createBackendBridge() {
   const generation = backendGeneration;
   const backend = utilityProcess.fork(backendPath(), [], {
     env: resolveBackendEnvironment({
-      env: {
-        ...process.env,
-        PACE_PI_RUNTIME_DIR: app.isPackaged
-          ? join(process.resourcesPath, "pi-runtime/node_modules/@earendil-works/pi-coding-agent")
-          : realpathSync(join(__dirname, "../../../../packages/backend/node_modules/@earendil-works/pi-coding-agent")),
-      },
+      env: process.env,
       isPackaged: app.isPackaged,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
       homeDir: homedir(),
     }),
     stdio: "pipe",
   });
+  // Drain startup diagnostics even when module loading fails before IPC connects.
+  backend.stdout?.on("data", (chunk) => console.info(`[backend:${generation}] ${chunk.toString()}`));
+  backend.stderr?.on("data", (chunk) => console.error(`[backend:${generation}] ${chunk.toString()}`));
   const { port1, port2 } = new MessageChannelMain();
 
   backendProcess = backend;
