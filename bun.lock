@@ -44,7 +44,7 @@
     },
     "apps/desktop": {
       "name": "@pace/desktop",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "dependencies": {
         "@astryxdesign/cli": "^0.3.0",
         "@astryxdesign/core": "^0.3.0",
