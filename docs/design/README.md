@@ -37,6 +37,7 @@ Astryx 有对应组件吗？(bunx astryx search "<thing>")
 | [tokens.md](tokens.md) | 允许哪一层 token；背景/文字/状态/数据色各选哪个；已知债务不许再添 |
 | [typography-motion.md](typography-motion.md) | 字号下限、对话标题阶梯、数字对齐；时长与缓动、减动效、列表进出场 |
 | [animated-icons.md](animated-icons.md) | Sidebar / Header 的 7 枚动画图标、来源、触发方式与静态状态 |
+| [settings-icons-evaluation.md](settings-icons-evaluation.md) | Settings 图标候选评估（尚未实施） |
 | [astryx.md](astryx.md) | 我们实际采用的 Astryx 组件与选定变体；哪些 Astryx 组件不用 |
 | [chat.md](chat.md) | 对话流、Composer、思维链三类自建组件：何时用哪个、联合类型、正反例 |
 | [workspace.md](workspace.md) | Session Dock、Surface、轨迹台账、图表、图标与视觉原语 |

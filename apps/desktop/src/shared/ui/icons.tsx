@@ -139,5 +139,6 @@ export {
   AnimatedPuzzle,
   AnimatedSettings,
   AnimatedSidebar,
+  AnimatedSidebarRight,
   type AnimatedIconProps,
 } from "./animated-icons";

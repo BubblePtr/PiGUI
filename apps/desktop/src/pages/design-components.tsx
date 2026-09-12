@@ -1035,7 +1035,8 @@ function AnimatedIconsGallery() {
     ["Packages", Icons.AnimatedPuzzle],
     ["New Chat", Icons.AnimatedNewChat],
     ["Settings", Icons.AnimatedSettings],
-    ["Sidebar", Icons.AnimatedSidebar],
+    ["Left sidebar", Icons.AnimatedSidebar],
+    ["Right sidebar", Icons.AnimatedSidebarRight],
     ["Add", Icons.AnimatedPlus],
     ["More", Icons.AnimatedMoreHorizontal],
   ] as const;

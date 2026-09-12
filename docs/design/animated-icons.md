@@ -2,7 +2,7 @@
 
 2026-09-12 选型：先从现成动画库挑选语义与外观合适的图形，再映射到 Pace。现有 glyph 不构成兼容性要求。Trajectory 选 Hugeicons Animated 的 `history`；Usage 选 Lucide Animated 的 `chart-pie`；Packages 选 Hugeicons Animated 的 `puzzle`。插件入口的图标后续另选。
 
-本批仅用于 AppShell 的 Sidebar 与 Header。Dock 的图标与开关保持原实现；项目目录的展开指示已有状态反馈，不叠加悬停动画。
+本批仅用于 AppShell 的 Sidebar 与 Header。Header 右上角的 Dock 开关也使用动画，Dock 内部的栏位图标保持原实现；项目目录的展开指示已有状态反馈，不叠加悬停动画。
 
 | 使用位置 | 导出 | 来源图标 | 动作 |
 | --- | --- | --- | --- |
@@ -12,6 +12,7 @@
 | New Chat 导航 | `AnimatedNewChat` | Hugeicons `message-add-01` | 对话框轻动，加号弹出 |
 | Settings 导航 | `AnimatedSettings` | Hugeicons `settings-01` | 外齿轮转动，轴心静止 |
 | Header 的 Sidebar 开关 | `AnimatedSidebar` | Hugeicons `panel-left` | 分隔线沿外框收起、展开 |
+| Header 的右侧 Dock 开关 | `AnimatedSidebarRight` | Hugeicons `panel-left` 水平镜像 | 右侧分隔线沿外框收起、展开 |
 | Chats / Projects / 项目行的新增按钮 | `AnimatedPlus` | Hugeicons `plus-sign` | 两笔先后伸展、回弹 |
 | 项目与会话的更多菜单 | `AnimatedMoreHorizontal` | Hugeicons `more-horizontal` | 三个点依次轻跳 |
 
@@ -24,8 +25,8 @@
 - `isAnimated=false` 强制静态。禁用按钮保持静态；只读状态标记、列表批量图标不用这些动画导出。
 - 不放大按钮，也不改变 Sidebar 既有的颜色反馈与透明背景。动画只作用于 SVG 内部部件，静止态不保留 `transform` 或 `will-change`。
 - 时长使用 Astryx 的 `--duration-medium*` 与 `--duration-slow*`；短小部件动作可以跨越按钮颜色反馈的时长，但不阻塞交互。SVG 内部的坐标、角度、关键帧百分比是原图几何参数，不是界面间距 token。
-- `panel-left` 的分隔线通过 CSS `d: path()` 做 SVG 几何插值，运行于 Electron Chromium；减少动态效果时直接使用 SVG 的原始 `d`。
+- `panel-left` 的分隔线通过 CSS `d: path()` 做 SVG 几何插值，运行于 Electron Chromium；减少动态效果时直接使用 SVG 的原始 `d`。右侧版本用 SVG 组的 `translate(24 0) scale(-1 1)` 镜像绘制坐标，共用同一份图形与动画；不在根节点保留 CSS transform。
 
-`/design → Components → AnimatedIcons` 展示全部 8 枚的导航尺寸、常规尺寸、禁用与强制静态状态。
+`/design → Components → AnimatedIcons` 展示全部 9 个导出（8 种图形，含侧栏左右两个方向）的导航尺寸、常规尺寸、禁用与强制静态状态。
 
 来源与授权见 [动画图标许可证](../licenses/animated-icons.md)。
