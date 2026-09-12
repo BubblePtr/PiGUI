@@ -376,12 +376,9 @@ export function SessionDetailView({
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="session-detail-view"
     >
-      <header className="shrink-0 border-b border-border px-5 pt-4">
+      <header className="shrink-0 border-b border-separator px-5 pt-3">
         <div className="flex items-baseline justify-between gap-4">
-          <div className="flex min-w-0 items-baseline gap-3">
-            <h1 className="truncate text-base font-semibold">{session.project}</h1>
-            <span className="truncate font-mono text-xs text-muted">{sessionId}</span>
-          </div>
+          <p className="min-w-0 truncate font-mono text-xs text-muted" title={sessionId}>{sessionId}</p>
           <p className="shrink-0 text-xs tabular-nums text-muted" data-slot="trajectory-tally">
             {formatCost(session.totalCostUsd)} · {formatTokens(session.totalTokens)} tokens ·{" "}
             {runs.length} runs
