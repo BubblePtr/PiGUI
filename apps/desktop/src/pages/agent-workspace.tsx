@@ -2966,7 +2966,6 @@ function LiveSessionColumn({
           }
         }
 
-        liveProjectionRef.current = next;
         commitInteractionProjection(next);
       })
       .catch((error) => {
@@ -3085,8 +3084,19 @@ function LiveSessionColumn({
       onSessionCreated?.(result.projection);
     }
   };
-  const commitInteractionProjection = (nextProjection: SessionProjection) => {
-    setInteractionProjection(nextProjection);
+  const commitInteractionProjection = (
+    nextProjection: SessionProjection,
+    { follow = false }: { follow?: boolean } = {},
+  ) => {
+    const current = liveProjectionRef.current;
+    // Async resolutions can land after the view switched Sessions: they still
+    // reach the store, but only the Session still on screen may reclaim the
+    // local projection. `follow` is for commits that intentionally move the
+    // view to a new Session (fork).
+    if (follow || !current || current.id === nextProjection.id) {
+      liveProjectionRef.current = nextProjection;
+      setInteractionProjection(nextProjection);
+    }
     onProjectionChange?.(nextProjection);
   };
   const liveProjection =
@@ -3285,7 +3295,6 @@ function LiveSessionColumn({
       type: "queued-message-added",
       queuedMessage,
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const handlePromptSubmit = async (
@@ -3316,7 +3325,6 @@ function LiveSessionColumn({
       submittedAt,
       event: accepted.event,
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const modelChangeInFlight = useRef<Promise<void> | null>(null);
@@ -3367,7 +3375,6 @@ function LiveSessionColumn({
         modelControls,
         occurredAt: new Date().toISOString(),
       });
-      liveProjectionRef.current = next;
       commitInteractionProjection(next);
     });
     modelChangeInFlight.current = change;
@@ -3394,7 +3401,6 @@ function LiveSessionColumn({
       queuedMessageId,
       occurredAt: new Date().toISOString(),
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const handleSteerSubmit = async (
@@ -3417,7 +3423,6 @@ function LiveSessionColumn({
       type: "steer-submitted",
       event,
     });
-    liveProjectionRef.current = next;
     commitInteractionProjection(next);
   };
   const handleStopRun = async () => {
@@ -3444,7 +3449,6 @@ function LiveSessionColumn({
         event,
       });
 
-      liveProjectionRef.current = next;
       commitInteractionProjection(next);
     } catch (error) {
       const next = applySessionProjectionEvent(latestProjectionFor(projection), {
@@ -3459,7 +3463,6 @@ function LiveSessionColumn({
         },
       });
 
-      liveProjectionRef.current = next;
       commitInteractionProjection(next);
     } finally {
       setStoppingRun(false);
@@ -3527,7 +3530,7 @@ function LiveSessionColumn({
     });
     const commitForkProjection = (nextProjection: SessionProjection) => {
       forkProjection = nextProjection;
-      commitInteractionProjection(nextProjection);
+      commitInteractionProjection(nextProjection, { follow: true });
     };
 
     if (message.body.trim()) {
@@ -3610,6 +3613,11 @@ function LiveSessionColumn({
         }),
       );
     }
+
+    // Forked Sessions used to take over via the selection side effect on
+    // every projection commit; selection is explicit now, so the fork lands
+    // the view itself (failure state included, matching prior behavior).
+    onSessionCreated?.(forkProjection);
   };
 
   return (
@@ -4163,8 +4171,11 @@ export function AgentWorkspaceSessionsPage() {
     }
   }, [selectedSessionProjection?.id]);
 
+  // Store updates only: projection commits also arrive for Sessions the user
+  // is not viewing (a created Session's runtime subscription outlives the
+  // view), so this must never move the selection. Selection changes are
+  // explicit: sidebar clicks, the first-session fallback, and Session takeovers.
   const handleProjectionChange = (nextProjection: SessionProjection) => {
-    setSelectedSessionId(nextProjection.id);
     setSessionProjections((projections) => {
       const projectionExists = projections.some(
         (projection) => projection.id === nextProjection.id,
@@ -4196,6 +4207,7 @@ export function AgentWorkspaceSessionsPage() {
   // as extensions held the user-message boundary. Also fires on success so a
   // retargeted draft lands on its Project route.
   const enterLiveSession = (projection: SessionProjection) => {
+    setSelectedSessionId(projection.id);
     void navigate({
       to: "/projects/$projectId/sessions",
       params: { projectId: projection.projectId },
