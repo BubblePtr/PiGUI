@@ -15,6 +15,40 @@ export type ChangelogRelease = {
 // Ship release notes with the app so the history is also available offline.
 export const changelogReleases: readonly ChangelogRelease[] = [
   {
+    version: "0.0.7",
+    date: "2026-09-12",
+    title: "A steadier workspace",
+    summary: "Shell icons animate on hover, pane headers line up, and background sessions no longer steal the Live Chat.",
+    url: "https://github.com/BubblePtr/pace/releases/tag/v0.0.7",
+    changes: [
+      {
+        kind: "improved",
+        title: "Animated shell icons",
+        description: "Sidebar, header and Settings navigation icons play a short animation on hover, staying still for touch, disabled and reduced-motion states.",
+      },
+      {
+        kind: "improved",
+        title: "Aligned pane headers",
+        description: "The Trajectory title and refresh action move into the left pane header, both panes share one header line and divider, and the session list is simpler.",
+      },
+      {
+        kind: "improved",
+        title: "Quieter sidebar actions",
+        description: "Row action buttons signal hover with icon color alone, keeping the row background steady.",
+      },
+      {
+        kind: "fixed",
+        title: "Live Chat stays put",
+        description: "Viewing a finished session is no longer interrupted by events from a running one, and late replies no longer write into a session you switched away from.",
+      },
+      {
+        kind: "fixed",
+        title: "Background extensions run on system Node",
+        description: "Extensions with background runners such as pi-subagents now launch through the machine's own Node.js 22.19+. Preflight shows the detected Node or how to fix it, and regular sessions keep working without it.",
+      },
+    ],
+  },
+  {
     version: "0.0.6",
     date: "2026-09-11",
     title: "A tidier session list",
